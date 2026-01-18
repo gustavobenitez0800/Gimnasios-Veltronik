@@ -1,0 +1,24 @@
+# Ignorar archivos de build de Electron
+dist/
+build/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+
+# Ignorar node_modules (se instalan en Vercel)
+node_modules/
+
+# Archivos de desarrollo
+.git/
+.env
+.env.*
+*.md
+!README.md
+
+# SQL schemas (no necesarios en producción)
+sql/
+
+# Logs
+*.log
+build-log.txt

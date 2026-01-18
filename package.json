@@ -19,14 +19,13 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder",
+    "build:electron": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder -mwl",
     "publish": "electron-builder --publish always",
     "publish:win": "electron-builder --win --publish always",
-    "postinstall": "electron-builder install-app-deps",
     "deploy-api": "vercel --prod"
   },
   "dependencies": {
