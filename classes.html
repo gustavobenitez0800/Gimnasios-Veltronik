@@ -63,11 +63,12 @@
             background: var(--bg-secondary);
             border-radius: var(--border-radius-lg);
             padding: 1rem;
-            overflow-x: auto;
+            width: 100%;
         }
 
         .day-column {
-            min-width: 140px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .day-header {
@@ -243,17 +244,40 @@
             color: white;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .weekly-calendar {
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(4, 1fr);
             }
 
-            .day-column:nth-child(n+4) {
+            .day-column:nth-child(n+5) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .weekly-calendar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .day-column:nth-child(n+3) {
                 display: none;
             }
 
             .mobile-show-all .day-column {
                 display: block !important;
+            }
+
+            .calendar-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .class-card {
+                padding: 0.5rem;
+            }
+
+            .class-name {
+                font-size: var(--font-size-xs);
             }
         }
     </style>
@@ -533,7 +557,8 @@
     <script src="js/config.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>`n
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
