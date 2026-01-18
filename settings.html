@@ -95,6 +95,66 @@
         .danger-zone .settings-section-title {
             color: var(--error-500);
         }
+
+        /* Theme Toggle */
+        .theme-options {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .theme-option {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .theme-option:hover {
+            border-color: var(--primary-400);
+        }
+
+        .theme-option.active {
+            border-color: var(--primary-500);
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .theme-option input {
+            display: none;
+        }
+
+        .theme-option-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .theme-option-icon.sun {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        }
+
+        .theme-option-icon.moon {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+
+        .theme-option-icon.system {
+            background: linear-gradient(135deg, var(--gray-400), var(--gray-600));
+        }
+
+        .theme-option-text {
+            font-weight: 500;
+        }
     </style>
 
     <!-- Favicon -->
@@ -255,6 +315,32 @@
                         </div>
                     </div>
 
+                    <!-- Appearance -->
+                    <div class="settings-section">
+                        <h2 class="settings-section-title"><span data-icon="settings"
+                                style="margin-right:0.5rem"></span> Apariencia</h2>
+                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
+                            Elige el tema de la interfaz
+                        </p>
+                        <div class="theme-options" id="themeOptions">
+                            <label class="theme-option" data-theme="light">
+                                <input type="radio" name="theme" value="light">
+                                <div class="theme-option-icon sun">☀️</div>
+                                <span class="theme-option-text">Claro</span>
+                            </label>
+                            <label class="theme-option" data-theme="dark">
+                                <input type="radio" name="theme" value="dark">
+                                <div class="theme-option-icon moon">🌙</div>
+                                <span class="theme-option-text">Oscuro</span>
+                            </label>
+                            <label class="theme-option" data-theme="system">
+                                <input type="radio" name="theme" value="system">
+                                <div class="theme-option-icon system">💻</div>
+                                <span class="theme-option-text">Sistema</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Danger Zone -->
                     <div class="settings-section danger-zone">
                         <h2 class="settings-section-title"><span data-icon="warning" style="margin-right:0.5rem"></span>
@@ -277,6 +363,7 @@
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/icons.js"></script>
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
@@ -403,6 +490,35 @@
             }
         }
 
+        // Initialize theme options
+        function initThemeOptions() {
+            const container = document.getElementById('themeOptions');
+            if (!container) return;
+
+            const options = container.querySelectorAll('.theme-option');
+            const currentTheme = ThemeManager.getSavedTheme();
+
+            // Set initial active state
+            options.forEach(option => {
+                const theme = option.dataset.theme;
+                if (theme === currentTheme) {
+                    option.classList.add('active');
+                    option.querySelector('input').checked = true;
+                }
+
+                // Add click handler
+                option.addEventListener('click', () => {
+                    // Remove active from all
+                    options.forEach(o => o.classList.remove('active'));
+                    // Add active to clicked
+                    option.classList.add('active');
+                    // Apply theme
+                    ThemeManager.setTheme(theme);
+                    showToast(`Tema ${theme === 'light' ? 'claro' : theme === 'dark' ? 'oscuro' : 'del sistema'} aplicado`, 'success');
+                });
+            });
+        }
+
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
             let hasSession = false;
@@ -444,6 +560,9 @@
                 }
 
                 await loadSettings();
+
+                // Initialize theme toggle
+                initThemeOptions();
 
                 // Show content
                 showAppContent();
