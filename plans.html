@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Elige tu plan - Gimnasio Veltronik">
+    <title>Suscripción | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/components.css">
+
+    <style>
+        .plans-wrapper {
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-950) 100%);
+            padding: 2rem;
+        }
+
+        .plans-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .plans-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .plans-header h1 {
+            color: white;
+            font-size: var(--font-size-3xl);
+            margin-bottom: 0.5rem;
+        }
+
+        .plans-header p {
+            color: var(--gray-400);
+            font-size: var(--font-size-base);
+        }
+
+        /* Single Plan Card */
+        .subscription-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 2px solid var(--primary-500);
+            border-radius: var(--border-radius-xl);
+            padding: 2.5rem;
+            position: relative;
+            box-shadow: 0 0 60px rgba(14, 165, 233, 0.2);
+        }
+
+        .subscription-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+        }
+
+        .subscription-name {
+            color: white;
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .subscription-description {
+            color: var(--gray-400);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .subscription-price {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: var(--border-radius-lg);
+        }
+
+        .price-amount {
+            font-size: 4rem;
+            font-weight: 800;
+            color: white;
+            line-height: 1;
+        }
+
+        .price-currency {
+            font-size: var(--font-size-2xl);
+            color: var(--gray-400);
+            vertical-align: top;
+        }
+
+        .price-period {
+            color: var(--gray-500);
+            font-size: var(--font-size-lg);
+            display: block;
+            margin-top: 0.5rem;
+        }
+
+        .subscription-features {
+            list-style: none;
+            margin-bottom: 2rem;
+        }
+
+        .subscription-features li {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            color: var(--gray-300);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .subscription-features li:last-child {
+            border-bottom: none;
+        }
+
+        .subscription-features li::before {
+            content: '✓';
+            color: var(--success-500);
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+
+        .subscribe-button {
+            width: 100%;
+            padding: 1.25rem;
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+            color: white;
+            border: none;
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
+        }
+
+        .subscribe-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(14, 165, 233, 0.5);
+        }
+
+        .subscribe-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .plans-footer {
+            text-align: center;
+            color: var(--gray-500);
+            font-size: var(--font-size-sm);
+            margin-top: 2rem;
+        }
+
+        .plans-footer a {
+            color: var(--primary-400);
+        }
+
+        .social-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, filter 0.2s ease;
+        }
+
+        .social-icon:hover {
+            transform: scale(1.2);
+            filter: brightness(1.2) drop-shadow(0 0 8px currentColor);
+        }
+
+        .payment-info {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--border-radius-md);
+        }
+
+        .payment-info img {
+            height: 24px;
+            opacity: 0.7;
+        }
+
+        .payment-info p {
+            color: var(--gray-500);
+            font-size: var(--font-size-xs);
+            margin-top: 0.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .plans-wrapper {
+                padding: 1rem;
+            }
+
+            .subscription-card {
+                padding: 1.5rem;
+            }
+
+            .price-amount {
+                font-size: 3rem;
+            }
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <div class="plans-wrapper">
+        <div class="plans-container">
+            <!-- Header -->
+            <div class="plans-header">
+                <h1><span data-icon="rocket" style="margin-right:0.5rem"></span> Activa tu gimnasio</h1>
+                <p>Suscripción mensual para acceso completo al sistema</p>
+            </div>
+
+            <!-- Single Subscription Card -->
+            <div class="subscription-card">
+                <div class="subscription-badge"><span data-icon="diamond" style="margin-right:0.25rem"></span> Plan
+                    Único
+                </div>
+
+                <h2 class="subscription-name">Veltronik Pro</h2>
+                <p class="subscription-description">Acceso completo a todas las funcionalidades</p>
+
+                <div class="subscription-price">
+                    <span class="price-currency">$</span>
+                    <span class="price-amount">35.000</span>
+                    <span class="price-period">por mes</span>
+                </div>
+
+                <ul class="subscription-features">
+                    <li>Gestión ilimitada de socios</li>
+                    <li>Registro de pagos y cuotas</li>
+                    <li>Dashboard con estadísticas</li>
+                    <li>Múltiples usuarios por gimnasio</li>
+                    <li>Soporte técnico prioritario</li>
+                    <li>Actualizaciones automáticas</li>
+                </ul>
+
+                <button class="subscribe-button" id="subscribeBtn" onclick="createSubscription()">
+                    Suscribirme ahora
+                </button>
+
+                <div class="payment-info">
+                    <p><span data-icon="lock" style="margin-right:0.25rem"></span> Pago seguro procesado por Mercado
+                        Pago
+                    </p>
+                    <p>Cancelá cuando quieras • Sin permanencia mínima</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="plans-footer">
+            <p>¿Tenés dudas? Contactanos</p>
+            <div style="display: flex; justify-content: center; gap: 1.5rem; margin-top: 0.5rem;">
+                <a href="https://www.instagram.com/veltroniik/" target="_blank" title="Instagram" class="social-icon"
+                    style="color: #E4405F;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                    </svg>
+                </a>
+                <a href="mailto:veltronikcompany@gmail.com" title="Gmail" class="social-icon" style="color: #EA4335;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" />
+                    </svg>
+                </a>
+            </div>
+            <p style="margin-top: 0.5rem;">
+                <a href="#" onclick="handleLogout()">Cerrar sesión</a>
+            </p>
+        </div>
+    </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        let currentGym = null;
+        let currentProfile = null;
+
+        /**
+         * Crear suscripción en Mercado Pago
+         * Llama al backend API que crea la preapproval en MP
+         */
+        async function createSubscription() {
+            const btn = document.getElementById('subscribeBtn');
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Procesando...';
+
+                // Validar datos necesarios
+                if (!currentGym || !currentProfile) {
+                    throw new Error('Datos de usuario no disponibles');
+                }
+
+                // Llamar al backend para crear suscripción
+                const response = await fetch(`${CONFIG.API_URL}/api/create-subscription`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gym_id: currentGym.id,
+                        payer_email: currentProfile.email
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Error al crear suscripción');
+                }
+
+                console.log('Subscription created:', result.data);
+
+                // Redirigir al checkout de Mercado Pago
+                // En sandbox usamos sandbox_init_point, en producción init_point
+                const checkoutUrl = result.data.sandbox_init_point || result.data.init_point;
+
+                if (checkoutUrl) {
+                    showToast('Redirigiendo a Mercado Pago...', 'info');
+
+                    // Redirigir al checkout de MP
+                    setTimeout(() => {
+                        window.location.href = checkoutUrl;
+                    }, 1000);
+                } else {
+                    throw new Error('No se obtuvo URL de checkout');
+                }
+
+            } catch (error) {
+                console.error('Subscription error:', error);
+                showToast('Error: ' + error.message, 'error');
+
+                btn.disabled = false;
+                btn.textContent = 'Suscribirme ahora';
+            }
+        }
+
+        /**
+         * Cargar datos del usuario y gimnasio
+         */
+        async function loadUserData() {
+            try {
+                currentProfile = await getProfile();
+                currentGym = await getGym();
+
+                console.log('Loaded profile:', currentProfile);
+                console.log('Loaded gym:', currentGym);
+
+            } catch (error) {
+                console.error('Load user data error:', error);
+                showToast('Error al cargar datos', 'error');
+            }
+        }
+
+        /**
+         * Verificar autenticación y estado
+         */
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const session = await getSession();
+
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                const profile = await getProfile();
+
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+
+                // Si el gimnasio ya está activo CON suscripción pagada, ir al dashboard
+                // Pero si está en trial (no tiene subscription_id), permitir acceso para suscribirse
+                if (gym && gym.status === CONFIG.GYM_STATUS.ACTIVE && gym.subscription_id) {
+                    window.location.href = CONFIG.ROUTES.DASHBOARD;
+                    return;
+                }
+
+                // Si está bloqueado, mostrar página de bloqueo
+                if (gym && gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                // Cargar datos para la suscripción
+                await loadUserData();
+
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showToast('Error de autenticación', 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

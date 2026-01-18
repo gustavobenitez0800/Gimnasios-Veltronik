@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Configuración - Gimnasio Veltronik">
+    <title>Configuración | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <style>
+        .settings-grid {
+            display: grid;
+            gap: 1.5rem;
+            max-width: 800px;
+        }
+
+        .settings-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            padding: 1.5rem;
+        }
+
+        .settings-section-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .info-value {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .subscription-card {
+            background: linear-gradient(135deg, var(--primary-600), var(--accent-600));
+            color: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius-lg);
+            margin-bottom: 1rem;
+        }
+
+        .subscription-plan {
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .subscription-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 9999px;
+            font-size: var(--font-size-sm);
+        }
+
+        .danger-zone {
+            background: rgba(239, 68, 68, 0.05);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .danger-zone .settings-section-title {
+            color: var(--error-500);
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title">Configuración</h1>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <div class="settings-grid">
+                    <!-- Gym Info -->
+                    <div class="settings-section">
+                        <h2 class="settings-section-title"><span data-icon="dumbbell"
+                                style="margin-right:0.5rem"></span> Información del Gimnasio</h2>
+                        <form id="gymForm" onsubmit="saveGymSettings(event)">
+                            <div class="form-group">
+                                <label class="form-label" for="gymName">Nombre del gimnasio</label>
+                                <input type="text" id="gymName" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="gymAddress">Dirección</label>
+                                <input type="text" id="gymAddress" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="gymPhone">Teléfono</label>
+                                <input type="tel" id="gymPhone" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="gymEmail">Email de contacto</label>
+                                <input type="email" id="gymEmail" class="form-input">
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="saveGymBtn">
+                                Guardar Cambios
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Subscription -->
+                    <div class="settings-section">
+                        <h2 class="settings-section-title"><span data-icon="creditCard"
+                                style="margin-right:0.5rem"></span> Suscripción</h2>
+                        <div class="subscription-card">
+                            <div class="subscription-plan" id="planName">Plan --</div>
+                            <div class="subscription-status" id="subscriptionStatus">
+                                ● Activo
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Próximo cobro</span>
+                            <span class="info-value" id="nextPayment">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Monto mensual</span>
+                            <span class="info-value" id="monthlyAmount">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Account -->
+                    <div class="settings-section">
+                        <h2 class="settings-section-title"><span data-icon="users" style="margin-right:0.5rem"></span>
+                            Mi Cuenta</h2>
+                        <div class="info-row">
+                            <span class="info-label">Email</span>
+                            <span class="info-value" id="accountEmail">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Nombre</span>
+                            <span class="info-value" id="accountName">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Rol</span>
+                            <span class="info-value" id="accountRole">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone -->
+                    <div class="settings-section danger-zone">
+                        <h2 class="settings-section-title"><span data-icon="warning" style="margin-right:0.5rem"></span>
+                            Zona de Peligro</h2>
+                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
+                            Estas acciones son irreversibles. Procede con precaución.
+                        </p>
+                        <button class="btn btn-danger" onclick="confirmCancelSubscription()">
+                            Cancelar Suscripción
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        let currentGym = null;
+
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('es-AR', {
+                style: 'currency',
+                currency: 'ARS',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Save gym settings
+        async function saveGymSettings(event) {
+            event.preventDefault();
+
+            const saveBtn = document.getElementById('saveGymBtn');
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+                await updateGym({
+                    name: document.getElementById('gymName').value.trim(),
+                    address: document.getElementById('gymAddress').value.trim() || null,
+                    phone: document.getElementById('gymPhone').value.trim() || null,
+                    email: document.getElementById('gymEmail').value.trim() || null
+                });
+
+                showToast('Configuración guardada', 'success');
+
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('Error al guardar: ' + error.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Guardar Cambios';
+            }
+        }
+
+        // Confirm cancel subscription
+        async function confirmCancelSubscription() {
+            const confirmed = await showConfirm(
+                'Cancelar Suscripción',
+                '¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual.',
+                { confirmText: 'Sí, cancelar', icon: '⚠️' }
+            );
+
+            if (confirmed) {
+                try {
+                    await updateGym({ status: CONFIG.GYM_STATUS.BLOCKED });
+                    showToast('Suscripción cancelada', 'info');
+                    setTimeout(() => {
+                        window.location.href = CONFIG.ROUTES.BLOCKED;
+                    }, 2000);
+                } catch (error) {
+                    console.error('Cancel error:', error);
+                    showToast('Error al cancelar: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Load settings data
+        async function loadSettings() {
+            try {
+                const profile = await getProfile();
+                const gym = await getGym();
+                currentGym = gym;
+
+                // Update user info
+                document.getElementById('userName').textContent = profile.full_name || profile.email;
+                document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+                document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+
+                // Update gym form
+                document.getElementById('gymName').value = gym.name || '';
+                document.getElementById('gymAddress').value = gym.address || '';
+                document.getElementById('gymPhone').value = gym.phone || '';
+                document.getElementById('gymEmail').value = gym.email || '';
+
+                // Update account info
+                document.getElementById('accountEmail').textContent = profile.email;
+                document.getElementById('accountName').textContent = profile.full_name || '-';
+                document.getElementById('accountRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+
+                // Load plan info
+                if (gym.plan_id) {
+                    const plans = await getPlans();
+                    const plan = plans.find(p => p.id === gym.plan_id);
+                    if (plan) {
+                        document.getElementById('planName').textContent = `Plan ${plan.name}`;
+                        document.getElementById('monthlyAmount').textContent = formatCurrency(plan.price);
+                    }
+                }
+
+                // Update subscription status
+                const statusMap = {
+                    active: '● Activo',
+                    pending: '○ Pendiente',
+                    blocked: '● Bloqueado'
+                };
+                document.getElementById('subscriptionStatus').textContent = statusMap[gym.status] || gym.status;
+
+                // Display fixed price instead of plan price
+                document.getElementById('planName').textContent = 'Veltronik Pro';
+                document.getElementById('monthlyAmount').textContent = formatCurrency(CONFIG.SUBSCRIPTION_PRICE);
+
+                // Next payment (mock - in production this comes from subscription)
+                const nextMonth = new Date();
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                document.getElementById('nextPayment').textContent = nextMonth.toLocaleDateString('es-AR');
+
+            } catch (error) {
+                console.error('Load error:', error);
+                showToast('Error al cargar configuración', 'error');
+            }
+        }
+
+        // Check auth and load data
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Mark that we have a valid session
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                // Check trial status
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                // If trial expired and gym not active, redirect to plans
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                await loadSettings();
+
+                // Show content
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                // Only redirect to login if there's no session
+                // This prevents infinite redirect loops
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    // Show error but don't redirect - prevent loop
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Function to hide loading screen and show app content
+        function showAppContent() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const appContent = document.getElementById('appContent');
+
+            if (loadingScreen) {
+                loadingScreen.classList.add('hide');
+            }
+            if (appContent) {
+                appContent.style.display = '';
+            }
+        }
+    </script>
+</body>
+
+</html>

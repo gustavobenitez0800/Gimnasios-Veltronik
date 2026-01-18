@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Control de Acceso - Gimnasio Veltronik">
+    <title>Control de Acceso | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Access Control Styles */
+        .access-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .access-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Check-in Section */
+        .checkin-section {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: var(--border-radius-lg);
+            padding: 1.5rem;
+        }
+
+        .checkin-section h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: var(--font-size-lg);
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary-500);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        .search-results {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-md);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .search-result-item:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .member-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--primary-500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: var(--font-size-lg);
+        }
+
+        .member-info {
+            flex: 1;
+        }
+
+        .member-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .member-dni {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+        }
+
+        .checkin-btn {
+            background: var(--success-500);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius-md);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .checkin-btn:hover {
+            background: var(--success-600);
+            transform: scale(1.05);
+        }
+
+        /* Currently In Gym */
+        .currently-in {
+            border: 1px solid var(--border-color);
+        }
+
+        .currently-in-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .people-count {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(14, 165, 233, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-md);
+            color: var(--primary-400);
+            font-weight: 600;
+        }
+
+        .checked-in-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .checked-in-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-md);
+        }
+
+        .checkout-btn {
+            background: var(--error-500);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .checkout-btn:hover {
+            background: var(--error-600);
+        }
+
+        .checkin-time {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        /* Stats Section */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-mini {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-md);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-mini-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-400);
+        }
+
+        .stat-mini-label {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        /* Access History */
+        .history-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .history-filters input[type="date"] {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Success Animation */
+        .checkin-success {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(34, 197, 94, 0.95);
+            color: white;
+            padding: 3rem;
+            border-radius: var(--border-radius-lg);
+            text-align: center;
+            z-index: 1000;
+            animation: successPop 0.3s ease-out;
+        }
+
+        @keyframes successPop {
+            0% {
+                transform: translate(-50%, -50%) scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .success-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .success-message {
+            font-size: var(--font-size-sm);
+            opacity: 0.9;
+        }
+
+        /* Icon styles */
+        .title-icon,
+        .section-icon {
+            display: inline-flex;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+        }
+
+        .title-icon .icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary-400);
+        }
+
+        .section-icon .icon {
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+        }
+
+        .people-count .icon {
+            width: 18px;
+            height: 18px;
+        }
+
+        .search-icon .icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .checkin-section h3 .section-icon .icon {
+            color: var(--success-500);
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title"><span data-icon="door" class="title-icon"></span> Control de Acceso</h1>
+                </div>
+                <div class="header-right">
+                    <div class="people-count">
+                        <span data-icon="users"></span>
+                        <span id="currentCount">0</span> en el gimnasio
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="statTodayVisits">0</div>
+                        <div class="stat-mini-label">Visitas Hoy</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="statCurrentIn">0</div>
+                        <div class="stat-mini-label">Dentro Ahora</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="statPeakHour">--</div>
+                        <div class="stat-mini-label">Hora Pico</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="statAvgDaily">0</div>
+                        <div class="stat-mini-label">Promedio Diario</div>
+                    </div>
+                </div>
+
+                <!-- Check-in / Currently In -->
+                <div class="access-grid">
+                    <!-- Check-in Section -->
+                    <div class="checkin-section">
+                        <h3><span data-icon="checkCircle" class="section-icon"></span> Registrar Entrada</h3>
+                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
+                            Buscá un socio por DNI o nombre para registrar su entrada
+                        </p>
+                        <div class="search-box">
+                            <span class="search-icon" data-icon="search"></span>
+                            <input type="text" class="search-input" id="searchInput"
+                                placeholder="Buscar por DNI o nombre..." oninput="handleSearch(this.value)">
+                        </div>
+                        <div class="search-results" id="searchResults" style="display: none;">
+                            <!-- Search results will be rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Currently Checked In -->
+                    <div class="card currently-in">
+                        <div class="card-header currently-in-header">
+                            <h3 class="card-title"><span data-icon="activity" class="section-icon"></span> Dentro del
+                                Gimnasio</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="checked-in-list" id="checkedInList">
+                                <div class="text-center text-muted" style="padding: 2rem;">
+                                    Cargando...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's History -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><span data-icon="fileText" class="section-icon"></span> Historial de Hoy
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Socio</th>
+                                        <th>DNI</th>
+                                        <th>Entrada</th>
+                                        <th>Salida</th>
+                                        <th>Duración</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTable">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                                            Cargando historial...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Success Popup -->
+    <div class="checkin-success" id="successPopup" style="display: none;">
+        <div class="success-icon">✅</div>
+        <div class="success-name" id="successName">Juan Pérez</div>
+        <div class="success-message" id="successMessage">Check-in exitoso</div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        // ============================================
+        // STATE
+        // ============================================
+        let todayLogs = [];
+        let currentlyIn = [];
+        let searchTimeout = null;
+
+        // ============================================
+        // HELPERS
+        // ============================================
+
+        function formatTime(datetime) {
+            if (!datetime) return '-';
+            return new Date(datetime).toLocaleTimeString('es-AR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function calculateDuration(checkIn, checkOut) {
+            if (!checkIn || !checkOut) return '-';
+            const diff = new Date(checkOut) - new Date(checkIn);
+            const hours = Math.floor(diff / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        }
+
+        function getInitials(name) {
+            return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+        }
+
+        // ============================================
+        // SIDEBAR
+        // ============================================
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        }
+
+        function showAppContent() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'flex';
+        }
+
+        // ============================================
+        // SEARCH
+        // ============================================
+
+        async function handleSearch(query) {
+            clearTimeout(searchTimeout);
+
+            const resultsDiv = document.getElementById('searchResults');
+
+            if (query.length < 2) {
+                resultsDiv.style.display = 'none';
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const members = await searchMembersForAccess(query);
+
+                    if (members.length === 0) {
+                        resultsDiv.innerHTML = `
+                            <div class="text-center text-muted" style="padding: 1rem;">
+                                No se encontraron socios activos
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML = members.map(m => `
+                            <div class="search-result-item" onclick="performCheckIn('${m.id}', '${m.full_name}')">
+                                <div class="member-avatar">${getInitials(m.full_name)}</div>
+                                <div class="member-info">
+                                    <div class="member-name">${m.full_name}</div>
+                                    <div class="member-dni">DNI: ${m.dni || 'No registrado'}</div>
+                                </div>
+                                <button class="checkin-btn">Check-in ✓</button>
+                            </div>
+                        `).join('');
+                    }
+
+                    resultsDiv.style.display = 'block';
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
+            }, 300);
+        }
+
+        // ============================================
+        // CHECK-IN / CHECK-OUT
+        // ============================================
+
+        async function performCheckIn(memberId, memberName) {
+            try {
+                await checkInMember(memberId, 'manual');
+
+                // Show success popup
+                showSuccessPopup(memberName, '¡Entrada registrada!');
+
+                // Clear search
+                document.getElementById('searchInput').value = '';
+                document.getElementById('searchResults').style.display = 'none';
+
+                // Reload data
+                await loadAccessData();
+
+            } catch (error) {
+                console.error('Check-in error:', error);
+                showToast('Error al registrar entrada: ' + error.message, 'error');
+            }
+        }
+
+        async function performCheckOut(logId, memberName) {
+            try {
+                await checkOutMember(logId);
+                showSuccessPopup(memberName, '¡Salida registrada!', '👋');
+                await loadAccessData();
+            } catch (error) {
+                console.error('Check-out error:', error);
+                showToast('Error al registrar salida: ' + error.message, 'error');
+            }
+        }
+
+        function showSuccessPopup(name, message, icon = '✅') {
+            const popup = document.getElementById('successPopup');
+            document.getElementById('successName').textContent = name;
+            document.getElementById('successMessage').textContent = message;
+            document.querySelector('.success-icon').textContent = icon;
+
+            popup.style.display = 'block';
+
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 2000);
+        }
+
+        // ============================================
+        // RENDERING
+        // ============================================
+
+        function renderCurrentlyIn() {
+            const list = document.getElementById('checkedInList');
+
+            if (currentlyIn.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center text-muted" style="padding: 2rem;">
+                        <span data-icon=\"home\" class=\"empty-icon\"></span> No hay nadie en el gimnasio
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = currentlyIn.map(log => `
+                <div class="checked-in-item">
+                    <div class="member-avatar">${getInitials(log.member?.full_name || 'NA')}</div>
+                    <div class="member-info">
+                        <div class="member-name">${log.member?.full_name || 'Desconocido'}</div>
+                        <div class="checkin-time">Entrada: ${formatTime(log.check_in_at)}</div>
+                    </div>
+                    <button class="checkout-btn" onclick="performCheckOut('${log.id}', '${log.member?.full_name}')">
+                        Salida 👋
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderHistory() {
+            const tbody = document.getElementById('historyTable');
+
+            if (todayLogs.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                            No hay registros de acceso hoy
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = todayLogs.map(log => `
+                <tr>
+                    <td data-label="Socio">${log.member?.full_name || 'Desconocido'}</td>
+                    <td data-label="DNI">${log.member?.dni || '-'}</td>
+                    <td data-label="Entrada">${formatTime(log.check_in_at)}</td>
+                    <td data-label="Salida">${formatTime(log.check_out_at)}</td>
+                    <td data-label="Duración">${calculateDuration(log.check_in_at, log.check_out_at)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats() {
+            document.getElementById('statTodayVisits').textContent = todayLogs.length;
+            document.getElementById('statCurrentIn').textContent = currentlyIn.length;
+            document.getElementById('currentCount').textContent = currentlyIn.length;
+
+            // Calculate peak hour from today's data
+            const hourCounts = {};
+            todayLogs.forEach(log => {
+                const hour = new Date(log.check_in_at).getHours();
+                hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+            });
+
+            let peakHour = '--';
+            let maxCount = 0;
+            for (const [hour, count] of Object.entries(hourCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    peakHour = `${hour}:00`;
+                }
+            }
+            document.getElementById('statPeakHour').textContent = peakHour;
+
+            // Calculate average (placeholder - would need historical data)
+            document.getElementById('statAvgDaily').textContent = todayLogs.length > 0 ? todayLogs.length : '-';
+        }
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+
+        async function loadAccessData() {
+            try {
+                // Load today's logs
+                todayLogs = await getTodayAccessLogs();
+
+                // Filter currently checked in
+                currentlyIn = todayLogs.filter(log => !log.check_out_at);
+
+                // Render
+                renderCurrentlyIn();
+                renderHistory();
+                updateStats();
+
+            } catch (error) {
+                console.error('Error loading access data:', error);
+                if (error.message.includes('does not exist') || error.code === '42P01') {
+                    document.getElementById('checkedInList').innerHTML = `
+                        <div class="text-center text-muted" style="padding: 2rem;">
+                            ⚠️ Ejecutá el SQL de acceso en Supabase
+                        </div>
+                    `;
+                    document.getElementById('historyTable').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                                ⚠️ Tabla access_logs no encontrada
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+        }
+
+        // ============================================
+        // AUTH & INIT
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                // Update user info
+                document.getElementById('userName').textContent = profile.full_name || profile.email;
+                document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+                document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+
+                // Load access data
+                await loadAccessData();
+
+                showAppContent();
+
+                // Auto-refresh every 30 seconds
+                setInterval(loadAccessData, 30000);
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

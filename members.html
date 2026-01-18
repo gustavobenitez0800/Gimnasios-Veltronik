@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gestión de Socios - Gimnasio Veltronik">
+    <title>Socios | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <style>
+        .member-modal {
+            max-width: 600px;
+        }
+
+        .modal-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .modal-form .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 600px) {
+            .modal-form {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title">Socios</h1>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="openMemberModal()">
+                        <span data-icon="plus"></span> Nuevo Socio
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Filters -->
+                <div class="card mb-3">
+                    <div class="table-header">
+                        <div class="table-filters">
+                            <div class="search-box">
+                                <input type="text" class="form-input" placeholder="Buscar por nombre o DNI..."
+                                    id="searchInput" oninput="filterMembers()">
+                            </div>
+                            <select class="form-select" id="statusFilter" onchange="filterMembers()"
+                                style="width: auto;">
+                                <option value="">Todos los estados</option>
+                                <option value="active">Activos</option>
+                                <option value="inactive">Inactivos</option>
+                                <option value="expired">Vencidos</option>
+                            </select>
+                        </div>
+                        <div class="text-muted" id="memberCount">0 socios</div>
+                    </div>
+                </div>
+
+                <!-- Members Table -->
+                <div class="card">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>DNI</th>
+                                    <th>Teléfono</th>
+                                    <th>Estado</th>
+                                    <th>Vencimiento</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="membersTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted" style="padding: 3rem;">
+                                        <span class="spinner"></span> Cargando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Member Modal -->
+    <div class="modal-overlay" id="memberModal">
+        <div class="modal-container member-modal">
+            <h2 class="modal-title" id="modalTitle">Nuevo Socio</h2>
+            <form id="memberForm" onsubmit="saveMember(event)">
+                <input type="hidden" id="memberId">
+                <div class="modal-form">
+                    <div class="form-group full-width">
+                        <label class="form-label" for="fullName">Nombre completo *</label>
+                        <input type="text" id="fullName" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="dni">DNI</label>
+                        <input type="text" id="dni" class="form-input" placeholder="12345678">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="phone">Teléfono</label>
+                        <input type="tel" id="phone" class="form-input" placeholder="11-1234-5678">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email</label>
+                        <input type="email" id="email" class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="birthDate">Fecha de nacimiento</label>
+                        <input type="date" id="birthDate" class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="membershipStart">Inicio de membresía</label>
+                        <input type="date" id="membershipStart" class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="membershipEnd">Fin de membresía</label>
+                        <input type="date" id="membershipEnd" class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="status">Estado</label>
+                        <select id="status" class="form-select">
+                            <option value="active">Activo</option>
+                            <option value="inactive">Inactivo</option>
+                            <option value="expired">Vencido</option>
+                            <option value="suspended">Suspendido</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label class="form-label" for="notes">Notas</label>
+                        <textarea id="notes" class="form-textarea" rows="2"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeMemberModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="saveBtn">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        let allMembers = [];
+
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // Format date
+        function formatDate(date) {
+            if (!date) return '-';
+            return new Date(date).toLocaleDateString('es-AR');
+        }
+
+        // Get status badge
+        function getStatusBadge(status) {
+            const badges = {
+                active: '<span class="badge badge-success">Activo</span>',
+                inactive: '<span class="badge badge-neutral">Inactivo</span>',
+                expired: '<span class="badge badge-error">Vencido</span>',
+                suspended: '<span class="badge badge-warning">Suspendido</span>'
+            };
+            return badges[status] || badges.inactive;
+        }
+
+        // Render members table
+        function renderMembers(members) {
+            const tbody = document.getElementById('membersTableBody');
+            document.getElementById('memberCount').textContent = `${members.length} socios`;
+
+            if (!members || members.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted" style="padding: 3rem;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><span data-icon="users"></span></div>
+                                <h4 class="empty-state-title">No hay socios</h4>
+                                <p class="empty-state-message">Agrega tu primer socio para comenzar</p>
+                                <button class="btn btn-primary" onclick="openMemberModal()"><span data-icon="plus" class="btn-icon"></span> Nuevo Socio</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = members.map(member => `
+                <tr>
+                    <td data-label="Nombre">
+                        <strong>${member.full_name}</strong>
+                    </td>
+                    <td data-label="DNI">${member.dni || '-'}</td>
+                    <td data-label="Teléfono">${member.phone || '-'}</td>
+                    <td data-label="Estado">${getStatusBadge(member.status)}</td>
+                    <td data-label="Vencimiento">${formatDate(member.membership_end)}</td>
+                    <td data-label="Acciones">
+                        <div class="table-actions">
+                            <button class="action-btn action-btn-edit" onclick="editMember('${member.id}')" title="Editar">
+                                ✏️
+                            </button>
+                            <button class="action-btn action-btn-delete" onclick="confirmDeleteMember('${member.id}')" title="Eliminar">
+                                🗑️
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Filter members
+        function filterMembers() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+
+            let filtered = allMembers;
+
+            if (search) {
+                filtered = filtered.filter(m =>
+                    m.full_name.toLowerCase().includes(search) ||
+                    (m.dni && m.dni.includes(search))
+                );
+            }
+
+            if (status) {
+                filtered = filtered.filter(m => m.status === status);
+            }
+
+            renderMembers(filtered);
+        }
+
+        // Open member modal
+        function openMemberModal(member = null) {
+            const modal = document.getElementById('memberModal');
+            const form = document.getElementById('memberForm');
+            const title = document.getElementById('modalTitle');
+
+            form.reset();
+
+            if (member) {
+                title.textContent = 'Editar Socio';
+                document.getElementById('memberId').value = member.id;
+                document.getElementById('fullName').value = member.full_name || '';
+                document.getElementById('dni').value = member.dni || '';
+                document.getElementById('phone').value = member.phone || '';
+                document.getElementById('email').value = member.email || '';
+                document.getElementById('birthDate').value = member.birth_date || '';
+                document.getElementById('membershipStart').value = member.membership_start || '';
+                document.getElementById('membershipEnd').value = member.membership_end || '';
+                document.getElementById('status').value = member.status || 'active';
+                document.getElementById('notes').value = member.notes || '';
+            } else {
+                title.textContent = 'Nuevo Socio';
+                document.getElementById('memberId').value = '';
+                // Set default dates
+                const today = new Date().toISOString().split('T')[0];
+                const nextMonth = new Date();
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                document.getElementById('membershipStart').value = today;
+                document.getElementById('membershipEnd').value = nextMonth.toISOString().split('T')[0];
+            }
+
+            modal.classList.add('modal-show');
+        }
+
+        // Close member modal
+        function closeMemberModal() {
+            document.getElementById('memberModal').classList.remove('modal-show');
+        }
+
+        // Edit member
+        function editMember(id) {
+            const member = allMembers.find(m => m.id === id);
+            if (member) {
+                openMemberModal(member);
+            }
+        }
+
+        // Save member
+        async function saveMember(event) {
+            event.preventDefault();
+
+            const saveBtn = document.getElementById('saveBtn');
+            const memberId = document.getElementById('memberId').value;
+
+            const memberData = {
+                full_name: document.getElementById('fullName').value.trim(),
+                dni: document.getElementById('dni').value.trim() || null,
+                phone: document.getElementById('phone').value.trim() || null,
+                email: document.getElementById('email').value.trim() || null,
+                birth_date: document.getElementById('birthDate').value || null,
+                membership_start: document.getElementById('membershipStart').value || null,
+                membership_end: document.getElementById('membershipEnd').value || null,
+                status: document.getElementById('status').value,
+                notes: document.getElementById('notes').value.trim() || null
+            };
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner"></span>';
+
+                if (memberId) {
+                    await updateMember(memberId, memberData);
+                    showToast('Socio actualizado correctamente', 'success');
+                } else {
+                    await createMember(memberData);
+                    showToast('Socio creado correctamente', 'success');
+                }
+
+                closeMemberModal();
+                await loadMembers();
+
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('Error al guardar: ' + error.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Guardar';
+            }
+        }
+
+        // Confirm delete member
+        async function confirmDeleteMember(id) {
+            const member = allMembers.find(m => m.id === id);
+            if (!member) return;
+
+            const confirmed = await showConfirm(
+                'Eliminar Socio',
+                `¿Estás seguro de eliminar a "${member.full_name}"? Esta acción no se puede deshacer.`,
+                { confirmText: 'Eliminar', icon: '🗑️' }
+            );
+
+            if (confirmed) {
+                try {
+                    await deleteMember(id);
+                    showToast('Socio eliminado', 'success');
+                    await loadMembers();
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    showToast('Error al eliminar: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Load members
+        async function loadMembers() {
+            try {
+                allMembers = await getMembers();
+                renderMembers(allMembers);
+            } catch (error) {
+                console.error('Load error:', error);
+                showToast('Error al cargar socios', 'error');
+            }
+        }
+
+        // Load user info
+        async function loadUserInfo() {
+            const profile = await getProfile();
+            document.getElementById('userName').textContent = profile.full_name || profile.email;
+            document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+            document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+        }
+
+        // Check auth and load data
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Mark that we have a valid session
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                // Check trial status
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                // If trial expired and gym not active, redirect to plans
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                await loadUserInfo();
+                await loadMembers();
+
+                // Check for action param
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('action') === 'new') {
+                    openMemberModal();
+                }
+
+                // Show content
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                // Only redirect to login if there's no session
+                // This prevents infinite redirect loops
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    // Show error but don't redirect - prevent loop
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Function to hide loading screen and show app content
+        function showAppContent() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const appContent = document.getElementById('appContent');
+
+            if (loadingScreen) {
+                loadingScreen.classList.add('hide');
+            }
+            if (appContent) {
+                appContent.style.display = '';
+            }
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeMemberModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('memberModal').addEventListener('click', (e) => {
+            if (e.target.id === 'memberModal') {
+                closeMemberModal();
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gestión de Pagos - Gimnasio Veltronik">
+    <title>Pagos | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title">Pagos</h1>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="openPaymentModal()">
+                        <span data-icon="creditCard"></span> Nuevo Pago
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Stats -->
+                <div class="dashboard-stats mb-3">
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-success"><span data-icon="wallet"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statTotalMonth">$0</div>
+                            <div class="stat-label">Total del Mes</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-primary"><span data-icon="trendingUp"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statPaymentCount">0</div>
+                            <div class="stat-label">Pagos Registrados</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payments Table -->
+                <div class="card">
+                    <div class="table-header">
+                        <div class="table-filters">
+                            <div class="search-box">
+                                <input type="text" class="form-input" placeholder="Buscar por socio..." id="searchInput"
+                                    oninput="filterPayments()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Socio</th>
+                                    <th>Monto</th>
+                                    <th>Método</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted" style="padding: 3rem;">
+                                        <span class="spinner"></span> Cargando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal-container" style="max-width: 500px;">
+            <h2 class="modal-title">Registrar Pago</h2>
+            <form id="paymentForm" onsubmit="savePayment(event)">
+                <div class="form-group">
+                    <label class="form-label" for="memberId">Socio *</label>
+                    <select id="memberId" class="form-select" required>
+                        <option value="">Seleccionar socio...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="amount">Monto *</label>
+                    <input type="number" id="amount" class="form-input" min="0" step="0.01" required placeholder="0.00">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="paymentDate">Fecha de pago *</label>
+                    <input type="date" id="paymentDate" class="form-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="dueDate">Fecha de vencimiento</label>
+                    <input type="date" id="dueDate" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="paymentMethod">Método de pago</label>
+                    <select id="paymentMethod" class="form-select">
+                        <option value="cash">Efectivo</option>
+                        <option value="card">Tarjeta</option>
+                        <option value="transfer">Transferencia</option>
+                        <option value="mercadopago">Mercado Pago</option>
+                        <option value="other">Otro</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="notes">Notas</label>
+                    <input type="text" id="notes" class="form-input" placeholder="Opcional">
+                </div>
+
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="saveBtn">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        let allPayments = [];
+        let allMembers = [];
+
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('es-AR', {
+                style: 'currency',
+                currency: 'ARS',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Format date
+        function formatDate(date) {
+            if (!date) return '-';
+            return new Date(date).toLocaleDateString('es-AR');
+        }
+
+        // Get payment method label
+        function getMethodLabel(method) {
+            const methods = {
+                cash: 'Efectivo',
+                card: 'Tarjeta',
+                transfer: 'Transferencia',
+                mercadopago: 'Mercado Pago',
+                other: 'Otro'
+            };
+            return methods[method] || method;
+        }
+
+        // Get status badge
+        function getPaymentStatusBadge(status) {
+            const badges = {
+                paid: '<span class="badge badge-success">Pagado</span>',
+                pending: '<span class="badge badge-warning">Pendiente</span>',
+                overdue: '<span class="badge badge-error">Vencido</span>',
+                cancelled: '<span class="badge badge-neutral">Cancelado</span>'
+            };
+            return badges[status] || badges.pending;
+        }
+
+        // Render payments table
+        function renderPayments(payments) {
+            const tbody = document.getElementById('paymentsTableBody');
+
+            if (!payments || payments.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted" style="padding: 3rem;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><span data-icon="dollarSign"></span></div>
+                                <h4 class="empty-state-title">No hay pagos</h4>
+                                <p class="empty-state-message">Registra el primer pago de un socio</p>
+                                <button class="btn btn-primary" onclick="openPaymentModal()"><span data-icon="creditCard" class="btn-icon"></span> Nuevo Pago</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = payments.map(payment => `
+                <tr>
+                    <td data-label="Fecha">${formatDate(payment.payment_date)}</td>
+                    <td data-label="Socio">${payment.member?.full_name || '-'}</td>
+                    <td data-label="Monto"><strong>${formatCurrency(payment.amount)}</strong></td>
+                    <td data-label="Método">${getMethodLabel(payment.payment_method)}</td>
+                    <td data-label="Estado">${getPaymentStatusBadge(payment.status)}</td>
+                    <td data-label="Acciones">
+                        <div class="table-actions">
+                            <button class="action-btn action-btn-delete" onclick="confirmDeletePayment('${payment.id}')" title="Eliminar">
+                                🗑️
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Filter payments
+        function filterPayments() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = allPayments;
+
+            if (search) {
+                filtered = filtered.filter(p =>
+                    p.member?.full_name?.toLowerCase().includes(search)
+                );
+            }
+
+            renderPayments(filtered);
+        }
+
+        // Open payment modal
+        function openPaymentModal() {
+            const modal = document.getElementById('paymentModal');
+            document.getElementById('paymentForm').reset();
+
+            // Set today as default date
+            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+
+            // Set due date to next month
+            const nextMonth = new Date();
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            document.getElementById('dueDate').value = nextMonth.toISOString().split('T')[0];
+
+            // Populate members dropdown
+            const select = document.getElementById('memberId');
+            select.innerHTML = '<option value="">Seleccionar socio...</option>' +
+                allMembers.map(m => `<option value="${m.id}">${m.full_name}</option>`).join('');
+
+            modal.classList.add('modal-show');
+        }
+
+        // Close payment modal
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('modal-show');
+        }
+
+        // Save payment
+        async function savePayment(event) {
+            event.preventDefault();
+
+            const saveBtn = document.getElementById('saveBtn');
+
+            const paymentData = {
+                member_id: document.getElementById('memberId').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                payment_date: document.getElementById('paymentDate').value,
+                due_date: document.getElementById('dueDate').value || null,
+                payment_method: document.getElementById('paymentMethod').value,
+                notes: document.getElementById('notes').value.trim() || null,
+                status: 'paid'
+            };
+
+            try {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner"></span>';
+
+                await createMemberPayment(paymentData);
+                showToast('Pago registrado correctamente', 'success');
+
+                closePaymentModal();
+                await loadPayments();
+                updateStats();
+
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('Error al guardar: ' + error.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Guardar';
+            }
+        }
+
+        // Confirm delete payment
+        async function confirmDeletePayment(id) {
+            const confirmed = await showConfirm(
+                'Eliminar Pago',
+                '¿Estás seguro de eliminar este pago? Esta acción no se puede deshacer.',
+                { confirmText: 'Eliminar', icon: '🗑️' }
+            );
+
+            if (confirmed) {
+                try {
+                    await deleteMemberPayment(id);
+                    showToast('Pago eliminado', 'success');
+                    await loadPayments();
+                    updateStats();
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    showToast('Error al eliminar: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            const today = new Date();
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+            const monthPayments = allPayments.filter(p =>
+                new Date(p.payment_date) >= startOfMonth && p.status === 'paid'
+            );
+
+            const totalMonth = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+            document.getElementById('statTotalMonth').textContent = formatCurrency(totalMonth);
+            document.getElementById('statPaymentCount').textContent = allPayments.length;
+        }
+
+        // Load payments
+        async function loadPayments() {
+            try {
+                allPayments = await getMemberPayments();
+                renderPayments(allPayments);
+                updateStats();
+            } catch (error) {
+                console.error('Load error:', error);
+                showToast('Error al cargar pagos', 'error');
+            }
+        }
+
+        // Load members for dropdown
+        async function loadMembers() {
+            try {
+                allMembers = await getMembers();
+            } catch (error) {
+                console.error('Load members error:', error);
+            }
+        }
+
+        // Load user info
+        async function loadUserInfo() {
+            const profile = await getProfile();
+            document.getElementById('userName').textContent = profile.full_name || profile.email;
+            document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+            document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+        }
+
+        // Check auth and load data
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Mark that we have a valid session
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                // Check trial status
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                // If trial expired and gym not active, redirect to plans
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                await loadUserInfo();
+                await loadMembers();
+                await loadPayments();
+
+                // Check for action param
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('action') === 'new') {
+                    openPaymentModal();
+                }
+
+                // Show content
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                // Only redirect to login if there's no session
+                // This prevents infinite redirect loops
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    // Show error but don't redirect - prevent loop
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Function to hide loading screen and show app content
+        function showAppContent() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const appContent = document.getElementById('appContent');
+
+            if (loadingScreen) {
+                loadingScreen.classList.add('hide');
+            }
+            if (appContent) {
+                appContent.style.display = '';
+            }
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closePaymentModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('paymentModal').addEventListener('click', (e) => {
+            if (e.target.id === 'paymentModal') {
+                closePaymentModal();
+            }
+        });
+    </script>
+</body>
+
+</html>

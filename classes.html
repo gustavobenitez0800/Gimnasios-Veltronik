@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Clases y Reservas - Gimnasio Veltronik">
+    <title>Clases | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <style>
+        /* Calendar Styles */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .calendar-nav button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .calendar-nav button:hover {
+            background: var(--primary-500);
+            border-color: var(--primary-500);
+        }
+
+        .current-week {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Weekly Calendar */
+        .weekly-calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-lg);
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .day-column {
+            min-width: 140px;
+        }
+
+        .day-header {
+            text-align: center;
+            padding: 0.75rem;
+            background: rgba(14, 165, 233, 0.1);
+            border-radius: var(--border-radius-md);
+            margin-bottom: 0.5rem;
+        }
+
+        .day-header.today {
+            background: var(--primary-500);
+            color: white;
+        }
+
+        .day-name {
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+        }
+
+        .day-date {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .day-header.today .day-date {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .day-classes {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-height: 200px;
+        }
+
+        /* Class Cards */
+        .class-card {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-md);
+            padding: 0.75rem;
+            border-left: 3px solid var(--primary-500);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .class-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .class-time {
+            font-size: var(--font-size-xs);
+            color: var(--primary-400);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .class-name {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .class-instructor {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .class-spots {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .class-spots.full {
+            color: var(--error-500);
+        }
+
+        .class-spots.available {
+            color: var(--success-500);
+        }
+
+        /* Empty State */
+        .no-classes {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+        }
+
+        /* Class List View */
+        .class-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .view-toggle button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: var(--primary-500);
+            border-color: var(--primary-500);
+            color: white;
+        }
+
+        /* Modal Styles */
+        .class-color-picker {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .color-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .color-option:hover,
+        .color-option.selected {
+            border-color: white;
+            transform: scale(1.1);
+        }
+
+        /* Day selector for new class */
+        .day-selector {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .day-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: var(--font-size-sm);
+        }
+
+        .day-checkbox input {
+            display: none;
+        }
+
+        .day-checkbox.selected {
+            background: var(--primary-500);
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .weekly-calendar {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .day-column:nth-child(n+4) {
+                display: none;
+            }
+
+            .mobile-show-all .day-column {
+                display: block !important;
+            }
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title"><span data-icon="calendar" class="title-icon"></span> Clases y Actividades
+                    </h1>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="openClassModal()">
+                        <span data-icon="plus" style="margin-right:0.5rem"></span>
+                        Nueva Clase
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Calendar Navigation -->
+                <div class="calendar-header">
+                    <div class="calendar-nav">
+                        <button onclick="changeWeek(-1)">← Anterior</button>
+                        <span class="current-week" id="currentWeek">Semana del 17 Ene</span>
+                        <button onclick="changeWeek(1)">Siguiente →</button>
+                    </div>
+                    <div class="view-toggle">
+                        <button class="active" id="btnCalendar" onclick="setView('calendar')"><span data-icon="calendar"
+                                class="btn-icon"></span> Calendario</button>
+                        <button id="btnList" onclick="setView('list')"><span data-icon="fileText"
+                                class="btn-icon"></span> Lista</button>
+                    </div>
+                </div>
+
+                <!-- Weekly Calendar View -->
+                <div class="card" id="calendarView">
+                    <div class="card-body" style="padding: 0.5rem;">
+                        <div class="weekly-calendar" id="weeklyCalendar">
+                            <!-- Calendar days will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List View (hidden by default) -->
+                <div class="card" id="listView" style="display: none;">
+                    <div class="card-header">
+                        <h3 class="card-title">Todas las Clases</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Clase</th>
+                                        <th>Instructor</th>
+                                        <th>Día</th>
+                                        <th>Horario</th>
+                                        <th>Cupos</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="classesTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted" style="padding: 2rem;">
+                                            Cargando clases...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal: Nueva/Editar Clase -->
+    <div class="modal-overlay" id="classModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="classModalTitle">Nueva Clase</h3>
+                <button class="modal-close" onclick="closeClassModal()">&times;</button>
+            </div>
+            <form id="classForm" onsubmit="handleClassSubmit(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="classId">
+
+                    <div class="form-group">
+                        <label class="form-label">Nombre de la Clase *</label>
+                        <input type="text" class="form-input" id="className" required
+                            placeholder="Ej: Spinning, Yoga, CrossFit">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Instructor</label>
+                        <input type="text" class="form-input" id="classInstructor" placeholder="Nombre del instructor">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Hora Inicio *</label>
+                            <input type="time" class="form-input" id="classStartTime" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Hora Fin *</label>
+                            <input type="time" class="form-input" id="classEndTime" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Día de la Semana *</label>
+                        <select class="form-input" id="classDayOfWeek" required>
+                            <option value="">Seleccionar día</option>
+                            <option value="1">Lunes</option>
+                            <option value="2">Martes</option>
+                            <option value="3">Miércoles</option>
+                            <option value="4">Jueves</option>
+                            <option value="5">Viernes</option>
+                            <option value="6">Sábado</option>
+                            <option value="0">Domingo</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Capacidad Máxima</label>
+                            <input type="number" class="form-input" id="classCapacity" value="20" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Sala/Lugar</label>
+                            <input type="text" class="form-input" id="classRoom" placeholder="Ej: Sala A, Patio">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Color</label>
+                        <div class="class-color-picker" id="colorPicker">
+                            <div class="color-option selected" data-color="#0EA5E9" style="background: #0EA5E9;"></div>
+                            <div class="color-option" data-color="#22C55E" style="background: #22C55E;"></div>
+                            <div class="color-option" data-color="#F59E0B" style="background: #F59E0B;"></div>
+                            <div class="color-option" data-color="#EF4444" style="background: #EF4444;"></div>
+                            <div class="color-option" data-color="#8B5CF6" style="background: #8B5CF6;"></div>
+                            <div class="color-option" data-color="#EC4899" style="background: #EC4899;"></div>
+                        </div>
+                        <input type="hidden" id="classColor" value="#0EA5E9">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-input" id="classDescription" rows="2"
+                            placeholder="Descripción de la clase (opcional)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeClassModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="classSubmitBtn">Guardar Clase</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Clase / Reservas -->
+    <div class="modal-overlay" id="classDetailModal">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="detailModalTitle">Detalles de la Clase</h3>
+                <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="classDetails">
+                    <!-- Class details will be rendered here -->
+                </div>
+                <hr style="margin: 1rem 0; border-color: var(--border-color);">
+                <h4 style="margin-bottom: 0.75rem;"><span data-icon="fileText" class="section-icon"></span> Reservas
+                </h4>
+                <div id="classBookings">
+                    <!-- Bookings will be rendered here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDetailModal()">Cerrar</button>
+                <button type="button" class="btn btn-error" onclick="deleteCurrentClass()" id="deleteClassBtn">
+                    Eliminar Clase
+                </button>
+                <button type="button" class="btn btn-primary" onclick="editCurrentClass()">Editar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        // ============================================
+        // STATE
+        // ============================================
+        let classes = [];
+        let currentWeekStart = getWeekStart(new Date());
+        let currentClassId = null;
+        let selectedColor = '#0EA5E9';
+
+        // ============================================
+        // HELPERS
+        // ============================================
+
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+            return new Date(d.setDate(diff));
+        }
+
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const dayNamesShort = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+        function formatTime(time) {
+            if (!time) return '';
+            return time.substring(0, 5);
+        }
+
+        // ============================================
+        // SIDEBAR
+        // ============================================
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        }
+
+        function showAppContent() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'flex';
+        }
+
+        // ============================================
+        // CALENDAR RENDERING
+        // ============================================
+
+        function renderCalendar() {
+            const calendar = document.getElementById('weeklyCalendar');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let html = '';
+
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(currentWeekStart);
+                date.setDate(date.getDate() + i);
+                const isToday = date.getTime() === today.getTime();
+                const dayOfWeek = date.getDay();
+
+                // Filter classes for this day
+                const dayClasses = classes.filter(c => c.day_of_week === dayOfWeek && c.status === 'active');
+
+                html += `
+                    <div class="day-column">
+                        <div class="day-header ${isToday ? 'today' : ''}">
+                            <div class="day-name">${dayNamesShort[dayOfWeek]}</div>
+                            <div class="day-date">${date.getDate()}/${date.getMonth() + 1}</div>
+                        </div>
+                        <div class="day-classes">
+                            ${dayClasses.length > 0 ? dayClasses.map(c => `
+                                <div class="class-card" style="border-left-color: ${c.color || '#0EA5E9'}" 
+                                     onclick="openClassDetail('${c.id}', '${date.toISOString().split('T')[0]}')">
+                                    <div class="class-time">${formatTime(c.start_time)} - ${formatTime(c.end_time)}</div>
+                                    <div class="class-name">${c.name}</div>
+                                    <div class="class-instructor">${c.instructor || 'Sin instructor'}</div>
+                                    <div class="class-spots available">
+                                        👥 ${c.capacity || 20} cupos
+                                    </div>
+                                </div>
+                            `).join('') : '<div class="no-classes">Sin clases</div>'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            calendar.innerHTML = html;
+
+            // Update week title
+            const weekEnd = new Date(currentWeekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            document.getElementById('currentWeek').textContent =
+                `${currentWeekStart.getDate()} ${monthNames[currentWeekStart.getMonth()]} - ${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]}`;
+        }
+
+        function changeWeek(direction) {
+            currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
+            renderCalendar();
+        }
+
+        // ============================================
+        // LIST VIEW
+        // ============================================
+
+        function renderClassList() {
+            const tbody = document.getElementById('classesTableBody');
+
+            if (!classes || classes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-muted" style="padding: 2rem;">
+                            No hay clases registradas. ¡Crea la primera!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = classes.map(c => `
+                <tr>
+                    <td data-label="Clase">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="width: 12px; height: 12px; border-radius: 50%; background: ${c.color || '#0EA5E9'};"></span>
+                            <strong>${c.name}</strong>
+                        </div>
+                    </td>
+                    <td data-label="Instructor">${c.instructor || '-'}</td>
+                    <td data-label="Día">${dayNames[c.day_of_week]}</td>
+                    <td data-label="Horario">${formatTime(c.start_time)} - ${formatTime(c.end_time)}</td>
+                    <td data-label="Cupos">${c.capacity || 20}</td>
+                    <td data-label="Estado">
+                        <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">
+                            ${c.status === 'active' ? 'Activa' : 'Inactiva'}
+                        </span>
+                    </td>
+                    <td data-label="Acciones">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-ghost" onclick="editClass('${c.id}')" title="Editar">✏️</button>
+                            <button class="btn btn-sm btn-ghost" onclick="confirmDeleteClass('${c.id}')" title="Eliminar">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function setView(view) {
+            if (view === 'calendar') {
+                document.getElementById('calendarView').style.display = 'block';
+                document.getElementById('listView').style.display = 'none';
+                document.getElementById('btnCalendar').classList.add('active');
+                document.getElementById('btnList').classList.remove('active');
+            } else {
+                document.getElementById('calendarView').style.display = 'none';
+                document.getElementById('listView').style.display = 'block';
+                document.getElementById('btnCalendar').classList.remove('active');
+                document.getElementById('btnList').classList.add('active');
+                renderClassList();
+            }
+        }
+
+        // ============================================
+        // CLASS MODAL
+        // ============================================
+
+        function openClassModal(classData = null) {
+            const modal = document.getElementById('classModal');
+            const title = document.getElementById('classModalTitle');
+            const form = document.getElementById('classForm');
+
+            form.reset();
+            document.getElementById('classId').value = '';
+            selectedColor = '#0EA5E9';
+            document.getElementById('classColor').value = selectedColor;
+            updateColorSelection();
+
+            if (classData) {
+                title.textContent = 'Editar Clase';
+                document.getElementById('classId').value = classData.id;
+                document.getElementById('className').value = classData.name || '';
+                document.getElementById('classInstructor').value = classData.instructor || '';
+                document.getElementById('classStartTime').value = classData.start_time || '';
+                document.getElementById('classEndTime').value = classData.end_time || '';
+                document.getElementById('classDayOfWeek').value = classData.day_of_week?.toString() || '';
+                document.getElementById('classCapacity').value = classData.capacity || 20;
+                document.getElementById('classRoom').value = classData.room || '';
+                document.getElementById('classDescription').value = classData.description || '';
+                selectedColor = classData.color || '#0EA5E9';
+                document.getElementById('classColor').value = selectedColor;
+                updateColorSelection();
+            } else {
+                title.textContent = 'Nueva Clase';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function closeClassModal() {
+            document.getElementById('classModal').classList.remove('active');
+        }
+
+        function updateColorSelection() {
+            document.querySelectorAll('.color-option').forEach(el => {
+                el.classList.toggle('selected', el.dataset.color === selectedColor);
+            });
+        }
+
+        // Color picker click handler
+        document.getElementById('colorPicker').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-option')) {
+                selectedColor = e.target.dataset.color;
+                document.getElementById('classColor').value = selectedColor;
+                updateColorSelection();
+            }
+        });
+
+        async function handleClassSubmit(event) {
+            event.preventDefault();
+
+            const btn = document.getElementById('classSubmitBtn');
+            const classId = document.getElementById('classId').value;
+
+            const classData = {
+                name: document.getElementById('className').value,
+                instructor: document.getElementById('classInstructor').value || null,
+                start_time: document.getElementById('classStartTime').value,
+                end_time: document.getElementById('classEndTime').value,
+                day_of_week: parseInt(document.getElementById('classDayOfWeek').value),
+                capacity: parseInt(document.getElementById('classCapacity').value) || 20,
+                room: document.getElementById('classRoom').value || null,
+                color: document.getElementById('classColor').value,
+                description: document.getElementById('classDescription').value || null
+            };
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Guardando...';
+
+                if (classId) {
+                    await updateClass(classId, classData);
+                    showToast('Clase actualizada exitosamente', 'success');
+                } else {
+                    await createClass(classData);
+                    showToast('Clase creada exitosamente', 'success');
+                }
+
+                closeClassModal();
+                await loadClasses();
+
+            } catch (error) {
+                console.error('Error saving class:', error);
+                showToast('Error al guardar la clase: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Guardar Clase';
+            }
+        }
+
+        // ============================================
+        // CLASS DETAIL MODAL
+        // ============================================
+
+        async function openClassDetail(classId, date) {
+            const cls = classes.find(c => c.id === classId);
+            if (!cls) return;
+
+            currentClassId = classId;
+
+            document.getElementById('detailModalTitle').textContent = cls.name;
+
+            document.getElementById('classDetails').innerHTML = `
+                <div style="display: grid; gap: 0.5rem;">
+                    <div><strong>📅 Día:</strong> ${dayNames[cls.day_of_week]}</div>
+                    <div><strong>🕐 Horario:</strong> ${formatTime(cls.start_time)} - ${formatTime(cls.end_time)}</div>
+                    <div><strong>👤 Instructor:</strong> ${cls.instructor || 'Sin asignar'}</div>
+                    <div><strong>📍 Sala:</strong> ${cls.room || 'No especificada'}</div>
+                    <div><strong>👥 Capacidad:</strong> ${cls.capacity || 20} personas</div>
+                    ${cls.description ? `<div><strong>📝 Descripción:</strong> ${cls.description}</div>` : ''}
+                </div>
+            `;
+
+            // Load bookings for this class on this date
+            document.getElementById('classBookings').innerHTML = `
+                <div class="text-center text-muted" style="padding: 1rem;">
+                    <em>Sistema de reservas próximamente disponible</em>
+                </div>
+            `;
+
+            document.getElementById('classDetailModal').classList.add('active');
+        }
+
+        function closeDetailModal() {
+            document.getElementById('classDetailModal').classList.remove('active');
+            currentClassId = null;
+        }
+
+        function editCurrentClass() {
+            const cls = classes.find(c => c.id === currentClassId);
+            if (cls) {
+                closeDetailModal();
+                openClassModal(cls);
+            }
+        }
+
+        async function deleteCurrentClass() {
+            if (!currentClassId) return;
+
+            if (!confirm('¿Estás seguro de eliminar esta clase? Esta acción no se puede deshacer.')) {
+                return;
+            }
+
+            try {
+                await deleteClass(currentClassId);
+                showToast('Clase eliminada', 'success');
+                closeDetailModal();
+                await loadClasses();
+            } catch (error) {
+                console.error('Error deleting class:', error);
+                showToast('Error al eliminar: ' + error.message, 'error');
+            }
+        }
+
+        function editClass(id) {
+            const cls = classes.find(c => c.id === id);
+            if (cls) {
+                openClassModal(cls);
+            }
+        }
+
+        async function confirmDeleteClass(id) {
+            if (!confirm('¿Estás seguro de eliminar esta clase?')) return;
+
+            try {
+                await deleteClass(id);
+                showToast('Clase eliminada', 'success');
+                await loadClasses();
+            } catch (error) {
+                console.error('Error deleting class:', error);
+                showToast('Error al eliminar: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+
+        async function loadClasses() {
+            try {
+                classes = await getClasses();
+                renderCalendar();
+                renderClassList();
+            } catch (error) {
+                console.error('Error loading classes:', error);
+                // If table doesn't exist yet, show empty state
+                if (error.message.includes('does not exist') || error.code === '42P01') {
+                    classes = [];
+                    renderCalendar();
+                    renderClassList();
+                    showToast('⚠️ Las tablas de clases aún no existen. Ejecuta el SQL en Supabase.', 'warning');
+                } else {
+                    showToast('Error al cargar clases', 'error');
+                }
+            }
+        }
+
+        // ============================================
+        // AUTH & INIT
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                // Check trial status
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                // Update user info
+                document.getElementById('userName').textContent = profile.full_name || profile.email;
+                document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+                document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+
+                // Load classes
+                await loadClasses();
+
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

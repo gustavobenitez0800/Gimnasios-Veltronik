@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Reportes y Exportación - Gimnasio Veltronik">
+    <title>Reportes | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        /* Reports Page Styles */
+        .reports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .report-card {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-lg);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .report-card:hover {
+            border-color: var(--primary-500);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(14, 165, 233, 0.15);
+        }
+
+        .report-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: var(--border-radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .report-icon.members {
+            background: rgba(14, 165, 233, 0.15);
+            color: var(--primary-400);
+        }
+
+        .report-icon.payments {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+        }
+
+        .report-icon.access {
+            background: rgba(168, 85, 247, 0.15);
+            color: #A855F7;
+        }
+
+        .report-icon.classes {
+            background: rgba(245, 158, 11, 0.15);
+            color: #F59E0B;
+        }
+
+        .report-icon .icon {
+            width: 28px;
+            height: 28px;
+        }
+
+        .title-icon,
+        .section-icon {
+            display: inline-flex;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+        }
+
+        .title-icon .icon {
+            width: 24px;
+            height: 24px;
+            color: var(--primary-400);
+        }
+
+        .section-icon .icon {
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+        }
+
+        .btn-icon {
+            display: inline-flex;
+            vertical-align: middle;
+        }
+
+        .btn-icon .icon {
+            width: 16px;
+            height: 16px;
+        }
+
+        .report-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .report-description {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn-export {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: var(--border-radius-md);
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: var(--font-size-sm);
+        }
+
+        .btn-export.pdf {
+            background: linear-gradient(135deg, #EF4444, #DC2626);
+            color: white;
+        }
+
+        .btn-export.pdf:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-export.excel {
+            background: linear-gradient(135deg, #22C55E, #16A34A);
+            color: white;
+        }
+
+        .btn-export.excel:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-export:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Date Range Picker */
+        .date-range-section {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .date-range-title {
+            font-size: var(--font-size-md);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .date-range-form {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .date-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .date-group label {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+        }
+
+        .date-group input {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+        }
+
+        .quick-dates {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-date-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            background: var(--bg-primary);
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-date-btn:hover,
+        .quick-date-btn.active {
+            background: var(--primary-500);
+            border-color: var(--primary-500);
+            color: white;
+        }
+
+        /* Recent Exports */
+        .recent-exports {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-lg);
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .export-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .export-item:last-child {
+            border-bottom: none;
+        }
+
+        .export-file-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .export-file-icon.pdf {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .export-file-icon.excel {
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .export-info {
+            flex: 1;
+        }
+
+        .export-filename {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+        }
+
+        .export-date {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        /* Loading State */
+        .export-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .spinner-small {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title"><span data-icon="chart" class="title-icon"></span> Reportes y Exportación
+                    </h1>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Date Range -->
+                <div class="date-range-section">
+                    <div class="date-range-title"><span data-icon="calendar" class="section-icon"></span> Rango de
+                        Fechas</div>
+                    <div class="date-range-form">
+                        <div class="date-group">
+                            <label>Desde</label>
+                            <input type="date" id="dateFrom">
+                        </div>
+                        <div class="date-group">
+                            <label>Hasta</label>
+                            <input type="date" id="dateTo">
+                        </div>
+                        <div class="quick-dates">
+                            <button class="quick-date-btn" onclick="setQuickDate('today', this)">Hoy</button>
+                            <button class="quick-date-btn" onclick="setQuickDate('week', this)">Esta Semana</button>
+                            <button class="quick-date-btn active" onclick="setQuickDate('month', this)">Este
+                                Mes</button>
+                            <button class="quick-date-btn" onclick="setQuickDate('year', this)">Este Año</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report Cards -->
+                <div class="reports-grid">
+                    <!-- Members Report -->
+                    <div class="report-card">
+                        <div class="report-icon members"><span data-icon="users"></span></div>
+                        <div class="report-title">Reporte de Socios</div>
+                        <div class="report-description">
+                            Exporta la lista completa de socios con sus datos de contacto,
+                            estado de membresía y fechas de vencimiento.
+                        </div>
+                        <div class="report-actions">
+                            <button class="btn-export pdf" onclick="exportMembers('pdf')" id="btnMembersPdf"> <span
+                                    data-icon="file" class="btn-icon"></span> PDF
+                            </button>
+                            <button class="btn-export excel" onclick="exportMembers('excel')" id="btnMembersExcel">
+                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Payments Report -->
+                    <div class="report-card">
+                        <div class="report-icon payments"><span data-icon="dollarSign"></span></div>
+                        <div class="report-title">Reporte de Ingresos</div>
+                        <div class="report-description">
+                            Genera un informe detallado de todos los pagos recibidos,
+                            con totales y resumen por método de pago.
+                        </div>
+                        <div class="report-actions">
+                            <button class="btn-export pdf" onclick="exportPayments('pdf')" id="btnPaymentsPdf"> <span
+                                    data-icon="file" class="btn-icon"></span> PDF
+                            </button>
+                            <button class="btn-export excel" onclick="exportPayments('excel')" id="btnPaymentsExcel">
+                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Access Report -->
+                    <div class="report-card">
+                        <div class="report-icon access"><span data-icon="door"></span></div>
+                        <div class="report-title">Reporte de Asistencia</div>
+                        <div class="report-description">
+                            Exporta el registro de entradas y salidas con horarios,
+                            ideal para análisis de afluencia.
+                        </div>
+                        <div class="report-actions">
+                            <button class="btn-export excel" onclick="exportAccess('excel')" id="btnAccessExcel">
+                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Report -->
+                    <div class="report-card">
+                        <div class="report-icon classes"><span data-icon="pieChart"></span></div>
+                        <div class="report-title">Resumen General</div>
+                        <div class="report-description">
+                            Estadísticas generales del gimnasio: socios activos,
+                            ingresos totales y métricas clave.
+                        </div>
+                        <div class="report-actions">
+                            <button class="btn-export pdf" onclick="exportSummary('pdf')" id="btnSummaryPdf"> <span
+                                    data-icon="file" class="btn-icon"></span> PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Exports -->
+                <div class="recent-exports">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);"><span data-icon="folder"
+                            class="section-icon"></span> Exportaciones Recientes</h3>
+                    <div id="recentExportsList">
+                        <div class="text-center text-muted" style="padding: 2rem;">
+                            Los archivos exportados aparecerán aquí
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/export-service.js"></script>
+
+    <script>
+        // ============================================
+        // STATE
+        // ============================================
+        let members = [];
+        let payments = [];
+        let accessLogs = [];
+        let gym = null;
+        let exportHistory = [];
+
+        // ============================================
+        // SIDEBAR
+        // ============================================
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        }
+
+        function showAppContent() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'flex';
+        }
+
+        // ============================================
+        // DATE RANGE
+        // ============================================
+
+        function setQuickDate(period, btn) {
+            const today = new Date();
+            let from, to;
+
+            switch (period) {
+                case 'today':
+                    from = to = today.toISOString().split('T')[0];
+                    break;
+                case 'week':
+                    const weekStart = new Date(today);
+                    weekStart.setDate(today.getDate() - today.getDay() + 1);
+                    from = weekStart.toISOString().split('T')[0];
+                    to = today.toISOString().split('T')[0];
+                    break;
+                case 'month':
+                    from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+                    to = today.toISOString().split('T')[0];
+                    break;
+                case 'year':
+                    from = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+                    to = today.toISOString().split('T')[0];
+                    break;
+            }
+
+            document.getElementById('dateFrom').value = from;
+            document.getElementById('dateTo').value = to;
+
+            // Update active button
+            document.querySelectorAll('.quick-date-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+        }
+
+        // ============================================
+        // EXPORT FUNCTIONS
+        // ============================================
+
+        async function exportMembers(format) {
+            const btn = document.getElementById(`btnMembers${format === 'pdf' ? 'Pdf' : 'Excel'}`);
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="export-loading"><span class="spinner-small"></span> Generando...</span>`;
+
+                if (format === 'pdf') {
+                    await VeltronikExport.pdf.members(members);
+                } else {
+                    await VeltronikExport.excel.members(members);
+                }
+
+                addToExportHistory('Socios', format);
+                showToast(`Reporte de socios exportado (${format.toUpperCase()})`, 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Error al exportar: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function exportPayments(format) {
+            const btn = document.getElementById(`btnPayments${format === 'pdf' ? 'Pdf' : 'Excel'}`);
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="export-loading"><span class="spinner-small"></span> Generando...</span>`;
+
+                const from = document.getElementById('dateFrom').value;
+                const to = document.getElementById('dateTo').value;
+
+                // Filter payments by date range
+                let filteredPayments = payments;
+                if (from && to) {
+                    filteredPayments = payments.filter(p => {
+                        const pDate = p.payment_date;
+                        return pDate >= from && pDate <= to;
+                    });
+                }
+
+                if (format === 'pdf') {
+                    await VeltronikExport.pdf.payments(filteredPayments);
+                } else {
+                    await VeltronikExport.excel.payments(filteredPayments);
+                }
+
+                addToExportHistory('Ingresos', format);
+                showToast(`Reporte de ingresos exportado (${format.toUpperCase()})`, 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Error al exportar: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function exportAccess(format) {
+            const btn = document.getElementById('btnAccessExcel');
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="export-loading"><span class="spinner-small"></span> Generando...</span>`;
+
+                const from = document.getElementById('dateFrom').value;
+                const to = document.getElementById('dateTo').value;
+
+                // Load access logs for date range
+                let logs = [];
+                if (from && to) {
+                    logs = await getAccessLogs(from, to);
+                } else {
+                    logs = await getTodayAccessLogs();
+                }
+
+                await VeltronikExport.excel.accessLogs(logs);
+
+                addToExportHistory('Asistencia', format);
+                showToast('Reporte de asistencia exportado', 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                if (error.message.includes('does not exist')) {
+                    showToast('Tabla de acceso no encontrada. Ejecuta el SQL primero.', 'warning');
+                } else {
+                    showToast('Error al exportar: ' + error.message, 'error');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function exportSummary(format) {
+            const btn = document.getElementById('btnSummaryPdf');
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="export-loading"><span class="spinner-small"></span> Generando...</span>`;
+
+                // Create summary PDF using jsPDF
+                if (!VeltronikExport.isJsPDFAvailable()) {
+                    throw new Error('jsPDF no disponible');
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const margin = 15;
+                let y = 20;
+
+                // Header
+                doc.setFontSize(20);
+                doc.setTextColor(14, 165, 233);
+                doc.text(gym?.name || 'Mi Gimnasio', margin, y);
+
+                y += 10;
+                doc.setFontSize(14);
+                doc.setTextColor(60, 60, 60);
+                doc.text('Resumen General', margin, y);
+
+                y += 8;
+                doc.setFontSize(9);
+                doc.setTextColor(120, 120, 120);
+                doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, margin, y);
+
+                y += 20;
+
+                // Stats boxes
+                const activeMembers = members.filter(m => m.status === 'active').length;
+                const totalIncome = payments.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+                const pendingPayments = payments.filter(p => p.status === 'pending' || p.status === 'overdue').length;
+
+                const stats = [
+                    { label: 'Socios Activos', value: activeMembers, color: [14, 165, 233] },
+                    { label: 'Ingresos Totales', value: `$${totalIncome.toLocaleString()}`, color: [34, 197, 94] },
+                    { label: 'Pagos Pendientes', value: pendingPayments, color: [245, 158, 11] },
+                    { label: 'Total Socios', value: members.length, color: [168, 85, 247] }
+                ];
+
+                stats.forEach((stat, i) => {
+                    const x = margin + (i % 2) * 90;
+                    const yPos = y + Math.floor(i / 2) * 35;
+
+                    doc.setFillColor(248, 250, 252);
+                    doc.roundedRect(x, yPos, 80, 30, 3, 3, 'F');
+
+                    doc.setFontSize(18);
+                    doc.setTextColor(...stat.color);
+                    doc.text(stat.value.toString(), x + 40, yPos + 15, { align: 'center' });
+
+                    doc.setFontSize(9);
+                    doc.setTextColor(120, 120, 120);
+                    doc.text(stat.label, x + 40, yPos + 24, { align: 'center' });
+                });
+
+                doc.save(`resumen_${new Date().toISOString().split('T')[0]}.pdf`);
+
+                addToExportHistory('Resumen', 'pdf');
+                showToast('Resumen general exportado', 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Error al exportar: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // ============================================
+        // EXPORT HISTORY
+        // ============================================
+
+        function addToExportHistory(type, format) {
+            exportHistory.unshift({
+                type,
+                format,
+                date: new Date().toLocaleString('es-AR')
+            });
+
+            if (exportHistory.length > 10) {
+                exportHistory = exportHistory.slice(0, 10);
+            }
+
+            localStorage.setItem('veltronik_export_history', JSON.stringify(exportHistory));
+            renderExportHistory();
+        }
+
+        function renderExportHistory() {
+            const list = document.getElementById('recentExportsList');
+
+            if (exportHistory.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center text-muted" style="padding: 2rem;">
+                        Los archivos exportados aparecerán aquí
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = exportHistory.map(exp => `
+                <div class="export-item">
+                    <div class="export-file-icon ${exp.format}">
+                        ${exp.format === 'pdf' ? '📄' : '📊'}
+                    </div>
+                    <div class="export-info">
+                        <div class="export-filename">${exp.type} (${exp.format.toUpperCase()})</div>
+                        <div class="export-date">${exp.date}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+
+        async function loadData() {
+            try {
+                [members, payments] = await Promise.all([
+                    getMembers(),
+                    getMemberPayments()
+                ]);
+
+                // Set gym info for reports
+                if (gym && typeof VeltronikExport !== 'undefined') {
+                    VeltronikExport.setGymInfo(gym.name);
+                }
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showToast('Error al cargar datos', 'error');
+            }
+        }
+
+        // ============================================
+        // AUTH & INIT
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                hasSession = true;
+
+                const profile = await getProfile();
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                gym = await getGym();
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const isTrialActive = checkTrialStatus(gym);
+
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                // Update user info
+                document.getElementById('userName').textContent = profile.full_name || profile.email;
+                document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+                document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+
+                // Set default dates (this month)
+                const monthBtn = document.querySelector('.quick-date-btn.active');
+                setQuickDate('month', monthBtn);
+
+                // Load export history
+                try {
+                    exportHistory = JSON.parse(localStorage.getItem('veltronik_export_history') || '[]');
+                    renderExportHistory();
+                } catch (e) { }
+
+                // Load data
+                await loadData();
+
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

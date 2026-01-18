@@ -1,0 +1,88 @@
+appId: com.veltronik.gimnasio
+productName: Gimnasio Veltronik
+copyright: Copyright © 2026 Veltronik
+
+# Archivos a incluir en el build
+files:
+  - "**/*"
+  - "!node_modules/**/*"
+  - "node_modules/electron-updater/**/*"
+  - "node_modules/electron-log/**/*"
+  - "!.git/**/*"
+  - "!.env"
+  - "!.env.*"
+  - "!*.md"
+  - "!sql/**/*"
+
+# Archivos extra a copiar
+extraResources:
+  - from: "assets/"
+    to: "assets/"
+
+# Directorio de salida
+directories:
+  output: dist
+  buildResources: build
+
+# Auto-updates via GitHub Releases
+publish:
+  provider: github
+  owner: gustavobenitez0800
+  repo: gimnasios-veltronik
+  releaseType: release
+
+# ============================================
+# WINDOWS
+# ============================================
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: "Gimnasio-Veltronik-${version}-portable.${ext}"
+
+# ============================================
+# MACOS
+# ============================================
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: assets/VeltronikGym.png
+  artifactName: "Gimnasio-Veltronik-${version}-${arch}.${ext}"
+  category: public.app-category.business
+
+dmg:
+  title: Gimnasio Veltronik
+  icon: assets/VeltronikGym.png
+
+# ============================================
+# LINUX
+# ============================================
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: assets/VeltronikGym.png
+  artifactName: "Gimnasio-Veltronik-${version}.${ext}"
+  category: Office
+  maintainer: veltronikcompany@gmail.com
+  vendor: Veltronik
+
+appImage:
+  artifactName: "Gimnasio-Veltronik-${version}.AppImage"
+
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3

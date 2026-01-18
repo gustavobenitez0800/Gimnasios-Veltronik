@@ -1,0 +1,46 @@
+{
+  "name": "gimnasio-veltronik",
+  "version": "1.0.0",
+  "description": "Sistema de gestión profesional para gimnasios - SaaS multiplataforma",
+  "main": "electron/main.js",
+  "private": true,
+  "author": {
+    "name": "Veltronik",
+    "email": "veltronikcompany@gmail.com"
+  },
+  "homepage": "https://gimnasio-veltronik.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gustavobenitez0800/gimnasios-veltronik.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -mwl",
+    "publish": "electron-builder --publish always",
+    "publish:win": "electron-builder --win --publish always",
+    "postinstall": "electron-builder install-app-deps",
+    "deploy-api": "vercel --prod"
+  },
+  "dependencies": {
+    "mercadopago": "^2.0.0",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-updater": "^6.1.7",
+    "electron-log": "^5.0.3",
+    "vercel": "^33.0.0"
+  },
+  "build": {
+    "extends": "electron-builder.yml"
+  }
+}

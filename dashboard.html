@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dashboard - Gimnasio Veltronik">
+    <title>Dashboard | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* AI Dashboard Styles */
+        .ai-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .ai-section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+            color: white;
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .prediction-card {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(168, 85, 247, 0.1));
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            border-radius: var(--border-radius-lg);
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prediction-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .prediction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .prediction-label {
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .prediction-confidence {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .prediction-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .prediction-trend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: var(--font-size-sm);
+        }
+
+        .trend-up {
+            color: var(--success-500);
+        }
+
+        .trend-down {
+            color: var(--error-500);
+        }
+
+        .trend-neutral {
+            color: var(--text-muted);
+        }
+
+        /* Insights Panel */
+        .insights-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .insight-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-md);
+            border-left: 3px solid var(--primary-500);
+            transition: transform 0.2s;
+        }
+
+        .insight-item:hover {
+            transform: translateX(4px);
+        }
+
+        .insight-item.warning {
+            border-left-color: var(--warning-500);
+        }
+
+        .insight-item.success {
+            border-left-color: var(--success-500);
+        }
+
+        .insight-item.info {
+            border-left-color: var(--primary-500);
+        }
+
+        .insight-item.celebration {
+            border-left-color: #ec4899;
+        }
+
+        .insight-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .insight-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .insight-title {
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .insight-message {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+
+        .chart-card {
+            padding: 1rem;
+        }
+
+        /* Alerts Panel */
+        .alerts-panel {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--border-radius-md);
+        }
+
+        .alert-item.medium {
+            background: rgba(245, 158, 11, 0.05);
+            border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .alert-item .alert-icon {
+            font-size: 1.25rem;
+        }
+
+        .alert-item .alert-text {
+            flex: 1;
+            font-size: var(--font-size-sm);
+        }
+
+        /* Dashboard layout improvements */
+        .dashboard-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-grid-3 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .prediction-value {
+                font-size: 2rem;
+            }
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">
+            <img src="assets/VeltronikGym.png" alt="Veltronik">
+        </div>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando...</p>
+    </div>
+
+    <div class="app-layout" id="appContent" style="display: none;">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
+                        style="width:32px;height:32px;object-fit:contain;">
+                    <span class="sidebar-logo-text">Veltronik</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <a href="dashboard.html" class="nav-item active">
+                        <span class="nav-item-icon" data-icon="dashboard"></span>
+                        Dashboard
+                    </a>
+                    <a href="members.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="users"></span>
+                        Socios
+                    </a>
+                    <a href="payments.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="wallet"></span>
+                        Pagos
+                    </a>
+                    <a href="classes.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="calendar"></span>
+                        Clases
+                    </a>
+                    <a href="access.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="door"></span>
+                        Acceso
+                    </a>
+                    <a href="reports.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="chart"></span>
+                        Reportes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Configuración</div>
+                    <a href="settings.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="settings"></span>
+                        Ajustes
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="avatar" id="userAvatar">--</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="userName">Cargando...</div>
+                        <div class="sidebar-user-role" id="userRole">--</div>
+                    </div>
+                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
+                        <span data-icon="logout"></span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
+                    <h1 class="page-title">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <!-- Trial Banner -->
+                    <div id="trialBanner" class="trial-banner" style="display: none;">
+                        <span data-icon="sparkles"></span>
+                        <span>Prueba gratuita: <strong id="trialDays">30</strong> días restantes</span>
+                        <a href="plans.html" class="trial-upgrade-btn">Suscribirse</a>
+                    </div>
+                    <span class="badge badge-success" id="gymStatus">Activo</span>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Stats -->
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-primary"><span data-icon="users"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statMembers">0</div>
+                            <div class="stat-label">Socios Activos</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-success"><span data-icon="wallet"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statRevenue">$0</div>
+                            <div class="stat-label">Ingresos del Mes</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-warning"><span data-icon="warning"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statOverdue">0</div>
+                            <div class="stat-label">Pagos Vencidos</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon stat-icon-accent"><span data-icon="calendar"></span></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statExpiring">0</div>
+                            <div class="stat-label">Vencen esta semana</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Section: Predicción e Insights -->
+                <div class="ai-section">
+                    <h2 class="ai-section-title">
+                        <span data-icon="brain" class="ai-title-icon"></span> Inteligencia Artificial
+                        <span class="ai-badge">AI Powered</span>
+                    </h2>
+
+                    <div class="dashboard-grid-3">
+                        <!-- Predicción de Ingresos -->
+                        <div class="prediction-card">
+                            <div class="prediction-header">
+                                <span class="prediction-label"><span data-icon="pieChart" class="card-icon"></span>
+                                    Predicción Próximo Mes</span>
+                                <span class="prediction-confidence" id="predictionConfidence">
+                                    <span data-icon="target" class="card-icon"></span> --% confianza
+                                </span>
+                            </div>
+                            <div class="prediction-value" id="predictionValue">$--</div>
+                            <div class="prediction-trend" id="predictionTrend">
+                                <span>Calculando...</span>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico de Ingresos -->
+                        <div class="card chart-card">
+                            <h4
+                                style="margin-bottom: 0.75rem; font-size: var(--font-size-sm); color: var(--text-muted);">
+                                <span data-icon="lineChart" class="card-icon"></span> Ingresos Mensuales
+                            </h4>
+                            <div class="chart-container">
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico de Estados -->
+                        <div class="card chart-card">
+                            <h4
+                                style="margin-bottom: 0.75rem; font-size: var(--font-size-sm); color: var(--text-muted);">
+                                <span data-icon="users" class="card-icon"></span> Estado de Socios
+                            </h4>
+                            <div class="chart-container">
+                                <canvas id="membersChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insights y Alertas -->
+                <div class="dashboard-grid">
+                    <!-- Insights Automáticos -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><span data-icon="lightbulb" class="section-icon"></span> Insights del
+                                Día</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="insights-panel" id="insightsPanel">
+                                <div class="insight-item info">
+                                    <span class="insight-icon">⏳</span>
+                                    <div class="insight-content">
+                                        <div class="insight-title">Cargando insights...</div>
+                                        <div class="insight-message">Analizando datos del gimnasio</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alertas de Socios en Riesgo -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><span data-icon="alertCircle" class="section-icon"></span> Alertas de
+                                Vencimiento</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="alerts-panel" id="alertsPanel">
+                                <div class="alert-item">
+                                    <span class="alert-icon">⏳</span>
+                                    <span class="alert-text">Cargando alertas...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Grid: Socios y Acciones -->
+                <div class="dashboard-grid">
+                    <!-- Recent Members -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Últimos Socios</h3>
+                            <a href="members.html" class="btn btn-sm btn-ghost">Ver todos →</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container" id="recentMembersTable">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>DNI</th>
+                                            <th>Estado</th>
+                                            <th>Vencimiento</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentMembersBody">
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted" style="padding: 2rem;">
+                                                Cargando...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Acciones Rápidas</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="quick-actions">
+                                <a href="members.html?action=new" class="quick-action">
+                                    <span class="quick-action-icon" data-icon="plus"></span>
+                                    <span class="quick-action-label">Nuevo Socio</span>
+                                </a>
+                                <a href="payments.html?action=new" class="quick-action">
+                                    <span class="quick-action-icon" data-icon="creditCard"></span>
+                                    <span class="quick-action-label">Registrar Pago</span>
+                                </a>
+                                <a href="members.html" class="quick-action">
+                                    <span class="quick-action-icon" data-icon="search"></span>
+                                    <span class="quick-action-label">Buscar Socio</span>
+                                </a>
+                                <a href="settings.html" class="quick-action">
+                                    <span class="quick-action-icon" data-icon="settings"></span>
+                                    <span class="quick-action-label">Configuración</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ai-insights.js"></script>
+    <script src="js/email-service.js"></script>
+    <script src="js/notification-panel.js"></script>
+
+    <script>
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('es-AR', {
+                style: 'currency',
+                currency: 'ARS',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Format date
+        function formatDate(date) {
+            if (!date) return '-';
+            return new Date(date).toLocaleDateString('es-AR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+
+        // Get status badge
+        function getStatusBadge(status) {
+            const badges = {
+                active: '<span class="badge badge-success">Activo</span>',
+                inactive: '<span class="badge badge-neutral">Inactivo</span>',
+                expired: '<span class="badge badge-error">Vencido</span>',
+                suspended: '<span class="badge badge-warning">Suspendido</span>'
+            };
+            return badges[status] || badges.inactive;
+        }
+
+        // Render recent members
+        function renderRecentMembers(members) {
+            const tbody = document.getElementById('recentMembersBody');
+
+            if (!members || members.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-muted" style="padding: 2rem;">
+                            No hay socios registrados
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = members.slice(0, 5).map(member => `
+                <tr>
+                    <td data-label="Nombre">${member.full_name}</td>
+                    <td data-label="DNI">${member.dni || '-'}</td>
+                    <td data-label="Estado">${getStatusBadge(member.status)}</td>
+                    <td data-label="Vencimiento">${formatDate(member.membership_end)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                // Load profile and gym
+                const profile = await getProfile();
+                const gym = await getGym();
+
+                // Update user info
+                document.getElementById('userName').textContent = profile.full_name || profile.email;
+                document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+                document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
+
+                // Update gym status
+                const statusEl = document.getElementById('gymStatus');
+                const statusMap = {
+                    active: { text: 'Activo', class: 'badge-success' },
+                    pending: { text: 'Pendiente', class: 'badge-warning' },
+                    blocked: { text: 'Bloqueado', class: 'badge-error' }
+                };
+                const status = statusMap[gym.status] || { text: gym.status, class: 'badge-neutral' };
+                statusEl.textContent = status.text;
+                statusEl.className = `badge ${status.class}`;
+
+                // Load members
+                const members = await getMembers();
+
+                // Calculate stats
+                const activeMembers = members.filter(m => m.status === 'active').length;
+                const today = new Date();
+                const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+                const expiredMembers = members.filter(m => {
+                    if (!m.membership_end) return false;
+                    return new Date(m.membership_end) < today;
+                }).length;
+
+                const expiringMembers = members.filter(m => {
+                    if (!m.membership_end) return false;
+                    const endDate = new Date(m.membership_end);
+                    return endDate >= today && endDate <= nextWeek;
+                }).length;
+
+                // Load payments for this month
+                const payments = await getMemberPayments();
+                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                const monthlyRevenue = payments
+                    .filter(p => new Date(p.payment_date) >= startOfMonth && p.status === 'paid')
+                    .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+                // Update stats
+                document.getElementById('statMembers').textContent = activeMembers;
+                document.getElementById('statRevenue').textContent = formatCurrency(monthlyRevenue);
+                document.getElementById('statOverdue').textContent = expiredMembers;
+                document.getElementById('statExpiring').textContent = expiringMembers;
+
+                // Render recent members
+                renderRecentMembers(members);
+
+                // ============================================
+                // AI INSIGHTS INTEGRATION
+                // ============================================
+
+                // 1. Revenue Prediction
+                const prediction = AIInsights.predictNextMonthRevenue(payments);
+                renderPrediction(prediction);
+
+                // 2. Payment Alerts
+                const alerts = AIInsights.getPaymentAlerts(members);
+                renderAlerts(alerts);
+
+                // 3. Daily Insights
+                const insights = AIInsights.generateDailyInsights({ members, payments, gym });
+                renderInsights(insights);
+
+                // 4. Revenue Chart
+                const revenueData = AIInsights.getMonthlyRevenueChartData(payments, 6);
+                renderRevenueChart(revenueData);
+
+                // 5. Members Status Chart
+                const membersData = AIInsights.getMemberStatusChartData(members);
+                renderMembersChart(membersData);
+
+                // Run automated notification checks
+                if (typeof VeltronikNotifications !== 'undefined') {
+                    VeltronikNotifications.runChecks(members, payments);
+                }
+
+            } catch (error) {
+                console.error('Dashboard error:', error);
+                showToast('Error al cargar el dashboard', 'error');
+            }
+        }
+
+        // ============================================
+        // AI RENDERING FUNCTIONS
+        // ============================================
+
+        // Render prediction widget
+        function renderPrediction(prediction) {
+            const valueEl = document.getElementById('predictionValue');
+            const confidenceEl = document.getElementById('predictionConfidence');
+            const trendEl = document.getElementById('predictionTrend');
+
+            valueEl.textContent = formatCurrency(prediction.predicted);
+            confidenceEl.textContent = `🎯 ${prediction.confidence || 0}% confianza`;
+
+            const trendIcon = prediction.trend === 'up' ? '📈' : prediction.trend === 'down' ? '📉' : '➡️';
+            const trendClass = prediction.trend === 'up' ? 'trend-up' :
+                prediction.trend === 'down' ? 'trend-down' : 'trend-neutral';
+
+            // Handle undefined/null percentChange
+            const pctChange = prediction.percentChange || '0.0';
+            const changeText = parseFloat(pctChange) > 0 ? `+${pctChange}%` : `${pctChange}%`;
+
+            trendEl.innerHTML = `
+                <span class="${trendClass}">${trendIcon} ${changeText} vs promedio</span>
+            `;
+        }
+
+        // Render alerts panel
+        function renderAlerts(alerts) {
+            const panel = document.getElementById('alertsPanel');
+
+            if (alerts.length === 0) {
+                panel.innerHTML = `
+                    <div class="alert-item medium" style="background: rgba(34, 197, 94, 0.05); border-color: rgba(34, 197, 94, 0.2);">
+                        <span class="alert-icon">✅</span>
+                        <span class="alert-text">¡Excelente! No hay vencimientos próximos</span>
+                    </div>
+                `;
+                return;
+            }
+
+            panel.innerHTML = alerts.slice(0, 8).map(alert => `
+                <div class="alert-item ${alert.priority === 'medium' ? 'medium' : ''}">
+                    <span class="alert-icon">${alert.type === 'expired' ? '🔴' : alert.type === 'urgent' ? '🟠' : '🟡'}</span>
+                    <span class="alert-text">${alert.message}</span>
+                </div>
+            `).join('');
+        }
+
+        // Render insights panel
+        function renderInsights(insights) {
+            const panel = document.getElementById('insightsPanel');
+
+            if (insights.length === 0) {
+                panel.innerHTML = `
+                    <div class="insight-item info">
+                        <span class="insight-icon">💤</span>
+                        <div class="insight-content">
+                            <div class="insight-title">Sin novedades</div>
+                            <div class="insight-message">Todo está en orden por ahora</div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            panel.innerHTML = insights.map(insight => `
+                <div class="insight-item ${insight.type}">
+                    <span class="insight-icon">${insight.icon}</span>
+                    <div class="insight-content">
+                        <div class="insight-title">${insight.title}</div>
+                        <div class="insight-message">${insight.message}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render revenue chart
+        let revenueChartInstance = null;
+        function renderRevenueChart(data) {
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+
+            if (revenueChartInstance) {
+                revenueChartInstance.destroy();
+            }
+
+            revenueChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Ingresos',
+                        data: data.data,
+                        borderColor: '#0EA5E9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#0EA5E9',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 14 },
+                            padding: 12,
+                            callbacks: {
+                                label: function (context) {
+                                    return formatCurrency(context.raw);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94A3B8' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: {
+                                color: '#94A3B8',
+                                callback: function (value) {
+                                    return '$' + (value / 1000) + 'k';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render members status chart
+        let membersChartInstance = null;
+        function renderMembersChart(data) {
+            const ctx = document.getElementById('membersChart').getContext('2d');
+
+            if (membersChartInstance) {
+                membersChartInstance.destroy();
+            }
+
+            membersChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: data.colors,
+                        borderWidth: 0,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#94A3B8',
+                                padding: 15,
+                                usePointStyle: true,
+                                font: { size: 11 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            padding: 12
+                        }
+                    }
+                }
+            });
+        }
+
+        // Check auth and load data
+        document.addEventListener('DOMContentLoaded', async () => {
+            let hasSession = false;
+
+            try {
+                const session = await getSession();
+
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Mark that we have a valid session
+                hasSession = true;
+
+                const profile = await getProfile();
+
+                if (!profile || !profile.gym_id) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                const gym = await getGym();
+
+                if (!gym) {
+                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    return;
+                }
+
+                // Check trial status
+                const isTrialActive = checkTrialStatus(gym);
+                const trialDays = getTrialDaysRemaining(gym);
+
+                // Show trial banner if trial is active
+                if (isTrialActive && trialDays > 0) {
+                    const trialBanner = document.getElementById('trialBanner');
+                    const trialDaysEl = document.getElementById('trialDays');
+                    if (trialBanner && trialDaysEl) {
+                        trialDaysEl.textContent = trialDays;
+                        trialBanner.style.display = 'flex';
+                    }
+                }
+
+                // Handle gym status
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
+
+                // If trial expired and gym not fully subscribed, redirect to plans
+                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
+                }
+
+                // Load dashboard
+                await loadDashboard();
+
+                // Hide loading screen and show content
+                showAppContent();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+
+                // Only redirect to login if there's no session
+                // This prevents infinite redirect loops
+                if (!hasSession) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                } else {
+                    // Show error but don't redirect - prevent loop
+                    showAppContent();
+                    showToast('Error al cargar datos: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Function to hide loading screen and show app content
+        function showAppContent() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            const appContent = document.getElementById('appContent');
+
+            if (loadingScreen) {
+                loadingScreen.classList.add('hide');
+            }
+            if (appContent) {
+                appContent.style.display = '';
+            }
+        }
+    </script>
+</body>
+
+</html>

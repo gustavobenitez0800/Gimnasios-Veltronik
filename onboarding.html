@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Configura tu gimnasio - Gimnasio Veltronik">
+    <title>Configura tu Gimnasio | Veltronik</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/components.css">
+
+    <style>
+        .onboarding-progress {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .progress-step {
+            width: 40px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: background var(--transition-normal);
+        }
+
+        .progress-step.active {
+            background: linear-gradient(90deg, var(--primary-500), var(--accent-500));
+        }
+
+        .progress-step.completed {
+            background: var(--success-500);
+        }
+
+        .auth-card {
+            max-width: 500px;
+        }
+
+        .welcome-text {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-text h2 {
+            color: white;
+            font-size: var(--font-size-2xl);
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-text p {
+            color: var(--gray-400);
+            font-size: var(--font-size-sm);
+        }
+    </style>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+</head>
+
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-container">
+            <div class="auth-card">
+                <!-- Progress -->
+                <div class="onboarding-progress">
+                    <div class="progress-step completed"></div>
+                    <div class="progress-step active"></div>
+                    <div class="progress-step"></div>
+                </div>
+
+                <!-- Welcome -->
+                <div class="welcome-text">
+                    <h2><span data-icon="sparkles" style="margin-right:0.5rem"></span>¡Bienvenido!</h2>
+                    <p>Contanos sobre tu gimnasio para personalizar tu experiencia</p>
+                </div>
+
+                <!-- Onboarding Form -->
+                <form class="auth-form" id="onboardingForm" onsubmit="handleOnboarding(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="gymName">Nombre del gimnasio *</label>
+                        <input type="text" id="gymName" class="form-input" placeholder="Ej: CrossFit Buenos Aires"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="gymAddress">Dirección</label>
+                        <input type="text" id="gymAddress" class="form-input"
+                            placeholder="Ej: Av. Corrientes 1234, CABA">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="gymPhone">Teléfono de contacto</label>
+                        <input type="tel" id="gymPhone" class="form-input" placeholder="Ej: 11-1234-5678">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="gymEmail">Email de contacto</label>
+                        <input type="email" id="gymEmail" class="form-input" placeholder="contacto@tugimnasio.com">
+                    </div>
+
+                    <button type="submit" class="auth-submit" id="submitBtn">
+                        Continuar
+                    </button>
+                </form>
+
+                <!-- Info -->
+                <p class="auth-links" style="margin-top: 2rem; font-size: 0.75rem;">
+                    <span data-icon="lock" style="margin-right:0.25rem"></span> Tus datos están seguros y podés
+                    modificarlos
+                    después
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+        // Handle onboarding form submission
+        async function handleOnboarding(event) {
+            event.preventDefault();
+
+            const form = event.target;
+            const submitBtn = document.getElementById('submitBtn');
+
+            const gymData = {
+                name: document.getElementById('gymName').value.trim(),
+                address: document.getElementById('gymAddress').value.trim() || null,
+                phone: document.getElementById('gymPhone').value.trim() || null,
+                email: document.getElementById('gymEmail').value.trim() || null
+            };
+
+            if (!gymData.name) {
+                showToast('Por favor ingresa el nombre del gimnasio', 'error');
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner"></span> Creando gimnasio...';
+
+                // Create the gym
+                await createGym(gymData);
+
+                showToast('¡Gimnasio creado! Seleccioná tu plan...', 'success');
+
+                // Redirect to plans page
+                setTimeout(() => {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                }, 1500);
+
+            } catch (error) {
+                console.error('Onboarding error:', error);
+                showToast('Error al crear el gimnasio: ' + error.message, 'error');
+
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Continuar';
+            }
+        }
+
+        // Check auth and redirect if necessary
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const session = await getSession();
+
+                if (!session) {
+                    // Not logged in, redirect to login
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Check if user already has a gym
+                const profile = await getProfile();
+
+                if (profile && profile.gym_id) {
+                    // Already has a gym, check status
+                    const gym = await getGym();
+
+                    if (gym) {
+                        if (gym.status === CONFIG.GYM_STATUS.PENDING) {
+                            window.location.href = CONFIG.ROUTES.PLANS;
+                        } else if (gym.status === CONFIG.GYM_STATUS.ACTIVE) {
+                            window.location.href = CONFIG.ROUTES.DASHBOARD;
+                        } else {
+                            window.location.href = CONFIG.ROUTES.BLOCKED;
+                        }
+                    }
+                }
+
+                // Pre-fill email from profile
+                if (profile && profile.email) {
+                    document.getElementById('gymEmail').value = profile.email;
+                }
+
+            } catch (error) {
+                console.error('Auth check error:', error);
+            }
+        });
+    </script>
+</body>
+
+</html>
