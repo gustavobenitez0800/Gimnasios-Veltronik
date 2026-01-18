@@ -394,30 +394,33 @@
                     return;
                 }
 
-                const profile = await getProfile();
+                // Cargar datos del usuario
+                currentProfile = await getProfile();
+                console.log('Profile loaded:', currentProfile);
 
-                if (!profile || !profile.gym_id) {
+                if (!currentProfile || !currentProfile.gym_id) {
                     window.location.href = CONFIG.ROUTES.ONBOARDING;
                     return;
                 }
 
-                const gym = await getGym();
+                // Cargar datos del gimnasio
+                currentGym = await getGym();
+                console.log('Gym loaded:', currentGym);
 
                 // Si el gimnasio ya está activo CON suscripción pagada, ir al dashboard
                 // Pero si está en trial (no tiene subscription_id), permitir acceso para suscribirse
-                if (gym && gym.status === CONFIG.GYM_STATUS.ACTIVE && gym.subscription_id) {
+                if (currentGym && currentGym.status === CONFIG.GYM_STATUS.ACTIVE && currentGym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.DASHBOARD;
                     return;
                 }
 
                 // Si está bloqueado, mostrar página de bloqueo
-                if (gym && gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                if (currentGym && currentGym.status === CONFIG.GYM_STATUS.BLOCKED) {
                     window.location.href = CONFIG.ROUTES.BLOCKED;
                     return;
                 }
 
-                // Cargar datos para la suscripción
-                await loadUserData();
+                console.log('Plans page ready - currentProfile:', currentProfile, 'currentGym:', currentGym);
 
             } catch (error) {
                 console.error('Auth check error:', error);
