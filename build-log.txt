@@ -1,0 +1,118 @@
+﻿  ÔÇó electron-builder  version=24.13.3 os=10.0.26200
+  ÔÇó loaded configuration  file=package.json ("build" field)
+  ÔÇó loaded parent configuration  file=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\electron-builder.yml
+  ÔÇó effective config  config=directories:
+  output: dist
+  buildResources: build
+appId: com.veltronik.gimnasio
+productName: Gimnasio Veltronik
+copyright: Copyright ┬® 2026 Veltronik
+files:
+  - filter:
+      - '**/*'
+      - '!.git/**/*'
+      - '!.env'
+      - '!.env.*'
+      - '!*.md'
+      - '!sql/**/*'
+      - '!dist/**/*'
+      - '!build/**/*'
+asar: true
+asarUnpack:
+  - node_modules/electron-updater/**/*
+  - node_modules/electron-log/**/*
+extraResources:
+  - from: assets/
+    to: assets/
+publish:
+  provider: github
+  owner: gustavobenitez0800
+  repo: gimnasios-veltronik
+  releaseType: release
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: Gimnasio-Veltronik-${version}-portable.${ext}
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: assets/VeltronikGym.png
+  artifactName: Gimnasio-Veltronik-${version}-${arch}.${ext}
+  category: public.app-category.business
+dmg:
+  title: Gimnasio Veltronik
+  icon: assets/VeltronikGym.png
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: assets/VeltronikGym.png
+  artifactName: Gimnasio-Veltronik-${version}.${ext}
+  category: Office
+  maintainer: veltronikcompany@gmail.com
+  vendor: Veltronik
+appImage:
+  artifactName: Gimnasio-Veltronik-${version}.AppImage
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3
+extends: electron-builder.yml
+
+  ÔÇó spawning        command=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\app-builder-bin\win\x64\app-builder.exe node-dep-tree --dir C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik
+  ÔÇó unresolved deps  unresolved=tslib nodeModuleDir=C:\Users\Gustavo Benitez\node_modules round=0
+  ÔÇó unresolved deps  unresolved=tslib nodeModuleDir=C:\Users\Gustavo Benitez\node_modules round=0
+  ÔÇó unresolved deps  unresolved=tslib nodeModuleDir=C:\Users\Gustavo Benitez\node_modules round=0
+  ÔÇó unresolved deps  unresolved=tslib nodeModuleDir=C:\Users\Gustavo Benitez\node_modules round=0
+  ÔÇó unresolved deps  unresolved=js-yamllazy-vallodash.escaperegexplodash.isequaltiny-typed-emitter nodeModuleDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules round=0
+  ÔÇó unresolved deps  unresolved=sax nodeModuleDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules round=0
+  ÔÇó unresolved deps  unresolved=graceful-fs nodeModuleDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules round=0
+  ÔÇó unresolved deps  unresolved=universalify nodeModuleDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules round=0
+  ÔÇó unresolved deps  unresolved=graceful-fs nodeModuleDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules round=0
+  ÔÇó unresolved deps  unresolved=graceful-fs nodeModuleDir=C:\Users\Gustavo Benitez\node_modules round=1
+  ÔÇó exited          command=app-builder.exe code=0 pid=340 out=[{"dir":"C:\\Users\\Gustavo Benitez\\node_modules","deps":[{"name":"graceful-fs","version":"4.2.11","optional":true}]},{"dir":"C:\\Users\\Gustavo Benitez\\Desktop\\Gimnasio Veltronik\\node_modules","deps":[{"name":"@supabase/auth-js","version":"2.90.1"},{"name":"@supabase/functions-js","version":"2.90.1"},{"name":"@supabase/postgrest-js","version":"2.90.1"},{"name":"@supabase/realtime-js","version":"2.90.1"},{"name":"@supabase/storage-js","version":"2.90.1"},{"name":"@supabase/supabase-js","version":"2.90.1"},{"name":"argparse","version":"2.0.1"},{"name":"electron-log","version":"5.4.3"},{"name":"electron-updater","version":"6.7.3"},{"name":"graceful-fs","version":"4.2.11"},{"name":"iceberg-js","version":"0.8.1"},{"name":"js-yaml","version":"4.1.1"},{"name":"lazy-val","version":"1.0.5"},{"name":"lodash.escaperegexp","version":"4.1.2"},{"name":"lodash.isequal","version":"4.5.0"},{"name":"mercadopago","version":"2.12.0"},{"name":"node-fetch","version":"2.7.0"},{"name":"sax","version":"1.4.4"},{"name":"tiny-typed-emitter","version":"2.1.0"},{"name":"tr46","version":"0.0.3"},{"name":"tslib","version":"2.8.1"},{"name":"universalify","version":"0.1.2"},{"name":"uuid","version":"9.0.1"},{"name":"webidl-conversions","version":"3.0.1"},{"name":"whatwg-url","version":"5.0.0"},{"name":"ws","version":"8.19.0"}]},{"dir":"C:\\Users\\Gustavo Benitez\\Desktop\\Gimnasio Veltronik\\node_modules\\electron-updater\\node_modules","deps":[{"name":"builder-util-runtime","version":"9.5.1"},{"name":"debug","version":"4.4.3"},{"name":"fs-extra","version":"10.1.0"},{"name":"jsonfile","version":"6.2.0"},{"name":"ms","version":"2.1.3"},{"name":"semver","version":"7.7.3"},{"name":"universalify","version":"2.0.1"}]}]
+  ÔÇó spawning        command=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\app-builder-bin\win\x64\app-builder.exe rebuild-node-modules cwd=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik
+  ÔÇó map async       taskCount=3
+  ÔÇó map async       taskCount=7
+  ÔÇó map async       taskCount=1
+  ÔÇó map async       taskCount=26
+  ÔÇó no native dependencies  
+  ÔÇó exited          command=app-builder.exe code=0 pid=15804
+  ÔÇó packaging       platform=win32 arch=x64 electron=28.3.3 appOutDir=dist\win-unpacked
+  ÔÇó spawning        command=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\app-builder-bin\win\x64\app-builder.exe unpack-electron --configuration [{"platform":"win32","arch":"x64","version":"28.3.3"}] --output C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\dist\win-unpacked --distMacOsAppName Electron.app
+  ÔÇó map async       taskCount=2
+  ÔÇó map async       taskCount=1
+  Ô¿» remove C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\dist\win-unpacked\d3dcompiler_47.dll: Access is denied.
+github.com/develar/go-fs-util.EnsureEmptyDir
+	/Volumes/data/go/pkg/mod/github.com/develar/go-fs-util@v0.0.0-20190620175131-69a2d4542206/fs.go:98
+github.com/develar/app-builder/pkg/electron.UnpackElectron.func1.1
+	/Volumes/data/Documents/app-builder/pkg/electron/electronUnpack.go:38
+github.com/develar/app-builder/pkg/util.MapAsyncConcurrency.func2
+	/Volumes/data/Documents/app-builder/pkg/util/async.go:68
+runtime.goexit
+	/usr/local/Cellar/go/1.17/libexec/src/runtime/asm_amd64.s:1581  
+  ÔÇó exited          command=app-builder.exe code=1 pid=12172
+  Ô¿» C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\app-builder-bin\win\x64\app-builder.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1  failedTask=build stackTrace=Error: C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\app-builder-bin\win\x64\app-builder.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+    at ChildProcess.<anonymous> (C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\builder-util\src\util.ts:252:14)
+    at Object.onceWrapper (node:events:623:26)
+    at ChildProcess.emit (node:events:508:28)
+    at ChildProcess.cp.emit (C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\node_modules\cross-spawn\lib\enoent.js:34:29)
+    at maybeClose (node:internal/child_process:1101:16)
+    at Process.ChildProcess._handle.onexit (node:internal/child_process:305:5)

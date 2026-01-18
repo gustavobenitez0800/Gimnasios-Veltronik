@@ -5,14 +5,19 @@ copyright: Copyright © 2026 Veltronik
 # Archivos a incluir en el build
 files:
   - "**/*"
-  - "!node_modules/**/*"
-  - "node_modules/electron-updater/**/*"
-  - "node_modules/electron-log/**/*"
   - "!.git/**/*"
   - "!.env"
   - "!.env.*"
   - "!*.md"
   - "!sql/**/*"
+  - "!dist/**/*"
+  - "!build/**/*"
+
+# Incluir dependencias de producción automáticamente
+asar: true
+asarUnpack:
+  - "node_modules/electron-updater/**/*"
+  - "node_modules/electron-log/**/*"
 
 # Archivos extra a copiar
 extraResources:
