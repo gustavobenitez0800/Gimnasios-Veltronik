@@ -10,10 +10,10 @@
  * - subscription_authorized_payment: Pagos de suscripción
  * - payment: Pagos individuales
  * 
- * IMPORTANTE:
- * - Este endpoint debe ser IDEMPOTENTE
- * - Usa external_reference para identificar el gym_id
- * - Actualiza gyms.status basado en el estado de la suscripción
+ * SECURITY HARDENED VERSION:
+ * - Validación de firma HMAC-SHA256
+ * - Logs seguros (sin datos sensibles)
+ * - Respuestas sanitizadas
  */
 
 const {
@@ -26,32 +26,41 @@ const {
     MP_PAYMENT_STATUS_MAP,
     jsonResponse,
     errorResponse,
-    corsResponse
+    corsResponse,
+    validateWebhookSignature,
+    logSecure,
+    isValidUUID
 } = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
-        return corsResponse(res).status(200).end();
+        return corsResponse(res, req).status(200).end();
     }
 
     // Solo POST permitido
     if (req.method !== 'POST') {
-        return errorResponse(res, 405, 'Method not allowed');
+        return errorResponse(res, 405, 'Method not allowed', null, req);
+    }
+
+    // ============================================
+    // SECURITY: VALIDAR FIRMA DEL WEBHOOK
+    // ============================================
+
+    if (!validateWebhookSignature(req)) {
+        logSecure('warn', 'Webhook signature validation failed');
+        return errorResponse(res, 401, 'Unauthorized - Invalid signature', null, req);
     }
 
     try {
         const { type, data, action } = req.body;
 
-        console.log('=== WEBHOOK RECEIVED ===');
-        console.log('Type:', type);
-        console.log('Action:', action);
-        console.log('Data:', JSON.stringify(data));
+        logSecure('info', 'Webhook received', { type, action });
 
         // Validar payload
         if (!type || !data?.id) {
-            console.log('Invalid payload, ignoring');
-            return jsonResponse(res, 200, { received: true, processed: false });
+            logSecure('info', 'Invalid payload, ignoring');
+            return jsonResponse(res, 200, { received: true, processed: false }, req);
         }
 
         // Procesar según tipo de evento
@@ -69,16 +78,16 @@ module.exports = async function handler(req, res) {
                 break;
 
             default:
-                console.log('Unhandled event type:', type);
+                logSecure('info', 'Unhandled event type');
         }
 
         // Siempre responder 200 para que MP no reintente
-        return jsonResponse(res, 200, { received: true, processed: true });
+        return jsonResponse(res, 200, { received: true, processed: true }, req);
 
     } catch (error) {
-        console.error('Webhook error:', error);
+        logSecure('error', 'Webhook processing error');
         // Aún así responder 200 para evitar reintentos infinitos
-        return jsonResponse(res, 200, { received: true, processed: false, error: error.message });
+        return jsonResponse(res, 200, { received: true, processed: false }, req);
     }
 };
 
@@ -91,22 +100,21 @@ module.exports = async function handler(req, res) {
  * Estados MP: pending, authorized, paused, cancelled
  */
 async function handleSubscriptionEvent(preapprovalId) {
-    console.log('Processing subscription event:', preapprovalId);
+    logSecure('info', 'Processing subscription event');
 
     // Obtener detalles de la suscripción desde MP
     const mpSub = await preApproval.get({ id: preapprovalId });
 
-    console.log('MP Subscription details:', {
-        id: mpSub.id,
+    logSecure('info', 'MP subscription retrieved', {
         status: mpSub.status,
-        external_reference: mpSub.external_reference,
-        payer_email: mpSub.payer_email
+        hasExternalRef: !!mpSub.external_reference
     });
 
     const gymId = mpSub.external_reference;
 
-    if (!gymId) {
-        console.error('No gym_id in external_reference');
+    // Validar que gym_id sea un UUID válido
+    if (!gymId || !isValidUUID(gymId)) {
+        logSecure('error', 'Invalid gym_id in external_reference');
         return;
     }
 
@@ -135,7 +143,7 @@ async function handleSubscriptionEvent(preapprovalId) {
         );
 
     if (subError) {
-        console.error('Error updating subscription:', subError);
+        logSecure('error', 'Error updating subscription');
     }
 
     // ============================================
@@ -161,9 +169,9 @@ async function handleSubscriptionEvent(preapprovalId) {
         .eq('id', gymId);
 
     if (gymError) {
-        console.error('Error updating gym status:', gymError);
+        logSecure('error', 'Error updating gym status');
     } else {
-        console.log(`Gym ${gymId} status updated to: ${gymStatus}`);
+        logSecure('info', 'Gym status updated', { status: gymStatus });
     }
 }
 
@@ -171,22 +179,21 @@ async function handleSubscriptionEvent(preapprovalId) {
  * Manejar pago de suscripción
  */
 async function handleSubscriptionPayment(paymentId) {
-    console.log('Processing subscription payment:', paymentId);
+    logSecure('info', 'Processing subscription payment');
 
     // Obtener detalles del pago
     const mpPayment = await payment.get({ id: paymentId });
 
-    console.log('MP Payment details:', {
-        id: mpPayment.id,
+    logSecure('info', 'MP payment retrieved', {
         status: mpPayment.status,
-        external_reference: mpPayment.external_reference,
-        transaction_amount: mpPayment.transaction_amount
+        hasExternalRef: !!mpPayment.external_reference
     });
 
     const gymId = mpPayment.external_reference;
 
-    if (!gymId) {
-        console.error('No gym_id in external_reference');
+    // Validar que gym_id sea un UUID válido
+    if (!gymId || !isValidUUID(gymId)) {
+        logSecure('error', 'Invalid gym_id in external_reference');
         return;
     }
 
@@ -201,7 +208,7 @@ async function handleSubscriptionPayment(paymentId) {
         .single();
 
     if (existingPayment) {
-        console.log('Payment already processed, skipping');
+        logSecure('info', 'Payment already processed, skipping');
         return;
     }
 
@@ -224,9 +231,9 @@ async function handleSubscriptionPayment(paymentId) {
         .insert(paymentRecord);
 
     if (paymentError) {
-        console.error('Error saving payment:', paymentError);
+        logSecure('error', 'Error saving payment');
     } else {
-        console.log('Payment saved successfully');
+        logSecure('info', 'Payment saved successfully');
     }
 
     // ============================================
@@ -244,7 +251,7 @@ async function handleSubscriptionPayment(paymentId) {
             .eq('gym_id', gymId);
 
         if (subError) {
-            console.error('Error updating subscription last payment:', subError);
+            logSecure('error', 'Error updating subscription last payment');
         }
 
         // Activar gimnasio
@@ -256,7 +263,7 @@ async function handleSubscriptionPayment(paymentId) {
             })
             .eq('id', gymId);
 
-        console.log(`Gym ${gymId} activated after payment`);
+        logSecure('info', 'Gym activated after payment');
 
     } else if (mpPayment.status === 'rejected') {
         // Pago rechazado → marcar como past_due
@@ -277,7 +284,7 @@ async function handleSubscriptionPayment(paymentId) {
             })
             .eq('id', gymId);
 
-        console.log(`Gym ${gymId} blocked due to payment rejection`);
+        logSecure('warn', 'Gym blocked due to payment rejection');
     }
 }
 
