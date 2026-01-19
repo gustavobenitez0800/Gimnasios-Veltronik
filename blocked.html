@@ -193,12 +193,6 @@
                     return;
                 }
 
-                // ADMIN BYPASS: Redirect admin to dashboard
-                if (isAdminEmail(profile.email)) {
-                    window.location.href = CONFIG.ROUTES.DASHBOARD;
-                    return;
-                }
-
                 const gym = await getGym();
 
                 if (!gym) {

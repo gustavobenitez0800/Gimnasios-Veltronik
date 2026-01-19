@@ -881,21 +881,16 @@
                     }
                 }
 
-                // ADMIN BYPASS: Skip payment/blocked checks for admin
-                const isAdmin = isAdminEmail(profile.email);
+                // Handle gym status
+                if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
+                    window.location.href = CONFIG.ROUTES.BLOCKED;
+                    return;
+                }
 
-                if (!isAdmin) {
-                    // Handle gym status
-                    if (gym.status === CONFIG.GYM_STATUS.BLOCKED) {
-                        window.location.href = CONFIG.ROUTES.BLOCKED;
-                        return;
-                    }
-
-                    // If trial expired and gym not fully subscribed, redirect to plans
-                    if (!isTrialActive && !gym.subscription_id) {
-                        window.location.href = CONFIG.ROUTES.PLANS;
-                        return;
-                    }
+                // If trial expired and gym not fully subscribed, redirect to plans
+                if (!isTrialActive && !gym.subscription_id) {
+                    window.location.href = CONFIG.ROUTES.PLANS;
+                    return;
                 }
 
                 // Load dashboard

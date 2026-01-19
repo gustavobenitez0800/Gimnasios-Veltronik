@@ -48,17 +48,6 @@ async function checkAuthAndRedirect() {
         // Check gym status and trial
         const isTrialActive = checkTrialStatus(gym);
 
-        // ============================================
-        // ADMIN BYPASS: Skip payment check for admin accounts
-        // ============================================
-        if (isAdminEmail(profile.email)) {
-            // Admin accounts get full access without payment
-            if (isPublicPage() || isPaymentPage() || isBlockedPage()) {
-                window.location.href = CONFIG.ROUTES.DASHBOARD;
-            }
-            return { session, profile, gym, isTrialActive, isAdmin: true };
-        }
-
         switch (gym.status) {
             case CONFIG.GYM_STATUS.PENDING:
                 // Check if trial is active
@@ -379,26 +368,4 @@ async function handleForgotPassword() {
         // Don't reveal if email exists or not for security
         showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
     }
-}
-
-// ============================================
-// ADMIN ACCOUNTS (Payment Bypass)
-// ============================================
-
-/**
- * List of admin emails that can access without payment
- * These accounts get full access regardless of subscription status
- */
-const ADMIN_EMAILS = [
-    'veltronikcompany@gmail.com'
-];
-
-/**
- * Check if an email is an admin account
- * @param {string} email - Email to check
- * @returns {boolean} - True if admin
- */
-function isAdminEmail(email) {
-    if (!email) return false;
-    return ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }
