@@ -43,6 +43,74 @@
                 max-height: 85vh;
             }
         }
+
+        /* Pagination Styles */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .pagination-info {
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pagination-pages {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .pagination-pages .page-btn {
+            min-width: 32px;
+            height: 32px;
+            padding: 0 0.5rem;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            font-size: var(--font-size-sm);
+            transition: all 0.2s;
+        }
+
+        .pagination-pages .page-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--primary-500);
+        }
+
+        .pagination-pages .page-btn.active {
+            background: var(--primary-500);
+            border-color: var(--primary-500);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: var(--font-size-sm);
+        }
+
+        @media (max-width: 600px) {
+            .pagination-container {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .pagination-pages {
+                display: none;
+            }
+        }
     </style>
 
     <!-- Favicon -->
@@ -133,7 +201,10 @@
                     <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
                     <h1 class="page-title">Socios</h1>
                 </div>
-                <div class="header-right">
+                <div class="header-right" style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="exportToCSV()" title="Exportar a CSV">
+                        📥 Exportar
+                    </button>
                     <button class="btn btn-primary" onclick="openMemberModal()">
                         <span data-icon="plus"></span> Nuevo Socio
                     </button>
@@ -184,6 +255,23 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination-container" id="paginationContainer" style="display: none;">
+                        <div class="pagination-info">
+                            Mostrando <span id="pageStart">0</span>-<span id="pageEnd">0</span> de <span
+                                id="totalItems">0</span>
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="btn btn-secondary btn-sm" id="prevPageBtn" onclick="prevPage()" disabled>
+                                ← Anterior
+                            </button>
+                            <span class="pagination-pages" id="paginationPages"></span>
+                            <button class="btn btn-secondary btn-sm" id="nextPageBtn" onclick="nextPage()" disabled>
+                                Siguiente →
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -268,10 +356,27 @@
 
     <script>
         let allMembers = [];
+        let filteredMembers = [];
 
-        // Render members table
+        // Pagination settings
+        const ITEMS_PER_PAGE = 25;
+        let currentPage = 1;
+        let totalPages = 1;
+
+        // Render members table with pagination
         function renderMembers(members) {
             const tbody = document.getElementById('membersTableBody');
+            filteredMembers = members;
+
+            // Calculate pagination
+            totalPages = Math.ceil(members.length / ITEMS_PER_PAGE);
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+
+            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+            const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, members.length);
+            const pageMembers = members.slice(startIndex, endIndex);
+
+            // Update counter
             document.getElementById('memberCount').textContent = `${members.length} socios`;
 
             if (!members || members.length === 0) {
@@ -287,10 +392,11 @@
                         </td>
                     </tr>
                 `;
+                updatePaginationUI(0, 0, 0);
                 return;
             }
 
-            tbody.innerHTML = members.map(member => `
+            tbody.innerHTML = pageMembers.map(member => `
                 <tr>
                     <td data-label="Nombre">
                         <strong>${member.full_name}</strong>
@@ -311,6 +417,120 @@
                     </td>
                 </tr>
             `).join('');
+
+            // Update pagination UI
+            updatePaginationUI(startIndex + 1, endIndex, members.length);
+        }
+
+        // Update pagination UI
+        function updatePaginationUI(start, end, total) {
+            const container = document.getElementById('paginationContainer');
+            const pagesContainer = document.getElementById('paginationPages');
+
+            // Show/hide pagination
+            if (total <= ITEMS_PER_PAGE) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex';
+
+            // Update info text
+            document.getElementById('pageStart').textContent = start;
+            document.getElementById('pageEnd').textContent = end;
+            document.getElementById('totalItems').textContent = total;
+
+            // Update buttons
+            document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+
+            // Generate page buttons (show max 5 pages)
+            let pagesHtml = '';
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                pagesHtml += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+
+            pagesContainer.innerHTML = pagesHtml;
+        }
+
+        // Pagination navigation functions
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderMembers(filteredMembers);
+            }
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderMembers(filteredMembers);
+            }
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderMembers(filteredMembers);
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            const members = filteredMembers.length > 0 ? filteredMembers : allMembers;
+
+            if (members.length === 0) {
+                showToast('No hay socios para exportar', 'warning');
+                return;
+            }
+
+            // CSV headers
+            const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Fecha Inicio', 'Fecha Fin', 'Notas'];
+
+            // Status translation
+            const statusMap = {
+                'active': 'Activo',
+                'inactive': 'Inactivo',
+                'expired': 'Vencido',
+                'suspended': 'Suspendido'
+            };
+
+            // Build CSV content
+            let csvContent = headers.join(',') + '\n';
+
+            members.forEach(member => {
+                const row = [
+                    `"${(member.full_name || '').replace(/"/g, '""')}"`,
+                    `"${member.dni || ''}"`,
+                    `"${member.phone || ''}"`,
+                    `"${member.email || ''}"`,
+                    `"${statusMap[member.status] || member.status || ''}"`,
+                    `"${member.membership_start || ''}"`,
+                    `"${member.membership_end || ''}"`,
+                    `"${(member.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}""`
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+
+            // Create and download file
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            const today = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `socios_${today}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast(`${members.length} socios exportados`, 'success');
         }
 
         // Filter members
@@ -331,6 +551,8 @@
                 filtered = filtered.filter(m => m.status === status);
             }
 
+            // Reset to first page when filtering
+            currentPage = 1;
             renderMembers(filtered);
         }
 
@@ -406,15 +628,23 @@
                 return;
             }
 
+            // Check connectivity first
+            if (!isOnline()) {
+                showToast('Sin conexión a internet. Intenta más tarde.', 'error');
+                return;
+            }
+
             try {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<span class="spinner"></span>';
 
                 if (memberId) {
-                    await updateMember(memberId, memberData);
+                    // Use safe version that validates DNI
+                    await updateMemberSafe(memberId, memberData);
                     showToast('Socio actualizado correctamente', 'success');
                 } else {
-                    await createMember(memberData);
+                    // Use safe version that validates DNI
+                    await createMemberSafe(memberData);
                     showToast('Socio creado correctamente', 'success');
                 }
 
@@ -423,7 +653,11 @@
 
             } catch (error) {
                 console.error('Save error:', error);
-                showToast('Error al guardar: ' + error.message, 'error');
+                // Use friendly error message function
+                const friendlyMessage = typeof getSupabaseErrorMessage === 'function'
+                    ? getSupabaseErrorMessage(error)
+                    : error.message;
+                showToast(friendlyMessage, 'error');
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Guardar';

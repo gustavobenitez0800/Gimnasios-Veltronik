@@ -846,3 +846,193 @@ async function getAccessStats(daysBack = 30) {
 document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
 });
+
+// ============================================
+// ERROR HANDLING UTILITIES
+// ============================================
+
+/**
+ * Get user-friendly error message from Supabase error
+ * @param {Error} error - The error object
+ * @returns {string} - User-friendly error message
+ */
+function getSupabaseErrorMessage(error) {
+    if (!error) return 'Error desconocido';
+
+    const message = error.message || error.toString();
+
+    // Network errors
+    if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+        return 'Error de conexión. Verifica tu conexión a internet e intenta nuevamente.';
+    }
+
+    // Timeout errors
+    if (message.includes('timeout') || message.includes('Timeout')) {
+        return 'La solicitud tardó demasiado. Intenta nuevamente.';
+    }
+
+    // Auth errors
+    if (message.includes('Invalid login credentials')) {
+        return 'Email o contraseña incorrectos';
+    }
+    if (message.includes('User already registered')) {
+        return 'Este email ya está registrado';
+    }
+    if (message.includes('JWT expired')) {
+        return 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.';
+    }
+
+    // Database errors
+    if (message.includes('duplicate key') || message.includes('unique constraint')) {
+        if (message.includes('dni')) {
+            return 'Ya existe un socio con este DNI en tu gimnasio.';
+        }
+        return 'Este registro ya existe.';
+    }
+
+    if (message.includes('violates row-level security')) {
+        return 'No tienes permiso para realizar esta acción.';
+    }
+
+    if (message.includes('foreign key constraint')) {
+        return 'No se puede eliminar porque hay registros relacionados.';
+    }
+
+    // Generic errors
+    if (message.includes('not found') || message.includes('No rows')) {
+        return 'El registro no fue encontrado.';
+    }
+
+    return message;
+}
+
+/**
+ * Check if user is online
+ * @returns {boolean}
+ */
+function isOnline() {
+    return navigator.onLine;
+}
+
+/**
+ * Retry a function with exponential backoff
+ * @param {Function} fn - Function to retry
+ * @param {number} maxRetries - Maximum number of retries (default: 3)
+ * @param {number} delay - Initial delay in ms (default: 1000)
+ * @returns {Promise<any>}
+ */
+async function retryWithBackoff(fn, maxRetries = 3, delay = 1000) {
+    let lastError;
+
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+
+            // Don't retry on auth errors or validation errors
+            const message = error.message || '';
+            if (message.includes('Invalid login') ||
+                message.includes('duplicate key') ||
+                message.includes('violates')) {
+                throw error;
+            }
+
+            // Wait before retrying (exponential backoff)
+            if (i < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+/**
+ * Check if DNI already exists in the gym
+ * @param {string} dni - DNI to check
+ * @param {string} excludeId - Member ID to exclude (for editing)
+ * @returns {Promise<boolean>} - True if DNI exists
+ */
+async function isDniDuplicate(dni, excludeId = null) {
+    if (!dni || dni.trim() === '') return false;
+
+    const client = getSupabase();
+
+    let query = client
+        .from('members')
+        .select('id')
+        .eq('dni', dni.trim());
+
+    if (excludeId) {
+        query = query.neq('id', excludeId);
+    }
+
+    const { data, error } = await query.limit(1);
+
+    if (error) {
+        console.error('DNI check error:', error);
+        return false; // Fail open - let the database constraint handle it
+    }
+
+    return data && data.length > 0;
+}
+
+/**
+ * Create member with DNI validation
+ * @param {object} memberData - Member data
+ * @returns {Promise<object>} - Created member
+ */
+async function createMemberSafe(memberData) {
+    // Check for duplicate DNI first
+    if (memberData.dni) {
+        const isDuplicate = await isDniDuplicate(memberData.dni);
+        if (isDuplicate) {
+            throw new Error('Ya existe un socio con este DNI en tu gimnasio.');
+        }
+    }
+
+    return createMember(memberData);
+}
+
+/**
+ * Update member with DNI validation
+ * @param {string} id - Member ID
+ * @param {object} updates - Updates to apply
+ * @returns {Promise<object>} - Updated member
+ */
+async function updateMemberSafe(id, updates) {
+    // Check for duplicate DNI first (excluding current member)
+    if (updates.dni) {
+        const isDuplicate = await isDniDuplicate(updates.dni, id);
+        if (isDuplicate) {
+            throw new Error('Ya existe un socio con este DNI en tu gimnasio.');
+        }
+    }
+
+    return updateMember(id, updates);
+}
+
+// ============================================
+// OFFLINE DETECTION
+// ============================================
+
+/**
+ * Setup offline/online listeners
+ */
+function setupConnectivityListeners() {
+    window.addEventListener('online', () => {
+        if (typeof showToast === 'function') {
+            showToast('Conexión restaurada', 'success');
+        }
+    });
+
+    window.addEventListener('offline', () => {
+        if (typeof showToast === 'function') {
+            showToast('Sin conexión a internet', 'warning', 5000);
+        }
+    });
+}
+
+// Setup connectivity listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', setupConnectivityListeners);
