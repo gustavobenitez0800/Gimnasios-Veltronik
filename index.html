@@ -101,7 +101,8 @@
     <script src="js/config.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>`n
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
@@ -119,9 +120,75 @@
             }
         }
 
-        // Check if already logged in
+        // Handle email confirmation callback from Supabase
+        async function handleEmailConfirmation() {
+            const hash = window.location.hash;
+
+            // Check if there's an access_token in the URL hash (email confirmation callback)
+            if (hash && hash.includes('access_token')) {
+                try {
+                    // Parse the hash parameters
+                    const params = new URLSearchParams(hash.substring(1));
+                    const accessToken = params.get('access_token');
+                    const refreshToken = params.get('refresh_token');
+                    const type = params.get('type');
+
+                    if (accessToken) {
+                        // Show loading message
+                        document.body.innerHTML = `
+                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary, #0a0a0b); color: var(--text-primary, #fff); font-family: 'Inter', sans-serif;">
+                                <div style="text-align: center; padding: 2rem;">
+                                    <div style="width: 60px; height: 60px; border: 3px solid rgba(139, 92, 246, 0.3); border-top-color: #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.5rem;"></div>
+                                    <h2 style="margin-bottom: 0.5rem; font-size: 1.5rem;">¡Email Confirmado!</h2>
+                                    <p style="opacity: 0.7;">Iniciando sesión automáticamente...</p>
+                                </div>
+                            </div>
+                            <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+                        `;
+
+                        // Set the session using the tokens
+                        const client = getSupabase();
+                        const { data, error } = await client.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: refreshToken
+                        });
+
+                        if (error) throw error;
+
+                        // Clear the hash from URL
+                        history.replaceState(null, '', window.location.pathname);
+
+                        // Success! Redirect based on user state
+                        // Check if user has completed onboarding
+                        const profile = await getProfile();
+
+                        if (profile && profile.gym_id) {
+                            // User has a gym, go to dashboard
+                            window.location.href = CONFIG.ROUTES.DASHBOARD;
+                        } else {
+                            // User needs to complete onboarding
+                            window.location.href = CONFIG.ROUTES.ONBOARDING;
+                        }
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('Error processing email confirmation:', error);
+                    // Clear the hash and let user login normally
+                    history.replaceState(null, '', window.location.pathname);
+                    showToast('Error al confirmar email. Por favor, inicia sesión manualmente.', 'error');
+                }
+            }
+            return false;
+        }
+
+        // Check if already logged in or handle email confirmation
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // First, check if this is an email confirmation callback
+                const wasEmailConfirmation = await handleEmailConfirmation();
+                if (wasEmailConfirmation) return;
+
+                // Normal session check
                 const session = await getSession();
                 if (session) {
                     // User is logged in, check where to redirect

@@ -42,13 +42,20 @@ function getSupabase() {
 async function signUp(email, password, fullName = '') {
     const client = getSupabase();
 
+    // Determine the redirect URL based on environment
+    // In production (Vercel), use the production URL
+    // In development, allow localhost
+    const baseUrl = window.location.origin;
+    const redirectUrl = baseUrl + '/index.html';
+
     const { data, error } = await client.auth.signUp({
         email,
         password,
         options: {
             data: {
                 full_name: fullName
-            }
+            },
+            emailRedirectTo: redirectUrl
         }
     });
 

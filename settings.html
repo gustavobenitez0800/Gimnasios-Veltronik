@@ -107,53 +107,105 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            padding: 1rem;
-            background: var(--bg-tertiary);
+            padding: 1rem 1.25rem;
             border: 2px solid var(--border-color);
             border-radius: var(--border-radius-md);
             cursor: pointer;
-            transition: all var(--transition-fast);
+            transition: all 0.2s ease;
             flex: 1;
-            min-width: 120px;
+            min-width: 100px;
+            position: relative;
+        }
+
+        /* Light option - always dark background for contrast */
+        .theme-option[data-theme="light"] {
+            background: #fef3c7;
+            border-color: #fbbf24;
+        }
+
+        .theme-option[data-theme="light"] .theme-option-text {
+            color: #92400e;
+        }
+
+        /* Dark option - always dark background for contrast */
+        .theme-option[data-theme="dark"] {
+            background: #312e81;
+            border-color: #6366f1;
+        }
+
+        .theme-option[data-theme="dark"] .theme-option-text {
+            color: #e0e7ff;
+        }
+
+        /* System option - neutral */
+        .theme-option[data-theme="system"] {
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+        }
+
+        .theme-option[data-theme="system"] .theme-option-text {
+            color: var(--text-primary);
         }
 
         .theme-option:hover {
-            border-color: var(--primary-400);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .theme-option.active {
-            border-color: var(--primary-500);
-            background: rgba(14, 165, 233, 0.1);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
         }
 
-        .theme-option input {
-            display: none;
-        }
-
-        .theme-option-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: var(--border-radius-sm);
+        .theme-option.active::after {
+            content: '✓';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            background: var(--primary-500);
+            color: white;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .theme-option-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--border-radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .theme-option-icon .icon {
+            width: 24px;
+            height: 24px;
         }
 
         .theme-option-icon.sun {
             background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: white;
         }
 
         .theme-option-icon.moon {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
         }
 
         .theme-option-icon.system {
-            background: linear-gradient(135deg, var(--gray-400), var(--gray-600));
+            background: linear-gradient(135deg, #64748b, #475569);
+            color: white;
         }
 
         .theme-option-text {
-            font-weight: 500;
+            font-weight: 600;
+            font-size: var(--font-size-sm);
         }
     </style>
 
@@ -323,21 +375,18 @@
                             Elige el tema de la interfaz
                         </p>
                         <div class="theme-options" id="themeOptions">
-                            <label class="theme-option" data-theme="light">
-                                <input type="radio" name="theme" value="light">
-                                <div class="theme-option-icon sun">☀️</div>
+                            <div class="theme-option" data-theme="light">
+                                <div class="theme-option-icon sun"><span data-icon="sun"></span></div>
                                 <span class="theme-option-text">Claro</span>
-                            </label>
-                            <label class="theme-option" data-theme="dark">
-                                <input type="radio" name="theme" value="dark">
-                                <div class="theme-option-icon moon">🌙</div>
+                            </div>
+                            <div class="theme-option" data-theme="dark">
+                                <div class="theme-option-icon moon"><span data-icon="moon"></span></div>
                                 <span class="theme-option-text">Oscuro</span>
-                            </label>
-                            <label class="theme-option" data-theme="system">
-                                <input type="radio" name="theme" value="system">
-                                <div class="theme-option-icon system">💻</div>
+                            </div>
+                            <div class="theme-option" data-theme="system">
+                                <div class="theme-option-icon system"><span data-icon="monitor"></span></div>
                                 <span class="theme-option-text">Sistema</span>
-                            </label>
+                            </div>
                         </div>
                     </div>
 
@@ -503,19 +552,21 @@
                 const theme = option.dataset.theme;
                 if (theme === currentTheme) {
                     option.classList.add('active');
-                    option.querySelector('input').checked = true;
                 }
 
-                // Add click handler
-                option.addEventListener('click', () => {
+                // Add click handler (only once)
+                option.onclick = (e) => {
+                    e.preventDefault();
+                    // Skip if already active
+                    if (option.classList.contains('active')) return;
+
                     // Remove active from all
                     options.forEach(o => o.classList.remove('active'));
                     // Add active to clicked
                     option.classList.add('active');
                     // Apply theme
                     ThemeManager.setTheme(theme);
-                    showToast(`Tema ${theme === 'light' ? 'claro' : theme === 'dark' ? 'oscuro' : 'del sistema'} aplicado`, 'success');
-                });
+                };
             });
         }
 
