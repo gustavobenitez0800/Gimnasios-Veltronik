@@ -229,6 +229,13 @@
             <div class="plans-header">
                 <h1><span data-icon="rocket" style="margin-right:0.5rem"></span> Activa tu gimnasio</h1>
                 <p>Suscripción mensual para acceso completo al sistema</p>
+
+                <!-- Back button - only visible if user has trial active -->
+                <a href="dashboard.html" id="backBtn" class="btn btn-secondary"
+                    style="margin-top: 1.5rem; display: none;">
+                    <span data-icon="arrow-left" style="margin-right: 0.5rem;"></span>
+                    Volver al Dashboard
+                </a>
             </div>
 
             <!-- Single Subscription Card -->
@@ -296,9 +303,11 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
@@ -339,7 +348,7 @@
                     throw new Error(result.error || 'Error al crear suscripción');
                 }
 
-                console.log('Subscription created:', result.data);
+                log('Subscription created:', result.data);
 
                 // Redirigir al checkout de Mercado Pago
                 // En sandbox usamos sandbox_init_point, en producción init_point
@@ -373,8 +382,8 @@
                 currentProfile = await getProfile();
                 currentGym = await getGym();
 
-                console.log('Loaded profile:', currentProfile);
-                console.log('Loaded gym:', currentGym);
+                log('Loaded profile:', currentProfile);
+                log('Loaded gym:', currentGym);
 
             } catch (error) {
                 console.error('Load user data error:', error);
@@ -396,7 +405,7 @@
 
                 // Cargar datos del usuario
                 currentProfile = await getProfile();
-                console.log('Profile loaded:', currentProfile);
+                log('Profile loaded:', currentProfile);
 
                 if (!currentProfile || !currentProfile.gym_id) {
                     window.location.href = CONFIG.ROUTES.ONBOARDING;
@@ -405,22 +414,27 @@
 
                 // Cargar datos del gimnasio
                 currentGym = await getGym();
-                console.log('Gym loaded:', currentGym);
+                log('Gym loaded:', currentGym);
 
                 // Si el gimnasio ya está activo CON suscripción pagada, ir al dashboard
-                // Pero si está en trial (no tiene subscription_id), permitir acceso para suscribirse
                 if (currentGym && currentGym.status === CONFIG.GYM_STATUS.ACTIVE && currentGym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.DASHBOARD;
                     return;
                 }
 
-                // Si está bloqueado, mostrar página de bloqueo
-                if (currentGym && currentGym.status === CONFIG.GYM_STATUS.BLOCKED) {
-                    window.location.href = CONFIG.ROUTES.BLOCKED;
-                    return;
-                }
+                // NOTA: No bloqueamos el acceso si el estado es BLOCKED, ya que el usuario necesita estar aquí para pagar y desbloquearse.
 
-                console.log('Plans page ready - currentProfile:', currentProfile, 'currentGym:', currentGym);
+
+                log('Plans page ready - currentProfile:', currentProfile, 'currentGym:', currentGym);
+
+                // Mostrar botón de volver si el usuario tiene trial activo
+                const isTrialActive = checkTrialStatus(currentGym);
+                if (isTrialActive) {
+                    const backBtn = document.getElementById('backBtn');
+                    if (backBtn) {
+                        backBtn.style.display = 'inline-flex';
+                    }
+                }
 
             } catch (error) {
                 console.error('Auth check error:', error);

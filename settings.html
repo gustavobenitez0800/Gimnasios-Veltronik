@@ -391,15 +391,141 @@
                     </div>
 
                     <!-- Danger Zone -->
-                    <div class="settings-section danger-zone">
-                        <h2 class="settings-section-title"><span data-icon="warning" style="margin-right:0.5rem"></span>
-                            Zona de Peligro</h2>
-                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
-                            Estas acciones son irreversibles. Procede con precaución.
-                        </p>
-                        <button class="btn btn-danger" onclick="confirmCancelSubscription()">
-                            Cancelar Suscripción
-                        </button>
+                    <!-- Danger Zone -->
+                    <style>
+                        .danger-zone-container {
+                            border: 1px solid var(--error-500);
+                            background: rgba(239, 68, 68, 0.05);
+                            /* error-500 with opacity */
+                            border-radius: var(--border-radius-lg);
+                            overflow: hidden;
+                            margin-top: 2rem;
+                        }
+
+                        .danger-header {
+                            padding: 1.5rem;
+                            border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+                            display: flex;
+                            align-items: center;
+                            gap: 0.75rem;
+                            background: rgba(239, 68, 68, 0.1);
+                        }
+
+                        .danger-title {
+                            color: var(--error-600);
+                            font-weight: 700;
+                            font-size: 1.1rem;
+                            margin: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                        }
+
+                        .danger-content {
+                            padding: 1.5rem;
+                        }
+
+                        .danger-item {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            gap: 1.5rem;
+                            padding: 1rem 0;
+                        }
+
+                        .danger-item:not(:last-child) {
+                            border-bottom: 1px solid var(--border-color);
+                        }
+
+                        .danger-info h3 {
+                            font-size: 1rem;
+                            font-weight: 600;
+                            margin-bottom: 0.25rem;
+                            color: var(--text-primary);
+                        }
+
+                        .danger-info p {
+                            font-size: 0.875rem;
+                            color: var(--text-muted);
+                            margin: 0;
+                        }
+
+                        .btn-outline-danger {
+                            background: transparent;
+                            border: 1px solid var(--error-500);
+                            color: var(--error-500);
+                            transition: all 0.2s;
+                            padding: 0.5rem 1rem;
+                            border-radius: var(--border-radius-md);
+                            cursor: pointer;
+                            font-weight: 500;
+                        }
+
+                        .btn-outline-danger:hover {
+                            background: var(--error-500);
+                            color: white;
+                        }
+
+                        .btn-outline-secondary {
+                            background: transparent;
+                            border: 1px solid var(--text-muted);
+                            color: var(--text-primary);
+                            transition: all 0.2s;
+                            padding: 0.5rem 1rem;
+                            border-radius: var(--border-radius-md);
+                            cursor: pointer;
+                            font-weight: 500;
+                        }
+
+                        .btn-outline-secondary:hover {
+                            background: var(--bg-tertiary);
+                            border-color: var(--text-primary);
+                        }
+
+                        @media (max-width: 600px) {
+                            .danger-item {
+                                flex-direction: column;
+                                align-items: flex-start;
+                                gap: 1rem;
+                            }
+
+                            .danger-item .btn {
+                                width: 100%;
+                            }
+                        }
+                    </style>
+
+                    <div class="danger-zone-container">
+                        <div class="danger-header">
+                            <h2 class="danger-title">
+                                <span data-icon="alert-octagon"></span> Zona de Peligro
+                            </h2>
+                        </div>
+
+                        <div class="danger-content">
+                            <!-- Cancel Subscription -->
+                            <div class="danger-item">
+                                <div class="danger-info">
+                                    <h3>Cancelar Suscripción</h3>
+                                    <p>Perderás el acceso inmediato a todas las funciones premium y tus datos podrían
+                                        eliminarse después de 30 días.</p>
+                                </div>
+                                <button class="btn btn-outline-danger" onclick="confirmCancelSubscription()">
+                                    Cancelar Suscripción
+                                </button>
+                            </div>
+
+                            <!-- Logout -->
+                            <div class="danger-item">
+                                <div class="danger-info">
+                                    <h3>Cerrar Sesión</h3>
+                                    <p>Finaliza tu sesión actual de forma segura en este dispositivo.</p>
+                                </div>
+                                <button class="btn btn-outline-secondary" onclick="logout()">
+                                    Cerrar Sesión
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -409,6 +535,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/icons.js"></script>
@@ -417,21 +544,6 @@
 
     <script>
         let currentGym = null;
-
-        // Toggle mobile sidebar
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarOverlay').classList.toggle('show');
-        }
-
-        // Format currency
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('es-AR', {
-                style: 'currency',
-                currency: 'ARS',
-                minimumFractionDigits: 0
-            }).format(amount);
-        }
 
         // Save gym settings
         async function saveGymSettings(event) {
@@ -605,7 +717,7 @@
                 }
 
                 // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                if (!isTrialActive && !gym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
                 }
@@ -632,19 +744,6 @@
                 }
             }
         });
-
-        // Function to hide loading screen and show app content
-        function showAppContent() {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const appContent = document.getElementById('appContent');
-
-            if (loadingScreen) {
-                loadingScreen.classList.add('hide');
-            }
-            if (appContent) {
-                appContent.style.display = '';
-            }
-        }
     </script>
 </body>
 

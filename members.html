@@ -20,6 +20,8 @@
     <style>
         .member-modal {
             max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .modal-form {
@@ -35,6 +37,10 @@
         @media (max-width: 600px) {
             .modal-form {
                 grid-template-columns: 1fr;
+            }
+
+            .member-modal {
+                max-height: 85vh;
             }
         }
     </style>
@@ -253,36 +259,15 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
         let allMembers = [];
-
-        // Toggle mobile sidebar
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarOverlay').classList.toggle('show');
-        }
-
-        // Format date
-        function formatDate(date) {
-            if (!date) return '-';
-            return new Date(date).toLocaleDateString('es-AR');
-        }
-
-        // Get status badge
-        function getStatusBadge(status) {
-            const badges = {
-                active: '<span class="badge badge-success">Activo</span>',
-                inactive: '<span class="badge badge-neutral">Inactivo</span>',
-                expired: '<span class="badge badge-error">Vencido</span>',
-                suspended: '<span class="badge badge-warning">Suspendido</span>'
-            };
-            return badges[status] || badges.inactive;
-        }
 
         // Render members table
         function renderMembers(members) {
@@ -415,6 +400,12 @@
                 notes: document.getElementById('notes').value.trim() || null
             };
 
+            // Validar nombre requerido
+            if (!memberData.full_name) {
+                showToast('El nombre completo es obligatorio', 'error');
+                return;
+            }
+
             try {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<span class="spinner"></span>';
@@ -516,7 +507,7 @@
                 }
 
                 // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                if (!isTrialActive && !gym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
                 }
@@ -547,19 +538,6 @@
                 }
             }
         });
-
-        // Function to hide loading screen and show app content
-        function showAppContent() {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const appContent = document.getElementById('appContent');
-
-            if (loadingScreen) {
-                loadingScreen.classList.add('hide');
-            }
-            if (appContent) {
-                appContent.style.display = '';
-            }
-        }
 
         // Close modal on escape
         document.addEventListener('keydown', (e) => {

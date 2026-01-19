@@ -62,7 +62,7 @@ async function sendEmail(templateId, templateParams) {
             templateId,
             templateParams
         );
-        console.log('Email enviado:', response);
+        log('Email enviado:', response);
         return { success: true, response };
     } catch (error) {
         console.error('Error enviando email:', error);
@@ -357,11 +357,11 @@ async function runAutomatedChecks(members, payments = []) {
     const today = new Date().toISOString().split('T')[0];
 
     if (lastCheck === today) {
-        console.log('Verificaciones automáticas ya ejecutadas hoy');
+        log('Verificaciones automáticas ya ejecutadas hoy');
         return;
     }
 
-    console.log('Ejecutando verificaciones automáticas...');
+    log('Ejecutando verificaciones automáticas...');
 
     // Verificar membresías
     await checkExpiringMemberships(members, 7);
@@ -377,7 +377,7 @@ async function runAutomatedChecks(members, payments = []) {
     // Marcar como ejecutado
     localStorage.setItem('veltronik_last_auto_check', today);
 
-    console.log('Verificaciones automáticas completadas');
+    log('Verificaciones automáticas completadas');
 }
 
 // Inicializar al cargar

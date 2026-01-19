@@ -555,9 +555,10 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n
+    <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
@@ -592,11 +593,6 @@
         // ============================================
         // SIDEBAR
         // ============================================
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarOverlay').classList.toggle('active');
-        }
 
         function showAppContent() {
             document.getElementById('loadingScreen').style.display = 'none';
@@ -782,12 +778,38 @@
             const btn = document.getElementById('classSubmitBtn');
             const classId = document.getElementById('classId').value;
 
+            const name = document.getElementById('className').value.trim();
+            const startTime = document.getElementById('classStartTime').value;
+            const endTime = document.getElementById('classEndTime').value;
+            const dayOfWeek = document.getElementById('classDayOfWeek').value;
+
+            // Validaciones
+            if (!name) {
+                showToast('Por favor ingresa el nombre de la clase', 'error');
+                return;
+            }
+
+            if (!startTime || !endTime) {
+                showToast('Por favor selecciona horario de inicio y fin', 'error');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                showToast('La hora de fin debe ser posterior a la de inicio', 'error');
+                return;
+            }
+
+            if (!dayOfWeek && dayOfWeek !== '0') {
+                showToast('Por favor selecciona el día de la semana', 'error');
+                return;
+            }
+
             const classData = {
-                name: document.getElementById('className').value,
+                name: name,
                 instructor: document.getElementById('classInstructor').value || null,
-                start_time: document.getElementById('classStartTime').value,
-                end_time: document.getElementById('classEndTime').value,
-                day_of_week: parseInt(document.getElementById('classDayOfWeek').value),
+                start_time: startTime,
+                end_time: endTime,
+                day_of_week: parseInt(dayOfWeek),
                 capacity: parseInt(document.getElementById('classCapacity').value) || 20,
                 room: document.getElementById('classRoom').value || null,
                 color: document.getElementById('classColor').value,
@@ -961,7 +983,7 @@
                     return;
                 }
 
-                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                if (!isTrialActive && !gym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
                 }

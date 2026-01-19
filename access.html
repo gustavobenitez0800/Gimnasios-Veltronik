@@ -526,9 +526,11 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
@@ -566,11 +568,6 @@
         // ============================================
         // SIDEBAR
         // ============================================
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarOverlay').classList.toggle('active');
-        }
 
         function showAppContent() {
             document.getElementById('loadingScreen').style.display = 'none';
@@ -821,7 +818,7 @@
                     return;
                 }
 
-                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                if (!isTrialActive && !gym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
                 }

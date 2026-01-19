@@ -8,8 +8,11 @@ const CONFIG = {
     SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6dHVwemd4dmFvcGVoY2dmbWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDE1NDcsImV4cCI6MjA4NDE3NzU0N30.Za6ob-V--drgZ8Ggzbn3CKQW9sl3qN8ASbDQDKtOcDM',
 
     // Backend API URL - Production (Vercel)
-    // This URL is used by the Electron app to connect to the cloud backend
-    API_URL: 'https://gimnasio-veltronik.vercel.app',
+    // Set to null to auto-detect based on current host (recommended for dev)
+    API_URL: null, // Was: 'https://gimnasio-veltronik.vercel.app',
+
+    // Debug mode (auto-enabled on localhost)
+    DEBUG: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
 
     // Subscription Price (for display only - real price is in backend)
     SUBSCRIPTION_PRICE: 35000,

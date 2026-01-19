@@ -107,10 +107,15 @@ module.exports = async function handler(req, res) {
             .single();
 
         if (existingSubscription) {
-            return errorResponse(res, 400, 'El gimnasio ya tiene una suscripción activa', {
-                subscription_id: existingSubscription.id,
-                status: existingSubscription.status
-            }, req);
+            // LOGIC FIX: En lugar de bloquear, si el usuario está intentando crear una nueva suscripción,
+            // asumimos que quiere reactivar o cambiar método de pago.
+            // Marcamos la anterior como cancelada localmente para permitir el nuevo flujo.
+            logSecure('info', 'Cancelling existing subscription to allow new one', { id: existingSubscription.id });
+
+            await supabase
+                .from('subscriptions')
+                .update({ status: 'cancelled' })
+                .eq('id', existingSubscription.id);
         }
 
         // ============================================

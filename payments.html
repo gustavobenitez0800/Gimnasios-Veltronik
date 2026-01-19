@@ -223,47 +223,16 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/icons.js"></script>`n    <script src="js/theme.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
 
     <script>
         let allPayments = [];
         let allMembers = [];
-
-        // Toggle mobile sidebar
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarOverlay').classList.toggle('show');
-        }
-
-        // Format currency
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('es-AR', {
-                style: 'currency',
-                currency: 'ARS',
-                minimumFractionDigits: 0
-            }).format(amount);
-        }
-
-        // Format date
-        function formatDate(date) {
-            if (!date) return '-';
-            return new Date(date).toLocaleDateString('es-AR');
-        }
-
-        // Get payment method label
-        function getMethodLabel(method) {
-            const methods = {
-                cash: 'Efectivo',
-                card: 'Tarjeta',
-                transfer: 'Transferencia',
-                mercadopago: 'Mercado Pago',
-                other: 'Otro'
-            };
-            return methods[method] || method;
-        }
 
         // Get status badge
         function getPaymentStatusBadge(status) {
@@ -361,10 +330,30 @@
 
             const saveBtn = document.getElementById('saveBtn');
 
+            const memberId = document.getElementById('memberId').value;
+            const amount = document.getElementById('amount').value;
+            const paymentDate = document.getElementById('paymentDate').value;
+
+            // Validaciones
+            if (!memberId) {
+                showToast('Por favor selecciona un socio', 'error');
+                return;
+            }
+
+            if (!amount || parseFloat(amount) <= 0) {
+                showToast('Por favor ingresa un monto válido', 'error');
+                return;
+            }
+
+            if (!paymentDate) {
+                showToast('Por favor selecciona la fecha de pago', 'error');
+                return;
+            }
+
             const paymentData = {
-                member_id: document.getElementById('memberId').value,
-                amount: parseFloat(document.getElementById('amount').value),
-                payment_date: document.getElementById('paymentDate').value,
+                member_id: memberId,
+                amount: parseFloat(amount),
+                payment_date: paymentDate,
                 due_date: document.getElementById('dueDate').value || null,
                 payment_method: document.getElementById('paymentMethod').value,
                 notes: document.getElementById('notes').value.trim() || null,
@@ -491,7 +480,7 @@
                 }
 
                 // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && gym.status !== CONFIG.GYM_STATUS.ACTIVE) {
+                if (!isTrialActive && !gym.subscription_id) {
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
                 }
@@ -523,19 +512,6 @@
                 }
             }
         });
-
-        // Function to hide loading screen and show app content
-        function showAppContent() {
-            const loadingScreen = document.getElementById('loadingScreen');
-            const appContent = document.getElementById('appContent');
-
-            if (loadingScreen) {
-                loadingScreen.classList.add('hide');
-            }
-            if (appContent) {
-                appContent.style.display = '';
-            }
-        }
 
         // Close modal on escape
         document.addEventListener('keydown', (e) => {

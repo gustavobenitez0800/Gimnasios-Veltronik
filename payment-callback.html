@@ -148,6 +148,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/auth.js"></script>
@@ -205,7 +206,7 @@
         async function processCallback() {
             const params = getUrlParams();
 
-            console.log('Payment callback params:', params);
+            log('Payment callback params:', params);
 
             // Determine initial status from URL params
             let status = params.status || params.collection_status;

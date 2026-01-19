@@ -138,6 +138,8 @@
     transform: scale(0.9) translateY(20px);
     transition: transform var(--transition-normal);
     box-shadow: var(--shadow-xl);
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal-show .modal-container {

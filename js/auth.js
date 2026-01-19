@@ -150,7 +150,8 @@ function isOnboardingPage() {
 function isPaymentPage() {
     const path = window.location.pathname;
     return path.endsWith('plans.html') ||
-        path.endsWith('payment-pending.html');
+        path.endsWith('payment-pending.html') ||
+        path.endsWith('payment-callback.html');
 }
 
 /**
@@ -187,9 +188,15 @@ async function handleLogin(event) {
     event.preventDefault();
 
     const form = event.target;
-    const email = form.querySelector('#email').value;
+    const email = form.querySelector('#email').value.trim();
     const password = form.querySelector('#password').value;
     const submitBtn = form.querySelector('button[type="submit"]');
+
+    // Validación básica
+    if (!email || !password) {
+        showToast('Por favor completa todos los campos', 'error');
+        return;
+    }
 
     try {
         // Disable button and show loading
@@ -198,8 +205,8 @@ async function handleLogin(event) {
 
         await signIn(email, password);
 
-        // Redirect will happen in checkAuthAndRedirect
-        window.location.href = CONFIG.ROUTES.DASHBOARD;
+        // Use proper auth redirect logic to check gym status, trial, etc.
+        await checkAuthAndRedirect();
 
     } catch (error) {
         console.error('Login error:', error);
@@ -218,11 +225,28 @@ async function handleRegister(event) {
     event.preventDefault();
 
     const form = event.target;
-    const fullName = form.querySelector('#fullName').value;
-    const email = form.querySelector('#email').value;
+    const fullName = form.querySelector('#fullName').value.trim();
+    const email = form.querySelector('#email').value.trim();
     const password = form.querySelector('#password').value;
     const confirmPassword = form.querySelector('#confirmPassword').value;
     const submitBtn = form.querySelector('button[type="submit"]');
+
+    // Validar campos requeridos
+    if (!fullName) {
+        showToast('Por favor ingresa tu nombre completo', 'error');
+        return;
+    }
+
+    if (!email) {
+        showToast('Por favor ingresa tu email', 'error');
+        return;
+    }
+
+    // Validar formato de email básico
+    if (!email.includes('@') || !email.includes('.')) {
+        showToast('Por favor ingresa un email válido', 'error');
+        return;
+    }
 
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -307,5 +331,40 @@ async function handleLogout() {
         console.error('Logout error:', error);
         // Force redirect anyway
         window.location.href = CONFIG.ROUTES.LOGIN;
+    }
+}
+
+/**
+ * Handle forgot password - sends password reset email
+ */
+async function handleForgotPassword() {
+    const email = document.getElementById('email')?.value?.trim();
+
+    if (!email) {
+        showToast('Por favor ingresa tu email primero', 'warning');
+        return;
+    }
+
+    if (!email.includes('@') || !email.includes('.')) {
+        showToast('Por favor ingresa un email válido', 'error');
+        return;
+    }
+
+    try {
+        const client = getSupabase();
+        const redirectUrl = window.location.origin + '/reset-password.html';
+
+        const { error } = await client.auth.resetPasswordForEmail(email, {
+            redirectTo: redirectUrl
+        });
+
+        if (error) throw error;
+
+        showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
+
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        // Don't reveal if email exists or not for security
+        showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
     }
 }
