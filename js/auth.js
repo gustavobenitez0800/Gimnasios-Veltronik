@@ -80,8 +80,9 @@ async function checkAuthAndRedirect() {
                 break;
 
             case CONFIG.GYM_STATUS.BLOCKED:
-                // Blocked - redirect to blocked page
-                if (!isBlockedPage()) {
+                // Blocked - allow access to payment page to reactivate subscription
+                // Otherwise redirect to blocked page
+                if (!isBlockedPage() && !isPaymentPage()) {
                     window.location.href = CONFIG.ROUTES.BLOCKED;
                 }
                 break;
