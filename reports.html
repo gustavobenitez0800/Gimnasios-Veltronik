@@ -17,6 +17,9 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
 
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <!-- Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -437,11 +440,11 @@
                             estado de membresía y fechas de vencimiento.
                         </div>
                         <div class="report-actions">
-                            <button class="btn-export pdf" onclick="exportMembers('pdf')" id="btnMembersPdf"> <span
-                                    data-icon="file" class="btn-icon"></span> PDF
+                            <button class="btn-export pdf" onclick="exportMembers('pdf')" id="btnMembersPdf">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
                             </button>
                             <button class="btn-export excel" onclick="exportMembers('excel')" id="btnMembersExcel">
-                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                                <i class="fa-solid fa-file-excel"></i> Excel
                             </button>
                         </div>
                     </div>
@@ -455,11 +458,11 @@
                             con totales y resumen por método de pago.
                         </div>
                         <div class="report-actions">
-                            <button class="btn-export pdf" onclick="exportPayments('pdf')" id="btnPaymentsPdf"> <span
-                                    data-icon="file" class="btn-icon"></span> PDF
+                            <button class="btn-export pdf" onclick="exportPayments('pdf')" id="btnPaymentsPdf">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
                             </button>
                             <button class="btn-export excel" onclick="exportPayments('excel')" id="btnPaymentsExcel">
-                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                                <i class="fa-solid fa-file-excel"></i> Excel
                             </button>
                         </div>
                     </div>
@@ -474,7 +477,7 @@
                         </div>
                         <div class="report-actions">
                             <button class="btn-export excel" onclick="exportAccess('excel')" id="btnAccessExcel">
-                                <span data-icon="barChart" class="btn-icon"></span> Excel
+                                <i class="fa-solid fa-file-excel"></i> Excel
                             </button>
                         </div>
                     </div>
@@ -488,8 +491,8 @@
                             ingresos totales y métricas clave.
                         </div>
                         <div class="report-actions">
-                            <button class="btn-export pdf" onclick="exportSummary('pdf')" id="btnSummaryPdf"> <span
-                                    data-icon="file" class="btn-icon"></span> PDF
+                            <button class="btn-export pdf" onclick="exportSummary('pdf')" id="btnSummaryPdf">
+                                <i class="fa-solid fa-file-pdf"></i> PDF
                             </button>
                         </div>
                     </div>
