@@ -672,11 +672,9 @@
                     nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
                 }
 
-                // Calculate days remaining
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                nextPaymentDate.setHours(0, 0, 0, 0);
-                const diffTime = nextPaymentDate - today;
+                // Calculate days remaining - using same logic as getTrialDaysRemaining()
+                // to ensure consistency across the app
+                const diffTime = nextPaymentDate - new Date();
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                 // Format the display text
