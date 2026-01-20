@@ -282,8 +282,161 @@
         }
 
         .success-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1rem;
+        }
+
+        .success-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Animated Check SVG */
+        .success-icon .checkmark-circle {
+            stroke: white;
+            stroke-width: 3;
+            fill: none;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: stroke-circle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+
+        .success-icon .checkmark-check {
+            stroke: white;
+            stroke-width: 4;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: stroke-check 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards;
+        }
+
+        @keyframes stroke-circle {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes stroke-check {
+            100% {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Animated Wave Hand SVG */
+        .success-icon .wave-hand {
+            transform-origin: 70% 70%;
+            animation: wave-animation 1s ease-in-out infinite;
+        }
+
+        @keyframes wave-animation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            10% {
+                transform: rotate(14deg);
+            }
+
+            20% {
+                transform: rotate(-8deg);
+            }
+
+            30% {
+                transform: rotate(14deg);
+            }
+
+            40% {
+                transform: rotate(-4deg);
+            }
+
+            50% {
+                transform: rotate(10deg);
+            }
+
+            60% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
+        /* Check-in button icon */
+        .checkin-btn-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkin-btn-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Checkout button icon */
+        .checkout-btn-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkout-btn-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkout-btn-icon svg.mini-wave {
+            animation: mini-wave 1.2s ease-in-out infinite;
+            transform-origin: 50% 80%;
+        }
+
+        @keyframes mini-wave {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(20deg);
+            }
+
+            50% {
+                transform: rotate(-10deg);
+            }
+
+            75% {
+                transform: rotate(15deg);
+            }
+        }
+
+        /* Warning icon */
+        .warning-icon-svg {
+            display: inline-flex;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+        }
+
+        .warning-icon-svg svg {
+            width: 20px;
+            height: 20px;
+            animation: pulse-warning 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-warning {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         .success-name {
@@ -518,7 +671,9 @@
 
     <!-- Success Popup -->
     <div class="checkin-success" id="successPopup" style="display: none;">
-        <div class="success-icon">✅</div>
+        <div class="success-icon" id="successIcon">
+            <!-- SVG will be injected dynamically -->
+        </div>
         <div class="success-name" id="successName">Juan Pérez</div>
         <div class="success-message" id="successMessage">Check-in exitoso</div>
     </div>
@@ -606,7 +761,14 @@
                                     <div class="member-name">${m.full_name}</div>
                                     <div class="member-dni">DNI: ${m.dni || 'No registrado'}</div>
                                 </div>
-                                <button class="checkin-btn">Check-in ✓</button>
+                                <button class="checkin-btn">
+                                    <span class="checkin-btn-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                        Check-in
+                                    </span>
+                                </button>
                             </div>
                         `).join('');
                     }
@@ -627,7 +789,7 @@
                 await checkInMember(memberId, 'manual');
 
                 // Show success popup
-                showSuccessPopup(memberName, '¡Entrada registrada!');
+                showSuccessPopup(memberName, '¡Entrada registrada!', false);
 
                 // Clear search
                 document.getElementById('searchInput').value = '';
@@ -645,7 +807,7 @@
         async function performCheckOut(logId, memberName) {
             try {
                 await checkOutMember(logId);
-                showSuccessPopup(memberName, '¡Salida registrada!', '👋');
+                showSuccessPopup(memberName, '¡Salida registrada!', true);
                 await loadAccessData();
             } catch (error) {
                 console.error('Check-out error:', error);
@@ -653,11 +815,35 @@
             }
         }
 
-        function showSuccessPopup(name, message, icon = '✅') {
+        // SVG Icons for success popup
+        const SVG_CHECKIN_SUCCESS = `
+            <svg viewBox="0 0 52 52">
+                <circle class="checkmark-circle" cx="26" cy="26" r="25"/>
+                <path class="checkmark-check" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+        `;
+
+        const SVG_CHECKOUT_SUCCESS = `
+            <svg class="wave-hand" viewBox="0 0 72 72">
+                <path fill="#FCEA2B" d="M19.4 43.2c-2.6-4.5-4.8-9.3-6.5-14.2-.7-2-1.2-4.1-.8-6.2.3-1.6 1.1-3 2.3-4.1 1.4-1.3 3.7-1.5 5.3-.4 1 .7 1.7 1.8 2.2 2.9 1.7 3.8 2.6 8 3.5 12 .3 1.3.6 2.7 1.4 3.8.8 1.1 2.2 1.8 3.5 1.4"/>
+                <path fill="#F4AA41" d="M24 37.5c-.4-1.5-.8-3.1-1.5-4.5-.5-1-1.2-2-2.2-2.6-1.3-.8-3-.7-4.3.1-1.1.7-1.9 1.7-2.4 2.9-.6 1.4-.8 2.9-.7 4.4.1 1.5.5 3 1 4.4l.1.3"/>
+                <path fill="#FCEA2B" d="M44.7 22.1c2.2-.3 4.4.9 5.5 2.8 1.3 2.2 1.1 5-.4 7-1.3 1.8-3.3 3-5.4 3.7-2.5.8-5.2 1-7.8.4"/>
+                <path fill="#F4AA41" d="M46.9 24.5c.9.5 1.5 1.4 1.8 2.4.4 1.3.2 2.7-.5 3.9-.6 1-1.5 1.8-2.6 2.3-1.3.6-2.7.9-4.1.9"/>
+                <path fill="#FCEA2B" d="M36.6 19.3c.8-2.1 2.5-3.8 4.6-4.6 1.3-.5 2.8-.6 4.1-.2 1.2.3 2.2 1 3 1.9 1.1 1.3 1.7 3 1.6 4.7-.1 2.2-1.2 4.3-2.8 5.8"/>
+                <path fill="white" d="M25 22c0-1.7.5-3.3 1.5-4.7 1.1-1.5 2.7-2.6 4.5-3 1.5-.4 3.1-.2 4.5.5 1.3.6 2.3 1.6 3 2.8.9 1.5 1.2 3.2 1.1 4.9"/>
+                <path fill="#FCEA2B" d="M36.2 21.8c-.4-2-.3-4.1.4-6 .5-1.4 1.3-2.7 2.4-3.7 1.4-1.2 3.2-1.8 5-1.7 1.5.1 2.9.7 4 1.6 1.2 1 2.1 2.4 2.4 4 .5 2.3 0 4.7-1.2 6.6"/>
+            </svg>
+        `;
+
+        function showSuccessPopup(name, message, isCheckout = false) {
             const popup = document.getElementById('successPopup');
+            const iconContainer = document.getElementById('successIcon');
+
             document.getElementById('successName').textContent = name;
             document.getElementById('successMessage').textContent = message;
-            document.querySelector('.success-icon').textContent = icon;
+
+            // Use different SVG based on check-in or check-out
+            iconContainer.innerHTML = isCheckout ? SVG_CHECKOUT_SUCCESS : SVG_CHECKIN_SUCCESS;
 
             popup.style.display = 'block';
 
@@ -690,7 +876,15 @@
                         <div class="checkin-time">Entrada: ${formatTime(log.check_in_at)}</div>
                     </div>
                     <button class="checkout-btn" onclick="performCheckOut('${log.id}', '${log.member?.full_name}')">
-                        Salida 👋
+                        <span class="checkout-btn-icon">
+                            <svg class="mini-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 8.5c0-2.5-2-4.5-4.5-4.5S9 6 9 8.5c0 1.6.8 3 2 3.8"/>
+                                <path d="M11 12.3c-1.2.8-2 2.2-2 3.8 0 2.5 2 4.5 4.5 4.5S18 18.6 18 16.1"/>
+                                <path d="M15.5 8.5v8"/>
+                                <path d="M9 14.5h8"/>
+                            </svg>
+                            Salida
+                        </span>
                     </button>
                 </div>
             `).join('');
@@ -769,13 +963,27 @@
                 if (error.message.includes('does not exist') || error.code === '42P01') {
                     document.getElementById('checkedInList').innerHTML = `
                         <div class="text-center text-muted" style="padding: 2rem;">
-                            ⚠️ Ejecutá el SQL de acceso en Supabase
+                            <span class="warning-icon-svg">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                    <line x1="12" y1="9" x2="12" y2="13"/>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                </svg>
+                            </span>
+                            Ejecutá el SQL de acceso en Supabase
                         </div>
                     `;
                     document.getElementById('historyTable').innerHTML = `
                         <tr>
                             <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
-                                ⚠️ Tabla access_logs no encontrada
+                                <span class="warning-icon-svg">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                        <line x1="12" y1="9" x2="12" y2="13"/>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                </span>
+                                Tabla access_logs no encontrada
                             </td>
                         </tr>
                     `;
