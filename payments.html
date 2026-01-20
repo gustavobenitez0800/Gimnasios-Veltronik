@@ -172,8 +172,9 @@
     <!-- Payment Modal -->
     <div class="modal-overlay" id="paymentModal">
         <div class="modal-container" style="max-width: 500px;">
-            <h2 class="modal-title">Registrar Pago</h2>
+            <h2 class="modal-title" id="paymentModalTitle">Registrar Pago</h2>
             <form id="paymentForm" onsubmit="savePayment(event)">
+                <input type="hidden" id="paymentId" value="">
                 <div class="form-group">
                     <label class="form-label" for="memberId">Socio *</label>
                     <select id="memberId" class="form-select" required>
@@ -274,6 +275,9 @@
                     <td data-label="Estado">${getPaymentStatusBadge(payment.status)}</td>
                     <td data-label="Acciones">
                         <div class="table-actions">
+                            <button class="action-btn action-btn-edit" onclick="editPayment('${payment.id}')" title="Editar">
+                                ✏️
+                            </button>
                             <button class="action-btn action-btn-delete" onclick="confirmDeletePayment('${payment.id}')" title="Eliminar">
                                 🗑️
                             </button>
@@ -298,25 +302,50 @@
             renderPayments(filtered);
         }
 
-        // Open payment modal
-        function openPaymentModal() {
+        // Open payment modal (for new payment)
+        function openPaymentModal(payment = null) {
             const modal = document.getElementById('paymentModal');
+            const title = document.getElementById('paymentModalTitle');
             document.getElementById('paymentForm').reset();
+            document.getElementById('paymentId').value = '';
 
-            // Set today as default date
-            document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
-
-            // Set due date to next month
-            const nextMonth = new Date();
-            nextMonth.setMonth(nextMonth.getMonth() + 1);
-            document.getElementById('dueDate').value = nextMonth.toISOString().split('T')[0];
-
-            // Populate members dropdown
+            // Populate members dropdown first
             const select = document.getElementById('memberId');
             select.innerHTML = '<option value="">Seleccionar socio...</option>' +
                 allMembers.map(m => `<option value="${m.id}">${m.full_name}</option>`).join('');
 
+            if (payment) {
+                // Edit mode
+                title.textContent = 'Editar Pago';
+                document.getElementById('paymentId').value = payment.id;
+                document.getElementById('memberId').value = payment.member_id;
+                document.getElementById('amount').value = payment.amount;
+                document.getElementById('paymentDate').value = payment.payment_date || '';
+                document.getElementById('dueDate').value = payment.due_date || '';
+                document.getElementById('paymentMethod').value = payment.payment_method || 'cash';
+                document.getElementById('notes').value = payment.notes || '';
+            } else {
+                // New payment mode
+                title.textContent = 'Registrar Pago';
+
+                // Set today as default date
+                document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+
+                // Set due date to next month
+                const nextMonth = new Date();
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                document.getElementById('dueDate').value = nextMonth.toISOString().split('T')[0];
+            }
+
             modal.classList.add('modal-show');
+        }
+
+        // Edit payment
+        function editPayment(id) {
+            const payment = allPayments.find(p => p.id === id);
+            if (payment) {
+                openPaymentModal(payment);
+            }
         }
 
         // Close payment modal
@@ -324,11 +353,12 @@
             document.getElementById('paymentModal').classList.remove('modal-show');
         }
 
-        // Save payment
+        // Save payment (create or update)
         async function savePayment(event) {
             event.preventDefault();
 
             const saveBtn = document.getElementById('saveBtn');
+            const paymentId = document.getElementById('paymentId').value;
 
             const memberId = document.getElementById('memberId').value;
             const amount = document.getElementById('amount').value;
@@ -364,8 +394,15 @@
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<span class="spinner"></span>';
 
-                await createMemberPayment(paymentData);
-                showToast('Pago registrado correctamente', 'success');
+                if (paymentId) {
+                    // Update existing payment
+                    await updateMemberPayment(paymentId, paymentData);
+                    showToast('Pago actualizado correctamente', 'success');
+                } else {
+                    // Create new payment
+                    await createMemberPayment(paymentData);
+                    showToast('Pago registrado correctamente', 'success');
+                }
 
                 closePaymentModal();
                 await loadPayments();
