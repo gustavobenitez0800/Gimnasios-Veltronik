@@ -64,6 +64,20 @@ function initNotificationPanel() {
                 text-align: center;
             }
             
+            /* Bell animation when has notifications */
+            .notification-bell.has-notifications .bell-icon {
+                animation: bellSwing 1s ease-in-out infinite;
+            }
+            
+            @keyframes bellSwing {
+                0%, 100% { transform: rotate(0deg); }
+                10% { transform: rotate(15deg); }
+                20% { transform: rotate(-10deg); }
+                30% { transform: rotate(10deg); }
+                40% { transform: rotate(-5deg); }
+                50%, 100% { transform: rotate(0deg); }
+            }
+            
             .notification-panel {
                 position: fixed;
                 top: 60px;
@@ -292,11 +306,21 @@ function updateNotificationUI() {
     const notifications = VeltronikNotifications.getAll();
     const unreadCount = VeltronikNotifications.getUnread().length;
 
-    // Actualizar badge
+    // Actualizar badge y animación de campanita
     const badge = document.getElementById('notificationBadge');
+    const bell = document.getElementById('notificationBell');
     if (badge) {
         badge.textContent = unreadCount;
         badge.style.display = unreadCount > 0 ? 'block' : 'none';
+    }
+
+    // Activar/desactivar animación de campanita
+    if (bell) {
+        if (unreadCount > 0) {
+            bell.classList.add('has-notifications');
+        } else {
+            bell.classList.remove('has-notifications');
+        }
     }
 
     // Actualizar lista
