@@ -640,10 +640,56 @@
                 document.getElementById('planName').textContent = 'Veltronik Pro';
                 document.getElementById('monthlyAmount').textContent = formatCurrency(CONFIG.SUBSCRIPTION_PRICE);
 
-                // Next payment (mock - in production this comes from subscription)
-                const nextMonth = new Date();
-                nextMonth.setMonth(nextMonth.getMonth() + 1);
-                document.getElementById('nextPayment').textContent = nextMonth.toLocaleDateString('es-AR');
+                // Next payment - calculate correctly from subscription or trial
+                let nextPaymentDate = null;
+                let nextPaymentText = '--';
+
+                // Try to get from subscription first
+                try {
+                    const { data: subscriptions, error } = await supabase
+                        .from('subscriptions')
+                        .select('*')
+                        .eq('gym_id', gym.id)
+                        .single();
+
+                    if (subscriptions && subscriptions.current_period_end) {
+                        nextPaymentDate = new Date(subscriptions.current_period_end);
+                    } else if (subscriptions && subscriptions.next_payment_date) {
+                        nextPaymentDate = new Date(subscriptions.next_payment_date);
+                    }
+                } catch (e) {
+                    // Subscription query failed, use fallback
+                }
+
+                // Fallback to trial_ends_at if no subscription
+                if (!nextPaymentDate && gym.trial_ends_at) {
+                    nextPaymentDate = new Date(gym.trial_ends_at);
+                }
+
+                // Final fallback: 1 month from now
+                if (!nextPaymentDate) {
+                    nextPaymentDate = new Date();
+                    nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1);
+                }
+
+                // Calculate days remaining
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                nextPaymentDate.setHours(0, 0, 0, 0);
+                const diffTime = nextPaymentDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                // Format the display text
+                const dateStr = nextPaymentDate.toLocaleDateString('es-AR');
+                if (diffDays > 0) {
+                    nextPaymentText = `${dateStr} (en ${diffDays} días)`;
+                } else if (diffDays === 0) {
+                    nextPaymentText = `${dateStr} (hoy)`;
+                } else {
+                    nextPaymentText = `${dateStr} (vencido hace ${Math.abs(diffDays)} días)`;
+                }
+
+                document.getElementById('nextPayment').textContent = nextPaymentText;
 
             } catch (error) {
                 console.error('Load error:', error);
