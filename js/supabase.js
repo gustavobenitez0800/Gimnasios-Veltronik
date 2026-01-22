@@ -273,68 +273,169 @@ async function getPlans() {
 }
 
 // ============================================
-// MEMBERS FUNCTIONS
+// MEMBERS FUNCTIONS (OFFLINE-CAPABLE)
 // ============================================
 
 /**
  * Get all members for current gym
+ * Supports offline mode - returns cached data if offline
  */
 async function getMembers() {
-    const client = getSupabase();
+    // Check if we're online
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - returning cached members');
+        return await OfflineStorage.getAllMembers();
+    }
 
-    const { data, error } = await client
-        .from('members')
-        .select('*')
-        .order('full_name', { ascending: true });
+    try {
+        const client = getSupabase();
+        const { data, error } = await client
+            .from('members')
+            .select('*')
+            .order('full_name', { ascending: true });
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+
+        // Cache the data locally for offline use
+        if (data && typeof OfflineStorage !== 'undefined') {
+            await OfflineStorage.saveMembers(data);
+        }
+
+        return data;
+    } catch (error) {
+        // If network error, try to return cached data
+        if (typeof OfflineStorage !== 'undefined') {
+            console.log('[Supabase] Network error - returning cached members');
+            const cached = await OfflineStorage.getAllMembers();
+            if (cached && cached.length > 0) return cached;
+        }
+        throw error;
+    }
 }
 
 /**
  * Get a single member by ID
+ * Supports offline mode
  */
 async function getMember(id) {
-    const client = getSupabase();
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - returning cached member');
+        return await OfflineStorage.getMemberById(id);
+    }
 
-    const { data, error } = await client
-        .from('members')
-        .select('*')
-        .eq('id', id)
-        .single();
+    try {
+        const client = getSupabase();
+        const { data, error } = await client
+            .from('members')
+            .select('*')
+            .eq('id', id)
+            .single();
 
-    if (error) throw error;
-    return data;
+        if (error) throw error;
+
+        // Cache locally
+        if (data && typeof OfflineStorage !== 'undefined') {
+            await OfflineStorage.saveMember(data);
+        }
+
+        return data;
+    } catch (error) {
+        if (typeof OfflineStorage !== 'undefined') {
+            const cached = await OfflineStorage.getMemberById(id);
+            if (cached) return cached;
+        }
+        throw error;
+    }
 }
 
 /**
  * Create a new member
+ * Supports offline mode - queues for sync when offline
  */
 async function createMember(memberData) {
-    const client = getSupabase();
     const profile = await getProfile();
-
     if (!profile || !profile.gym_id) throw new Error('No gym associated');
 
+    const fullMemberData = {
+        gym_id: profile.gym_id,
+        ...memberData
+    };
+
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - creating member locally');
+
+        // Generate temporary ID
+        const tempId = OfflineStorage.generateTempId();
+        const offlineMember = {
+            ...fullMemberData,
+            id: tempId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        // Save locally
+        await OfflineStorage.saveMember(offlineMember);
+
+        // Queue for sync
+        await OfflineStorage.addToSyncQueue('members', 'create', offlineMember, tempId);
+
+        return offlineMember;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
     const { data, error } = await client
         .from('members')
-        .insert({
-            gym_id: profile.gym_id,
-            ...memberData
-        })
+        .insert(fullMemberData)
         .select()
         .single();
 
     if (error) throw error;
+
+    // Cache locally
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveMember(data);
+    }
+
     return data;
 }
 
 /**
  * Update a member
+ * Supports offline mode - queues for sync when offline
  */
 async function updateMember(id, updates) {
-    const client = getSupabase();
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - updating member locally');
 
+        // Get existing member
+        const existing = await OfflineStorage.getMemberById(id);
+        if (!existing) throw new Error('Member not found in local storage');
+
+        const updatedMember = {
+            ...existing,
+            ...updates,
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        // Save locally
+        await OfflineStorage.saveMember(updatedMember);
+
+        // Queue for sync (only if not a temp ID)
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('members', 'update', updates, id);
+        }
+
+        return updatedMember;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
     const { data, error } = await client
         .from('members')
         .update(updates)
@@ -343,21 +444,48 @@ async function updateMember(id, updates) {
         .single();
 
     if (error) throw error;
+
+    // Cache locally
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveMember(data);
+    }
+
     return data;
 }
 
 /**
  * Delete a member
+ * Supports offline mode - queues for sync when offline
  */
 async function deleteMember(id) {
-    const client = getSupabase();
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - deleting member locally');
 
+        // Delete locally
+        await OfflineStorage.deleteMemberLocal(id);
+
+        // Queue for sync (only if not a temp ID - temp records don't exist on server)
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('members', 'delete', null, id);
+        }
+
+        return;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
     const { error } = await client
         .from('members')
         .delete()
         .eq('id', id);
 
     if (error) throw error;
+
+    // Remove from local cache
+    if (typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.deleteMemberLocal(id);
+    }
 }
 
 // ============================================
@@ -366,8 +494,19 @@ async function deleteMember(id) {
 
 /**
  * Get all payments for current gym
+ * Supports offline mode - returns cached data when offline
  */
 async function getMemberPayments() {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - returning cached payments');
+        if (typeof OfflineStorage !== 'undefined') {
+            return await OfflineStorage.getAllPayments();
+        }
+        return [];
+    }
+
+    // Online - fetch from server
     const client = getSupabase();
 
     const { data, error } = await client
@@ -379,6 +518,14 @@ async function getMemberPayments() {
         .order('payment_date', { ascending: false });
 
     if (error) throw error;
+
+    // Cache locally for offline use
+    if (data && typeof OfflineStorage !== 'undefined') {
+        for (const payment of data) {
+            await OfflineStorage.savePayment(payment);
+        }
+    }
+
     return data;
 }
 
@@ -400,12 +547,37 @@ async function getMemberPaymentsByMember(memberId) {
 
 /**
  * Create a payment
+ * Supports offline mode - saves locally and queues for sync when offline
  */
 async function createMemberPayment(paymentData) {
-    const client = getSupabase();
     const profile = await getProfile();
-
     if (!profile || !profile.gym_id) throw new Error('No gym associated');
+
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - creating payment locally');
+
+        const tempId = OfflineStorage.generateTempId();
+        const offlinePayment = {
+            id: tempId,
+            gym_id: profile.gym_id,
+            ...paymentData,
+            created_at: new Date().toISOString(),
+            _isOffline: true,
+            _tempId: tempId
+        };
+
+        // Save locally
+        await OfflineStorage.savePayment(offlinePayment);
+
+        // Queue for sync
+        await OfflineStorage.addToSyncQueue('member_payments', 'create', offlinePayment, tempId);
+
+        return offlinePayment;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
 
     const { data, error } = await client
         .from('member_payments')
@@ -417,13 +589,44 @@ async function createMemberPayment(paymentData) {
         .single();
 
     if (error) throw error;
+
+    // Cache locally
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.savePayment(data);
+    }
+
     return data;
 }
 
 /**
  * Update a payment
+ * Supports offline mode - updates locally and queues for sync when offline
  */
 async function updateMemberPayment(id, updates) {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - updating payment locally');
+
+        const existing = await OfflineStorage.getPaymentById(id);
+        if (!existing) throw new Error('Payment not found in local storage');
+
+        const updatedPayment = {
+            ...existing,
+            ...updates,
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        await OfflineStorage.savePayment(updatedPayment);
+
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('member_payments', 'update', updates, id);
+        }
+
+        return updatedPayment;
+    }
+
+    // Online - proceed normally
     const client = getSupabase();
 
     const { data, error } = await client
@@ -434,13 +637,33 @@ async function updateMemberPayment(id, updates) {
         .single();
 
     if (error) throw error;
+
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.savePayment(data);
+    }
+
     return data;
 }
 
 /**
  * Delete a payment
+ * Supports offline mode - deletes locally and queues for sync when offline
  */
 async function deleteMemberPayment(id) {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - deleting payment locally');
+
+        await OfflineStorage.deletePaymentLocal(id);
+
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('member_payments', 'delete', null, id);
+        }
+
+        return;
+    }
+
+    // Online - proceed normally
     const client = getSupabase();
 
     const { error } = await client
@@ -449,6 +672,10 @@ async function deleteMemberPayment(id) {
         .eq('id', id);
 
     if (error) throw error;
+
+    if (typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.deletePaymentLocal(id);
+    }
 }
 
 // ============================================
@@ -457,8 +684,19 @@ async function deleteMemberPayment(id) {
 
 /**
  * Get all classes for current gym
+ * Supports offline mode - returns cached data when offline
  */
 async function getClasses() {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - returning cached classes');
+        if (typeof OfflineStorage !== 'undefined') {
+            return await OfflineStorage.getAllClasses();
+        }
+        return [];
+    }
+
+    // Online - fetch from server
     const client = getSupabase();
 
     const { data, error } = await client
@@ -468,6 +706,14 @@ async function getClasses() {
         .order('start_time', { ascending: true });
 
     if (error) throw error;
+
+    // Cache locally for offline use
+    if (data && typeof OfflineStorage !== 'undefined') {
+        for (const cls of data) {
+            await OfflineStorage.saveClass(cls);
+        }
+    }
+
     return data || [];
 }
 
@@ -489,12 +735,35 @@ async function getClass(id) {
 
 /**
  * Create a new class
+ * Supports offline mode - saves locally and queues for sync when offline
  */
 async function createClass(classData) {
-    const client = getSupabase();
     const profile = await getProfile();
-
     if (!profile || !profile.gym_id) throw new Error('No gym associated');
+
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - creating class locally');
+
+        const tempId = OfflineStorage.generateTempId();
+        const offlineClass = {
+            id: tempId,
+            gym_id: profile.gym_id,
+            ...classData,
+            status: 'active',
+            created_at: new Date().toISOString(),
+            _isOffline: true,
+            _tempId: tempId
+        };
+
+        await OfflineStorage.saveClass(offlineClass);
+        await OfflineStorage.addToSyncQueue('classes', 'create', offlineClass, tempId);
+
+        return offlineClass;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
 
     const { data, error } = await client
         .from('classes')
@@ -506,13 +775,43 @@ async function createClass(classData) {
         .single();
 
     if (error) throw error;
+
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveClass(data);
+    }
+
     return data;
 }
 
 /**
  * Update a class
+ * Supports offline mode - updates locally and queues for sync when offline
  */
 async function updateClass(id, updates) {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - updating class locally');
+
+        const existing = await OfflineStorage.getClassById(id);
+        if (!existing) throw new Error('Class not found in local storage');
+
+        const updatedClass = {
+            ...existing,
+            ...updates,
+            updated_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        await OfflineStorage.saveClass(updatedClass);
+
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('classes', 'update', updates, id);
+        }
+
+        return updatedClass;
+    }
+
+    // Online - proceed normally
     const client = getSupabase();
 
     const { data, error } = await client
@@ -523,13 +822,33 @@ async function updateClass(id, updates) {
         .single();
 
     if (error) throw error;
+
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveClass(data);
+    }
+
     return data;
 }
 
 /**
  * Delete a class
+ * Supports offline mode - deletes locally and queues for sync when offline
  */
 async function deleteClass(id) {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - deleting class locally');
+
+        await OfflineStorage.deleteClassLocal(id);
+
+        if (!OfflineStorage.isTempId(id)) {
+            await OfflineStorage.addToSyncQueue('classes', 'delete', null, id);
+        }
+
+        return;
+    }
+
+    // Online - proceed normally
     const client = getSupabase();
 
     const { error } = await client
@@ -538,6 +857,10 @@ async function deleteClass(id) {
         .eq('id', id);
 
     if (error) throw error;
+
+    if (typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.deleteClassLocal(id);
+    }
 }
 
 // ============================================
@@ -661,8 +984,19 @@ async function deleteBooking(id) {
 
 /**
  * Get today's access logs
+ * Supports offline mode - returns cached data when offline
  */
 async function getTodayAccessLogs() {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - returning cached access logs');
+        if (typeof OfflineStorage !== 'undefined') {
+            return await OfflineStorage.getTodayAccessLogs();
+        }
+        return [];
+    }
+
+    // Online - fetch from server
     const client = getSupabase();
     const today = new Date().toISOString().split('T')[0];
 
@@ -676,6 +1010,14 @@ async function getTodayAccessLogs() {
         .order('check_in_at', { ascending: false });
 
     if (error) throw error;
+
+    // Cache locally for offline use
+    if (data && typeof OfflineStorage !== 'undefined') {
+        for (const log of data) {
+            await OfflineStorage.saveAccessLog(log);
+        }
+    }
+
     return data || [];
 }
 
@@ -701,12 +1043,46 @@ async function getAccessLogs(startDate, endDate) {
 
 /**
  * Check-in a member
+ * Supports offline mode - saves locally and queues for sync when offline
  */
 async function checkInMember(memberId, accessMethod = 'manual', notes = null) {
-    const client = getSupabase();
     const profile = await getProfile();
-
     if (!profile || !profile.gym_id) throw new Error('No gym associated');
+
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - creating access log locally');
+
+        const tempId = OfflineStorage.generateTempId();
+        const offlineLog = {
+            id: tempId,
+            gym_id: profile.gym_id,
+            member_id: memberId,
+            check_in_at: new Date().toISOString(),
+            check_out_at: null,
+            access_method: accessMethod,
+            notes: notes,
+            _isOffline: true,
+            _tempId: tempId
+        };
+
+        // Get member data from cache to include in return
+        const member = await OfflineStorage.getMemberById(memberId);
+        if (member) {
+            offlineLog.member = {
+                full_name: member.full_name,
+                dni: member.dni
+            };
+        }
+
+        await OfflineStorage.saveAccessLog(offlineLog);
+        await OfflineStorage.addToSyncQueue('access_logs', 'create', offlineLog, tempId);
+
+        return offlineLog;
+    }
+
+    // Online - proceed normally
+    const client = getSupabase();
 
     const { data, error } = await client
         .from('access_logs')
@@ -724,13 +1100,42 @@ async function checkInMember(memberId, accessMethod = 'manual', notes = null) {
         .single();
 
     if (error) throw error;
+
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveAccessLog(data);
+    }
+
     return data;
 }
 
 /**
  * Check-out a member (update existing check-in)
+ * Supports offline mode - updates locally and queues for sync when offline
  */
 async function checkOutMember(accessLogId) {
+    // Check if offline
+    if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+        console.log('[Supabase] Offline - updating access log locally');
+
+        const existing = await OfflineStorage.getAccessLogById(accessLogId);
+        if (!existing) throw new Error('Access log not found in local storage');
+
+        const updatedLog = {
+            ...existing,
+            check_out_at: new Date().toISOString(),
+            _isOffline: true
+        };
+
+        await OfflineStorage.saveAccessLog(updatedLog);
+
+        if (!OfflineStorage.isTempId(accessLogId)) {
+            await OfflineStorage.addToSyncQueue('access_logs', 'update', { check_out_at: updatedLog.check_out_at }, accessLogId);
+        }
+
+        return updatedLog;
+    }
+
+    // Online - proceed normally
     const client = getSupabase();
 
     const { data, error } = await client
@@ -743,6 +1148,11 @@ async function checkOutMember(accessLogId) {
         .single();
 
     if (error) throw error;
+
+    if (data && typeof OfflineStorage !== 'undefined') {
+        await OfflineStorage.saveAccessLog(data);
+    }
+
     return data;
 }
 

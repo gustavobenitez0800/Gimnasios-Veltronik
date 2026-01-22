@@ -57,6 +57,15 @@ const CONFIG = {
         ADMIN: 'admin',
         STAFF: 'staff',
         RECEPTION: 'reception'
+    },
+
+    // Offline Mode Configuration
+    OFFLINE: {
+        ENABLED: true,
+        SYNC_INTERVAL: 30000,        // Sincronizar cada 30 segundos
+        MAX_RETRY_ATTEMPTS: 5,        // Intentos máximos de sincronización
+        CONFLICT_STRATEGY: 'last-write-wins',  // Estrategia de conflictos
+        CACHE_DURATION: 86400000      // 24 horas de caché
     }
 };
 
