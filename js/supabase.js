@@ -670,7 +670,7 @@ async function getTodayAccessLogs() {
         .from('access_logs')
         .select(`
             *,
-            member:members(id, full_name, dni, phone, status)
+            member:members(id, full_name, dni, phone, status, membership_end)
         `)
         .gte('check_in_at', today)
         .order('check_in_at', { ascending: false });

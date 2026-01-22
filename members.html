@@ -18,6 +18,9 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
 
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
     <style>
         .member-modal {
             max-width: 600px;
@@ -184,6 +187,238 @@
             font-size: 10px;
             font-weight: 600;
         }
+
+        /* Quick Actions Dropdown */
+        .actions-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .actions-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            min-width: 180px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+            display: none;
+            overflow: hidden;
+        }
+
+        .actions-dropdown.open .actions-menu {
+            display: block;
+            animation: fadeInDown 0.15s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .actions-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all 0.15s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .actions-menu-item:hover {
+            background: rgba(14, 165, 233, 0.1);
+            color: var(--primary-400);
+        }
+
+        .actions-menu-item.danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-500);
+        }
+
+        .actions-menu-item .menu-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .actions-menu-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 0.25rem 0;
+        }
+
+        .action-btn-more {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 0.35rem 0.5rem;
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .action-btn-more:hover {
+            background: var(--primary-500);
+            color: white;
+            border-color: var(--primary-500);
+        }
+
+        /* Quick action buttons */
+        .quick-actions {
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn-quick {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: var(--border-radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            transition: all 0.15s;
+        }
+
+        .action-btn-whatsapp {
+            background: rgba(37, 211, 102, 0.15);
+            color: #25d366;
+        }
+
+        .action-btn-whatsapp:hover {
+            background: #25d366;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .action-btn-payment {
+            background: rgba(14, 165, 233, 0.15);
+            color: var(--primary-500);
+        }
+
+        .action-btn-payment:hover {
+            background: var(--primary-500);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .action-btn-renew {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+        }
+
+        .action-btn-renew:hover {
+            background: var(--success-500);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .action-btn-history {
+            background: rgba(168, 85, 247, 0.15);
+            color: #a855f7;
+        }
+
+        .action-btn-history:hover {
+            background: #a855f7;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        /* Payments history modal */
+        .payments-modal {
+            max-width: 600px;
+            max-height: 80vh;
+        }
+
+        .payment-history-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .payment-history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .payment-history-item:last-child {
+            border-bottom: none;
+        }
+
+        .payment-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .payment-amount {
+            font-weight: 600;
+            color: var(--success-500);
+        }
+
+        .payment-date {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+        }
+
+        /* Days Counter */
+        .days-countdown {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.6rem;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+        }
+
+        .days-ok {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+        }
+
+        .days-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+        }
+
+        .days-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-500);
+        }
+
+        .days-expired {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-500);
+            font-weight: 700;
+        }
+
+        .days-none {
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+        }
     </style>
 
     <!-- Favicon -->
@@ -316,6 +551,7 @@
                                     <th>DNI</th>
                                     <th>Teléfono</th>
                                     <th>Estado</th>
+                                    <th>Días</th>
                                     <th>Vencimiento</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -431,6 +667,25 @@
         </div>
     </div>
 
+    <!-- Payments History Modal -->
+    <div class="modal-overlay" id="paymentsHistoryModal">
+        <div class="modal-container payments-modal">
+            <h2 class="modal-title">💳 Historial de Pagos</h2>
+            <p class="text-muted mb-2" id="historyMemberName">-</p>
+            <div class="payment-history-list" id="paymentHistoryList">
+                <div class="text-center text-muted" style="padding: 2rem;">
+                    Cargando...
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="closePaymentsHistoryModal()">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="newPaymentFromHistoryBtn">
+                    💰 Registrar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
@@ -470,6 +725,33 @@
             5: 'Vie',
             6: 'Sáb'
         };
+
+        // Calculate remaining days and return HTML badge
+        function getDaysCountdown(membershipEnd) {
+            if (!membershipEnd) {
+                return '<span class="days-countdown days-none">Sin fecha</span>';
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endDate = new Date(membershipEnd);
+            endDate.setHours(0, 0, 0, 0);
+
+            const diffTime = endDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                return `<span class="days-countdown days-expired"><i class="fa-solid fa-circle-exclamation"></i> ${Math.abs(diffDays)}d vencido</span>`;
+            } else if (diffDays === 0) {
+                return '<span class="days-countdown days-danger"><i class="fa-solid fa-clock"></i> Hoy vence</span>';
+            } else if (diffDays <= 3) {
+                return `<span class="days-countdown days-danger"><i class="fa-solid fa-triangle-exclamation"></i> ${diffDays}d</span>`;
+            } else if (diffDays <= 7) {
+                return `<span class="days-countdown days-warning"><i class="fa-solid fa-hourglass-half"></i> ${diffDays}d</span>`;
+            } else {
+                return `<span class="days-countdown days-ok"><i class="fa-solid fa-check-circle"></i> ${diffDays}d</span>`;
+            }
+        }
 
         // Initialize days selector
         function initDaysSelector() {
@@ -581,7 +863,11 @@
                 return;
             }
 
-            tbody.innerHTML = pageMembers.map(member => `
+            tbody.innerHTML = pageMembers.map(member => {
+                const hasPhone = member.phone && member.phone.trim() !== '';
+                const phoneForWhatsapp = hasPhone ? member.phone.replace(/[^0-9]/g, '') : '';
+
+                return `
                 <tr>
                     <td data-label="Nombre">
                         <strong>${member.full_name}</strong>
@@ -589,19 +875,34 @@
                     <td data-label="DNI">${member.dni || '-'}</td>
                     <td data-label="Teléfono">${member.phone || '-'}</td>
                     <td data-label="Estado">${getStatusBadge(member.status)}</td>
+                    <td data-label="Días">${getDaysCountdown(member.membership_end)}</td>
                     <td data-label="Vencimiento">${formatDate(member.membership_end)}</td>
                     <td data-label="Acciones">
-                        <div class="table-actions">
+                        <div class="quick-actions">
+                            ${hasPhone ? `
+                            <button class="action-btn-quick action-btn-whatsapp" onclick="openWhatsApp('${phoneForWhatsapp}', '${member.full_name}')" title="Enviar WhatsApp">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </button>
+                            ` : ''}
+                            <button class="action-btn-quick action-btn-payment" onclick="goToPayment('${member.id}')" title="Registrar Pago">
+                                <i class="fa-solid fa-money-bill-wave"></i>
+                            </button>
+                            <button class="action-btn-quick action-btn-renew" onclick="renewMembership('${member.id}')" title="Renovar Membresía (+1 mes)">
+                                <i class="fa-solid fa-recycle"></i>
+                            </button>
+                            <button class="action-btn-quick action-btn-history" onclick="showPaymentHistory('${member.id}', '${member.full_name}')" title="Ver Historial de Pagos">
+                                <i class="fa-solid fa-file-pen"></i>
+                            </button>
                             <button class="action-btn action-btn-edit" onclick="editMember('${member.id}')" title="Editar">
-                                ✏️
+                                <i class="fa-solid fa-pen"></i>
                             </button>
                             <button class="action-btn action-btn-delete" onclick="confirmDeleteMember('${member.id}')" title="Eliminar">
-                                🗑️
+                                <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
 
             // Update pagination UI
             updatePaginationUI(startIndex + 1, endIndex, members.length);
@@ -780,6 +1081,120 @@
         // Close member modal
         function closeMemberModal() {
             document.getElementById('memberModal').classList.remove('modal-show');
+        }
+
+        // ============================================
+        // QUICK ACTIONS
+        // ============================================
+
+        // Open WhatsApp with pre-filled message
+        function openWhatsApp(phone, memberName) {
+            const message = encodeURIComponent(`Hola ${memberName}! Te escribimos desde el gimnasio.`);
+            const url = `https://wa.me/${phone}?text=${message}`;
+            window.open(url, '_blank');
+        }
+
+        // Go to payments page with member pre-selected
+        function goToPayment(memberId) {
+            window.location.href = `payments.html?action=new&member=${memberId}`;
+        }
+
+        // Renew membership (+1 month)
+        async function renewMembership(memberId) {
+            const member = allMembers.find(m => m.id === memberId);
+            if (!member) return;
+
+            const confirmed = await showConfirm(
+                'Renovar Membresía',
+                `¿Renovar membresía de ${member.full_name} por 1 mes?`,
+                { confirmText: 'Renovar', icon: '🔄' }
+            );
+
+            if (!confirmed) return;
+
+            try {
+                // Calculate new end date (1 month from current end or from today)
+                const currentEnd = member.membership_end ? new Date(member.membership_end) : new Date();
+                const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+                const newEndDate = new Date(baseDate);
+                newEndDate.setMonth(newEndDate.getMonth() + 1);
+
+                await updateMember(memberId, {
+                    membership_end: newEndDate.toISOString().split('T')[0],
+                    status: 'active'
+                });
+
+                showToast(`Membresía renovada hasta ${formatDate(newEndDate.toISOString())}`, 'success');
+                await loadMembers();
+            } catch (error) {
+                console.error('Renew error:', error);
+                showToast('Error al renovar: ' + error.message, 'error');
+            }
+        }
+
+        // Show payment history modal
+        let currentHistoryMemberId = null;
+
+        async function showPaymentHistory(memberId, memberName) {
+            currentHistoryMemberId = memberId;
+            const modal = document.getElementById('paymentsHistoryModal');
+            const list = document.getElementById('paymentHistoryList');
+            const nameEl = document.getElementById('historyMemberName');
+
+            nameEl.textContent = memberName;
+            list.innerHTML = '<div class="text-center text-muted" style="padding: 2rem;"><span class="spinner"></span> Cargando...</div>';
+            modal.classList.add('modal-show');
+
+            // Setup new payment button
+            document.getElementById('newPaymentFromHistoryBtn').onclick = () => {
+                closePaymentsHistoryModal();
+                goToPayment(memberId);
+            };
+
+            try {
+                const payments = await getMemberPaymentsByMember(memberId);
+
+                if (!payments || payments.length === 0) {
+                    list.innerHTML = `
+                        <div class="text-center text-muted" style="padding: 2rem;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📭</div>
+                            No hay pagos registrados
+                        </div>
+                    `;
+                    return;
+                }
+
+                list.innerHTML = payments.map(p => `
+                    <div class="payment-history-item">
+                        <div class="payment-info">
+                            <div class="payment-amount">${formatCurrency(p.amount)}</div>
+                            <div class="payment-date">${formatDate(p.payment_date)} · ${getMethodLabel(p.payment_method)}</div>
+                        </div>
+                        <span class="badge ${p.status === 'paid' ? 'badge-success' : 'badge-warning'}">${p.status === 'paid' ? 'Pagado' : 'Pendiente'}</span>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Load history error:', error);
+                list.innerHTML = '<div class="text-center text-muted" style="padding: 2rem;">Error al cargar historial</div>';
+            }
+        }
+
+        function closePaymentsHistoryModal() {
+            document.getElementById('paymentsHistoryModal').classList.remove('modal-show');
+            currentHistoryMemberId = null;
+        }
+
+        // Helper function for payment method labels
+        function getMethodLabel(method) {
+            const labels = {
+                'cash': 'Efectivo',
+                'card': 'Tarjeta',
+                'transfer': 'Transferencia',
+                'mercadopago': 'Mercado Pago',
+                'other': 'Otro'
+            };
+            return labels[method] || method || 'Efectivo';
         }
 
         // Edit member

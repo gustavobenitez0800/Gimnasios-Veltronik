@@ -482,6 +482,98 @@
         .checkin-section h3 .section-icon .icon {
             color: var(--success-500);
         }
+
+        /* Quota Status Badges */
+        .quota-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .quota-paid {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .quota-expiring {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            animation: pulse-warning 2s ease-in-out infinite;
+        }
+
+        .quota-expired {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-500);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            animation: pulse-warning 1.5s ease-in-out infinite;
+        }
+
+        .quota-unknown {
+            background: rgba(107, 114, 128, 0.15);
+            color: var(--text-muted);
+            border: 1px solid rgba(107, 114, 128, 0.3);
+        }
+
+        .quota-badge .quota-icon {
+            width: 14px;
+            height: 14px;
+        }
+
+        .quota-days-counter {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.15rem;
+        }
+
+        .days-number {
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .days-label {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .days-number.expired {
+            color: var(--error-500);
+        }
+
+        .days-number.expiring {
+            color: #f59e0b;
+        }
+
+        .days-number.paid {
+            color: var(--success-500);
+        }
+
+        /* Member info extended */
+        .member-status-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .quota-days-counter {
+                flex-direction: row;
+                align-items: center;
+                gap: 0.35rem;
+            }
+
+            .days-number {
+                font-size: 1rem;
+            }
+        }
     </style>
 
     <!-- Favicon -->
@@ -720,6 +812,95 @@
             return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
         }
 
+        /**
+         * Calcular estado de cuota basado en membership_end
+         * @param {string} membershipEnd - Fecha fin de membresía
+         * @returns {Object} Estado con status, days, text, class, icon
+         */
+        function getQuotaStatus(membershipEnd) {
+            if (!membershipEnd) {
+                return {
+                    status: 'unknown',
+                    days: null,
+                    text: 'Sin membresía',
+                    class: 'quota-unknown',
+                    icon: `<svg class="quota-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+                };
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const endDate = new Date(membershipEnd);
+            endDate.setHours(0, 0, 0, 0);
+
+            const diffTime = endDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            const checkIcon = `<svg class="quota-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+            const warningIcon = `<svg class="quota-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+            const expiredIcon = `<svg class="quota-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+            if (diffDays < 0) {
+                return {
+                    status: 'expired',
+                    days: Math.abs(diffDays),
+                    text: `Vencido hace ${Math.abs(diffDays)} día${Math.abs(diffDays) !== 1 ? 's' : ''}`,
+                    class: 'quota-expired',
+                    icon: expiredIcon
+                };
+            } else if (diffDays === 0) {
+                return {
+                    status: 'expiring',
+                    days: 0,
+                    text: 'Vence hoy',
+                    class: 'quota-expiring',
+                    icon: warningIcon
+                };
+            } else if (diffDays <= 7) {
+                return {
+                    status: 'expiring',
+                    days: diffDays,
+                    text: `Vence en ${diffDays} día${diffDays !== 1 ? 's' : ''}`,
+                    class: 'quota-expiring',
+                    icon: warningIcon
+                };
+            } else {
+                return {
+                    status: 'paid',
+                    days: diffDays,
+                    text: `${diffDays} días restantes`,
+                    class: 'quota-paid',
+                    icon: checkIcon
+                };
+            }
+        }
+
+        /**
+         * Generar HTML del badge de cuota
+         */
+        function renderQuotaBadge(membershipEnd) {
+            const quota = getQuotaStatus(membershipEnd);
+            return `<span class="quota-badge ${quota.class}">${quota.icon} ${quota.text}</span>`;
+        }
+
+        /**
+         * Generar HTML del contador de días
+         */
+        function renderDaysCounter(membershipEnd) {
+            const quota = getQuotaStatus(membershipEnd);
+            if (quota.days === null) return '';
+
+            const statusClass = quota.status;
+            const label = quota.status === 'expired' ? 'vencido' : 'días';
+
+            return `
+                <div class="quota-days-counter">
+                    <span class="days-number ${statusClass}">${quota.status === 'expired' ? '-' : ''}${quota.days}</span>
+                    <span class="days-label">${label}</span>
+                </div>
+            `;
+        }
+
         // ============================================
         // SIDEBAR
         // ============================================
@@ -754,13 +935,19 @@
                             </div>
                         `;
                     } else {
-                        resultsDiv.innerHTML = members.map(m => `
+                        resultsDiv.innerHTML = members.map(m => {
+                            const quotaStatus = getQuotaStatus(m.membership_end);
+                            return `
                             <div class="search-result-item" onclick="performCheckIn('${m.id}', '${m.full_name}')">
                                 <div class="member-avatar">${getInitials(m.full_name)}</div>
                                 <div class="member-info">
-                                    <div class="member-name">${m.full_name}</div>
-                                    <div class="member-dni">DNI: ${m.dni || 'No registrado'}</div>
+                                    <div class="member-status-info">
+                                        <div class="member-name">${m.full_name}</div>
+                                        <div class="member-dni">DNI: ${m.dni || 'No registrado'}</div>
+                                        ${renderQuotaBadge(m.membership_end)}
+                                    </div>
                                 </div>
+                                ${renderDaysCounter(m.membership_end)}
                                 <button class="checkin-btn">
                                     <span class="checkin-btn-icon">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -770,7 +957,7 @@
                                     </span>
                                 </button>
                             </div>
-                        `).join('');
+                        `}).join('');
                     }
 
                     resultsDiv.style.display = 'block';
@@ -872,9 +1059,13 @@
                 <div class="checked-in-item">
                     <div class="member-avatar">${getInitials(log.member?.full_name || 'NA')}</div>
                     <div class="member-info">
-                        <div class="member-name">${log.member?.full_name || 'Desconocido'}</div>
-                        <div class="checkin-time">Entrada: ${formatTime(log.check_in_at)}</div>
+                        <div class="member-status-info">
+                            <div class="member-name">${log.member?.full_name || 'Desconocido'}</div>
+                            <div class="checkin-time">Entrada: ${formatTime(log.check_in_at)}</div>
+                            ${renderQuotaBadge(log.member?.membership_end)}
+                        </div>
                     </div>
+                    ${renderDaysCounter(log.member?.membership_end)}
                     <button class="checkout-btn" onclick="performCheckOut('${log.id}', '${log.member?.full_name}')">
                         <span class="checkout-btn-icon">
                             <svg class="mini-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

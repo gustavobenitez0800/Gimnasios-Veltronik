@@ -17,6 +17,94 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
 
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        /* Member Search Autocomplete */
+        .member-search-container {
+            position: relative;
+        }
+
+        .member-search-input {
+            width: 100%;
+        }
+
+        .member-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .member-search-results.show {
+            display: block;
+        }
+
+        .member-search-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.15s;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .member-search-item:last-child {
+            border-bottom: none;
+        }
+
+        .member-search-item:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .member-search-item .member-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .member-search-item .member-dni {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+        }
+
+        .member-selected-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            margin-top: 0.5rem;
+        }
+
+        .member-selected-badge button {
+            background: none;
+            border: none;
+            color: var(--error-500);
+            cursor: pointer;
+            padding: 0;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .member-selected-badge button:hover {
+            transform: scale(1.2);
+        }
+    </style>
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
 </head>
@@ -105,7 +193,10 @@
                     <button class="mobile-menu-btn" onclick="toggleSidebar()"><span data-icon="menu"></span></button>
                     <h1 class="page-title">Pagos</h1>
                 </div>
-                <div class="header-right">
+                <div class="header-right" style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="exportPayments()" title="Exportar pagos">
+                        <span data-icon="download" class="btn-icon"></span> Exportar
+                    </button>
                     <button class="btn btn-primary" onclick="openPaymentModal()">
                         <span data-icon="creditCard"></span> Nuevo Pago
                     </button>
@@ -136,12 +227,28 @@
                 <!-- Payments Table -->
                 <div class="card">
                     <div class="table-header">
-                        <div class="table-filters">
+                        <div class="table-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <div class="search-box">
                                 <input type="text" class="form-input" placeholder="Buscar por socio..." id="searchInput"
                                     oninput="filterPayments()">
                             </div>
+                            <select class="form-select" id="methodFilter" onchange="filterPayments()"
+                                style="width: auto;">
+                                <option value="">Todos los métodos</option>
+                                <option value="cash">Efectivo</option>
+                                <option value="card">Tarjeta</option>
+                                <option value="transfer">Transferencia</option>
+                                <option value="mercadopago">Mercado Pago</option>
+                            </select>
+                            <select class="form-select" id="statusFilter" onchange="filterPayments()"
+                                style="width: auto;">
+                                <option value="">Todos los estados</option>
+                                <option value="paid">Pagado</option>
+                                <option value="pending">Pendiente</option>
+                                <option value="overdue">Vencido</option>
+                            </select>
                         </div>
+                        <div class="text-muted" id="paymentCount">0 pagos</div>
                     </div>
                     <div class="table-container">
                         <table class="table">
@@ -175,11 +282,16 @@
             <h2 class="modal-title" id="paymentModalTitle">Registrar Pago</h2>
             <form id="paymentForm" onsubmit="savePayment(event)">
                 <input type="hidden" id="paymentId" value="">
+                <input type="hidden" id="memberId" value="">
                 <div class="form-group">
-                    <label class="form-label" for="memberId">Socio *</label>
-                    <select id="memberId" class="form-select" required>
-                        <option value="">Seleccionar socio...</option>
-                    </select>
+                    <label class="form-label">Socio *</label>
+                    <div class="member-search-container">
+                        <input type="text" id="memberSearch" class="form-input member-search-input"
+                            placeholder="Buscar por nombre o DNI..." oninput="handleMemberSearch(this.value)"
+                            onfocus="handleMemberSearch(this.value)" autocomplete="off">
+                        <div class="member-search-results" id="memberSearchResults"></div>
+                    </div>
+                    <div id="selectedMemberBadge"></div>
                 </div>
 
                 <div class="form-group">
@@ -276,10 +388,10 @@
                     <td data-label="Acciones">
                         <div class="table-actions">
                             <button class="action-btn action-btn-edit" onclick="editPayment('${payment.id}')" title="Editar">
-                                ✏️
+                                <i class="fa-solid fa-pen"></i>
                             </button>
                             <button class="action-btn action-btn-delete" onclick="confirmDeletePayment('${payment.id}')" title="Eliminar">
-                                🗑️
+                                <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
                     </td>
@@ -290,6 +402,8 @@
         // Filter payments
         function filterPayments() {
             const search = document.getElementById('searchInput').value.toLowerCase();
+            const methodFilter = document.getElementById('methodFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
 
             let filtered = allPayments;
 
@@ -299,20 +413,146 @@
                 );
             }
 
+            if (methodFilter) {
+                filtered = filtered.filter(p => p.payment_method === methodFilter);
+            }
+
+            if (statusFilter) {
+                filtered = filtered.filter(p => p.status === statusFilter);
+            }
+
+            // Update count
+            document.getElementById('paymentCount').textContent = `${filtered.length} pagos`;
+
             renderPayments(filtered);
         }
 
+        // Export payments to CSV
+        function exportPayments() {
+            const payments = allPayments;
+
+            if (payments.length === 0) {
+                showToast('No hay pagos para exportar', 'warning');
+                return;
+            }
+
+            // CSV headers
+            const headers = ['Fecha', 'Socio', 'DNI', 'Monto', 'Método', 'Estado', 'Notas'];
+
+            // Status/method translation
+            const statusMap = { 'paid': 'Pagado', 'pending': 'Pendiente', 'overdue': 'Vencido', 'cancelled': 'Cancelado' };
+            const methodMap = { 'cash': 'Efectivo', 'card': 'Tarjeta', 'transfer': 'Transferencia', 'mercadopago': 'MercadoPago', 'other': 'Otro' };
+
+            // Build CSV content
+            let csvContent = headers.join(',') + '\n';
+
+            payments.forEach(p => {
+                const row = [
+                    `"${p.payment_date || ''}"`,
+                    `"${(p.member?.full_name || '').replace(/"/g, '""')}"`,
+                    `"${p.member?.dni || ''}"`,
+                    `"${p.amount}"`,
+                    `"${methodMap[p.payment_method] || p.payment_method || ''}"`,
+                    `"${statusMap[p.status] || p.status || ''}"`,
+                    `"${(p.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+
+            // Create and download file
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            const today = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `pagos_${today}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast(`${payments.length} pagos exportados`, 'success');
+        }
+
+        // ============================================
+        // MEMBER SEARCH AUTOCOMPLETE
+        // ============================================
+
+        let searchTimeout = null;
+        let selectedMember = null;
+
+        function handleMemberSearch(query) {
+            clearTimeout(searchTimeout);
+            const resultsDiv = document.getElementById('memberSearchResults');
+
+            if (query.length < 2) {
+                resultsDiv.classList.remove('show');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const filtered = allMembers.filter(m =>
+                    m.full_name.toLowerCase().includes(query.toLowerCase()) ||
+                    (m.dni && m.dni.includes(query))
+                ).slice(0, 8);
+
+                if (filtered.length === 0) {
+                    resultsDiv.innerHTML = '<div class="member-search-item" style="color: var(--text-muted); cursor: default;">No se encontraron socios</div>';
+                } else {
+                    resultsDiv.innerHTML = filtered.map(m => `
+                        <div class="member-search-item" onclick="selectMember('${m.id}', '${m.full_name.replace(/'/g, "\\'")}')">
+                            <span class="member-name">${m.full_name}</span>
+                            <span class="member-dni">${m.dni || ''}</span>
+                        </div>
+                    `).join('');
+                }
+
+                resultsDiv.classList.add('show');
+            }, 150);
+        }
+
+        function selectMember(memberId, memberName) {
+            selectedMember = { id: memberId, name: memberName };
+            document.getElementById('memberId').value = memberId;
+            document.getElementById('memberSearch').value = '';
+            document.getElementById('memberSearchResults').classList.remove('show');
+
+            // Show selected badge
+            document.getElementById('selectedMemberBadge').innerHTML = `
+                <div class="member-selected-badge">
+                    <i class="fa-solid fa-circle-check" style="color: #22c55e;"></i> ${memberName}
+                    <button type="button" onclick="clearSelectedMember()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            `;
+        }
+
+        function clearSelectedMember() {
+            selectedMember = null;
+            document.getElementById('memberId').value = '';
+            document.getElementById('selectedMemberBadge').innerHTML = '';
+            document.getElementById('memberSearch').focus();
+        }
+
+        // Hide results when clicking outside
+        document.addEventListener('click', (e) => {
+            const container = document.querySelector('.member-search-container');
+            if (container && !container.contains(e.target)) {
+                document.getElementById('memberSearchResults').classList.remove('show');
+            }
+        });
+
         // Open payment modal (for new payment)
-        function openPaymentModal(payment = null) {
+        function openPaymentModal(payment = null, preSelectedMemberId = null) {
             const modal = document.getElementById('paymentModal');
             const title = document.getElementById('paymentModalTitle');
             document.getElementById('paymentForm').reset();
             document.getElementById('paymentId').value = '';
-
-            // Populate members dropdown first
-            const select = document.getElementById('memberId');
-            select.innerHTML = '<option value="">Seleccionar socio...</option>' +
-                allMembers.map(m => `<option value="${m.id}">${m.full_name}</option>`).join('');
+            document.getElementById('memberId').value = '';
+            document.getElementById('memberSearch').value = '';
+            document.getElementById('selectedMemberBadge').innerHTML = '';
+            document.getElementById('memberSearchResults').classList.remove('show');
+            selectedMember = null;
 
             if (payment) {
                 // Edit mode
@@ -324,6 +564,12 @@
                 document.getElementById('dueDate').value = payment.due_date || '';
                 document.getElementById('paymentMethod').value = payment.payment_method || 'cash';
                 document.getElementById('notes').value = payment.notes || '';
+
+                // Show selected member badge for edit
+                const member = allMembers.find(m => m.id === payment.member_id);
+                if (member) {
+                    selectMember(member.id, member.full_name);
+                }
             } else {
                 // New payment mode
                 title.textContent = 'Registrar Pago';
@@ -335,6 +581,14 @@
                 const nextMonth = new Date();
                 nextMonth.setMonth(nextMonth.getMonth() + 1);
                 document.getElementById('dueDate').value = nextMonth.toISOString().split('T')[0];
+
+                // Pre-select member if provided
+                if (preSelectedMemberId) {
+                    const member = allMembers.find(m => m.id === preSelectedMemberId);
+                    if (member) {
+                        selectMember(member.id, member.full_name);
+                    }
+                }
             }
 
             modal.classList.add('modal-show');
@@ -529,7 +783,8 @@
                 // Check for action param
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('action') === 'new') {
-                    openPaymentModal();
+                    const preSelectedMemberId = params.get('member');
+                    openPaymentModal(null, preSelectedMemberId);
                 }
 
                 // Show content

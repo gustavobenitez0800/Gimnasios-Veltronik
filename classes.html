@@ -280,6 +280,77 @@
                 font-size: var(--font-size-xs);
             }
         }
+
+        /* Modal Adjustments for Classes */
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-xl);
+            max-width: 500px;
+            width: 100%;
+            text-align: left;
+            transform: scale(0.9) translateY(20px);
+            transition: transform var(--transition-normal);
+            box-shadow: var(--shadow-xl);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-show .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header .modal-title {
+            margin: 0;
+            font-size: var(--font-size-lg);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1;
+            padding: 0.25rem;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover {
+            color: var(--error-500);
+            transform: scale(1.1);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 
     <!-- Favicon -->
@@ -750,11 +821,11 @@
                 title.textContent = 'Nueva Clase';
             }
 
-            modal.classList.add('active');
+            modal.classList.add('modal-show');
         }
 
         function closeClassModal() {
-            document.getElementById('classModal').classList.remove('active');
+            document.getElementById('classModal').classList.remove('modal-show');
         }
 
         function updateColorSelection() {
@@ -870,11 +941,11 @@
                 </div>
             `;
 
-            document.getElementById('classDetailModal').classList.add('active');
+            document.getElementById('classDetailModal').classList.add('modal-show');
         }
 
         function closeDetailModal() {
-            document.getElementById('classDetailModal').classList.remove('active');
+            document.getElementById('classDetailModal').classList.remove('modal-show');
             currentClassId = null;
         }
 
@@ -889,9 +960,13 @@
         async function deleteCurrentClass() {
             if (!currentClassId) return;
 
-            if (!confirm('¿Estás seguro de eliminar esta clase? Esta acción no se puede deshacer.')) {
-                return;
-            }
+            const confirmed = await showConfirm(
+                'Eliminar Clase',
+                '¿Estás seguro de eliminar esta clase? Esta acción no se puede deshacer.',
+                { confirmText: 'Eliminar', icon: '🗑️' }
+            );
+
+            if (!confirmed) return;
 
             try {
                 await deleteClass(currentClassId);
@@ -912,7 +987,13 @@
         }
 
         async function confirmDeleteClass(id) {
-            if (!confirm('¿Estás seguro de eliminar esta clase?')) return;
+            const confirmed = await showConfirm(
+                'Eliminar Clase',
+                '¿Estás seguro de eliminar esta clase?',
+                { confirmText: 'Eliminar', icon: '🗑️' }
+            );
+
+            if (!confirmed) return;
 
             try {
                 await deleteClass(id);
