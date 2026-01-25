@@ -436,9 +436,8 @@ class RetentionService {
                 const whatsappUrl = `https://wa.me/${phoneWithCode}?text=${encodeURIComponent(suggestion.message)}`;
 
                 actionButtons += `
-                    <a href="${whatsappUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-whatsapp" title="Abrir WhatsApp con mensaje sugerido" style="background: #25d366; color: white;">
+                    <a href="${whatsappUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-whatsapp-icon" title="Abrir WhatsApp con mensaje sugerido">
                         <i class="fa-brands fa-whatsapp"></i>
-                        <span class="d-none d-md-inline" style="margin-left: 0.25rem;">WhatsApp</span>
                     </a>
                 `;
             }

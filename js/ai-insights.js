@@ -359,9 +359,30 @@ function getMemberStatusChartData(members) {
         suspended: 0
     };
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     members.forEach(m => {
-        if (statusCount.hasOwnProperty(m.status)) {
-            statusCount[m.status]++;
+        let effectiveStatus = m.status;
+
+        // Check if membership is expired (overrides active status)
+        if (m.membership_end) {
+            const endDate = new Date(m.membership_end);
+            endDate.setHours(0, 0, 0, 0);
+
+            // Only mark as expired if date passed and status was active
+            // (If they are already suspended or inactive, we keep that status)
+            if (endDate < today && effectiveStatus === 'active') {
+                effectiveStatus = 'expired';
+            }
+        }
+
+        // Count logic
+        if (statusCount.hasOwnProperty(effectiveStatus)) {
+            statusCount[effectiveStatus]++;
+        } else if (effectiveStatus === 'expired') {
+            // Handle case where 'expired' might not be a DB status but is a derived one
+            statusCount.expired++;
         }
     });
 

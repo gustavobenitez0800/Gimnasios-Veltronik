@@ -598,3 +598,24 @@ td div[style*="color: var(--primary-600)"] {
 .table-container::-webkit-scrollbar-thumb:hover {
     background: var(--primary-600);
 }
+/* WhatsApp Icon Button */
+.btn-whatsapp-icon {
+    background-color: transparent;
+    color: #25d366;
+    border: 1px solid #25d366;
+    transition: all 0.2s ease;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius-md);
+}
+
+.btn-whatsapp-icon:hover {
+    background-color: #25d366;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(37, 211, 102, 0.2);
+}
