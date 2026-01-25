@@ -1,6 +1,6 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Sistema de gestión profesional para gimnasios - SaaS multiplataforma",
   "main": "electron/main.js",
   "private": true,

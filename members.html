@@ -419,6 +419,99 @@
             background: var(--bg-tertiary);
             color: var(--text-muted);
         }
+
+        /* Biometrics Section Styles */
+        .biometrics-section {
+            margin-top: 0.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        .biometrics-placeholder {
+            background: var(--bg-tertiary);
+            border: 1px dashed var(--border-color);
+            border-radius: var(--border-radius-md);
+            padding: 1rem;
+        }
+
+        .biometrics-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        @media (max-width: 500px) {
+            .biometrics-options {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .biometric-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 1rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            cursor: not-allowed;
+            transition: all 0.2s;
+        }
+
+        .biometric-option.disabled {
+            opacity: 0.6;
+        }
+
+        .biometric-option i {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .biometric-option span:nth-child(2) {
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .biometric-option .status-badge {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            background: rgba(107, 114, 128, 0.2);
+            color: var(--text-muted);
+            border-radius: 4px;
+        }
+
+        .biometric-option.registered {
+            border-color: var(--success-500);
+            opacity: 1;
+        }
+
+        .biometric-option.registered i {
+            color: var(--success-500);
+        }
+
+        .biometric-option.registered .status-badge {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success-600);
+        }
+
+        .biometrics-note {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 0.5rem;
+            background: rgba(14, 165, 233, 0.05);
+            border-radius: var(--border-radius-sm);
+        }
+
+        .biometrics-note i {
+            color: var(--primary-500);
+        }
     </style>
 
     <!-- Favicon -->
@@ -471,6 +564,10 @@
                     <a href="access.html" class="nav-item">
                         <span class="nav-item-icon" data-icon="door"></span>
                         Acceso
+                    </a>
+                    <a href="retention.html" class="nav-item">
+                        <span class="nav-item-icon" data-icon="shield"></span>
+                        Retención
                     </a>
                     <a href="reports.html" class="nav-item">
                         <span class="nav-item-icon" data-icon="chart"></span>
@@ -656,6 +753,40 @@
                             <div class="day-option" data-day="0" title="Domingo">D</div>
                         </div>
                         <div class="days-summary" id="daysSummary">Seleccioná los días que asistirá el socio</div>
+                    </div>
+
+                    <!-- Biometrics Section (Coming Soon) -->
+                    <div class="form-group full-width biometrics-section">
+                        <label class="form-label">
+                            <i class="fa-solid fa-fingerprint"
+                                style="margin-right: 0.5rem; color: var(--primary-500);"></i>
+                            Datos Biométricos
+                            <span class="badge badge-neutral"
+                                style="margin-left: 0.5rem; font-size: 0.65rem;">PRÓXIMAMENTE</span>
+                        </label>
+                        <div class="biometrics-placeholder">
+                            <div class="biometrics-options">
+                                <div class="biometric-option disabled" title="Huella Digital - Próximamente">
+                                    <i class="fa-solid fa-fingerprint"></i>
+                                    <span>Huella</span>
+                                    <span class="status-badge">No registrada</span>
+                                </div>
+                                <div class="biometric-option disabled" title="Reconocimiento Facial - Próximamente">
+                                    <i class="fa-solid fa-user-circle"></i>
+                                    <span>Facial</span>
+                                    <span class="status-badge">No registrado</span>
+                                </div>
+                                <div class="biometric-option disabled" title="Tarjeta RFID - Próximamente">
+                                    <i class="fa-solid fa-id-card"></i>
+                                    <span>Tarjeta</span>
+                                    <span class="status-badge">No asignada</span>
+                                </div>
+                            </div>
+                            <p class="biometrics-note">
+                                <i class="fa-solid fa-circle-info"></i>
+                                Los métodos biométricos estarán disponibles en una próxima actualización.
+                            </p>
+                        </div>
                     </div>
                 </div>
 

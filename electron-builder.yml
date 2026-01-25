@@ -41,10 +41,10 @@ publish:
 # ============================================
 win:
   target:
-    - target: portable
+    - target: nsis
       arch:
         - x64
-  artifactName: "Gimnasio-Veltronik-${version}-portable.${ext}"
+  artifactName: "Gimnasio-Veltronik-${version}-setup.${ext}"
 
 # ============================================
 # MACOS
