@@ -8,7 +8,7 @@
  */
 
 const { autoUpdater } = require('electron-updater');
-const { ipcMain } = require('electron');
+const { ipcMain, Notification } = require('electron');
 const log = require('electron-log');
 
 // Configurar logging
@@ -40,12 +40,14 @@ function initAutoUpdater(window) {
 }
 
 /**
- * Verificar actualizaciones
+ * Verificar actualizaciones (sin notificación automática en inglés)
  */
 async function checkForUpdates() {
     try {
         log.info('Verificando actualizaciones...');
-        const result = await autoUpdater.checkForUpdatesAndNotify();
+        // Usamos checkForUpdates() en lugar de checkForUpdatesAndNotify()
+        // para controlar los mensajes en español
+        const result = await autoUpdater.checkForUpdates();
         return {
             available: result?.updateInfo?.version !== undefined,
             version: result?.updateInfo?.version
@@ -73,6 +75,15 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info) => {
     log.info('Actualización disponible:', info.version);
+
+    // Notificación en español
+    const notification = new Notification({
+        title: '🔄 Actualización disponible',
+        body: `Se está descargando la versión ${info.version}...`,
+        icon: undefined
+    });
+    notification.show();
+
     if (mainWindow) {
         mainWindow.webContents.send('update-available', {
             version: info.version,
@@ -106,6 +117,15 @@ autoUpdater.on('download-progress', (progress) => {
 
 autoUpdater.on('update-downloaded', (info) => {
     log.info('Actualización descargada:', info.version);
+
+    // Notificación en español
+    const notification = new Notification({
+        title: '✅ Actualización lista',
+        body: `La versión ${info.version} se instalará al cerrar la aplicación.`,
+        icon: undefined
+    });
+    notification.show();
+
     if (mainWindow) {
         mainWindow.webContents.send('update-downloaded', {
             version: info.version,
