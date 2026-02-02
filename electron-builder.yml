@@ -44,7 +44,30 @@ win:
     - target: nsis
       arch:
         - x64
+  # Metadatos profesionales
+  publisherName: "Veltronik"
+  legalTrademarks: "TM Veltronik"
+  verifyUpdateCodeSignature: false # Permitir updates sin firma (por ahora)
+  
+  # Configuración de Firma Digital (Code Signing)
+  # Se usará automáticamente si las variables de entorno CSC_LINK y CSC_KEY_PASSWORD están definidas
+  # No es necesario configurarlo aquí explícitamente.
+
   artifactName: "Gimnasio-Veltronik-${version}-setup.${ext}"
+
+# Configuración del Instalador (Wizard)
+nsis:
+  oneClick: false  # Falso = Instalador tipo asistente (Next -> Next)
+  perMachine: false # true pediría admin siempre, false permite instalar por usuario (mejor para evitar UAC excesivo)
+  allowToChangeInstallationDirectory: true
+  # installerIcon: assets/VeltronikGym.ico  <-- Requiere convertir el PNG a ICO
+  # uninstallerIcon: assets/VeltronikGym.ico <-- Requiere convertir el PNG a ICO
+  # installerHeaderIcon: assets/VeltronikGym.ico <-- Requiere convertir el PNG a ICO
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Gimnasio Veltronik"
+  displayLanguageSelector: true
+  license: "LICENSE.md" # Requiere crear este archivo
 
 # ============================================
 # MACOS

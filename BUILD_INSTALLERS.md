@@ -76,29 +76,18 @@ Los instaladores se crearán en la carpeta `dist/`:
 |---------|-------------|
 | `Gimnasio-Veltronik-1.0.0-portable.exe` | Ejecutable portable (no requiere instalación) |
 
-### Para Agregar Instalador NSIS (Opcional)
+### Para Configurar Firma Digital (Recomendado)
+Para eliminar advertencias de antivirus y pantallas de "Editor Desconocido", consulta la guía detallada de seguridad:
+👉 **[Guía de Seguridad y Firma Digital](docs/SECURITY_AND_SIGNING.md)**
 
-Editar `electron-builder.yml` y agregar:
+La configuración ya está lista en `electron-builder.yml`. Solo necesitas las variables de entorno `CSC_LINK` y `CSC_KEY_PASSWORD` cuando tengas tu certificado.
 
-```yaml
-win:
-  target:
-    - target: nsis
-      arch:
-        - x64
-    - target: portable
-      arch:
-        - x64
+### Personalización del Instalador
+El instalador ahora es un asistente profesional (Wizard) gracias a la configuración `nsis` en `electron-builder.yml`.
+- Muestra licencia (`LICENSE.md`)
+- Permite elegir carpeta de instalación
+- Crea accesos directos
 
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-  installerIcon: assets/VeltronikGym.ico
-  uninstallerIcon: assets/VeltronikGym.ico
-  installerHeaderIcon: assets/VeltronikGym.ico
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-```
 
 Luego ejecutar:
 

@@ -10,6 +10,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater');
+const { initBiometrics } = require('./biometrics');
 
 // Mantener referencia global para evitar garbage collection
 let mainWindow = null;
