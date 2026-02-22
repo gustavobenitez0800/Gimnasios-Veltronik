@@ -1,26 +1,21 @@
 // ============================================
 // GIMNASIO VELTRONIK - SYNC MANAGER
 // ============================================
-// Gestor de sincronización de datos
-// Maneja la sincronización bidireccional offline/online
+// Gestor de sincronización bidireccional offline/online
 
 const SyncManager = (function () {
     let isSyncing = false;
     let syncListeners = [];
     let autoSyncInterval = null;
 
-    // Configuración
-    const SYNC_INTERVAL = 30000;  // 30 segundos
+    const SYNC_INTERVAL = 30000;
     const MAX_RETRY_ATTEMPTS = 5;
-    const RETRY_DELAY_BASE = 1000;  // 1 segundo base, exponencial
+    const RETRY_DELAY_BASE = 1000;
 
     // ============================================
-    // SINCRONIZACIÓN DESDE SERVIDOR (PULL)
+    // PULL (servidor → local)
     // ============================================
 
-    /**
-     * Descarga y cachea todos los miembros desde Supabase
-     */
     async function syncMembersFromServer() {
         try {
             const client = getSupabase();
@@ -36,19 +31,15 @@ const SyncManager = (function () {
             if (data && data.length > 0) {
                 await OfflineStorage.saveMembers(data);
                 await OfflineStorage.setLastSyncTime('members');
-                console.log(`[SyncManager] Sincronizados ${data.length} miembros desde servidor`);
+                log(`[SyncManager] Sincronizados ${data.length} miembros`);
             }
-
             return { success: true, count: data?.length || 0 };
         } catch (error) {
-            console.error('[SyncManager] Error sincronizando miembros:', error);
+            logWarn('[SyncManager] Error sincronizando miembros:', error);
             return { success: false, error: error.message };
         }
     }
 
-    /**
-     * Descarga y cachea todos los pagos desde Supabase
-     */
     async function syncPaymentsFromServer() {
         try {
             const client = getSupabase();
@@ -64,19 +55,15 @@ const SyncManager = (function () {
             if (data && data.length > 0) {
                 await OfflineStorage.savePayments(data);
                 await OfflineStorage.setLastSyncTime('member_payments');
-                console.log(`[SyncManager] Sincronizados ${data.length} pagos desde servidor`);
+                log(`[SyncManager] Sincronizados ${data.length} pagos`);
             }
-
             return { success: true, count: data?.length || 0 };
         } catch (error) {
-            console.error('[SyncManager] Error sincronizando pagos:', error);
+            logWarn('[SyncManager] Error sincronizando pagos:', error);
             return { success: false, error: error.message };
         }
     }
 
-    /**
-     * Descarga y cachea todas las clases desde Supabase
-     */
     async function syncClassesFromServer() {
         try {
             const client = getSupabase();
@@ -92,44 +79,35 @@ const SyncManager = (function () {
             if (data && data.length > 0) {
                 await OfflineStorage.saveClasses(data);
                 await OfflineStorage.setLastSyncTime('classes');
-                console.log(`[SyncManager] Sincronizadas ${data.length} clases desde servidor`);
+                log(`[SyncManager] Sincronizadas ${data.length} clases`);
             }
-
             return { success: true, count: data?.length || 0 };
         } catch (error) {
-            console.error('[SyncManager] Error sincronizando clases:', error);
+            logWarn('[SyncManager] Error sincronizando clases:', error);
             return { success: false, error: error.message };
         }
     }
 
-    /**
-     * Sincroniza todos los datos desde el servidor
-     */
     async function syncFromServer() {
         if (!ConnectionMonitor.isOnline()) {
-            console.log('[SyncManager] Sin conexión, saltando sync desde servidor');
+            log('[SyncManager] Sin conexión, saltando pull');
             return { success: false, error: 'Offline' };
         }
 
-        console.log('[SyncManager] Iniciando sincronización desde servidor...');
-
+        log('[SyncManager] Iniciando pull desde servidor...');
         const results = {
             members: await syncMembersFromServer(),
             payments: await syncPaymentsFromServer(),
             classes: await syncClassesFromServer()
         };
-
-        console.log('[SyncManager] Sincronización desde servidor completada:', results);
+        log('[SyncManager] Pull completado:', results);
         return results;
     }
 
     // ============================================
-    // SINCRONIZACIÓN HACIA SERVIDOR (PUSH)
+    // PUSH (local → servidor)
     // ============================================
 
-    /**
-     * Procesa una operación de la cola de sincronización
-     */
     async function processQueueItem(item) {
         const client = getSupabase();
         if (!client) throw new Error('No Supabase client');
@@ -137,27 +115,18 @@ const SyncManager = (function () {
         const { table, operation, data, record_id } = item;
 
         switch (operation) {
-            case 'create':
-                return await processCreate(client, table, data);
-            case 'update':
-                return await processUpdate(client, table, record_id, data);
-            case 'delete':
-                return await processDelete(client, table, record_id);
-            default:
-                throw new Error(`Operación desconocida: ${operation}`);
+            case 'create': return await processCreate(client, table, data);
+            case 'update': return await processUpdate(client, table, record_id, data);
+            case 'delete': return await processDelete(client, table, record_id);
+            default: throw new Error(`Operación desconocida: ${operation}`);
         }
     }
 
-    /**
-     * Procesa una operación CREATE
-     */
     async function processCreate(client, table, data) {
-        // Remover campos locales temporales
         const cleanData = { ...data };
         delete cleanData._localUpdatedAt;
         delete cleanData._isOffline;
 
-        // Si tiene ID temporal, removerlo para que Supabase genere uno real
         const tempId = cleanData.id;
         if (OfflineStorage.isTempId(tempId)) {
             delete cleanData.id;
@@ -171,23 +140,17 @@ const SyncManager = (function () {
 
         if (error) throw error;
 
-        // Si tenía ID temporal, actualizar el registro local con el ID real
         if (OfflineStorage.isTempId(tempId)) {
             await updateLocalIdAfterSync(table, tempId, result.id, result);
         }
-
         return result;
     }
 
-    /**
-     * Procesa una operación UPDATE
-     */
     async function processUpdate(client, table, recordId, data) {
-        // Remover campos locales
         const cleanData = { ...data };
         delete cleanData._localUpdatedAt;
         delete cleanData._isOffline;
-        delete cleanData.id;  // No actualizar el ID
+        delete cleanData.id;
 
         const { data: result, error } = await client
             .from(table)
@@ -197,16 +160,10 @@ const SyncManager = (function () {
             .single();
 
         if (error) throw error;
-
-        // Actualizar el registro local con los datos del servidor
         await updateLocalRecord(table, recordId, result);
-
         return result;
     }
 
-    /**
-     * Procesa una operación DELETE
-     */
     async function processDelete(client, table, recordId) {
         const { error } = await client
             .from(table)
@@ -217,64 +174,43 @@ const SyncManager = (function () {
         return { deleted: true };
     }
 
-    /**
-     * Actualiza el ID local después de sincronizar un registro temporal
-     */
     async function updateLocalIdAfterSync(table, tempId, realId, newData) {
-        switch (table) {
-            case 'members':
-                await OfflineStorage.deleteMemberLocal(tempId);
-                await OfflineStorage.saveMember(newData);
-                break;
-            case 'member_payments':
-                await OfflineStorage.deletePaymentLocal(tempId);
-                await OfflineStorage.savePayment(newData);
-                break;
-            case 'classes':
-                await OfflineStorage.deleteClassLocal(tempId);
-                await OfflineStorage.saveClass(newData);
-                break;
+        const handlers = {
+            members: ['deleteMemberLocal', 'saveMember'],
+            member_payments: ['deletePaymentLocal', 'savePayment'],
+            classes: ['deleteClassLocal', 'saveClass']
+        };
+        const h = handlers[table];
+        if (h) {
+            await OfflineStorage[h[0]](tempId);
+            await OfflineStorage[h[1]](newData);
         }
     }
 
-    /**
-     * Actualiza un registro local con datos frescos del servidor
-     */
     async function updateLocalRecord(table, id, data) {
-        switch (table) {
-            case 'members':
-                await OfflineStorage.saveMember(data);
-                break;
-            case 'member_payments':
-                await OfflineStorage.savePayment(data);
-                break;
-            case 'classes':
-                await OfflineStorage.saveClass(data);
-                break;
-            case 'access_logs':
-                await OfflineStorage.saveAccessLog(data);
-                break;
-        }
+        const saveMap = {
+            members: 'saveMember',
+            member_payments: 'savePayment',
+            classes: 'saveClass',
+            access_logs: 'saveAccessLog'
+        };
+        const fn = saveMap[table];
+        if (fn) await OfflineStorage[fn](data);
     }
 
-    /**
-     * Procesa toda la cola de sincronización
-     */
     async function syncToServer() {
         if (!ConnectionMonitor.isOnline()) {
-            console.log('[SyncManager] Sin conexión, saltando sync hacia servidor');
+            log('[SyncManager] Sin conexión, saltando push');
             return { success: false, error: 'Offline' };
         }
 
         const pendingItems = await OfflineStorage.getPendingSyncOperations();
-
         if (pendingItems.length === 0) {
-            console.log('[SyncManager] No hay operaciones pendientes');
+            log('[SyncManager] No hay operaciones pendientes');
             return { success: true, processed: 0 };
         }
 
-        console.log(`[SyncManager] Procesando ${pendingItems.length} operaciones pendientes...`);
-
+        log(`[SyncManager] Procesando ${pendingItems.length} operaciones pendientes...`);
         let processed = 0;
         let failed = 0;
 
@@ -283,33 +219,30 @@ const SyncManager = (function () {
                 await processQueueItem(item);
                 await OfflineStorage.markSyncCompleted(item.id);
                 processed++;
-                console.log(`[SyncManager] Operación ${item.id} completada: ${item.operation} en ${item.table}`);
+                log(`[SyncManager] Operación ${item.id} completada: ${item.operation} en ${item.table}`);
             } catch (error) {
-                console.error(`[SyncManager] Error en operación ${item.id}:`, error);
+                logWarn(`[SyncManager] Error en operación ${item.id}:`, error);
                 await OfflineStorage.markSyncFailed(item.id, error.message);
                 failed++;
             }
         }
 
-        console.log(`[SyncManager] Sincronización completada: ${processed} exitosas, ${failed} fallidas`);
+        log(`[SyncManager] Push completado: ${processed} exitosas, ${failed} fallidas`);
         return { success: true, processed, failed };
     }
 
     // ============================================
-    // SINCRONIZACIÓN COMPLETA
+    // SYNC COMPLETA
     // ============================================
 
-    /**
-     * Ejecuta sincronización completa (push + pull)
-     */
     async function sync() {
         if (isSyncing) {
-            console.log('[SyncManager] Sincronización ya en progreso, saltando...');
+            log('[SyncManager] Sincronización ya en progreso, saltando...');
             return { success: false, error: 'Already syncing' };
         }
 
         if (!ConnectionMonitor.isOnline()) {
-            console.log('[SyncManager] Sin conexión, no se puede sincronizar');
+            log('[SyncManager] Sin conexión');
             return { success: false, error: 'Offline' };
         }
 
@@ -317,21 +250,15 @@ const SyncManager = (function () {
         notifySyncListeners('start');
 
         try {
-            console.log('[SyncManager] ========== INICIANDO SINCRONIZACIÓN ==========');
-
-            // Primero enviar cambios locales (push)
+            log('[SyncManager] === INICIANDO SYNC ===');
             const pushResult = await syncToServer();
-
-            // Luego descargar datos frescos (pull)
             const pullResult = await syncFromServer();
-
-            console.log('[SyncManager] ========== SINCRONIZACIÓN COMPLETADA ==========');
+            log('[SyncManager] === SYNC COMPLETADA ===');
 
             notifySyncListeners('complete', { push: pushResult, pull: pullResult });
-
             return { success: true, push: pushResult, pull: pullResult };
         } catch (error) {
-            console.error('[SyncManager] Error en sincronización:', error);
+            logWarn('[SyncManager] Error en sincronización:', error);
             notifySyncListeners('error', error);
             return { success: false, error: error.message };
         } finally {
@@ -343,29 +270,19 @@ const SyncManager = (function () {
     // AUTO-SYNC
     // ============================================
 
-    /**
-     * Inicia sincronización automática periódica
-     */
     function startAutoSync() {
         if (autoSyncInterval) return;
-
         autoSyncInterval = setInterval(async () => {
-            if (ConnectionMonitor.isOnline()) {
-                await sync();
-            }
+            if (ConnectionMonitor.isOnline()) await sync();
         }, SYNC_INTERVAL);
-
-        console.log(`[SyncManager] Auto-sync iniciado (cada ${SYNC_INTERVAL / 1000}s)`);
+        log(`[SyncManager] Auto-sync iniciado (cada ${SYNC_INTERVAL / 1000}s)`);
     }
 
-    /**
-     * Detiene sincronización automática
-     */
     function stopAutoSync() {
         if (autoSyncInterval) {
             clearInterval(autoSyncInterval);
             autoSyncInterval = null;
-            console.log('[SyncManager] Auto-sync detenido');
+            log('[SyncManager] Auto-sync detenido');
         }
     }
 
@@ -373,29 +290,16 @@ const SyncManager = (function () {
     // LISTENERS
     // ============================================
 
-    /**
-     * Registra un listener para eventos de sincronización
-     */
     function onSync(callback) {
         syncListeners.push(callback);
-        return () => {
-            syncListeners = syncListeners.filter(cb => cb !== callback);
-        };
+        return () => { syncListeners = syncListeners.filter(cb => cb !== callback); };
     }
 
-    /**
-     * Notifica a todos los listeners
-     */
     function notifySyncListeners(event, data = null) {
         syncListeners.forEach(callback => {
-            try {
-                callback(event, data);
-            } catch (error) {
-                console.error('[SyncManager] Error en listener:', error);
-            }
+            try { callback(event, data); }
+            catch (error) { logWarn('[SyncManager] Error en listener:', error); }
         });
-
-        // Disparar evento custom
         window.dispatchEvent(new CustomEvent('sync-status', {
             detail: { event, data, timestamp: new Date() }
         }));
@@ -405,9 +309,6 @@ const SyncManager = (function () {
     // ESTADO
     // ============================================
 
-    /**
-     * Obtiene el estado actual de sincronización
-     */
     async function getStatus() {
         const pendingCount = await OfflineStorage.getPendingSyncCount();
         const lastSyncMembers = await OfflineStorage.getLastSyncTime('members');
@@ -416,74 +317,44 @@ const SyncManager = (function () {
         return {
             isSyncing,
             pendingOperations: pendingCount,
-            lastSync: {
-                members: lastSyncMembers,
-                payments: lastSyncPayments
-            },
+            lastSync: { members: lastSyncMembers, payments: lastSyncPayments },
             autoSyncActive: autoSyncInterval !== null
         };
     }
 
-    /**
-     * Verifica si hay operaciones pendientes
-     */
     async function hasPendingSync() {
-        const count = await OfflineStorage.getPendingSyncCount();
-        return count > 0;
+        return (await OfflineStorage.getPendingSyncCount()) > 0;
     }
 
     // ============================================
-    // INICIALIZACIÓN
+    // INIT
     // ============================================
 
-    /**
-     * Inicializa el sync manager
-     */
     async function init() {
-        // Escuchar cambios de conexión
         ConnectionMonitor.onStatusChange(async (online) => {
             if (online) {
-                console.log('[SyncManager] Conexión recuperada, iniciando sincronización...');
-                // Pequeño delay para asegurar que la conexión esté estable
+                log('[SyncManager] Conexión recuperada, sincronizando...');
                 setTimeout(() => sync(), 2000);
             }
         });
 
-        // Iniciar auto-sync
         startAutoSync();
-
-        // Sincronizar al inicio si hay conexión
         if (ConnectionMonitor.isOnline()) {
             setTimeout(() => sync(), 3000);
         }
-
-        console.log('[SyncManager] Inicializado');
+        log('[SyncManager] Inicializado');
     }
 
-    // Auto-inicializar
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        // Delay para asegurar que otros módulos estén listos
         setTimeout(init, 1000);
     }
 
     return {
-        // Sincronización
-        sync,
-        syncFromServer,
-        syncToServer,
-
-        // Auto-sync
-        startAutoSync,
-        stopAutoSync,
-
-        // Estado
-        getStatus,
-        hasPendingSync,
-        isSyncing: () => isSyncing,
-
-        // Listeners
+        sync, syncFromServer, syncToServer,
+        startAutoSync, stopAutoSync,
+        getStatus, hasPendingSync, isSyncing: () => isSyncing,
         onSync
     };
 })();

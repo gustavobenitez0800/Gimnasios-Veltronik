@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Configuración - Gimnasio Veltronik">
+    <meta name="description" content="Configuración - Veltronik Platform">
     <title>Configuración | Veltronik</title>
 
     <!-- Fonts -->
@@ -277,6 +277,14 @@
                         Ajustes
                     </a>
                 </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
+                    </a>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -394,7 +402,494 @@
                         </div>
                     </div>
 
-                    <!-- Danger Zone -->
+                    <!-- Access Devices Configuration (Solo visible en Electron) -->
+                    <div class="settings-section" id="accessDevicesSection" style="display: none;">
+                        <h2 class="settings-section-title"><span data-icon="door" style="margin-right:0.5rem"></span>
+                            Dispositivos de Acceso</h2>
+                        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: var(--font-size-sm);">
+                            Configura y gestiona los dispositivos de control de acceso físico (molinetes, cerraduras,
+                            relays, etc.)
+                        </p>
+
+                        <style>
+                            .device-master-toggle {
+                                display: flex;
+                                align-items: center;
+                                gap: 1rem;
+                                padding: 1rem 1.25rem;
+                                background: var(--bg-tertiary);
+                                border-radius: var(--border-radius-lg);
+                                margin-bottom: 1.5rem;
+                                border: 1px solid var(--border-color);
+                            }
+
+                            .device-master-toggle .toggle-switch {
+                                position: relative;
+                                width: 48px;
+                                height: 26px;
+                                background: var(--bg-secondary);
+                                border-radius: 13px;
+                                cursor: pointer;
+                                transition: background 0.3s;
+                                flex-shrink: 0;
+                                border: 1px solid var(--border-color);
+                            }
+
+                            .device-master-toggle .toggle-switch.active {
+                                background: var(--success-500);
+                                border-color: var(--success-500);
+                            }
+
+                            .device-master-toggle .toggle-switch::after {
+                                content: '';
+                                position: absolute;
+                                top: 3px;
+                                left: 3px;
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 50%;
+                                background: white;
+                                transition: transform 0.3s;
+                            }
+
+                            .device-master-toggle .toggle-switch.active::after {
+                                transform: translateX(22px);
+                            }
+
+                            .device-toolbar {
+                                display: flex;
+                                gap: 0.75rem;
+                                margin-bottom: 1.5rem;
+                                flex-wrap: wrap;
+                            }
+
+                            .device-toolbar .btn {
+                                font-size: var(--font-size-sm);
+                            }
+
+                            .devices-grid {
+                                display: grid;
+                                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                                gap: 1rem;
+                                margin-bottom: 1.5rem;
+                            }
+
+                            .device-card {
+                                background: var(--bg-tertiary);
+                                border: 1px solid var(--border-color);
+                                border-radius: var(--border-radius-lg);
+                                padding: 1.25rem;
+                                transition: all 0.3s;
+                            }
+
+                            .device-card:hover {
+                                border-color: var(--primary-400);
+                            }
+
+                            .device-card-header {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                margin-bottom: 1rem;
+                            }
+
+                            .device-card-title {
+                                font-weight: 600;
+                                font-size: var(--font-size-md);
+                                color: var(--text-primary);
+                                display: flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                            }
+
+                            .device-status-dot {
+                                width: 8px;
+                                height: 8px;
+                                border-radius: 50%;
+                                display: inline-block;
+                                flex-shrink: 0;
+                            }
+
+                            .device-status-dot.online {
+                                background: var(--success-500);
+                                box-shadow: 0 0 6px var(--success-500);
+                            }
+
+                            .device-status-dot.offline {
+                                background: var(--text-muted);
+                            }
+
+                            .device-status-dot.error {
+                                background: var(--error-500);
+                                box-shadow: 0 0 6px var(--error-500);
+                            }
+
+                            .device-card-info {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 0.5rem;
+                                margin-bottom: 1rem;
+                            }
+
+                            .device-info-row {
+                                display: flex;
+                                justify-content: space-between;
+                                font-size: var(--font-size-sm);
+                            }
+
+                            .device-info-label {
+                                color: var(--text-muted);
+                            }
+
+                            .device-info-value {
+                                color: var(--text-primary);
+                                font-weight: 500;
+                            }
+
+                            .device-card-actions {
+                                display: flex;
+                                gap: 0.5rem;
+                                padding-top: 0.75rem;
+                                border-top: 1px solid var(--border-color);
+                            }
+
+                            .device-card-actions .btn {
+                                font-size: var(--font-size-xs);
+                                padding: 0.35rem 0.75rem;
+                            }
+
+                            .device-empty-state {
+                                text-align: center;
+                                padding: 3rem 2rem;
+                                color: var(--text-muted);
+                                background: var(--bg-tertiary);
+                                border: 2px dashed var(--border-color);
+                                border-radius: var(--border-radius-lg);
+                            }
+
+                            .device-empty-state span {
+                                font-size: 2.5rem;
+                                display: block;
+                                margin-bottom: 0.75rem;
+                                opacity: 0.5;
+                            }
+
+                            .device-empty-state p {
+                                margin: 0 0 0.5rem;
+                            }
+
+                            /* -- Add/Edit Device Form -- */
+                            .device-form-panel {
+                                background: var(--bg-tertiary);
+                                border: 1px solid var(--border-color);
+                                border-radius: var(--border-radius-lg);
+                                padding: 1.5rem;
+                                display: none;
+                                margin-bottom: 1.5rem;
+                            }
+
+                            .device-form-panel.open {
+                                display: block;
+                            }
+
+                            .device-form-grid {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 1rem;
+                            }
+
+                            @media (max-width: 768px) {
+                                .device-form-grid {
+                                    grid-template-columns: 1fr;
+                                }
+
+                                .devices-grid {
+                                    grid-template-columns: 1fr;
+                                }
+                            }
+
+                            .device-form-grid .form-group {
+                                margin-bottom: 0;
+                            }
+
+                            .device-form-grid .form-group.full-width {
+                                grid-column: 1 / -1;
+                            }
+
+                            .connection-fields {
+                                display: none;
+                                grid-column: 1 / -1;
+                            }
+
+                            .connection-fields.active {
+                                display: contents;
+                            }
+
+                            .scan-results {
+                                max-height: 200px;
+                                overflow-y: auto;
+                                background: var(--bg-secondary);
+                                border-radius: var(--border-radius-md);
+                                padding: 0.75rem;
+                                margin-top: 0.5rem;
+                            }
+
+                            .scan-result-item {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                padding: 0.5rem 0.75rem;
+                                border-radius: var(--border-radius-sm);
+                                cursor: pointer;
+                                transition: all 0.2s;
+                                font-size: var(--font-size-sm);
+                            }
+
+                            .scan-result-item:hover {
+                                background: rgba(14, 165, 233, 0.1);
+                            }
+
+                            .test-result {
+                                margin-top: 1rem;
+                                padding: 0.75rem 1rem;
+                                border-radius: var(--border-radius-md);
+                                font-size: var(--font-size-sm);
+                                display: none;
+                            }
+
+                            .test-result.success {
+                                display: flex;
+                                background: rgba(34, 197, 94, 0.1);
+                                color: var(--success-500);
+                                border: 1px solid rgba(34, 197, 94, 0.3);
+                            }
+
+                            .test-result.error {
+                                display: flex;
+                                background: rgba(239, 68, 68, 0.1);
+                                color: var(--error-500);
+                                border: 1px solid rgba(239, 68, 68, 0.3);
+                            }
+
+                            .test-result.loading {
+                                display: flex;
+                                background: rgba(14, 165, 233, 0.1);
+                                color: var(--primary-400);
+                                border: 1px solid rgba(14, 165, 233, 0.3);
+                            }
+                        </style>
+
+                        <!-- Master Toggle -->
+                        <div class="device-master-toggle">
+                            <div class="toggle-switch" id="accessToggle" onclick="toggleAccessControl()"></div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--text-primary);">Control de Acceso Físico
+                                </div>
+                                <div style="font-size: var(--font-size-xs); color: var(--text-muted);">Habilitar
+                                    molinetes, cerraduras y dispositivos de acceso</div>
+                            </div>
+                        </div>
+
+                        <!-- Device controls (shown when enabled) -->
+                        <div id="deviceControlsPanel" style="display: none;">
+                            <!-- Toolbar -->
+                            <div class="device-toolbar">
+                                <button type="button" class="btn btn-primary" onclick="toggleDeviceForm()">
+                                    <span data-icon="plus" style="margin-right:0.35rem"></span> Agregar Dispositivo
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="scanForDevices()">
+                                    <span data-icon="search" style="margin-right:0.35rem"></span> Escanear Dispositivos
+                                </button>
+                            </div>
+
+                            <!-- Add/Edit Device Form -->
+                            <div class="device-form-panel" id="deviceFormPanel">
+                                <h4 style="margin: 0 0 1rem; color: var(--text-primary);">
+                                    <span id="deviceFormTitle">Agregar Dispositivo</span>
+                                </h4>
+                                <div class="device-form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="devName">Nombre</label>
+                                        <input type="text" id="devName" class="form-input"
+                                            placeholder="Ej: Molinete Entrada Principal">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="devType">Tipo</label>
+                                        <select id="devType" class="form-input">
+                                            <option value="turnstile">Molinete</option>
+                                            <option value="electromagnetic_lock">Cerradura Electromagnética</option>
+                                            <option value="relay">Relay (USB/Serial)</option>
+                                            <option value="barrier">Barrera</option>
+                                            <option value="biometric">Biométrico</option>
+                                            <option value="other">Otro</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="devDirection">Dirección</label>
+                                        <select id="devDirection" class="form-input">
+                                            <option value="entry">Entrada</option>
+                                            <option value="exit">Salida</option>
+                                            <option value="both">Bidireccional</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="devConnection">Tipo de Conexión</label>
+                                        <select id="devConnection" class="form-input"
+                                            onchange="showConnectionFields(this.value)">
+                                            <option value="serial">Puerto Serie (COM)</option>
+                                            <option value="tcp">TCP/IP (Red)</option>
+                                            <option value="usb_hid">USB HID</option>
+                                            <option value="api">API / Webhook</option>
+                                            <option value="sdk">SDK del Fabricante</option>
+                                            <option value="simulation">Simulación (sin hardware)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Serial fields -->
+                                    <div class="connection-fields active" id="fieldsSerial">
+                                        <div class="form-group">
+                                            <label class="form-label" for="devSerialPort">Puerto COM</label>
+                                            <div style="display: flex; gap: 0.5rem;">
+                                                <select id="devSerialPort" class="form-input" style="flex:1;">
+                                                    <option value="">Seleccionar puerto...</option>
+                                                </select>
+                                                <button type="button" class="btn btn-secondary"
+                                                    onclick="refreshSerialPorts()" title="Actualizar">↻</button>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="devBaudRate">Velocidad (Baud Rate)</label>
+                                            <select id="devBaudRate" class="form-input">
+                                                <option value="9600" selected>9600</option>
+                                                <option value="19200">19200</option>
+                                                <option value="38400">38400</option>
+                                                <option value="57600">57600</option>
+                                                <option value="115200">115200</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- TCP/IP fields -->
+                                    <div class="connection-fields" id="fieldsTcp">
+                                        <div class="form-group">
+                                            <label class="form-label" for="devTcpHost">Dirección IP</label>
+                                            <input type="text" id="devTcpHost" class="form-input"
+                                                placeholder="192.168.1.100">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="devTcpPort">Puerto</label>
+                                            <input type="number" id="devTcpPort" class="form-input" placeholder="4370"
+                                                value="4370">
+                                        </div>
+                                    </div>
+
+                                    <!-- USB HID fields -->
+                                    <div class="connection-fields" id="fieldsUsbHid">
+                                        <div class="form-group">
+                                            <label class="form-label" for="devVendorId">Vendor ID</label>
+                                            <input type="text" id="devVendorId" class="form-input" placeholder="0x1234">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="devProductId">Product ID</label>
+                                            <input type="text" id="devProductId" class="form-input"
+                                                placeholder="0x5678">
+                                        </div>
+                                    </div>
+
+                                    <!-- API/Webhook fields -->
+                                    <div class="connection-fields" id="fieldsApi">
+                                        <div class="form-group full-width">
+                                            <label class="form-label" for="devApiUrl">URL del Endpoint</label>
+                                            <input type="url" id="devApiUrl" class="form-input"
+                                                placeholder="http://192.168.1.100:8080/api">
+                                        </div>
+                                    </div>
+
+                                    <!-- SDK fields -->
+                                    <div class="connection-fields" id="fieldsSdk">
+                                        <div class="form-group">
+                                            <label class="form-label" for="devSdkType">Fabricante</label>
+                                            <select id="devSdkType" class="form-input">
+                                                <option value="zkteco">ZKTeco</option>
+                                                <option value="hikvision">Hikvision</option>
+                                                <option value="dahua">Dahua</option>
+                                                <option value="custom">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label" for="devSdkIp">IP del Dispositivo</label>
+                                            <input type="text" id="devSdkIp" class="form-input"
+                                                placeholder="192.168.1.201">
+                                        </div>
+                                    </div>
+
+                                    <!-- Common fields -->
+                                    <div class="form-group">
+                                        <label class="form-label" for="devOpenDuration">Tiempo de Apertura</label>
+                                        <select id="devOpenDuration" class="form-input">
+                                            <option value="1000">1 segundo</option>
+                                            <option value="2000">2 segundos</option>
+                                            <option value="3000" selected>3 segundos</option>
+                                            <option value="5000">5 segundos</option>
+                                            <option value="10000">10 segundos</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label"
+                                            style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;margin-top:1.6rem;">
+                                            <input type="checkbox" id="devFeedback" checked
+                                                style="width:18px;height:18px;">
+                                            <span>Sonido de feedback</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Test result -->
+                                <div class="test-result" id="deviceTestResult">
+                                    <span id="testResultIcon" style="margin-right: 0.5rem;"></span>
+                                    <span id="testResultText"></span>
+                                </div>
+
+                                <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+                                    <button type="button" class="btn btn-primary" onclick="saveDeviceFromForm()">
+                                        <span data-icon="check" style="margin-right:0.35rem"></span> Guardar
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="testDeviceFromForm()">
+                                        Probar Conexión
+                                    </button>
+                                    <button type="button" class="btn btn-ghost" onclick="toggleDeviceForm(false)">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Scan Results -->
+                            <div id="scanResultsContainer" style="display: none; margin-bottom: 1.5rem;">
+                                <h4
+                                    style="margin: 0 0 0.5rem; color: var(--text-primary); font-size: var(--font-size-sm);">
+                                    Dispositivos Detectados
+                                </h4>
+                                <div class="scan-results" id="scanResultsList">
+                                    <div
+                                        style="text-align:center; padding:1rem; color: var(--text-muted); font-size: var(--font-size-sm);">
+                                        Escaneando...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Device Cards Grid -->
+                            <div id="devicesGrid" class="devices-grid"></div>
+
+                            <!-- Empty State -->
+                            <div class="device-empty-state" id="devicesEmptyState">
+                                <span>📡</span>
+                                <p style="font-weight:600;">No hay dispositivos configurados</p>
+                                <p style="font-size: var(--font-size-xs);">Agrega un dispositivo manualmente o usa
+                                    "Escanear" para detectar dispositivos conectados.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Danger Zone -->
                     <style>
                         .danger-zone-container {
@@ -550,6 +1045,7 @@
     <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/biometrics-client.js"></script>
 
     <script>
         let currentGym = null;
@@ -735,8 +1231,357 @@
             });
         }
 
+        // ============================================
+        // ACCESS DEVICE CONFIGURATION (Multi-Device)
+        // ============================================
+
+        let configuredDevices = [];
+        let accessControlEnabled = false;
+
+        // Toggle master access control
+        function toggleAccessControl() {
+            accessControlEnabled = !accessControlEnabled;
+            const toggle = document.getElementById('accessToggle');
+            const panel = document.getElementById('deviceControlsPanel');
+            if (toggle) toggle.classList.toggle('active', accessControlEnabled);
+            if (panel) panel.style.display = accessControlEnabled ? 'block' : 'none';
+
+            // Persist state
+            try {
+                localStorage.setItem('veltronik_access_enabled', accessControlEnabled);
+            } catch (e) { }
+        }
+
+        // Toggle add/edit device form
+        function toggleDeviceForm(show) {
+            const panel = document.getElementById('deviceFormPanel');
+            if (!panel) return;
+            if (typeof show === 'undefined') show = !panel.classList.contains('open');
+            panel.classList.toggle('open', show);
+            if (show) {
+                document.getElementById('deviceFormTitle').textContent = 'Agregar Dispositivo';
+                showConnectionFields(document.getElementById('devConnection').value);
+            }
+        }
+
+        // Show/hide connection-type-specific fields
+        function showConnectionFields(connType) {
+            const fieldSets = {
+                serial: 'fieldsSerial',
+                tcp: 'fieldsTcp',
+                usb_hid: 'fieldsUsbHid',
+                api: 'fieldsApi',
+                sdk: 'fieldsSdk'
+            };
+            // Hide all
+            Object.values(fieldSets).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            });
+            // Show selected
+            const activeId = fieldSets[connType];
+            if (activeId) {
+                const el = document.getElementById(activeId);
+                if (el) el.classList.add('active');
+            }
+            // Auto-refresh serial ports if serial selected
+            if (connType === 'serial') refreshSerialPorts();
+        }
+
+        // Scan for devices
+        async function scanForDevices() {
+            const container = document.getElementById('scanResultsContainer');
+            const list = document.getElementById('scanResultsList');
+            if (!container || !list) return;
+
+            container.style.display = 'block';
+            list.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:var(--font-size-sm);">⏳ Escaneando puertos...</div>';
+
+            try {
+                if (window.electronAPI && window.electronAPI.accessControl && window.electronAPI.accessControl.detectDevices) {
+                    const devices = await window.electronAPI.accessControl.detectDevices();
+                    if (!devices || devices.length === 0) {
+                        list.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:var(--font-size-sm);">No se detectaron dispositivos</div>';
+                        return;
+                    }
+                    list.innerHTML = devices.map(d => `
+                        <div class="scan-result-item" onclick="applyScanResult('${d.port || d.path || ''}', '${d.type || 'serial'}', '${(d.name || d.description || '').replace(/'/g, '')}')">
+                            <span>${d.name || d.description || d.port || 'Dispositivo'}</span>
+                            <span style="color:var(--primary-400);font-size:var(--font-size-xs);">${d.type || 'serial'} → Usar</span>
+                        </div>
+                    `).join('');
+                } else {
+                    // Simulation fallback
+                    await new Promise(r => setTimeout(r, 1500));
+                    list.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted);font-size:var(--font-size-sm);">Escaneo solo disponible en la aplicación de escritorio</div>';
+                }
+            } catch (err) {
+                list.innerHTML = `<div style="text-align:center;padding:1rem;color:var(--error-500);font-size:var(--font-size-sm);">Error: ${err.message}</div>`;
+            }
+        }
+
+        function applyScanResult(port, type, name) {
+            toggleDeviceForm(true);
+            if (name) document.getElementById('devName').value = name;
+            if (type === 'serial') {
+                document.getElementById('devConnection').value = 'serial';
+                showConnectionFields('serial');
+                setTimeout(() => {
+                    const portSel = document.getElementById('devSerialPort');
+                    if (portSel) {
+                        // Add the port if not already there
+                        let exists = Array.from(portSel.options).some(o => o.value === port);
+                        if (!exists) {
+                            const opt = document.createElement('option');
+                            opt.value = port; opt.textContent = port;
+                            portSel.appendChild(opt);
+                        }
+                        portSel.value = port;
+                    }
+                }, 200);
+            }
+        }
+
+        // Refresh serial ports
+        async function refreshSerialPorts() {
+            const portSelect = document.getElementById('devSerialPort');
+            if (!portSelect) return;
+
+            try {
+                portSelect.innerHTML = '<option value="">Cargando...</option>';
+                if (window.electronAPI && window.electronAPI.accessControl && window.electronAPI.accessControl.getDevices) {
+                    const devices = await window.electronAPI.accessControl.getDevices();
+                    const serial = (devices || []).filter(d => d.type === 'serial');
+                    portSelect.innerHTML = '<option value="">Seleccionar puerto...</option>';
+                    serial.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.port;
+                        opt.textContent = `${d.port} - ${d.name || d.description || ''}`;
+                        portSelect.appendChild(opt);
+                    });
+                    if (serial.length === 0) {
+                        portSelect.innerHTML = '<option value="">No se encontraron puertos</option>';
+                    }
+                } else {
+                    portSelect.innerHTML = '<option value="">Solo disponible en escritorio</option>';
+                }
+            } catch (e) {
+                portSelect.innerHTML = '<option value="">Error al cargar puertos</option>';
+            }
+        }
+
+        // Save device from form
+        async function saveDeviceFromForm() {
+            const name = document.getElementById('devName').value.trim();
+            if (!name) { showToast('Ingresa un nombre para el dispositivo', 'warning'); return; }
+
+            const connType = document.getElementById('devConnection').value;
+            const device = {
+                id: Date.now().toString(),
+                name,
+                type: document.getElementById('devType').value,
+                direction: document.getElementById('devDirection').value,
+                connectionType: connType,
+                openDuration: parseInt(document.getElementById('devOpenDuration').value),
+                feedbackEnabled: document.getElementById('devFeedback').checked,
+                status: 'offline'
+            };
+
+            // Gather connection-specific data
+            switch (connType) {
+                case 'serial':
+                    device.port = document.getElementById('devSerialPort').value;
+                    device.baudRate = parseInt(document.getElementById('devBaudRate').value);
+                    break;
+                case 'tcp':
+                    device.host = document.getElementById('devTcpHost').value;
+                    device.port = parseInt(document.getElementById('devTcpPort').value);
+                    break;
+                case 'usb_hid':
+                    device.vendorId = document.getElementById('devVendorId').value;
+                    device.productId = document.getElementById('devProductId').value;
+                    break;
+                case 'api':
+                    device.apiUrl = document.getElementById('devApiUrl').value;
+                    break;
+                case 'sdk':
+                    device.sdkType = document.getElementById('devSdkType').value;
+                    device.host = document.getElementById('devSdkIp').value;
+                    break;
+            }
+
+            // Save via IPC if available
+            if (window.electronAPI && window.electronAPI.accessControl && window.electronAPI.accessControl.registerDevice) {
+                try {
+                    const result = await window.electronAPI.accessControl.registerDevice(device);
+                    if (result && result.success) device.status = 'online';
+                } catch (e) {
+                    console.warn('[Settings] Device register error:', e);
+                }
+            }
+
+            configuredDevices.push(device);
+            saveDevicesToStorage();
+            renderDeviceCards();
+            toggleDeviceForm(false);
+            showToast(`Dispositivo "${name}" agregado`, 'success');
+
+            // Reset form
+            document.getElementById('devName').value = '';
+        }
+
+        // Test device from form
+        async function testDeviceFromForm() {
+            const result = document.getElementById('deviceTestResult');
+            const icon = document.getElementById('testResultIcon');
+            const text = document.getElementById('testResultText');
+            if (!result) return;
+
+            result.className = 'test-result loading';
+            icon.textContent = '⏳';
+            text.textContent = 'Probando conexión...';
+
+            try {
+                if (window.electronAPI && window.electronAPI.accessControl && window.electronAPI.accessControl.testConnection) {
+                    const res = await window.electronAPI.accessControl.testConnection();
+                    if (res && res.success) {
+                        result.className = 'test-result success';
+                        icon.textContent = '✅';
+                        text.textContent = res.message || 'Conexión exitosa';
+                    } else {
+                        result.className = 'test-result error';
+                        icon.textContent = '❌';
+                        text.textContent = res?.error || 'Error de conexión';
+                    }
+                } else {
+                    // Simulate
+                    await new Promise(r => setTimeout(r, 1200));
+                    const connType = document.getElementById('devConnection').value;
+                    if (connType === 'simulation') {
+                        result.className = 'test-result success';
+                        icon.textContent = '✅';
+                        text.textContent = 'Modo simulación: conexión OK';
+                    } else {
+                        result.className = 'test-result error';
+                        icon.textContent = '⚠️';
+                        text.textContent = 'Test solo disponible en la app de escritorio';
+                    }
+                }
+            } catch (e) {
+                result.className = 'test-result error';
+                icon.textContent = '❌';
+                text.textContent = 'Error: ' + e.message;
+            }
+        }
+
+        // Render device cards
+        function renderDeviceCards() {
+            const grid = document.getElementById('devicesGrid');
+            const empty = document.getElementById('devicesEmptyState');
+            if (!grid) return;
+
+            if (configuredDevices.length === 0) {
+                grid.innerHTML = '';
+                if (empty) empty.style.display = 'block';
+                return;
+            }
+
+            if (empty) empty.style.display = 'none';
+            const typeLabels = { turnstile: 'Molinete', electromagnetic_lock: 'Cerradura', relay: 'Relay', barrier: 'Barrera', biometric: 'Biométrico', other: 'Otro' };
+            const connLabels = { serial: 'Puerto Serie', tcp: 'TCP/IP', usb_hid: 'USB HID', api: 'API/Webhook', sdk: 'SDK', simulation: 'Simulación' };
+            const dirLabels = { entry: 'Entrada', exit: 'Salida', both: 'Bidireccional' };
+
+            grid.innerHTML = configuredDevices.map(d => `
+                <div class="device-card">
+                    <div class="device-card-header">
+                        <div class="device-card-title">
+                            <span class="device-status-dot ${d.status || 'offline'}"></span>
+                            ${d.name}
+                        </div>
+                        <span style="font-size:var(--font-size-xs);color:var(--text-muted);text-transform:uppercase;">${d.status || 'offline'}</span>
+                    </div>
+                    <div class="device-card-info">
+                        <div class="device-info-row"><span class="device-info-label">Tipo</span><span class="device-info-value">${typeLabels[d.type] || d.type}</span></div>
+                        <div class="device-info-row"><span class="device-info-label">Conexión</span><span class="device-info-value">${connLabels[d.connectionType] || d.connectionType}</span></div>
+                        <div class="device-info-row"><span class="device-info-label">Dirección</span><span class="device-info-value">${dirLabels[d.direction] || d.direction}</span></div>
+                        <div class="device-info-row"><span class="device-info-label">Apertura</span><span class="device-info-value">${(d.openDuration || 3000) / 1000}s</span></div>
+                    </div>
+                    <div class="device-card-actions">
+                        <button class="btn btn-secondary" onclick="testSingleDevice('${d.id}')">Probar</button>
+                        <button class="btn btn-ghost" style="color:var(--error-500);" onclick="removeDevice('${d.id}')">Eliminar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Test a specific device
+        async function testSingleDevice(deviceId) {
+            const device = configuredDevices.find(d => d.id === deviceId);
+            if (!device) return;
+
+            if (window.electronAPI && window.electronAPI.accessControl && window.electronAPI.accessControl.testConnection) {
+                try {
+                    const result = await window.electronAPI.accessControl.testConnection(deviceId);
+                    showToast(result.success ? `✅ ${device.name}: OK` : `❌ ${device.name}: Error`, result.success ? 'success' : 'error');
+                } catch (e) {
+                    showToast(`❌ ${device.name}: ${e.message}`, 'error');
+                }
+            } else {
+                showToast(`⚠️ Test de "${device.name}" solo en escritorio`, 'warning');
+            }
+        }
+
+        // Remove a device
+        function removeDevice(deviceId) {
+            configuredDevices = configuredDevices.filter(d => d.id !== deviceId);
+            saveDevicesToStorage();
+            renderDeviceCards();
+            showToast('Dispositivo eliminado', 'info');
+        }
+
+        // Persist devices to localStorage
+        function saveDevicesToStorage() {
+            try { localStorage.setItem('veltronik_access_devices', JSON.stringify(configuredDevices)); } catch (e) { }
+        }
+        function loadDevicesFromStorage() {
+            try {
+                const stored = localStorage.getItem('veltronik_access_devices');
+                if (stored) configuredDevices = JSON.parse(stored);
+            } catch (e) { configuredDevices = []; }
+        }
+
+        // Init access device settings
+        async function initAccessDeviceSettings() {
+            if (typeof window.electronAPI === 'undefined' || !window.electronAPI.accessControl) {
+                console.log('[Settings] Not in Electron, hiding access devices section');
+                return;
+            }
+
+            const section = document.getElementById('accessDevicesSection');
+            if (section) section.style.display = 'block';
+
+            // Load saved devices
+            loadDevicesFromStorage();
+
+            // Restore toggle state
+            const savedEnabled = localStorage.getItem('veltronik_access_enabled');
+            if (savedEnabled === 'true') {
+                accessControlEnabled = true;
+                const toggle = document.getElementById('accessToggle');
+                const panel = document.getElementById('deviceControlsPanel');
+                if (toggle) toggle.classList.add('active');
+                if (panel) panel.style.display = 'block';
+            }
+
+            // Render existing devices
+            renderDeviceCards();
+        }
+
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             let hasSession = false;
 
             try {
@@ -769,16 +1614,27 @@
                     return;
                 }
 
-                // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && !gym.subscription_id) {
-                    window.location.href = CONFIG.ROUTES.PLANS;
-                    return;
+                // If trial expired, check subscription status
+                if (!isTrialActive) {
+                    const subscription = await getSubscription();
+                    const hasActiveSubscription = isActiveSubscription(subscription) ||
+                        (subscription &&
+                            subscription.status === 'past_due' &&
+                            subscription.grace_period_ends_at &&
+                            new Date(subscription.grace_period_ends_at) > new Date());
+                    if (!hasActiveSubscription) {
+                        window.location.href = CONFIG.ROUTES.PLANS;
+                        return;
+                    }
                 }
 
                 await loadSettings();
 
                 // Initialize theme toggle
                 initThemeOptions();
+
+                // Initialize access device settings (only visible in Electron)
+                await initAccessDeviceSettings();
 
                 // Show content
                 showAppContent();

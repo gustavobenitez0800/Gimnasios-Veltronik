@@ -1,6 +1,16 @@
 // ============================================
-// GIMNASIO VELTRONIK - AUTH CONTROLLER
+// VELTRONIK PLATFORM - AUTH CONTROLLER
 // ============================================
+
+/**
+ * Helper: Check if subscription is in an active/valid state.
+ * Accepts 'active' and 'authorized' (MP's confirmed state).
+ * Use this EVERYWHERE instead of comparing status === 'active' directly.
+ */
+function isActiveSubscription(subscription) {
+    if (!subscription) return false;
+    return subscription.status === 'active' || subscription.status === 'authorized';
+}
 
 /**
  * Check authentication and redirect based on user state
@@ -27,6 +37,11 @@ async function checkAuthAndRedirect() {
             return null;
         }
 
+        // Platform Logic: Allow Lobby and Member Portal access
+        if (isLobbyPage() || isMemberPortalPage()) {
+            return { session, profile };
+        }
+
         // Check if user has a gym
         if (!profile.gym_id) {
             // User needs to complete onboarding
@@ -45,50 +60,96 @@ async function checkAuthAndRedirect() {
             return null;
         }
 
-        // Check gym status and trial
+        // Get subscription data
+        let subscription = null;
+        try {
+            subscription = await getSubscription();
+        } catch (e) {
+            console.warn('Could not load subscription:', e);
+        }
+
+        // Check trial status
         const isTrialActive = checkTrialStatus(gym);
+        const trialDaysRemaining = getTrialDaysRemaining(gym);
+
+        // ============================================
+        // ROUTING LOGIC
+        // ============================================
 
         switch (gym.status) {
-            case CONFIG.GYM_STATUS.PENDING:
-                // Check if trial is active
-                if (isTrialActive) {
-                    // Trial active - allow access to dashboard
+            case CONFIG.GYM_STATUS.ACTIVE:
+                // Check if they have an active subscription OR active trial
+                if (isActiveSubscription(subscription)) {
+                    // Subscription active - full access
                     if (isPublicPage()) {
-                        window.location.href = CONFIG.ROUTES.DASHBOARD;
+                        window.location.href = CONFIG.ROUTES.LOBBY;
+                    }
+                } else if (isTrialActive) {
+                    // Trial still active - allow access
+                    if (isPublicPage()) {
+                        window.location.href = CONFIG.ROUTES.LOBBY;
+                    }
+                    // Show trial warning when less than 7 days remaining
+                    if (trialDaysRemaining <= 7 && !isPaymentPage()) {
+                        setTimeout(() => showTrialWarning(trialDaysRemaining), 1000);
+                    }
+                } else if (subscription && subscription.status === 'past_due') {
+                    // Grace period - check if still valid
+                    const graceEnd = subscription.grace_period_ends_at
+                        ? new Date(subscription.grace_period_ends_at)
+                        : null;
+                    const now = new Date();
+
+                    if (graceEnd && graceEnd > now) {
+                        // Grace period still active - allow access but warn
+                        if (isPublicPage()) {
+                            window.location.href = CONFIG.ROUTES.LOBBY;
+                        }
+                        if (!isPaymentPage()) {
+                            const graceDaysLeft = Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24));
+                            setTimeout(() => showGracePeriodWarning(graceDaysLeft), 1000);
+                        }
+                    } else {
+                        // Grace period expired - block
+                        if (!isBlockedPage() && !isPaymentPage()) {
+                            window.location.href = CONFIG.ROUTES.BLOCKED;
+                        }
+                    }
+                } else if (subscription && subscription.status === 'pending') {
+                    // Subscription pending (payment in process) — don't block, allow access
+                    // The webhook will update the status when the payment is confirmed
+                    if (isPublicPage()) {
+                        window.location.href = CONFIG.ROUTES.LOBBY;
                     }
                 } else {
-                    // No trial or expired - needs to pay
+                    // No subscription, no trial - needs payment
                     if (!isPaymentPage()) {
                         window.location.href = CONFIG.ROUTES.PLANS;
                     }
                 }
                 break;
 
-            case CONFIG.GYM_STATUS.ACTIVE:
-                // Check if trial expired and no subscription
-                if (!isTrialActive && !gym.subscription_id) {
-                    // Trial expired - redirect to payment
-                    if (!isPaymentPage()) {
-                        window.location.href = CONFIG.ROUTES.PLANS;
+            case CONFIG.GYM_STATUS.PENDING:
+                if (isTrialActive) {
+                    if (isPublicPage()) {
+                        window.location.href = CONFIG.ROUTES.LOBBY;
                     }
                 } else {
-                    // All good - allow access to protected pages
-                    if (isPublicPage() || isPaymentPage()) {
-                        window.location.href = CONFIG.ROUTES.DASHBOARD;
+                    if (!isPaymentPage()) {
+                        window.location.href = CONFIG.ROUTES.PLANS;
                     }
                 }
                 break;
 
             case CONFIG.GYM_STATUS.BLOCKED:
-                // Blocked - allow access to payment page to reactivate subscription
-                // Otherwise redirect to blocked page
+                // Blocked - only allow blocked page and payment page
                 if (!isBlockedPage() && !isPaymentPage()) {
                     window.location.href = CONFIG.ROUTES.BLOCKED;
                 }
                 break;
         }
 
-        return { session, profile, gym, isTrialActive };
+        return { session, profile, gym, subscription, isTrialActive, trialDaysRemaining };
 
     } catch (error) {
         console.error('Auth check error:', error);
@@ -146,6 +207,13 @@ function isOnboardingPage() {
 }
 
 /**
+ * Check if current page is lobby
+ */
+function isLobbyPage() {
+    return window.location.pathname.endsWith('platform-lobby.html');
+}
+
+/**
  * Check if current page is payment related
  */
 function isPaymentPage() {
@@ -170,7 +238,66 @@ function isDashboardPage() {
     return path.endsWith('dashboard.html') ||
         path.endsWith('members.html') ||
         path.endsWith('payments.html') ||
-        path.endsWith('settings.html');
+        path.endsWith('settings.html') ||
+        path.endsWith('classes.html') ||
+        path.endsWith('reports.html') ||
+        path.endsWith('access.html') ||
+        path.endsWith('retention.html');
+}
+
+/**
+ * Check if current page is member portal
+ */
+function isMemberPortalPage() {
+    return window.location.pathname.endsWith('member-portal.html');
+}
+
+/**
+ * LOBBY GUARD: Require org context before accessing system pages.
+ * Must be called at the start of every system page's DOMContentLoaded.
+ * If no org has been selected from the lobby, redirect there.
+ * Returns true if org context exists, false if redirecting.
+ */
+function requireOrgContext() {
+    // Pages that don't need org context
+    if (isPublicPage() || isLobbyPage() || isOnboardingPage() || isPaymentPage() || isBlockedPage()) {
+        return true;
+    }
+
+    const orgId = localStorage.getItem('current_org_id');
+    if (!orgId) {
+        // No org selected — force user through the lobby
+        console.log('[Auth] No org context found, redirecting to lobby');
+        window.location.href = CONFIG.ROUTES.LOBBY;
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Show trial expiry warning banner
+ */
+function showTrialWarning(daysLeft) {
+    const msg = daysLeft <= 1
+        ? '⚠️ Tu período de prueba termina hoy. Suscribite para seguir usando Veltronik.'
+        : `⚠️ Tu período de prueba vence en ${daysLeft} días. Suscribite para no perder acceso.`;
+
+    if (typeof showToast === 'function') {
+        showToast(msg, 'warning', 10000);
+    }
+}
+
+/**
+ * Show grace period warning banner
+ */
+function showGracePeriodWarning(daysLeft) {
+    const msg = daysLeft <= 1
+        ? '🚨 Último día para regularizar tu pago. Tu cuenta será bloqueada mañana.'
+        : `🚨 Pago rechazado. Tenés ${daysLeft} días para actualizar tu método de pago antes de que se bloquee tu cuenta.`;
+
+    if (typeof showToast === 'function') {
+        showToast(msg, 'error', 15000);
+    }
 }
 
 /**
@@ -206,8 +333,9 @@ async function handleLogin(event) {
 
         await signIn(email, password);
 
-        // Use proper auth redirect logic to check gym status, trial, etc.
-        await checkAuthAndRedirect();
+        // Siempre ir al lobby después del login
+        window.location.href = CONFIG.ROUTES.LOBBY;
+        return;
 
     } catch (error) {
         console.error('Login error:', error);
@@ -270,9 +398,9 @@ async function handleRegister(event) {
 
         showToast('¡Cuenta creada! Redirigiendo...', 'success');
 
-        // Redirect to onboarding
+        // Redirect to lobby
         setTimeout(() => {
-            window.location.href = CONFIG.ROUTES.ONBOARDING;
+            window.location.href = CONFIG.ROUTES.LOBBY;
         }, 1500);
 
     } catch (error) {
@@ -327,6 +455,10 @@ function getAuthErrorMessage(error) {
  */
 async function handleLogout() {
     try {
+        // Clear platform state first
+        if (typeof clearPlatformState === 'function') {
+            clearPlatformState();
+        }
         await signOut();
     } catch (error) {
         console.error('Logout error:', error);

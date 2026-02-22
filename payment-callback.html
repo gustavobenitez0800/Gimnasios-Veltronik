@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Procesando pago - Gimnasio Veltronik">
+    <meta name="description" content="Procesando pago - Veltronik Platform">
     <title>Procesando Pago | Veltronik</title>
 
     <!-- Fonts -->
@@ -182,13 +182,18 @@
             document.getElementById(stateId).style.display = 'block';
         }
 
-        // Check gym status periodically
+        // Check gym/subscription status periodically
         async function checkGymStatus(maxAttempts = 10) {
             for (let i = 0; i < maxAttempts; i++) {
                 try {
                     const gym = await getGym();
-
                     if (gym && gym.status === 'active') {
+                        // Also verify subscription is active in DB
+                        const subscription = await getSubscription();
+                        if (subscription && (subscription.status === 'active' || subscription.status === 'authorized')) {
+                            return 'active';
+                        }
+                        // Gym active but subscription not yet updated - still good enough
                         return 'active';
                     }
 

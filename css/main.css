@@ -217,13 +217,13 @@ p {
 }
 
 a {
-    color: var(--primary-600);
+    color: var(--primary-500);
     text-decoration: none;
     transition: color var(--transition-fast);
 }
 
 a:hover {
-    color: var(--primary-700);
+    color: var(--primary-400);
 }
 
 /* Buttons */
@@ -268,7 +268,8 @@ a:hover {
 
 .btn-secondary:hover:not(:disabled) {
     background: var(--bg-secondary);
-    border-color: var(--gray-300);
+    border-color: var(--primary-500);
+    color: var(--primary-400);
 }
 
 .btn-danger {
@@ -444,28 +445,28 @@ a:hover {
 }
 
 .badge-success {
-    background: var(--success-50);
-    color: var(--success-600);
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--success-500);
 }
 
 .badge-error {
-    background: var(--error-50);
-    color: var(--error-600);
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--error-500);
 }
 
 .badge-warning {
-    background: var(--warning-50);
-    color: var(--warning-600);
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-500);
 }
 
 .badge-info {
-    background: var(--info-50);
-    color: var(--info-600);
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--info-500);
 }
 
 .badge-neutral {
-    background: var(--gray-100);
-    color: var(--gray-600);
+    background: rgba(100, 116, 139, 0.15);
+    color: var(--text-muted);
 }
 
 /* Spinner */

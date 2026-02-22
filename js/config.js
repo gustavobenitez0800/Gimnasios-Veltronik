@@ -1,5 +1,5 @@
 // ============================================
-// GIMNASIO VELTRONIK - CONFIGURACIÓN
+// VELTRONIK PLATFORM - CONFIGURACIÓN
 // ============================================
 
 const CONFIG = {
@@ -19,8 +19,8 @@ const CONFIG = {
     SUBSCRIPTION_CURRENCY: 'ARS',
 
     // App Configuration
-    APP_NAME: 'Gimnasio Veltronik',
-    APP_VERSION: '1.0.0',
+    APP_NAME: 'Veltronik',
+    APP_VERSION: '2.0.0',
 
     // Routes
     ROUTES: {
@@ -33,7 +33,14 @@ const CONFIG = {
         DASHBOARD: 'dashboard.html',
         MEMBERS: 'members.html',
         PAYMENTS: 'payments.html',
-        SETTINGS: 'settings.html'
+        SETTINGS: 'settings.html',
+        CLASSES: 'classes.html',
+        REPORTS: 'reports.html',
+        ACCESS: 'access.html',
+        RETENTION: 'retention.html',
+        RESET_PASSWORD: 'reset-password.html',
+        LOBBY: 'platform-lobby.html',
+        MEMBER_PORTAL: 'member-portal.html'
     },
 
     // Gym Status (MUST match backend values)
@@ -46,6 +53,7 @@ const CONFIG = {
     // Subscription Status
     SUBSCRIPTION_STATUS: {
         ACTIVE: 'active',
+        AUTHORIZED: 'authorized',
         PAST_DUE: 'past_due',
         CANCELED: 'canceled',
         PENDING: 'pending'
@@ -56,7 +64,8 @@ const CONFIG = {
         OWNER: 'owner',
         ADMIN: 'admin',
         STAFF: 'staff',
-        RECEPTION: 'reception'
+        RECEPTION: 'reception',
+        MEMBER: 'member'
     },
 
     // Offline Mode Configuration
@@ -87,3 +96,4 @@ Object.freeze(CONFIG.ROUTES);
 Object.freeze(CONFIG.GYM_STATUS);
 Object.freeze(CONFIG.SUBSCRIPTION_STATUS);
 Object.freeze(CONFIG.ROLES);
+Object.freeze(CONFIG.OFFLINE);

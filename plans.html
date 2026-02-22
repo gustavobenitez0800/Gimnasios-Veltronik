@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Elige tu plan - Gimnasio Veltronik">
+    <meta name="description" content="Elige tu plan - Veltronik Platform">
     <title>Suscripción | Veltronik</title>
 
     <!-- Fonts -->
@@ -349,9 +349,10 @@
 
                 log('Subscription created:', result.data);
 
-                // Redirigir al checkout de Mercado Pago
-                // En sandbox usamos sandbox_init_point, en producción init_point
-                const checkoutUrl = result.data.sandbox_init_point || result.data.init_point;
+                // En producción usar init_point, en desarrollo sandbox_init_point
+                const checkoutUrl = CONFIG.DEBUG
+                    ? (result.data.sandbox_init_point || result.data.init_point)
+                    : (result.data.init_point || result.data.sandbox_init_point);
 
                 if (checkoutUrl) {
                     showToast('Redirigiendo a Mercado Pago...', 'info');
@@ -370,23 +371,6 @@
 
                 btn.disabled = false;
                 btn.textContent = 'Suscribirme ahora';
-            }
-        }
-
-        /**
-         * Cargar datos del usuario y gimnasio
-         */
-        async function loadUserData() {
-            try {
-                currentProfile = await getProfile();
-                currentGym = await getGym();
-
-                log('Loaded profile:', currentProfile);
-                log('Loaded gym:', currentGym);
-
-            } catch (error) {
-                console.error('Load user data error:', error);
-                showToast('Error al cargar datos', 'error');
             }
         }
 
@@ -415,23 +399,53 @@
                 currentGym = await getGym();
                 log('Gym loaded:', currentGym);
 
+                // Cargar suscripción
+                let subscription = null;
+                try {
+                    subscription = await getSubscription();
+                } catch (e) {
+                    console.warn('Could not load subscription:', e);
+                }
+
                 // Si el gimnasio ya está activo CON suscripción pagada, ir al dashboard
-                if (currentGym && currentGym.status === CONFIG.GYM_STATUS.ACTIVE && currentGym.subscription_id) {
+                if (currentGym && isActiveSubscription(subscription)) {
                     window.location.href = CONFIG.ROUTES.DASHBOARD;
                     return;
                 }
 
-                // NOTA: No bloqueamos el acceso si el estado es BLOCKED, ya que el usuario necesita estar aquí para pagar y desbloquearse.
-
-
                 log('Plans page ready - currentProfile:', currentProfile, 'currentGym:', currentGym);
 
-                // Mostrar botón de volver si el usuario tiene trial activo
+                // Mostrar info contextual
                 const isTrialActive = checkTrialStatus(currentGym);
+                const trialDaysRemaining = getTrialDaysRemaining(currentGym);
+
                 if (isTrialActive) {
+                    // Mostrar botón de volver y días restantes
                     const backBtn = document.getElementById('backBtn');
                     if (backBtn) {
                         backBtn.style.display = 'inline-flex';
+                    }
+
+                    // Mostrar aviso de trial
+                    const trialMsg = document.createElement('div');
+                    trialMsg.style.cssText = 'text-align:center; padding:0.75rem 1rem; background:rgba(14,165,233,0.15); border:1px solid rgba(14,165,233,0.3); border-radius:var(--border-radius-md); margin-bottom:1.5rem; color:var(--primary-300); font-size:var(--font-size-sm);';
+                    trialMsg.innerHTML = `✨ Tenés <strong>${trialDaysRemaining} días</strong> restantes de prueba gratuita. Suscribite ahora para no perder acceso.`;
+                    const card = document.querySelector('.subscription-card');
+                    if (card) card.parentNode.insertBefore(trialMsg, card);
+                }
+
+                // Mostrar aviso de gracia si aplica
+                if (subscription && subscription.status === 'past_due' && subscription.grace_period_ends_at) {
+                    const graceEnd = new Date(subscription.grace_period_ends_at);
+                    const now = new Date();
+                    const graceDaysLeft = Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24));
+
+                    if (graceDaysLeft > 0) {
+                        const graceMsg = document.createElement('div');
+                        graceMsg.style.cssText = 'text-align:center; padding:0.75rem 1rem; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:var(--border-radius-md); margin-bottom:1.5rem; color:var(--error-400); font-size:var(--font-size-sm);';
+                        graceMsg.innerHTML = `🚨 Pago rechazado. Tenés <strong>${graceDaysLeft} días</strong> para regularizar tu suscripción antes de que se bloquee tu cuenta.`;
+                        const card = document.querySelector('.subscription-card');
+                        if (card) card.parentNode.insertBefore(graceMsg, card);
                     }
                 }
 

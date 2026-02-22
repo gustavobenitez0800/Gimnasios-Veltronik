@@ -1,5 +1,5 @@
 appId: com.veltronik.gimnasio
-productName: Gimnasio Veltronik
+productName: Veltronik
 copyright: Copyright © 2026 Veltronik
 
 # Archivos a incluir en el build
@@ -40,12 +40,12 @@ publish:
 # WINDOWS
 # ============================================
 win:
+  icon: assets/logo-main.png
   target:
     - target: nsis
       arch:
         - x64
   # Metadatos profesionales
-  publisherName: "Veltronik"
   legalTrademarks: "TM Veltronik"
   verifyUpdateCodeSignature: false # Permitir updates sin firma (por ahora)
   
@@ -53,19 +53,16 @@ win:
   # Se usará automáticamente si las variables de entorno CSC_LINK y CSC_KEY_PASSWORD están definidas
   # No es necesario configurarlo aquí explícitamente.
 
-  artifactName: "Gimnasio-Veltronik-${version}-setup.${ext}"
+  artifactName: "Veltronik-Setup-${version}.${ext}"
 
 # Configuración del Instalador (Wizard)
 nsis:
   oneClick: false  # Falso = Instalador tipo asistente (Next -> Next)
   perMachine: false # true pediría admin siempre, false permite instalar por usuario (mejor para evitar UAC excesivo)
   allowToChangeInstallationDirectory: true
-  # installerIcon: assets/VeltronikGym.ico  <-- Requiere convertir el PNG a ICO
-  # uninstallerIcon: assets/VeltronikGym.ico <-- Requiere convertir el PNG a ICO
-  # installerHeaderIcon: assets/VeltronikGym.ico <-- Requiere convertir el PNG a ICO
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: "Gimnasio Veltronik"
+  shortcutName: "Veltronik"
   displayLanguageSelector: true
   license: "LICENSE.md" # Requiere crear este archivo
 
@@ -78,13 +75,13 @@ mac:
       arch:
         - x64
         - arm64
-  icon: assets/VeltronikGym.png
-  artifactName: "Gimnasio-Veltronik-${version}-${arch}.${ext}"
+  icon: assets/logo-main.png
+  artifactName: "Veltronik-${version}-${arch}.${ext}"
   category: public.app-category.business
 
 dmg:
-  title: Gimnasio Veltronik
-  icon: assets/VeltronikGym.png
+  title: Veltronik Platform
+  icon: assets/logo-main.png
 
 # ============================================
 # LINUX
@@ -97,14 +94,14 @@ linux:
     - target: deb
       arch:
         - x64
-  icon: assets/VeltronikGym.png
-  artifactName: "Gimnasio-Veltronik-${version}.${ext}"
+  icon: assets/logo-main.png
+  artifactName: "Veltronik-${version}.${ext}"
   category: Office
   maintainer: veltronikcompany@gmail.com
   vendor: Veltronik
 
 appImage:
-  artifactName: "Gimnasio-Veltronik-${version}.AppImage"
+  artifactName: "Veltronik-${version}.AppImage"
 
 deb:
   depends:

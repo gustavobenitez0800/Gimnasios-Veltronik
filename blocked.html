@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Acceso Bloqueado - Gimnasio Veltronik">
+    <meta name="description" content="Acceso Bloqueado - Veltronik Platform">
     <title>Acceso Bloqueado | Veltronik</title>
 
     <!-- Fonts -->
@@ -131,6 +131,9 @@
                     <button class="btn btn-primary btn-lg" onclick="reactivateSubscription()">
                         <span data-icon="creditCard" style="margin-right:0.5rem"></span> Reactivar Suscripción
                     </button>
+                    <button class="btn btn-secondary" id="switchOrgBtn" style="display: none;" onclick="goToLobby()">
+                        <span data-icon="globe" style="margin-right:0.5rem"></span> Ir a Mis Otros Sistemas
+                    </button>
                     <button class="btn btn-secondary" onclick="handleLogout()">
                         Cerrar Sesión
                     </button>
@@ -176,7 +179,12 @@
             window.location.href = CONFIG.ROUTES.PLANS;
         }
 
-        // Check auth status
+        // Go back to platform lobby (for multi-org users)
+        function goToLobby() {
+            window.location.href = CONFIG.ROUTES.LOBBY;
+        }
+
+        // Check auth status and show blocking reason
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const session = await getSession();
@@ -200,25 +208,56 @@
                     return;
                 }
 
-                // Update status display
-                const statusMap = {
-                    pending: 'Pendiente de pago',
-                    active: 'Activo',
-                    blocked: 'Bloqueado',
-                    past_due: 'Pago vencido',
-                    inactive: 'Inactivo',
-                    canceled: 'Cancelado'
-                };
-
-                document.getElementById('gymStatus').textContent = statusMap[gym.status] || gym.status;
-
-                // If gym is active, redirect to dashboard
+                // If gym is active, check subscription too before redirecting
                 if (gym.status === CONFIG.GYM_STATUS.ACTIVE) {
-                    window.location.href = CONFIG.ROUTES.DASHBOARD;
+                    // Also check subscription
+                    let sub = null;
+                    try { sub = await getSubscription(); } catch (e) { }
+                    if (isActiveSubscription(sub) || checkTrialStatus(gym)) {
+                        window.location.href = CONFIG.ROUTES.DASHBOARD;
+                        return;
+                    }
+                }
+
+                // Load subscription for more info
+                let subscription = null;
+                try {
+                    subscription = await getSubscription();
+                } catch (e) {
+                    console.warn('Could not load subscription:', e);
+                }
+
+                // Determine blocking reason and show appropriate message
+                const statusEl = document.getElementById('gymStatus');
+                const messageEl = document.querySelector('.blocked-message');
+
+                if (subscription && subscription.status === 'canceled') {
+                    statusEl.textContent = 'Suscripción cancelada';
+                    messageEl.innerHTML = 'Tu suscripción fue cancelada. Tus datos están seguros y no serán eliminados.<br>Suscribite nuevamente para reactivar tu cuenta.';
+                } else if (subscription && subscription.status === 'past_due') {
+                    statusEl.textContent = 'Pago vencido';
+                    messageEl.innerHTML = 'No pudimos procesar tu pago mensual. Tu cuenta fue bloqueada.<br>Actualizá tu método de pago para reactivarla.';
+                } else if (gym.trial_ends_at && new Date(gym.trial_ends_at) < new Date()) {
+                    statusEl.textContent = 'Prueba gratuita finalizada';
+                    messageEl.innerHTML = 'Tu período de prueba de 30 días ha finalizado. Tus datos están seguros y no serán eliminados.<br>Suscribite para seguir usando Veltronik.';
+                } else {
+                    statusEl.textContent = 'Bloqueado';
+                    messageEl.innerHTML = 'Tu cuenta fue suspendida. Tus datos están seguros y no serán eliminados.<br>Contactanos o suscribite para reactivar tu acceso.';
                 }
 
             } catch (error) {
                 console.error('Auth error:', error);
+            }
+
+            // Check if user has multiple orgs — show 'go to lobby' button
+            try {
+                const { data: orgs } = await getSupabase().rpc('get_my_organizations');
+                if (orgs && orgs.length > 1) {
+                    const btn = document.getElementById('switchOrgBtn');
+                    if (btn) btn.style.display = 'block';
+                }
+            } catch (e) {
+                // Silent fail — button just won't show
             }
         });
     </script>

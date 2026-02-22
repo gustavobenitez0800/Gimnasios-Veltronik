@@ -28,7 +28,7 @@ class RetentionService {
      */
     toggleModule(enabled) {
         this.moduleEnabled = enabled;
-        console.log(`[Retention Module] Module ${enabled ? 'enabled' : 'disabled'}`);
+        log(`[Retention Module] Module ${enabled ? 'enabled' : 'disabled'}`);
         return this.moduleEnabled;
     }
 
@@ -45,7 +45,7 @@ class RetentionService {
      */
     async analyzeRisk() {
         if (!this.moduleEnabled) {
-            console.log('[Retention Module] Module is disabled');
+            log('[Retention Module] Module is disabled');
             return [];
         }
 
@@ -69,7 +69,7 @@ class RetentionService {
             }
 
             if (!members || members.length === 0) {
-                console.log('[Retention Module] No active members found');
+                log('[Retention Module] No active members found');
                 return [];
             }
 
@@ -118,7 +118,7 @@ class RetentionService {
             // Store last analysis timestamp
             this.lastAnalysis = new Date();
 
-            console.log(`[Retention Module] Analyzed ${sortedMembers.length} members`);
+            log(`[Retention Module] Analyzed ${sortedMembers.length} members`);
             return sortedMembers;
 
         } catch (error) {
@@ -501,7 +501,7 @@ class RetentionService {
                 showToast('Mensaje copiado al portapapeles', 'success');
             } else {
                 // Fallback visual feedback
-                console.log('[Retention Module] Message copied to clipboard');
+                log('[Retention Module] Message copied to clipboard');
             }
         }).catch(err => {
             console.error('[Retention Module] Error copying message:', err);

@@ -6,7 +6,7 @@
 
 const OfflineStorage = (function () {
     const DB_NAME = 'veltronik_offline_db';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     let db = null;
 
     // Stores (tablas) que necesitamos
@@ -16,8 +16,12 @@ const OfflineStorage = (function () {
         CLASSES: 'classes',
         CLASS_BOOKINGS: 'class_bookings',
         ACCESS_LOGS: 'access_logs',
-        SYNC_QUEUE: 'sync_queue',  // Cola de operaciones pendientes
-        CACHE_META: 'cache_meta'   // Metadata de caché
+        SYNC_QUEUE: 'sync_queue',
+        CACHE_META: 'cache_meta',
+        // v2 - Control de accesos
+        AUTHORIZED_MEMBERS: 'authorizedMembers',
+        PENDING_ACCESS_LOGS: 'pendingAccessLogs',
+        ACCESS_DEVICES: 'accessDevices'
     };
 
     // ============================================
@@ -41,13 +45,13 @@ const OfflineStorage = (function () {
 
             request.onsuccess = () => {
                 db = request.result;
-                console.log('[OfflineStorage] Base de datos inicializada');
+                log('[OfflineStorage] Base de datos inicializada');
                 resolve(db);
             };
 
             request.onupgradeneeded = (event) => {
                 const database = event.target.result;
-                console.log('[OfflineStorage] Creando/actualizando esquema...');
+                log('[OfflineStorage] Creando/actualizando esquema...');
 
                 // Members store
                 if (!database.objectStoreNames.contains(STORES.MEMBERS)) {
@@ -103,7 +107,26 @@ const OfflineStorage = (function () {
                     database.createObjectStore(STORES.CACHE_META, { keyPath: 'key' });
                 }
 
-                console.log('[OfflineStorage] Esquema creado correctamente');
+                // v2 - Socios autorizados para acceso offline
+                if (!database.objectStoreNames.contains(STORES.AUTHORIZED_MEMBERS)) {
+                    const authStore = database.createObjectStore(STORES.AUTHORIZED_MEMBERS, { keyPath: 'member_id' });
+                    authStore.createIndex('full_name', 'full_name', { unique: false });
+                    authStore.createIndex('status', 'status', { unique: false });
+                }
+
+                // v2 - Logs de acceso pendientes de sync
+                if (!database.objectStoreNames.contains(STORES.PENDING_ACCESS_LOGS)) {
+                    const pendingStore = database.createObjectStore(STORES.PENDING_ACCESS_LOGS, { keyPath: 'id' });
+                    pendingStore.createIndex('synced', 'synced', { unique: false });
+                    pendingStore.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+
+                // v2 - Configuraciones de dispositivos de acceso
+                if (!database.objectStoreNames.contains(STORES.ACCESS_DEVICES)) {
+                    database.createObjectStore(STORES.ACCESS_DEVICES, { keyPath: 'id' });
+                }
+
+                log('[OfflineStorage] Esquema creado/actualizado correctamente');
             };
         });
     }
@@ -529,7 +552,7 @@ const OfflineStorage = (function () {
         await clearStore(STORES.ACCESS_LOGS);
         await clearStore(STORES.SYNC_QUEUE);
         await clearStore(STORES.CACHE_META);
-        console.log('[OfflineStorage] Todos los datos locales eliminados');
+        log('[OfflineStorage] Todos los datos locales eliminados');
     }
 
     /**
@@ -561,6 +584,11 @@ const OfflineStorage = (function () {
         // Inicialización
         init: initDB,
         STORES,
+
+        // Genéricos (usados por AccessControlEngine)
+        getAll,
+        add: put,
+        clear: clearStore,
 
         // Members
         getAllMembers,

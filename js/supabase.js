@@ -1,5 +1,5 @@
 // ============================================
-// GIMNASIO VELTRONIK - SUPABASE CLIENT
+// VELTRONIK PLATFORM - SUPABASE CLIENT
 // ============================================
 
 // Import Supabase from CDN (loaded in HTML)
@@ -19,6 +19,21 @@ function initSupabase() {
     }
 
     supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+    // Set global reference for backwards compatibility
+    window.supabase = supabaseClient;
+
+    // Listen for auth state changes (session refresh, token expiry)
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'TOKEN_REFRESHED') {
+            log('[Supabase] Session token refreshed');
+        }
+        if (event === 'SIGNED_OUT') {
+            log('[Supabase] User signed out, clearing local state');
+            clearPlatformState();
+        }
+    });
+
     return supabaseClient;
 }
 
@@ -101,10 +116,24 @@ async function signInWithGoogle() {
 async function signOut() {
     const client = getSupabase();
 
+    // Clear all platform-specific localStorage
+    clearPlatformState();
+
     const { error } = await client.auth.signOut();
     if (error) throw error;
 
     window.location.href = CONFIG.ROUTES.LOGIN;
+}
+
+/**
+ * Clear all platform state from localStorage
+ * Called on sign-out and when session expires
+ */
+function clearPlatformState() {
+    localStorage.removeItem('current_org_id');
+    localStorage.removeItem('current_org_role');
+    localStorage.removeItem('current_org_name');
+    localStorage.removeItem('current_org_type');
 }
 
 /**
@@ -273,6 +302,34 @@ async function getPlans() {
 }
 
 // ============================================
+// SUBSCRIPTION FUNCTIONS
+// ============================================
+
+/**
+ * Get current gym's subscription
+ * Returns the most recent subscription with grace period info
+ */
+async function getSubscription() {
+    const client = getSupabase();
+    const profile = await getProfile();
+
+    if (!profile || !profile.gym_id) return null;
+
+    const { data, error } = await client
+        .from('subscriptions')
+        .select('*')
+        .eq('gym_id', profile.gym_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    // No subscription found is not an error
+    if (error && error.code === 'PGRST116') return null;
+    if (error) throw error;
+    return data;
+}
+
+// ============================================
 // MEMBERS FUNCTIONS (OFFLINE-CAPABLE)
 // ============================================
 
@@ -283,7 +340,7 @@ async function getPlans() {
 async function getMembers() {
     // Check if we're online
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - returning cached members');
+        log('[Supabase] Offline - returning cached members');
         return await OfflineStorage.getAllMembers();
     }
 
@@ -305,7 +362,7 @@ async function getMembers() {
     } catch (error) {
         // If network error, try to return cached data
         if (typeof OfflineStorage !== 'undefined') {
-            console.log('[Supabase] Network error - returning cached members');
+            log('[Supabase] Network error - returning cached members');
             const cached = await OfflineStorage.getAllMembers();
             if (cached && cached.length > 0) return cached;
         }
@@ -320,7 +377,7 @@ async function getMembers() {
 async function getMember(id) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - returning cached member');
+        log('[Supabase] Offline - returning cached member');
         return await OfflineStorage.getMemberById(id);
     }
 
@@ -364,7 +421,7 @@ async function createMember(memberData) {
 
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - creating member locally');
+        log('[Supabase] Offline - creating member locally');
 
         // Generate temporary ID
         const tempId = OfflineStorage.generateTempId();
@@ -410,7 +467,7 @@ async function createMember(memberData) {
 async function updateMember(id, updates) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - updating member locally');
+        log('[Supabase] Offline - updating member locally');
 
         // Get existing member
         const existing = await OfflineStorage.getMemberById(id);
@@ -460,7 +517,7 @@ async function updateMember(id, updates) {
 async function deleteMember(id) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - deleting member locally');
+        log('[Supabase] Offline - deleting member locally');
 
         // Delete locally
         await OfflineStorage.deleteMemberLocal(id);
@@ -499,7 +556,7 @@ async function deleteMember(id) {
 async function getMemberPayments() {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - returning cached payments');
+        log('[Supabase] Offline - returning cached payments');
         if (typeof OfflineStorage !== 'undefined') {
             return await OfflineStorage.getAllPayments();
         }
@@ -555,7 +612,7 @@ async function createMemberPayment(paymentData) {
 
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - creating payment locally');
+        log('[Supabase] Offline - creating payment locally');
 
         const tempId = OfflineStorage.generateTempId();
         const offlinePayment = {
@@ -605,7 +662,7 @@ async function createMemberPayment(paymentData) {
 async function updateMemberPayment(id, updates) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - updating payment locally');
+        log('[Supabase] Offline - updating payment locally');
 
         const existing = await OfflineStorage.getPaymentById(id);
         if (!existing) throw new Error('Payment not found in local storage');
@@ -652,7 +709,7 @@ async function updateMemberPayment(id, updates) {
 async function deleteMemberPayment(id) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - deleting payment locally');
+        log('[Supabase] Offline - deleting payment locally');
 
         await OfflineStorage.deletePaymentLocal(id);
 
@@ -689,7 +746,7 @@ async function deleteMemberPayment(id) {
 async function getClasses() {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - returning cached classes');
+        log('[Supabase] Offline - returning cached classes');
         if (typeof OfflineStorage !== 'undefined') {
             return await OfflineStorage.getAllClasses();
         }
@@ -743,7 +800,7 @@ async function createClass(classData) {
 
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - creating class locally');
+        log('[Supabase] Offline - creating class locally');
 
         const tempId = OfflineStorage.generateTempId();
         const offlineClass = {
@@ -790,7 +847,7 @@ async function createClass(classData) {
 async function updateClass(id, updates) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - updating class locally');
+        log('[Supabase] Offline - updating class locally');
 
         const existing = await OfflineStorage.getClassById(id);
         if (!existing) throw new Error('Class not found in local storage');
@@ -837,7 +894,7 @@ async function updateClass(id, updates) {
 async function deleteClass(id) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - deleting class locally');
+        log('[Supabase] Offline - deleting class locally');
 
         await OfflineStorage.deleteClassLocal(id);
 
@@ -989,7 +1046,7 @@ async function deleteBooking(id) {
 async function getTodayAccessLogs() {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - returning cached access logs');
+        log('[Supabase] Offline - returning cached access logs');
         if (typeof OfflineStorage !== 'undefined') {
             return await OfflineStorage.getTodayAccessLogs();
         }
@@ -1051,7 +1108,7 @@ async function checkInMember(memberId, accessMethod = 'manual', notes = null) {
 
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - creating access log locally');
+        log('[Supabase] Offline - creating access log locally');
 
         const tempId = OfflineStorage.generateTempId();
         const offlineLog = {
@@ -1115,7 +1172,7 @@ async function checkInMember(memberId, accessMethod = 'manual', notes = null) {
 async function checkOutMember(accessLogId) {
     // Check if offline
     if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
-        console.log('[Supabase] Offline - updating access log locally');
+        log('[Supabase] Offline - updating access log locally');
 
         const existing = await OfflineStorage.getAccessLogById(accessLogId);
         if (!existing) throw new Error('Access log not found in local storage');

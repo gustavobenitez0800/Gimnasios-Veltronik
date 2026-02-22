@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Retención de Socios - Gimnasio Veltronik">
+    <meta name="description" content="Retención de Socios - Veltronik Platform">
     <title>Retención | Veltronik</title>
 
     <!-- Fonts -->
@@ -89,6 +89,14 @@
                         Ajustes
                     </a>
                 </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
+                    </a>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -114,7 +122,6 @@
                     <h1 class="page-title"><span data-icon="shield" class="title-icon"></span> Retención de Socios</h1>
                 </div>
                 <div class="header-right">
-                    <span class="badge badge-success" id="gymStatus">Activo</span>
                 </div>
             </header>
 
@@ -147,6 +154,9 @@
     <script>
         // Initialize page
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             try {
                 // Check auth
                 const session = await getSupabase().auth.getSession();

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Dashboard - Gimnasio Veltronik">
+    <meta name="description" content="Dashboard - Veltronik Platform">
     <title>Dashboard | Veltronik</title>
 
     <!-- Fonts -->
@@ -306,6 +306,15 @@
                     <a href="settings.html" class="nav-item">
                         <span class="nav-item-icon" data-icon="settings"></span>
                         Ajustes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" id="switchOrgBtn"
+                        title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
                     </a>
                 </div>
             </nav>
@@ -848,6 +857,9 @@
 
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             let hasSession = false;
 
             try {
@@ -879,6 +891,14 @@
                 const isTrialActive = checkTrialStatus(gym);
                 const trialDays = getTrialDaysRemaining(gym);
 
+                // Load subscription
+                let subscription = null;
+                try {
+                    subscription = await getSubscription();
+                } catch (e) {
+                    console.warn('Could not load subscription:', e);
+                }
+
                 // Show trial banner if trial is active
                 if (isTrialActive && trialDays > 0) {
                     const trialBanner = document.getElementById('trialBanner');
@@ -895,10 +915,28 @@
                     return;
                 }
 
-                // If trial expired and gym not fully subscribed, redirect to plans
-                if (!isTrialActive && !gym.subscription_id) {
+                // Check subscription and trial status for access
+                const hasActiveSubscription = isActiveSubscription(subscription);
+                const hasGracePeriod = subscription && subscription.status === 'past_due'
+                    && subscription.grace_period_ends_at
+                    && new Date(subscription.grace_period_ends_at) > new Date();
+
+                if (!isTrialActive && !hasActiveSubscription && !hasGracePeriod) {
+                    // No trial, no subscription, no grace - redirect to plans
                     window.location.href = CONFIG.ROUTES.PLANS;
                     return;
+                }
+
+                // Show grace period warning if applicable
+                if (hasGracePeriod) {
+                    const graceEnd = new Date(subscription.grace_period_ends_at);
+                    const graceDaysLeft = Math.ceil((graceEnd - new Date()) / (1000 * 60 * 60 * 24));
+                    showGracePeriodWarning(graceDaysLeft);
+                }
+
+                // Show trial warning when ≤ 7 days remaining
+                if (isTrialActive && trialDays <= 7 && !hasActiveSubscription) {
+                    showTrialWarning(trialDays);
                 }
 
                 // Load dashboard

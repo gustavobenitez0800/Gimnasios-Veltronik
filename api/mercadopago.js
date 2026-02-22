@@ -83,6 +83,7 @@ const GYM_STATUS = {
 
 const SUBSCRIPTION_STATUS = {
     ACTIVE: 'active',
+    AUTHORIZED: 'authorized',
     PAST_DUE: 'past_due',
     CANCELED: 'canceled',
     PENDING: 'pending'

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Control de Acceso - Gimnasio Veltronik">
+    <meta name="description" content="Control de Acceso - Veltronik Platform">
     <title>Control de Acceso | Veltronik</title>
 
     <!-- Fonts -->
@@ -16,6 +16,10 @@
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/device-config.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -254,31 +258,92 @@
             color: var(--text-primary);
         }
 
-        /* Success Animation */
+        /* ============================================
+           PROFESSIONAL SUCCESS POPUP
+           ============================================ */
+
+        /* Overlay for popup */
+        .access-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .access-popup-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Main success popup */
         .checkin-success {
             position: fixed;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(34, 197, 94, 0.95);
+            transform: translate(-50%, -50%) scale(0.9);
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 185, 129, 0.95));
+            backdrop-filter: blur(20px);
             color: white;
-            padding: 3rem;
-            border-radius: var(--border-radius-lg);
+            padding: 2.5rem;
+            border-radius: 24px;
             text-align: center;
             z-index: 1000;
-            animation: successPop 0.3s ease-out;
+            min-width: 340px;
+            max-width: 420px;
+            box-shadow:
+                0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        @keyframes successPop {
-            0% {
-                transform: translate(-50%, -50%) scale(0.5);
-                opacity: 0;
-            }
+        .checkin-success.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
 
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
+        .checkin-success.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(234, 88, 12, 0.95));
+        }
+
+        .checkin-success.error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+        }
+
+        /* Member photo in popup */
+        .popup-member-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            margin: 0 auto 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            overflow: hidden;
+        }
+
+        .popup-member-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .popup-member-photo .initials {
+            text-transform: uppercase;
         }
 
         .success-icon {
@@ -291,6 +356,156 @@
             width: 100%;
             height: 100%;
         }
+
+        /* Member name */
+        .popup-member-name {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Access method badge */
+        .popup-access-method {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Days remaining */
+        .popup-days-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .popup-days-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .popup-days-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        /* Auto-close progress bar */
+        .popup-progress-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0 0 24px 24px;
+            overflow: hidden;
+        }
+
+        .popup-progress-bar {
+            height: 100%;
+            background: rgba(255, 255, 255, 0.5);
+            width: 100%;
+            animation: progressShrink 3s linear forwards;
+        }
+
+        @keyframes progressShrink {
+            from {
+                width: 100%;
+            }
+
+            to {
+                width: 0%;
+            }
+        }
+
+        /* Success message */
+        .success-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .success-message {
+            font-size: var(--font-size-sm);
+            opacity: 0.9;
+        }
+
+        /* ============================================
+           DEVICE STATUS BAR
+           ============================================ */
+
+        .device-status-bar {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: var(--border-radius-md);
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .device-status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .device-status-item:hover {
+            background: var(--bg-primary);
+            border-color: var(--border-color);
+        }
+
+        .device-status-item .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .device-status-item .status-dot.connected {
+            background: var(--success-400);
+            box-shadow: 0 0 6px var(--success-400);
+        }
+
+        .device-status-item .status-dot.warning {
+            background: var(--warning-400);
+        }
+
+        .device-status-item .status-dot.disconnected {
+            background: var(--error-400);
+        }
+
+        .device-status-item .status-dot.inactive {
+            background: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        .device-status-item i {
+            font-size: 0.875rem;
+            width: 16px;
+            text-align: center;
+        }
+
+        /* ============================================
+           ANIMATED CHECK SVG
+           ============================================ */
 
         /* Animated Check SVG */
         .success-icon .checkmark-circle {
@@ -574,6 +789,517 @@
                 font-size: 1rem;
             }
         }
+
+        /* Scanner Toggle Styles */
+        .scanner-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .scanner-toggle input {
+            display: none;
+        }
+
+        .scanner-toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            position: relative;
+            transition: all 0.3s;
+            border: 1px solid var(--border-color);
+        }
+
+        .scanner-toggle-slider::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .scanner-toggle input:checked+.scanner-toggle-slider {
+            background: linear-gradient(135deg, var(--primary-500), #8b5cf6);
+            border-color: var(--primary-500);
+        }
+
+        .scanner-toggle input:checked+.scanner-toggle-slider::after {
+            left: 22px;
+            background: white;
+        }
+
+        .scanner-toggle-label {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .scanner-toggle input:checked~.scanner-toggle-label {
+            color: var(--primary-400);
+        }
+
+        .scanner-pulse {
+            width: 16px;
+            height: 16px;
+            background: var(--primary-500);
+            border-radius: 50%;
+            animation: scanner-pulse-anim 1.5s ease-in-out infinite;
+        }
+
+        @keyframes scanner-pulse-anim {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.7;
+            }
+        }
+
+        /* ============================================
+           FACE RECOGNITION STYLES
+           ============================================ */
+
+        /* Mode Selector Tabs */
+        .access-mode-tabs {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--bg-tertiary);
+            padding: 0.25rem;
+            border-radius: var(--border-radius-lg);
+            margin-bottom: 1rem;
+        }
+
+        .access-mode-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: var(--font-size-sm);
+            border-radius: var(--border-radius-md);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .access-mode-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .access-mode-tab.active {
+            background: linear-gradient(135deg, var(--primary-500), #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+        }
+
+        .access-mode-tab i {
+            font-size: 1rem;
+        }
+
+        /* Camera Container */
+        .camera-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            max-height: 320px;
+            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+            border-radius: var(--border-radius-lg);
+            overflow: hidden;
+            margin-bottom: 1rem;
+            border: 2px solid var(--border-color);
+        }
+
+        .camera-container.scanning {
+            border-color: var(--primary-500);
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+        }
+
+        .camera-container.face-detected {
+            border-color: var(--success-500);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .camera-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            /* Mirror effect */
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: scaleX(-1);
+            /* Mirror to match video */
+        }
+
+        .camera-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            gap: 1rem;
+        }
+
+        .camera-placeholder i {
+            font-size: 3rem;
+            opacity: 0.5;
+        }
+
+        .camera-placeholder span {
+            font-size: var(--font-size-sm);
+        }
+
+        /* Face Guide Overlay */
+        .face-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 180px;
+            height: 220px;
+            border: 3px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 50% 50% 45% 45%;
+            pointer-events: none;
+        }
+
+        .face-guide.detected {
+            border-color: var(--success-500);
+            border-style: solid;
+            animation: face-guide-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes face-guide-pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        /* Scanning Animation */
+        .scan-line {
+            position: absolute;
+            left: 10%;
+            width: 80%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--primary-500), transparent);
+            animation: scan-line-move 2s ease-in-out infinite;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .camera-container.scanning .scan-line {
+            opacity: 1;
+        }
+
+        @keyframes scan-line-move {
+            0% {
+                top: 10%;
+            }
+
+            50% {
+                top: 90%;
+            }
+
+            100% {
+                top: 10%;
+            }
+        }
+
+        /* Quality Indicator */
+        .quality-indicator {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .quality-indicator.good {
+            background: rgba(34, 197, 94, 0.8);
+        }
+
+        .quality-indicator.warning {
+            background: rgba(245, 158, 11, 0.8);
+        }
+
+        .quality-indicator.bad {
+            background: rgba(239, 68, 68, 0.8);
+        }
+
+        .quality-bar {
+            width: 60px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .quality-bar-fill {
+            height: 100%;
+            background: white;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        /* Camera Controls */
+        .camera-controls {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .camera-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius-md);
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .camera-btn-primary {
+            background: linear-gradient(135deg, var(--primary-500), #8b5cf6);
+            color: white;
+        }
+
+        .camera-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+        }
+
+        .camera-btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .camera-btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .camera-btn-secondary:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .camera-btn-danger {
+            background: var(--error-500);
+            color: white;
+        }
+
+        .camera-btn-danger:hover {
+            background: var(--error-600);
+        }
+
+        /* Face Mode Status Messages */
+        .face-status-message {
+            text-align: center;
+            padding: 0.75rem;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            margin-bottom: 1rem;
+        }
+
+        .face-status-message.info {
+            background: rgba(14, 165, 233, 0.15);
+            color: var(--primary-400);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+        }
+
+        .face-status-message.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success-500);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .face-status-message.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .face-status-message.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-500);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Camera Select Dropdown */
+        .camera-select {
+            width: 100%;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+            margin-bottom: 1rem;
+        }
+
+        .camera-select:focus {
+            outline: none;
+            border-color: var(--primary-500);
+        }
+
+        /* Loading overlay for camera */
+        .camera-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            gap: 1rem;
+        }
+
+        .camera-loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: var(--primary-500);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================
+           FINGERPRINT STYLES
+           ============================================ */
+
+        .fingerprint-scanner {
+            position: relative;
+            display: inline-block;
+        }
+
+        .fingerprint-scan-line {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--success-400), transparent);
+            animation: fingerprint-scan 2s ease-in-out infinite;
+            opacity: 0.8;
+        }
+
+        @keyframes fingerprint-scan {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) translateY(-30px);
+                opacity: 0.3;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) translateY(30px);
+                opacity: 0.9;
+            }
+        }
+
+        .fingerprint-container.scanning .fingerprint-scanner i {
+            animation: fingerprint-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes fingerprint-pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.7;
+                transform: scale(1.05);
+            }
+        }
+
+        /* Responsive adjustments for camera */
+        @media (max-width: 768px) {
+            .camera-container {
+                max-height: 280px;
+            }
+
+            .access-mode-tabs {
+                flex-wrap: wrap;
+            }
+
+            .access-mode-tab {
+                min-width: 45%;
+            }
+
+            .camera-controls {
+                flex-wrap: wrap;
+            }
+
+            .camera-btn {
+                flex: 1;
+                min-width: 120px;
+            }
+        }
     </style>
 
     <!-- Favicon -->
@@ -644,6 +1370,14 @@
                         Ajustes
                     </a>
                 </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
+                    </a>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -698,21 +1432,200 @@
                     </div>
                 </div>
 
+                <!-- Professional Access Popup Overlay -->
+                <div class="access-popup-overlay" id="accessPopupOverlay" onclick="closeAccessPopup()"></div>
+
+                <!-- Professional Success/Warning Popup -->
+                <div class="checkin-success" id="accessPopup">
+                    <div class="popup-member-photo" id="popupMemberPhoto">
+                        <span class="initials" id="popupMemberInitials">--</span>
+                    </div>
+                    <div class="popup-member-name" id="popupMemberName">Nombre del Socio</div>
+                    <div class="popup-access-method" id="popupAccessMethod">
+                        <i class="fa-solid fa-check-circle"></i>
+                        <span>Check-in Manual</span>
+                    </div>
+                    <div class="popup-days-info" id="popupDaysInfo">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span class="popup-days-number" id="popupDaysNumber">30</span>
+                        <span class="popup-days-label">días restantes</span>
+                    </div>
+                    <div class="popup-progress-container">
+                        <div class="popup-progress-bar" id="popupProgressBar"></div>
+                    </div>
+                </div>
+
                 <!-- Check-in / Currently In -->
                 <div class="access-grid">
                     <!-- Check-in Section -->
                     <div class="checkin-section">
-                        <h3><span data-icon="checkCircle" class="section-icon"></span> Registrar Entrada</h3>
-                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
-                            Buscá un socio por DNI o nombre para registrar su entrada
-                        </p>
-                        <div class="search-box">
-                            <span class="search-icon" data-icon="search"></span>
-                            <input type="text" class="search-input" id="searchInput"
-                                placeholder="Buscar por DNI o nombre..." oninput="handleSearch(this.value)">
+                        <h3 style="margin-bottom: 1rem;"><span data-icon="checkCircle" class="section-icon"></span>
+                            Registrar Entrada</h3>
+
+                        <!-- Access Mode Tabs -->
+                        <div class="access-mode-tabs">
+                            <button class="access-mode-tab active" onclick="setAccessMode('manual')" id="tabManual">
+                                <i class="fa-solid fa-keyboard"></i>
+                                <span>Manual</span>
+                            </button>
+                            <button class="access-mode-tab" onclick="setAccessMode('rfid')" id="tabRfid">
+                                <i class="fa-solid fa-id-card"></i>
+                                <span>Tarjeta</span>
+                            </button>
+                            <button class="access-mode-tab" onclick="setAccessMode('fingerprint')" id="tabFingerprint">
+                                <i class="fa-solid fa-fingerprint"></i>
+                                <span>Huella</span>
+                            </button>
+                            <button class="access-mode-tab" onclick="setAccessMode('facial')" id="tabFacial">
+                                <i class="fa-solid fa-face-smile"></i>
+                                <span>Facial</span>
+                            </button>
                         </div>
-                        <div class="search-results" id="searchResults" style="display: none;">
-                            <!-- Search results will be rendered here -->
+
+                        <!-- Manual Search Mode -->
+                        <div id="modeManual">
+                            <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: var(--font-size-sm);">
+                                Buscá un socio por DNI o nombre para registrar su entrada
+                            </p>
+                            <div class="search-box">
+                                <span class="search-icon" data-icon="search"></span>
+                                <input type="text" class="search-input" id="searchInput"
+                                    placeholder="Buscar por DNI o nombre..." oninput="handleSearch(this.value)">
+                            </div>
+                            <div class="search-results" id="searchResults" style="display: none;">
+                                <!-- Search results will be rendered here -->
+                            </div>
+                        </div>
+
+                        <!-- RFID/Scanner Mode -->
+                        <div id="modeRfid" style="display: none;">
+                            <div
+                                style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(139, 92, 246, 0.15)); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: var(--border-radius-md); padding: 1.5rem; text-align: center;">
+                                <div
+                                    style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div class="scanner-pulse"></div>
+                                    <span
+                                        style="color: var(--primary-400); font-weight: 600; font-size: 1.1rem;">Esperando
+                                        tarjeta RFID...</span>
+                                </div>
+                                <p style="color: var(--text-muted); font-size: var(--font-size-sm); margin: 0;">
+                                    <i class="fa-solid fa-circle-info"></i> Acercá la tarjeta al lector para check-in
+                                    automático
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Fingerprint Mode -->
+                        <div id="modeFingerprint" style="display: none;">
+                            <div class="fingerprint-container"
+                                style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1)); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: var(--border-radius-lg); padding: 2rem; text-align: center;">
+
+                                <!-- Fingerprint Scanner Animation -->
+                                <div id="fingerprintScanner" class="fingerprint-scanner">
+                                    <i class="fa-solid fa-fingerprint"
+                                        style="font-size: 4rem; color: var(--success-400); margin-bottom: 1rem;"></i>
+                                    <div class="fingerprint-scan-line"></div>
+                                </div>
+
+                                <h4 style="color: var(--text-primary); margin: 1rem 0 0.5rem;">
+                                    <span id="fingerprintTitle">Colocá el dedo en el lector</span>
+                                </h4>
+
+                                <p id="fingerprintStatus"
+                                    style="color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: 1rem;">
+                                    <i class="fa-solid fa-circle-info"></i> El lector detectará tu huella
+                                    automáticamente
+                                </p>
+
+                                <!-- Device Status -->
+                                <div id="fingerprintDeviceStatus"
+                                    style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--bg-tertiary); border-radius: var(--border-radius-sm); margin-bottom: 1rem;">
+                                    <span id="fingerprintDeviceIndicator"
+                                        style="width: 8px; height: 8px; border-radius: 50%; background: var(--warning-400);"></span>
+                                    <span id="fingerprintDeviceName"
+                                        style="font-size: var(--font-size-xs); color: var(--text-muted);">Buscando
+                                        lector...</span>
+                                </div>
+
+                                <!-- Controls -->
+                                <div style="display: flex; justify-content: center; gap: 0.5rem;">
+                                    <button class="btn btn-secondary btn-sm" id="btnRefreshFingerprint"
+                                        onclick="refreshFingerprintDevice()">
+                                        <i class="fa-solid fa-sync"></i> Detectar Lector
+                                    </button>
+                                </div>
+
+                                <!-- Registered Count -->
+                                <div
+                                    style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
+                                    <span style="font-size: var(--font-size-xs); color: var(--text-muted);">
+                                        <i class="fa-solid fa-database"></i> <span
+                                            id="registeredFingerprintsCount">0</span> huellas registradas
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Facial Recognition Mode -->
+                        <div id="modeFacial" style="display: none;">
+                            <!-- Camera Select -->
+                            <select class="camera-select" id="cameraSelect" onchange="switchCamera(this.value)">
+                                <option value="">Seleccionar cámara...</option>
+                            </select>
+
+                            <!-- Camera Container -->
+                            <div class="camera-container" id="cameraContainer">
+                                <video class="camera-video" id="cameraVideo" autoplay playsinline muted></video>
+                                <canvas class="camera-overlay" id="cameraOverlay"></canvas>
+                                <div class="face-guide" id="faceGuide"></div>
+                                <div class="scan-line"></div>
+
+                                <!-- Placeholder when camera is off -->
+                                <div class="camera-placeholder" id="cameraPlaceholder">
+                                    <i class="fa-solid fa-video"></i>
+                                    <span>Cámara no iniciada</span>
+                                </div>
+
+                                <!-- Quality Indicator -->
+                                <div class="quality-indicator" id="qualityIndicator" style="display: none;">
+                                    <span id="qualityText">Buscando rostro...</span>
+                                    <div class="quality-bar">
+                                        <div class="quality-bar-fill" id="qualityBar" style="width: 0%;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Loading overlay -->
+                                <div class="camera-loading" id="cameraLoading" style="display: none;">
+                                    <div class="camera-loading-spinner"></div>
+                                    <span id="cameraLoadingText">Iniciando cámara...</span>
+                                </div>
+                            </div>
+
+                            <!-- Camera Controls -->
+                            <div class="camera-controls">
+                                <button class="camera-btn camera-btn-primary" id="btnStartCamera"
+                                    onclick="startFacialScan()">
+                                    <i class="fa-solid fa-video"></i>
+                                    <span>Iniciar Cámara</span>
+                                </button>
+                                <button class="camera-btn camera-btn-danger" id="btnStopCamera"
+                                    onclick="stopFacialScan()" style="display: none;">
+                                    <i class="fa-solid fa-stop"></i>
+                                    <span>Detener</span>
+                                </button>
+                            </div>
+
+                            <!-- Status Message -->
+                            <div class="face-status-message info" id="faceStatusMessage">
+                                <i class="fa-solid fa-circle-info"></i> Iniciá la cámara para escanear rostros
+                                automáticamente
+                            </div>
+
+                            <!-- Registered Faces Count -->
+                            <div style="text-align: center; color: var(--text-muted); font-size: var(--font-size-xs);">
+                                <i class="fa-solid fa-database"></i> <span id="registeredFacesCount">0</span> rostros
+                                registrados
+                            </div>
                         </div>
                     </div>
 
@@ -788,6 +1701,10 @@
     <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/biometrics-client.js"></script>
+    <!-- Face Recognition -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+    <script src="js/face-recognition.js"></script>
 
     <script>
         // ============================================
@@ -796,6 +1713,857 @@
         let todayLogs = [];
         let currentlyIn = [];
         let searchTimeout = null;
+        let scannerModeActive = false;
+
+        // Access Mode State
+        let currentAccessMode = 'manual'; // 'manual', 'rfid', 'fingerprint', 'facial'
+        let facialScanActive = false;
+        let fingerprintModeActive = false;
+        let currentGymId = null;
+        let accessPopupTimeout = null;
+
+        // ============================================
+        // PROFESSIONAL ACCESS POPUP
+        // ============================================
+
+        /**
+         * Mostrar popup profesional de acceso
+         * @param {Object} options - { name, method, daysRemaining, type, photo }
+         */
+        function showAccessPopup(options = {}) {
+            const popup = document.getElementById('accessPopup');
+            const overlay = document.getElementById('accessPopupOverlay');
+
+            if (!popup || !overlay) return;
+
+            // Limpiar timeout anterior
+            if (accessPopupTimeout) {
+                clearTimeout(accessPopupTimeout);
+            }
+
+            // Obtener iniciales del nombre
+            const name = options.name || 'Socio';
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+            // Actualizar contenido
+            document.getElementById('popupMemberInitials').textContent = initials;
+            document.getElementById('popupMemberName').textContent = name;
+
+            // Método de acceso
+            const methodIcons = {
+                'manual': 'fa-keyboard',
+                'rfid': 'fa-id-card',
+                'fingerprint': 'fa-fingerprint',
+                'facial': 'fa-face-smile'
+            };
+            const methodLabels = {
+                'manual': 'Check-in Manual',
+                'rfid': 'Tarjeta RFID',
+                'fingerprint': 'Huella Digital',
+                'facial': 'Reconocimiento Facial'
+            };
+            const method = options.method || 'manual';
+            const methodEl = document.getElementById('popupAccessMethod');
+            methodEl.innerHTML = `<i class="fa-solid ${methodIcons[method] || 'fa-check-circle'}"></i><span>${methodLabels[method] || 'Check-in'}</span>`;
+
+            // Días restantes
+            const daysRemaining = options.daysRemaining || 0;
+            document.getElementById('popupDaysNumber').textContent = daysRemaining;
+            const daysLabel = daysRemaining === 1 ? 'día restante' : 'días restantes';
+            document.querySelector('#popupDaysInfo .popup-days-label').textContent = daysLabel;
+
+            // Tipo de popup (success, warning, error)
+            popup.classList.remove('warning', 'error');
+            if (options.type === 'warning') {
+                popup.classList.add('warning');
+            } else if (options.type === 'error') {
+                popup.classList.add('error');
+            }
+
+            // Reiniciar animación de barra de progreso
+            const progressBar = document.getElementById('popupProgressBar');
+            progressBar.style.animation = 'none';
+            progressBar.offsetHeight; // Trigger reflow
+            progressBar.style.animation = 'progressShrink 3s linear forwards';
+
+            // Mostrar popup
+            overlay.classList.add('active');
+            popup.classList.add('active');
+
+            // Reproducir sonido
+            playAccessSound(options.type || 'success');
+
+            // Auto-cerrar después de 3 segundos
+            accessPopupTimeout = setTimeout(() => {
+                closeAccessPopup();
+            }, 3000);
+        }
+
+        /**
+         * Cerrar popup de acceso
+         */
+        function closeAccessPopup() {
+            const popup = document.getElementById('accessPopup');
+            const overlay = document.getElementById('accessPopupOverlay');
+
+            if (popup) popup.classList.remove('active');
+            if (overlay) overlay.classList.remove('active');
+
+            if (accessPopupTimeout) {
+                clearTimeout(accessPopupTimeout);
+                accessPopupTimeout = null;
+            }
+        }
+
+        /**
+         * Reproducir sonido de acceso
+         */
+        function playAccessSound(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'success') {
+                    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+                    osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+                } else if (type === 'warning') {
+                    osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+                    osc.frequency.setValueAtTime(349.23, ctx.currentTime + 0.15); // F4
+                } else if (type === 'error') {
+                    osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
+                    osc.frequency.setValueAtTime(196, ctx.currentTime + 0.15); // G3
+                }
+
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.4);
+            } catch (e) {
+                // Ignorar errores de audio
+            }
+        }
+
+        // ============================================
+        // DEVICE STATUS BAR
+        // ============================================
+
+        /**
+         * Actualizar estado de un dispositivo en la barra
+         * @param {string} device - 'rfid', 'fingerprint', 'camera', 'relay'
+         * @param {string} status - 'connected', 'warning', 'disconnected', 'inactive'
+         */
+        function updateDeviceStatus(device, status) {
+            const statusDot = document.getElementById('status' + device.charAt(0).toUpperCase() + device.slice(1));
+            if (statusDot) {
+                statusDot.classList.remove('connected', 'warning', 'disconnected', 'inactive');
+                statusDot.classList.add(status);
+            }
+        }
+
+        /**
+         * Inicializar barra de estado de dispositivos
+         */
+        async function initDeviceStatusBar() {
+            // Verificar si hay biometrics client disponible
+            if (window.biometricsClient) {
+                try {
+                    // Detectar dispositivos
+                    const devices = await window.biometricsClient.detectDevices();
+
+                    // Actualizar estados según dispositivos detectados
+                    if (devices && devices.length > 0) {
+                        devices.forEach(device => {
+                            if (device.type === 'keyboard' || device.type === 'hid') {
+                                updateDeviceStatus('rfid', 'connected');
+                                updateDeviceStatus('fingerprint', 'connected');
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.log('[DeviceStatus] No se pudo detectar dispositivos:', e.message);
+                }
+            }
+
+            // Verificar cámara
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(d => d.kind === 'videoinput');
+                if (cameras.length > 0) {
+                    updateDeviceStatus('camera', 'connected');
+                }
+            } catch (e) {
+                console.log('[DeviceStatus] No se pudo detectar cámara');
+            }
+
+            // Verificar control de acceso
+            if (window.biometricsClient && window.biometricsClient.isElectron) {
+                try {
+                    const accessStatus = await window.electronAPI?.accessControl?.getStatus();
+                    if (accessStatus && accessStatus.enabled) {
+                        updateDeviceStatus('relay', accessStatus.isConnected ? 'connected' : 'warning');
+                    }
+                } catch (e) {
+                    // No hay control de acceso configurado
+                }
+            }
+        }
+
+        /**
+         * Abrir ajustes de control de acceso
+         */
+        function openAccessSettings() {
+            window.location.href = 'settings.html#access-control';
+        }
+
+        /**
+         * Wrapper: Mostrar popup de éxito (compatible con código existente)
+         */
+        function showSuccessPopup(name, message) {
+            showAccessPopup({
+                name: name,
+                method: currentAccessMode,
+                daysRemaining: 30, // Valor por defecto
+                type: 'success'
+            });
+        }
+
+        /**
+         * Wrapper: Mostrar popup de advertencia
+         */
+        function showWarningPopup(name, message) {
+            showAccessPopup({
+                name: name,
+                method: currentAccessMode,
+                daysRemaining: 0,
+                type: 'warning'
+            });
+        }
+
+        /**
+         * Wrapper: Reproducir sonido de feedback (compatible con código existente)
+         */
+        function playFeedbackSound(type) {
+            playAccessSound(type);
+        }
+
+        // ============================================
+        // ACCESS MODE MANAGEMENT
+        // ============================================
+
+        /**
+         * Cambiar modo de acceso
+         */
+        function setAccessMode(mode) {
+            // Detener modos anteriores
+            if (currentAccessMode === 'rfid' && scannerModeActive) {
+                stopScannerMode();
+            }
+            if (currentAccessMode === 'facial' && facialScanActive) {
+                stopFacialScan();
+            }
+            if (currentAccessMode === 'fingerprint' && fingerprintModeActive) {
+                stopFingerprintMode();
+            }
+
+            currentAccessMode = mode;
+
+            // Update tabs
+            document.querySelectorAll('.access-mode-tab').forEach(tab => tab.classList.remove('active'));
+            document.getElementById('tab' + mode.charAt(0).toUpperCase() + mode.slice(1))?.classList.add('active');
+
+            // Show/hide containers
+            document.getElementById('modeManual').style.display = mode === 'manual' ? 'block' : 'none';
+            document.getElementById('modeRfid').style.display = mode === 'rfid' ? 'block' : 'none';
+            document.getElementById('modeFingerprint').style.display = mode === 'fingerprint' ? 'block' : 'none';
+            document.getElementById('modeFacial').style.display = mode === 'facial' ? 'block' : 'none';
+
+            // Activar modo correspondiente
+            if (mode === 'rfid') {
+                startScannerMode();
+            } else if (mode === 'facial') {
+                initFacialMode();
+            } else if (mode === 'fingerprint') {
+                initFingerprintMode();
+            }
+
+            console.log('[Access] Modo cambiado a:', mode);
+        }
+
+        // ============================================
+        // RFID/SCANNER MODE
+        // ============================================
+
+        function startScannerMode() {
+            scannerModeActive = true;
+            if (window.biometricsClient) {
+                window.biometricsClient.startAccessMode({
+                    onCardRead: handleCardRead,
+                    onError: (err) => {
+                        console.error('[Access] Error scanner:', err);
+                        showToast('Error en el escáner', 'error');
+                    }
+                });
+            }
+        }
+
+        function stopScannerMode() {
+            scannerModeActive = false;
+            if (window.biometricsClient) {
+                window.biometricsClient.stopAccessMode();
+            }
+        }
+
+        // ============================================
+        // FINGERPRINT MODE
+        // ============================================
+
+        let fingerprintCheckInterval = null;
+
+        async function initFingerprintMode() {
+            fingerprintModeActive = true;
+            console.log('[Access] Iniciando modo huella digital...');
+
+            // Actualizar UI
+            updateFingerprintStatus('info', 'Buscando lector de huellas...');
+
+            // Verificar si biometricsClient está disponible
+            if (!window.biometricsClient) {
+                updateFingerprintStatus('warning', 'Módulo biométrico no disponible. ¿Estás usando la app de escritorio?');
+                updateFingerprintDevice(false, 'No detectado');
+                return;
+            }
+
+            // Detectar dispositivos
+            await refreshFingerprintDevice();
+
+            // Iniciar escucha de huellas (modo keyboard - el lector envía como teclado)
+            try {
+                await window.biometricsClient.startAccessMode({
+                    onCardRead: handleFingerprintRead,
+                    onError: (err) => {
+                        console.error('[Fingerprint] Error:', err);
+                        updateFingerprintStatus('error', 'Error: ' + err);
+                    }
+                });
+
+                // Cargar cantidad de huellas registradas
+                if (currentGymId) {
+                    const count = await loadRegisteredFingerprintsCount();
+                    document.getElementById('registeredFingerprintsCount').textContent = count;
+                }
+
+            } catch (err) {
+                console.error('[Fingerprint] Error iniciando modo:', err);
+                updateFingerprintStatus('error', 'Error al iniciar modo huella');
+            }
+        }
+
+        function stopFingerprintMode() {
+            fingerprintModeActive = false;
+
+            if (fingerprintCheckInterval) {
+                clearInterval(fingerprintCheckInterval);
+                fingerprintCheckInterval = null;
+            }
+
+            if (window.biometricsClient) {
+                window.biometricsClient.stopAccessMode();
+            }
+
+            console.log('[Access] Modo huella detenido');
+        }
+
+        async function refreshFingerprintDevice() {
+            updateFingerprintStatus('info', 'Detectando lector...');
+
+            if (!window.biometricsClient) {
+                updateFingerprintDevice(false, 'Módulo no disponible');
+                updateFingerprintStatus('warning', 'Ejecutá la app de escritorio para usar huella digital');
+                return;
+            }
+
+            try {
+                const devices = await window.biometricsClient.getDevices();
+
+                if (devices && devices.length > 0) {
+                    const device = devices[0];
+                    updateFingerprintDevice(true, device.name || 'Lector USB detectado');
+                    updateFingerprintStatus('success', 'Lector detectado. Colocá el dedo para escanear.');
+                } else {
+                    updateFingerprintDevice(false, 'No se detectó lector');
+                    updateFingerprintStatus('warning', 'Conectá un lector USB y hacé click en "Detectar Lector"');
+                }
+            } catch (err) {
+                console.error('[Fingerprint] Error detectando dispositivos:', err);
+                updateFingerprintDevice(false, 'Error de detección');
+                updateFingerprintStatus('error', 'Error al detectar dispositivo');
+            }
+        }
+
+        async function handleFingerprintRead(code) {
+            if (!fingerprintModeActive) return;
+
+            console.log('[Fingerprint] Huella leída:', code);
+            updateFingerprintStatus('info', 'Procesando huella...');
+
+            try {
+                // Buscar socio por código de huella
+                const { data: biometric, error } = await supabase
+                    .from('member_biometrics')
+                    .select('member_id, members(id, full_name, membership_end, status)')
+                    .eq('gym_id', currentGymId)
+                    .eq('biometric_type', 'fingerprint')
+                    .eq('biometric_data', code)
+                    .single();
+
+                if (error || !biometric) {
+                    updateFingerprintStatus('warning', 'Huella no reconocida');
+                    playFeedbackSound('error');
+
+                    // Reiniciar después de unos segundos
+                    setTimeout(() => {
+                        if (fingerprintModeActive) {
+                            updateFingerprintStatus('info', 'Colocá el dedo en el lector');
+                        }
+                    }, 2000);
+                    return;
+                }
+
+                const member = biometric.members;
+                const quotaStatus = getQuotaStatus(member.membership_end);
+
+                if (quotaStatus.status === 'expired') {
+                    playFeedbackSound('warning');
+                    showWarningPopup(member.full_name, `Membresía vencida hace ${quotaStatus.days} días`);
+                    updateFingerprintStatus('warning', `${member.full_name} - Membresía vencida`);
+
+                    setTimeout(() => {
+                        if (fingerprintModeActive) {
+                            updateFingerprintStatus('info', 'Colocá el dedo en el lector');
+                        }
+                    }, 3000);
+                    return;
+                }
+
+                // Registrar check-in
+                const { data: logData, error: logError } = await supabase
+                    .from('access_logs')
+                    .insert({
+                        gym_id: currentGymId,
+                        member_id: member.id,
+                        check_in: new Date().toISOString(),
+                        access_method: 'fingerprint'
+                    })
+                    .select()
+                    .single();
+
+                if (logError) throw logError;
+
+                // Activar dispositivo de acceso físico
+                if (window.biometricsClient) {
+                    await window.biometricsClient.triggerAccessGrant();
+                }
+
+                // Éxito
+                playFeedbackSound('success');
+                showSuccessPopup(member.full_name, 'Check-in por huella digital');
+                updateFingerprintStatus('success', `✓ ${member.full_name} - Acceso autorizado`);
+
+                await loadAccessData();
+
+                setTimeout(() => {
+                    if (fingerprintModeActive) {
+                        updateFingerprintStatus('info', 'Colocá el dedo en el lector');
+                    }
+                }, 3000);
+
+            } catch (err) {
+                console.error('[Fingerprint] Error check-in:', err);
+                updateFingerprintStatus('error', 'Error al procesar huella');
+                showToast('Error al registrar acceso', 'error');
+            }
+        }
+
+        function updateFingerprintStatus(type, message) {
+            const el = document.getElementById('fingerprintStatus');
+            if (!el) return;
+
+            const icons = {
+                info: 'fa-circle-info',
+                success: 'fa-circle-check',
+                warning: 'fa-triangle-exclamation',
+                error: 'fa-circle-xmark'
+            };
+
+            const colors = {
+                info: 'var(--text-muted)',
+                success: 'var(--success-500)',
+                warning: 'var(--warning-400)',
+                error: 'var(--error-500)'
+            };
+
+            el.style.color = colors[type] || colors.info;
+            el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i> ${message}`;
+        }
+
+        function updateFingerprintDevice(connected, name) {
+            const indicator = document.getElementById('fingerprintDeviceIndicator');
+            const nameEl = document.getElementById('fingerprintDeviceName');
+
+            if (indicator) {
+                indicator.style.background = connected ? 'var(--success-400)' : 'var(--warning-400)';
+            }
+            if (nameEl) {
+                nameEl.textContent = name || (connected ? 'Conectado' : 'No detectado');
+            }
+        }
+
+        async function loadRegisteredFingerprintsCount() {
+            try {
+                const { count, error } = await supabase
+                    .from('member_biometrics')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('gym_id', currentGymId)
+                    .eq('biometric_type', 'fingerprint');
+
+                return error ? 0 : count;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        // ============================================
+        // FACIAL RECOGNITION MODE
+        // ============================================
+
+        async function initFacialMode() {
+            if (!window.faceRecognition) {
+                updateFaceStatus('error', 'Módulo de reconocimiento facial no disponible');
+                return;
+            }
+
+            // Cargar cámaras
+            await loadCameras();
+
+            // Cargar rostros registrados
+            if (currentGymId) {
+                updateFaceStatus('info', 'Cargando modelos de reconocimiento facial...');
+
+                const initResult = await window.faceRecognition.initialize();
+                if (!initResult.success) {
+                    updateFaceStatus('error', 'Error cargando modelos: ' + initResult.error);
+                    return;
+                }
+
+                updateFaceStatus('info', 'Cargando rostros registrados...');
+                const faces = await window.faceRecognition.loadFacesFromDB(currentGymId);
+                document.getElementById('registeredFacesCount').textContent = faces.length;
+
+                updateFaceStatus('info', `${faces.length} rostros cargados. Iniciá la cámara para escanear.`);
+            } else {
+                updateFaceStatus('warning', 'Esperando datos del gimnasio...');
+            }
+        }
+
+        async function loadCameras() {
+            if (!window.faceRecognition) return;
+
+            const cameras = await window.faceRecognition.getCameras();
+            const select = document.getElementById('cameraSelect');
+            select.innerHTML = '<option value="">Seleccionar cámara...</option>';
+
+            cameras.forEach(cam => {
+                const option = document.createElement('option');
+                option.value = cam.deviceId;
+                option.textContent = cam.label;
+                select.appendChild(option);
+            });
+
+            // Auto-seleccionar primera cámara si hay
+            if (cameras.length > 0) {
+                select.value = cameras[0].deviceId;
+            }
+        }
+
+        async function switchCamera(deviceId) {
+            if (!deviceId) return;
+            if (facialScanActive) {
+                stopFacialScan();
+                await new Promise(r => setTimeout(r, 300));
+                await startFacialScan();
+            }
+        }
+
+        async function startFacialScan() {
+            if (!window.faceRecognition) {
+                showToast('Reconocimiento facial no disponible', 'error');
+                return;
+            }
+
+            const video = document.getElementById('cameraVideo');
+            const select = document.getElementById('cameraSelect');
+            const deviceId = select.value;
+
+            // Mostrar loading
+            document.getElementById('cameraLoading').style.display = 'flex';
+            document.getElementById('cameraPlaceholder').style.display = 'none';
+            document.getElementById('cameraLoadingText').textContent = 'Iniciando cámara...';
+
+            try {
+                // Inicializar si no lo está
+                if (!window.faceRecognition.isReady()) {
+                    document.getElementById('cameraLoadingText').textContent = 'Cargando modelos...';
+                    const init = await window.faceRecognition.initialize();
+                    if (!init.success) throw new Error(init.error);
+                }
+
+                // Iniciar cámara
+                document.getElementById('cameraLoadingText').textContent = 'Conectando cámara...';
+                const result = await window.faceRecognition.startCamera(video, deviceId || null);
+
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                // Ocultar loading y placeholder
+                document.getElementById('cameraLoading').style.display = 'none';
+                document.getElementById('qualityIndicator').style.display = 'flex';
+
+                // Actualizar botones
+                document.getElementById('btnStartCamera').style.display = 'none';
+                document.getElementById('btnStopCamera').style.display = 'flex';
+
+                // Agregar clase de escaneo
+                document.getElementById('cameraContainer').classList.add('scanning');
+
+                facialScanActive = true;
+
+                // Iniciar escaneo
+                await window.faceRecognition.startScanning({
+                    overlay: document.getElementById('cameraOverlay'),
+                    onDetected: handleFaceDetected,
+                    onMatched: handleFaceMatched,
+                    onNoMatch: handleFaceNoMatch,
+                    onQuality: handleQualityUpdate,
+                    onError: handleFaceError
+                });
+
+                updateFaceStatus('success', 'Escaneando rostros...');
+
+            } catch (error) {
+                console.error('[Facial] Error:', error);
+                document.getElementById('cameraLoading').style.display = 'none';
+                document.getElementById('cameraPlaceholder').style.display = 'flex';
+                updateFaceStatus('error', error.message);
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function stopFacialScan() {
+            if (window.faceRecognition) {
+                window.faceRecognition.stopCamera();
+            }
+
+            facialScanActive = false;
+
+            // Reset UI
+            document.getElementById('cameraContainer').classList.remove('scanning', 'face-detected');
+            document.getElementById('cameraPlaceholder').style.display = 'flex';
+            document.getElementById('qualityIndicator').style.display = 'none';
+            document.getElementById('faceGuide').classList.remove('detected');
+
+            // Botones
+            document.getElementById('btnStartCamera').style.display = 'flex';
+            document.getElementById('btnStopCamera').style.display = 'none';
+
+            updateFaceStatus('info', 'Cámara detenida. Iniciá nuevamente para continuar.');
+        }
+
+        function handleFaceDetected(data) {
+            const container = document.getElementById('cameraContainer');
+            const guide = document.getElementById('faceGuide');
+
+            container.classList.add('face-detected');
+            guide.classList.add('detected');
+        }
+
+        async function handleFaceMatched(data) {
+            console.log('[Facial] Match:', data);
+
+            const member = data.member;
+            const similarity = Math.round(data.similarity * 100);
+
+            // Verificar estado del socio
+            const quotaStatus = getQuotaStatus(member.membershipEnd);
+
+            if (quotaStatus.status === 'expired') {
+                playFeedbackSound('warning');
+                showWarningPopup(member.memberName, `Membresía vencida hace ${quotaStatus.days} días`);
+                updateFaceStatus('warning', `${member.memberName} - Membresía vencida`);
+
+                // Reiniciar escaneo después de unos segundos
+                setTimeout(() => {
+                    if (facialScanActive && window.faceRecognition) {
+                        window.faceRecognition.startScanning({
+                            overlay: document.getElementById('cameraOverlay'),
+                            onDetected: handleFaceDetected,
+                            onMatched: handleFaceMatched,
+                            onNoMatch: handleFaceNoMatch,
+                            onQuality: handleQualityUpdate,
+                            onError: handleFaceError
+                        });
+                    }
+                }, 3000);
+                return;
+            }
+
+            // Registrar check-in
+            try {
+                const { data: logData, error } = await supabase
+                    .from('access_logs')
+                    .insert({
+                        gym_id: currentGymId,
+                        member_id: member.memberId,
+                        check_in: new Date().toISOString(),
+                        access_method: 'facial'
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Activar dispositivo de acceso físico
+                if (window.biometricsClient) {
+                    await window.biometricsClient.triggerAccessGrant();
+                }
+
+                // Éxito
+                playFeedbackSound('success');
+                showSuccessPopup(member.memberName, `Check-in facial (${similarity}% match)`);
+                updateFaceStatus('success', `✓ ${member.memberName} - Acceso autorizado`);
+
+                // Recargar datos
+                await loadAccessData();
+
+                // Reiniciar escaneo después de unos segundos
+                setTimeout(() => {
+                    if (facialScanActive && window.faceRecognition) {
+                        updateFaceStatus('info', 'Escaneando rostros...');
+                        window.faceRecognition.startScanning({
+                            overlay: document.getElementById('cameraOverlay'),
+                            onDetected: handleFaceDetected,
+                            onMatched: handleFaceMatched,
+                            onNoMatch: handleFaceNoMatch,
+                            onQuality: handleQualityUpdate,
+                            onError: handleFaceError
+                        });
+                    }
+                }, 3000);
+
+            } catch (err) {
+                console.error('[Facial] Error check-in:', err);
+                showToast('Error al registrar acceso', 'error');
+            }
+        }
+
+        function handleFaceNoMatch(data) {
+            if (data.reason === 'timeout') {
+                updateFaceStatus('warning', 'Tiempo agotado. Intentá nuevamente.');
+            } else {
+                updateFaceStatus('warning', 'Rostro no reconocido');
+            }
+
+            // Reiniciar escaneo
+            setTimeout(() => {
+                if (facialScanActive && window.faceRecognition) {
+                    window.faceRecognition.startScanning({
+                        overlay: document.getElementById('cameraOverlay'),
+                        onDetected: handleFaceDetected,
+                        onMatched: handleFaceMatched,
+                        onNoMatch: handleFaceNoMatch,
+                        onQuality: handleQualityUpdate,
+                        onError: handleFaceError
+                    });
+                }
+            }, 2000);
+        }
+
+        function handleQualityUpdate(data) {
+            const indicator = document.getElementById('qualityIndicator');
+            const text = document.getElementById('qualityText');
+            const bar = document.getElementById('qualityBar');
+            const guide = document.getElementById('faceGuide');
+            const container = document.getElementById('cameraContainer');
+
+            if (!data.detected) {
+                text.textContent = 'Buscando rostro...';
+                bar.style.width = '0%';
+                indicator.className = 'quality-indicator';
+                guide.classList.remove('detected');
+                container.classList.remove('face-detected');
+            } else {
+                const quality = Math.round(data.quality * 100);
+                bar.style.width = quality + '%';
+                text.textContent = data.message;
+
+                if (quality >= 80) {
+                    indicator.className = 'quality-indicator good';
+                    guide.classList.add('detected');
+                    container.classList.add('face-detected');
+                } else if (quality >= 60) {
+                    indicator.className = 'quality-indicator warning';
+                    guide.classList.remove('detected');
+                } else {
+                    indicator.className = 'quality-indicator bad';
+                    guide.classList.remove('detected');
+                }
+            }
+        }
+
+        function handleFaceError(error) {
+            console.error('[Facial] Error:', error);
+            updateFaceStatus('error', 'Error: ' + error);
+        }
+
+        function updateFaceStatus(type, message) {
+            const el = document.getElementById('faceStatusMessage');
+            el.className = 'face-status-message ' + type;
+
+            let icon = 'fa-circle-info';
+            if (type === 'success') icon = 'fa-circle-check';
+            else if (type === 'warning') icon = 'fa-triangle-exclamation';
+            else if (type === 'error') icon = 'fa-circle-xmark';
+
+            el.innerHTML = `<i class="fa-solid ${icon}"></i> ${message}`;
+        }
+
+        function showWarningPopup(name, message) {
+            const popup = document.getElementById('successPopup');
+            const icon = document.getElementById('successIcon');
+            const nameEl = document.getElementById('successName');
+            const msgEl = document.getElementById('successMessage');
+
+            popup.style.background = 'rgba(245, 158, 11, 0.95)';
+            icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>`;
+            nameEl.textContent = name;
+            msgEl.textContent = message;
+
+            popup.style.display = 'block';
+            setTimeout(() => {
+                popup.style.display = 'none';
+                popup.style.background = 'rgba(34, 197, 94, 0.95)';
+            }, 3000);
+        }
 
         // ============================================
         // HELPERS
@@ -1196,6 +2964,9 @@
         // ============================================
 
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             let hasSession = false;
 
             try {
@@ -1226,9 +2997,17 @@
                     return;
                 }
 
-                if (!isTrialActive && !gym.subscription_id) {
-                    window.location.href = CONFIG.ROUTES.PLANS;
-                    return;
+                if (!isTrialActive) {
+                    const subscription = await getSubscription();
+                    const hasActiveSubscription = isActiveSubscription(subscription) ||
+                        (subscription &&
+                            subscription.status === 'past_due' &&
+                            subscription.grace_period_ends_at &&
+                            new Date(subscription.grace_period_ends_at) > new Date());
+                    if (!hasActiveSubscription) {
+                        window.location.href = CONFIG.ROUTES.PLANS;
+                        return;
+                    }
                 }
 
                 // Update user info
@@ -1236,10 +3015,16 @@
                 document.getElementById('userRole').textContent = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
                 document.getElementById('userAvatar').textContent = (profile.full_name || profile.email).slice(0, 2).toUpperCase();
 
+                // Set gym ID for biometrics
+                currentGymId = gym.id;
+
                 // Load access data
                 await loadAccessData();
 
                 showAppContent();
+
+                // Inicializar barra de estado de dispositivos
+                initDeviceStatusBar();
 
                 // Auto-refresh every 30 seconds
                 setInterval(loadAccessData, 30000);
@@ -1255,6 +3040,248 @@
                 }
             }
         });
+
+        // ============================================
+        // BIOMETRIC SCANNER MODE
+        // ============================================
+
+        /**
+         * Toggle scanner mode on/off
+         */
+        async function toggleScannerMode(enabled) {
+            scannerModeActive = enabled;
+
+            const statusEl = document.getElementById('scannerModeStatus');
+            const searchBox = document.querySelector('.search-box');
+            const searchResults = document.getElementById('searchResults');
+
+            if (enabled) {
+                // Mostrar indicador de modo escáner
+                statusEl.style.display = 'block';
+
+                // Iniciar captura biométrica
+                if (window.biometricsClient) {
+                    await window.biometricsClient.startAccessMode(onCardScanned);
+                    showToast('Modo escáner activado - Pasá la tarjeta', 'info');
+                }
+            } else {
+                // Ocultar indicador
+                statusEl.style.display = 'none';
+
+                // Detener captura
+                if (window.biometricsClient) {
+                    await window.biometricsClient.stopAccessMode();
+                }
+            }
+        }
+
+        /**
+         * Callback cuando se escanea una tarjeta
+         */
+        async function onCardScanned(data) {
+            if (!scannerModeActive) return;
+
+            console.log('[Access] Tarjeta escaneada:', data.code);
+
+            try {
+                const gymId = localStorage.getItem('currentGymId');
+                if (!gymId) {
+                    showToast('Error: Gimnasio no encontrado', 'error');
+                    return;
+                }
+
+                // Buscar socio por código de tarjeta
+                const member = await window.biometricsClient.findMemberByCard(data.code, gymId);
+
+                if (!member) {
+                    showToast('❌ Tarjeta no registrada', 'error');
+                    // Denegar acceso físico
+                    if (window.biometricsClient) {
+                        await window.biometricsClient.triggerAccessDeny('Tarjeta no registrada');
+                    }
+                    playFeedbackSound('error');
+                    return;
+                }
+
+                // Verificar estado del socio
+                if (member.member_status !== 'active') {
+                    showToast(`⚠️ ${member.member_name} - Membresía inactiva`, 'warning');
+                    // Denegar acceso físico
+                    if (window.biometricsClient) {
+                        await window.biometricsClient.triggerAccessDeny('Membresía inactiva');
+                    }
+                    playFeedbackSound('warning');
+                    return;
+                }
+
+                // Verificar vencimiento
+                if (member.membership_end) {
+                    const endDate = new Date(member.membership_end);
+                    if (endDate < new Date()) {
+                        showToast(`⚠️ ${member.member_name} - Membresía vencida`, 'warning');
+                        // Denegar acceso físico
+                        if (window.biometricsClient) {
+                            await window.biometricsClient.triggerAccessDeny('Membresía vencida');
+                        }
+                        playFeedbackSound('warning');
+                        return;
+                    }
+                }
+
+                // Hacer check-in
+                await checkInMember(member.member_id, 'biometric');
+
+                // Activar dispositivo de acceso físico (molinete/puerta)
+                if (window.biometricsClient) {
+                    await window.biometricsClient.triggerAccessGrant();
+                }
+
+                // Mostrar éxito
+                showSuccessPopup(member.member_name, '¡Acceso autorizado!', false);
+                playFeedbackSound('success');
+
+                // Recargar datos
+                await loadAccessData();
+
+            } catch (error) {
+                console.error('[Access] Error procesando tarjeta:', error);
+                showToast('Error al procesar tarjeta', 'error');
+            }
+        }
+
+        /**
+         * Reproducir sonido de feedback
+         */
+        function playFeedbackSound(type) {
+            // Solo si está disponible AudioContext
+            if (!window.AudioContext && !window.webkitAudioContext) return;
+
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                switch (type) {
+                    case 'success':
+                        oscillator.frequency.value = 880; // A5
+                        oscillator.type = 'sine';
+                        gainNode.gain.value = 0.3;
+                        break;
+                    case 'error':
+                        oscillator.frequency.value = 220; // A3
+                        oscillator.type = 'square';
+                        gainNode.gain.value = 0.2;
+                        break;
+                    case 'warning':
+                        oscillator.frequency.value = 440; // A4
+                        oscillator.type = 'triangle';
+                        gainNode.gain.value = 0.25;
+                        break;
+                }
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch (e) {
+                // Ignorar errores de audio
+            }
+        }
+
+        // Desactivar modos al salir de la página
+        window.addEventListener('beforeunload', () => {
+            if (scannerModeActive && window.biometricsClient) {
+                window.biometricsClient.stopAccessMode();
+            }
+            if (facialScanActive && window.faceRecognition) {
+                window.faceRecognition.stopCamera();
+            }
+            if (fingerprintModeActive && window.biometricsClient) {
+                window.biometricsClient.stopAccessMode();
+            }
+        });
+    </script>
+
+    <!-- ============================================ -->
+    <!-- SISTEMA DE CONTROL DE ACCESOS v2 -->
+    <!-- ============================================ -->
+    <script src="js/access-control-engine.js"></script>
+    <script src="js/device-config-ui.js"></script>
+
+    <!-- Panel de configuración de dispositivos (se inserta en el sidebar o sección de configuración) -->
+    <div id="deviceConfigContainer" style="display:none; margin-top: 1rem;"></div>
+
+    <script>
+        // ── Inicialización del Motor de Acceso ──
+        (async function initAccessSystem() {
+            try {
+                // Obtener gymId del usuario actual
+                let gymId = null;
+                if (typeof supabase !== 'undefined') {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('gym_id')
+                            .eq('id', user.id)
+                            .single();
+                        gymId = profile?.gym_id;
+                    }
+                }
+
+                // Inicializar motor de acceso
+                window.accessEngine = new AccessControlEngine();
+                await window.accessEngine.init({
+                    supabase: typeof supabase !== 'undefined' ? supabase : null,
+                    gymId: gymId,
+                    offlineStorage: typeof OfflineStorage !== 'undefined' ? OfflineStorage : null,
+                    syncManager: typeof SyncManager !== 'undefined' ? SyncManager : null,
+                    config: {
+                        autoGrantOnMatch: true,
+                        offlineMode: true
+                    }
+                });
+
+                // Callbacks del motor de acceso
+                window.accessEngine.onAccessGranted = (result) => {
+                    console.log('[Access] ✅ Acceso otorgado:', result.member?.member_name);
+                    // Integrar con el popup de éxito existente si showSuccessPopup existe
+                    if (typeof showSuccessPopup === 'function' && result.member) {
+                        showSuccessPopup({
+                            full_name: result.member.member_name,
+                            photo_url: result.member.photo_url
+                        });
+                    }
+                };
+
+                window.accessEngine.onAccessDenied = (result) => {
+                    console.log('[Access] ❌ Acceso denegado:', result.reason);
+                    if (typeof playBeep === 'function') playBeep('error');
+                };
+
+                // Inicializar panel de configuración de dispositivos
+                const deviceContainer = document.getElementById('deviceConfigContainer');
+                if (deviceContainer) {
+                    deviceContainer.style.display = 'block';
+                    window.deviceConfigUI = new DeviceConfigUI('#deviceConfigContainer');
+                    await window.deviceConfigUI.init();
+                }
+
+                // Si hay un dispositivo disponible, setearlo como activo
+                if (window.electronAPI && window.electronAPI.accessControl) {
+                    const allDevices = await window.electronAPI.accessControl.listDevices();
+                    if (allDevices && allDevices.length > 0) {
+                        const connectedDevice = allDevices.find(d => d.isConnected) || allDevices[0];
+                        window.accessEngine.setActiveDevice(connectedDevice.id);
+                    }
+                }
+
+                console.log('[AccessSystem] Sistema de control de accesos v2 inicializado');
+            } catch (err) {
+                console.warn('[AccessSystem] Error inicializando sistema de acceso:', err);
+            }
+        })();
     </script>
 </body>
 

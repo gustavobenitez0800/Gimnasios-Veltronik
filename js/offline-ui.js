@@ -202,11 +202,11 @@ const OfflineUI = (function () {
 
         // Solo inicializar si el modo offline está habilitado
         if (typeof CONFIG === 'undefined' || !CONFIG.OFFLINE?.ENABLED) {
-            console.log('[OfflineUI] Modo offline deshabilitado');
+            log('[OfflineUI] Modo offline deshabilitado');
             return;
         }
 
-        console.log('[OfflineUI] Inicializando componentes de UI...');
+        log('[OfflineUI] Inicializando componentes de UI...');
 
         // Crear elementos
         createOfflineBanner();
@@ -251,7 +251,7 @@ const OfflineUI = (function () {
         updateSyncBadge();
 
         isInitialized = true;
-        console.log('[OfflineUI] Componentes de UI inicializados');
+        log('[OfflineUI] Componentes de UI inicializados');
     }
 
     // Auto-inicializar cuando el DOM esté listo

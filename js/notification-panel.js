@@ -414,8 +414,25 @@ function handleNotificationClick(notificationId) {
 function handleMarkAllRead() {
     if (typeof VeltronikNotifications !== 'undefined') {
         VeltronikNotifications.markAllAsRead();
-        updateNotificationUI();
     }
+
+    // Forzar limpieza inmediata del badge y animación de campana
+    const badge = document.getElementById('notificationBadge');
+    const bell = document.getElementById('notificationBell');
+    if (badge) {
+        badge.textContent = '0';
+        badge.style.display = 'none';
+    }
+    if (bell) {
+        bell.classList.remove('has-notifications');
+    }
+
+    // Quitar clase unread de todos los items visibles
+    const items = document.querySelectorAll('.notification-item.unread');
+    items.forEach(item => item.classList.remove('unread'));
+
+    // Actualización completa de la UI
+    updateNotificationUI();
 }
 
 // Inicializar cuando el DOM esté listo

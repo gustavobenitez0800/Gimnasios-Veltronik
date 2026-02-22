@@ -103,7 +103,7 @@ module.exports = async function handler(req, res) {
             .from('subscriptions')
             .select('id, status, mp_preapproval_id')
             .eq('gym_id', gym_id)
-            .in('status', ['active', 'pending'])
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.AUTHORIZED, SUBSCRIPTION_STATUS.PENDING])
             .single();
 
         if (existingSubscription) {
@@ -114,7 +114,7 @@ module.exports = async function handler(req, res) {
 
             await supabase
                 .from('subscriptions')
-                .update({ status: 'cancelled' })
+                .update({ status: SUBSCRIPTION_STATUS.CANCELED })
                 .eq('id', existingSubscription.id);
         }
 

@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Configura tu gimnasio - Gimnasio Veltronik">
-    <title>Configura tu Gimnasio | Veltronik</title>
+    <meta name="description" content="Configura tu negocio - Veltronik Platform">
+    <title>Configura tu Negocio | Veltronik</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,13 +80,13 @@
                 <!-- Welcome -->
                 <div class="welcome-text">
                     <h2><span data-icon="sparkles" style="margin-right:0.5rem"></span>¡Bienvenido!</h2>
-                    <p>Contanos sobre tu gimnasio para personalizar tu experiencia</p>
+                    <p>Contanos sobre tu negocio para personalizar tu experiencia</p>
                 </div>
 
                 <!-- Onboarding Form -->
                 <form class="auth-form" id="onboardingForm" onsubmit="handleOnboarding(event)">
                     <div class="form-group">
-                        <label class="form-label" for="gymName">Nombre del gimnasio *</label>
+                        <label class="form-label" for="gymName">Nombre del negocio *</label>
                         <input type="text" id="gymName" class="form-input" placeholder="Ej: CrossFit Buenos Aires"
                             required>
                     </div>
@@ -148,27 +148,44 @@
             };
 
             if (!gymData.name) {
-                showToast('Por favor ingresa el nombre del gimnasio', 'error');
+                showToast('Por favor ingresa el nombre de tu negocio', 'error');
                 return;
             }
 
             try {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner"></span> Creando gimnasio...';
+                submitBtn.innerHTML = '<span class="spinner"></span> Creando negocio...';
 
-                // Create the gym
-                await createGym(gymData);
+                // Use the new RPC that creates org + sets owner atomically
+                const result = await getSupabase().rpc('create_organization_with_owner', {
+                    org_name: gymData.name,
+                    org_type: 'GYM',
+                    org_address: gymData.address,
+                    org_phone: gymData.phone,
+                    org_email: gymData.email
+                });
 
-                showToast('¡Gimnasio creado! Seleccioná tu plan...', 'success');
+                if (result.error) throw result.error;
 
-                // Redirect to plans page
+                // Store org context from the response
+                const orgData = result.data;
+                if (orgData) {
+                    localStorage.setItem('current_org_id', orgData.id);
+                    localStorage.setItem('current_org_role', 'owner');
+                    localStorage.setItem('current_org_name', orgData.name || gymData.name);
+                    localStorage.setItem('current_org_type', orgData.type || 'GYM');
+                }
+
+                showToast('¡Negocio creado! Tu prueba gratuita de 30 días ha comenzado.', 'success');
+
+                // Redirect to dashboard
                 setTimeout(() => {
-                    window.location.href = CONFIG.ROUTES.PLANS;
+                    window.location.href = CONFIG.ROUTES.DASHBOARD;
                 }, 1500);
 
             } catch (error) {
                 console.error('Onboarding error:', error);
-                showToast('Error al crear el gimnasio: ' + error.message, 'error');
+                showToast('Error al crear el negocio: ' + error.message, 'error');
 
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = 'Continuar';

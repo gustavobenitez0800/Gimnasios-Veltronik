@@ -7,10 +7,11 @@
  * Maneja la ventana, auto-updates y ciclo de vida.
  */
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater');
 const { initBiometrics } = require('./biometrics');
+const deviceManager = require('./device-manager');
 
 // Mantener referencia global para evitar garbage collection
 let mainWindow = null;
@@ -21,8 +22,8 @@ const WINDOW_CONFIG = {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Gimnasio Veltronik',
-    icon: path.join(__dirname, '../assets/VeltronikGym.png'),
+    title: 'Veltronik',
+    icon: path.join(__dirname, '../assets/logo-main.png'),
     show: false, // Mostrar cuando esté listo
     webPreferences: {
         nodeIntegration: false,
@@ -30,7 +31,7 @@ const WINDOW_CONFIG = {
         preload: path.join(__dirname, 'preload.js'),
         // Seguridad
         enableRemoteModule: false,
-        sandbox: true
+        sandbox: false
     }
 };
 
@@ -40,8 +41,8 @@ const WINDOW_CONFIG = {
 function createWindow() {
     mainWindow = new BrowserWindow(WINDOW_CONFIG);
 
-    // Cargar la app
-    mainWindow.loadFile('index.html');
+    // Cargar la app - Platform Lobby como punto de entrada
+    mainWindow.loadFile('platform-lobby.html');
 
     // Mostrar cuando esté lista (evita flash blanco)
     mainWindow.once('ready-to-show', () => {
@@ -51,7 +52,14 @@ function createWindow() {
         if (!isDev()) {
             initAutoUpdater(mainWindow);
         }
+
+        // Inicializar módulo de biométricos
+        initBiometrics(mainWindow);
+
+        // Inicializar gestor universal de dispositivos de acceso
+        deviceManager.init(mainWindow);
     });
+
 
     // Manejar cierre
     mainWindow.on('closed', () => {
@@ -77,6 +85,25 @@ function isDev() {
 
 // Listo para crear ventanas
 app.whenReady().then(() => {
+    // Configurar permisos para cámara y micrófono
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+        const allowedPermissions = ['media', 'mediaKeySystem', 'geolocation', 'notifications'];
+        if (allowedPermissions.includes(permission)) {
+            callback(true);
+        } else {
+            callback(false);
+        }
+    });
+
+    // Permitir acceso a dispositivos de media (cámara, micrófono)
+    session.defaultSession.setDevicePermissionHandler((details) => {
+        // Permitir acceso a cámaras y micrófonos
+        if (details.deviceType === 'hid' || details.deviceType === 'serial' || details.deviceType === 'usb') {
+            return true;
+        }
+        return true; // Permitir todos los dispositivos para biométricos
+    });
+
     createWindow();
 
     // macOS: recrear ventana al hacer clic en el dock

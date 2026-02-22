@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Gestión de Pagos - Gimnasio Veltronik">
+    <meta name="description" content="Gestión de Pagos - Veltronik Platform">
     <title>Pagos | Veltronik</title>
 
     <!-- Fonts -->
@@ -171,6 +171,14 @@
                     <a href="settings.html" class="nav-item">
                         <span class="nav-item-icon" data-icon="settings"></span>
                         Ajustes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
                     </a>
                 </div>
             </nav>
@@ -747,6 +755,9 @@
 
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             let hasSession = false;
 
             try {
@@ -779,10 +790,18 @@
                     return;
                 }
 
-                // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && !gym.subscription_id) {
-                    window.location.href = CONFIG.ROUTES.PLANS;
-                    return;
+                // If trial expired, check subscription status
+                if (!isTrialActive) {
+                    const subscription = await getSubscription();
+                    const hasActiveSubscription = isActiveSubscription(subscription) ||
+                        (subscription &&
+                            subscription.status === 'past_due' &&
+                            subscription.grace_period_ends_at &&
+                            new Date(subscription.grace_period_ends_at) > new Date());
+                    if (!hasActiveSubscription) {
+                        window.location.href = CONFIG.ROUTES.PLANS;
+                        return;
+                    }
                 }
 
                 await loadUserInfo();

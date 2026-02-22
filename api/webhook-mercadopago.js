@@ -134,16 +134,45 @@ async function handleSubscriptionEvent(preapprovalId) {
         updated_at: new Date().toISOString()
     };
 
-    // Upsert: actualizar si existe, crear si no
-    const { error: subError } = await supabase
-        .from('subscriptions')
-        .upsert(
-            { gym_id: gymId, ...subscriptionUpdate },
-            { onConflict: 'gym_id' }
-        );
+    // Si se autoriza, limpiar gracia y reiniciar retry
+    if (mpSub.status === 'authorized') {
+        subscriptionUpdate.grace_period_ends_at = null;
+        subscriptionUpdate.retry_count = 0;
+    }
 
-    if (subError) {
-        logSecure('error', 'Error updating subscription');
+    // UPDATE existing subscription, or INSERT if none exists
+    // (upsert with onConflict: 'gym_id' fails silently if no UNIQUE constraint)
+    const { data: existingSub } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('gym_id', gymId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (existingSub) {
+        // Update existing subscription
+        const { error: subError } = await supabase
+            .from('subscriptions')
+            .update(subscriptionUpdate)
+            .eq('id', existingSub.id);
+
+        if (subError) {
+            logSecure('error', 'Error updating subscription');
+        } else {
+            logSecure('info', 'Subscription updated successfully');
+        }
+    } else {
+        // No subscription found — create new one
+        const { error: subError } = await supabase
+            .from('subscriptions')
+            .insert({ gym_id: gymId, ...subscriptionUpdate });
+
+        if (subError) {
+            logSecure('error', 'Error inserting new subscription');
+        } else {
+            logSecure('info', 'New subscription created from webhook');
+        }
     }
 
     // ============================================
@@ -153,9 +182,29 @@ async function handleSubscriptionEvent(preapprovalId) {
     let gymStatus;
 
     if (mpSub.status === 'authorized') {
+        // Suscripción autorizada → gym activo
         gymStatus = GYM_STATUS.ACTIVE;
-    } else if (mpSub.status === 'paused' || mpSub.status === 'cancelled') {
+    } else if (mpSub.status === 'cancelled') {
+        // Cancelación voluntaria → bloquear
         gymStatus = GYM_STATUS.BLOCKED;
+    } else if (mpSub.status === 'paused') {
+        // Pausada por MP (problemas de pago) → iniciar gracia de 7 días
+        // No bloquear inmediatamente, el cron lo hará si la gracia expira
+        const gracePeriodEnd = new Date();
+        gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+
+        await supabase
+            .from('subscriptions')
+            .update({
+                status: SUBSCRIPTION_STATUS.PAST_DUE,
+                grace_period_ends_at: gracePeriodEnd.toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('gym_id', gymId);
+
+        // Mantener gym activo durante la gracia
+        gymStatus = GYM_STATUS.ACTIVE;
+        logSecure('info', 'Grace period started (7 days)', { gymId });
     } else {
         gymStatus = GYM_STATUS.PENDING;
     }
@@ -241,11 +290,14 @@ async function handleSubscriptionPayment(paymentId) {
     // ============================================
 
     if (mpPayment.status === 'approved') {
+        // Pago aprobado → activar suscripción, limpiar gracia
         const { error: subError } = await supabase
             .from('subscriptions')
             .update({
                 last_payment_date: mpPayment.date_approved,
                 status: SUBSCRIPTION_STATUS.ACTIVE,
+                grace_period_ends_at: null,
+                retry_count: 0,
                 updated_at: new Date().toISOString()
             })
             .eq('gym_id', gymId);
@@ -254,7 +306,7 @@ async function handleSubscriptionPayment(paymentId) {
             logSecure('error', 'Error updating subscription last payment');
         }
 
-        // Activar gimnasio
+        // Activar gimnasio (incluso si estaba bloqueado)
         await supabase
             .from('gyms')
             .update({
@@ -266,25 +318,37 @@ async function handleSubscriptionPayment(paymentId) {
         logSecure('info', 'Gym activated after payment');
 
     } else if (mpPayment.status === 'rejected') {
-        // Pago rechazado → marcar como past_due
+        // Pago rechazado → iniciar/mantener período de gracia de 7 días
+        // Obtener suscripción actual para verificar si ya tiene gracia
+        const { data: currentSub } = await supabase
+            .from('subscriptions')
+            .select('grace_period_ends_at, retry_count')
+            .eq('gym_id', gymId)
+            .single();
+
+        const retryCount = (currentSub?.retry_count || 0) + 1;
+        const updateData = {
+            status: SUBSCRIPTION_STATUS.PAST_DUE,
+            retry_count: retryCount,
+            updated_at: new Date().toISOString()
+        };
+
+        // Solo establecer gracia si no tiene una ya activa
+        if (!currentSub?.grace_period_ends_at || new Date(currentSub.grace_period_ends_at) < new Date()) {
+            const gracePeriodEnd = new Date();
+            gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+            updateData.grace_period_ends_at = gracePeriodEnd.toISOString();
+            logSecure('info', 'Grace period started (7 days) after rejected payment');
+        }
+
         await supabase
             .from('subscriptions')
-            .update({
-                status: SUBSCRIPTION_STATUS.PAST_DUE,
-                updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('gym_id', gymId);
 
-        // Bloquear gimnasio
-        await supabase
-            .from('gyms')
-            .update({
-                status: GYM_STATUS.BLOCKED,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', gymId);
-
-        logSecure('warn', 'Gym blocked due to payment rejection');
+        // NO bloquear inmediamente - mantener activo durante gracia
+        // El cron job check_subscription_status() bloqueará cuando la gracia expire
+        logSecure('warn', 'Payment rejected - grace period active', { retryCount });
     }
 }
 

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veltronik Platform - Mis Negocios</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/platform-lobby.css">
+    <!-- Ionicons -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+</head>
+
+<body>
+    <!-- Background Gradient -->
+    <div class="bg-gradient"></div>
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Cargando tus organizaciones...</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <header>
+            <div class="logo-container">
+                <img src="assets/logo-main.png" alt="Veltronik"
+                    style="max-height: 60px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));">
+            </div>
+            <div class="user-welcome">
+                <h2 id="welcomeMsg">Hola, Usuario</h2>
+                <p class="welcome-text">Selecciona una organización para continuar</p>
+            </div>
+        </header>
+
+        <!-- Empty State (shown when no orgs exist) -->
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <ion-icon name="business-outline"
+                style="font-size: 4rem; color: var(--text-muted); margin-bottom: 1rem;"></ion-icon>
+            <h3 style="color: var(--text); margin-bottom: 0.5rem;">No pertenecés a ningún negocio aún</h3>
+            <p style="color: var(--text-muted);">Creá tu primer negocio para empezar</p>
+        </div>
+
+        <div id="orgGrid" class="org-grid">
+            <!-- Las tarjetas se inyectarán aquí vía JS -->
+        </div>
+
+        <footer>
+            <p>Veltronik Platform v2.0 &copy; 2026</p>
+            <button onclick="handleLogout()" class="logout-btn">
+                <ion-icon name="log-out-outline" style="vertical-align: middle; margin-right: 5px;"></ion-icon>
+                Cerrar Sesión Global
+            </button>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- App Config & Utils -->
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/auth.js"></script>
+
+    <!-- Lobby Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initLobby();
+        });
+
+        async function initLobby() {
+            try {
+                // Limpiar contexto de org anterior al entrar al lobby
+                // Esto permite un switch limpio entre organizaciones
+                if (typeof clearPlatformState === 'function') {
+                    clearPlatformState();
+                }
+
+                // Verificar sesión
+                const session = await getSession();
+                if (!session) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                // Obtener perfil
+                const profile = await getProfile();
+                if (!profile) {
+                    window.location.href = CONFIG.ROUTES.LOGIN;
+                    return;
+                }
+
+                document.getElementById('welcomeMsg').textContent =
+                    `Hola, ${profile.full_name || 'Usuario'}`;
+
+                // Obtener organizaciones del usuario vía RPC
+                let myOrgs = [];
+                try {
+                    const { data, error } = await getSupabase().rpc('get_my_organizations');
+                    if (error) throw error;
+                    myOrgs = data || [];
+                } catch (e) {
+                    console.warn('RPC get_my_organizations failed, trying fallback...', e);
+                    // Fallback: usar el gym del perfil antiguo
+                    if (profile.gym_id) {
+                        try {
+                            const gym = await getGym();
+                            if (gym) {
+                                myOrgs.push({
+                                    org_id: gym.id,
+                                    org_name: gym.name,
+                                    org_type: 'GYM',
+                                    my_role: profile.role || 'owner',
+                                    status: gym.status
+                                });
+                            }
+                        } catch (gymErr) {
+                            console.warn('Fallback getGym also failed:', gymErr);
+                        }
+                    }
+                }
+
+                renderOrgs(myOrgs);
+
+            } catch (error) {
+                console.error('Lobby Error:', error);
+                // En producción: mostrar mensaje amigable sin detalles técnicos
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                if (isLocal) {
+                    alert('Error detectado: ' + (error.message || error));
+                } else {
+                    alert('Hubo un error cargando tus datos. Por favor recargá la página.');
+                }
+            } finally {
+                // Ocultar loading
+                setTimeout(() => {
+                    const loader = document.getElementById('loadingScreen');
+                    loader.style.opacity = '0';
+                    setTimeout(() => { loader.style.display = 'none'; }, 500);
+                }, 600);
+            }
+        }
+
+        function renderOrgs(orgs) {
+            const grid = document.getElementById('orgGrid');
+            const emptyState = document.getElementById('emptyState');
+            grid.innerHTML = '';
+
+            // Show empty state if no orgs
+            if (orgs.length === 0) {
+                emptyState.style.display = 'flex';
+            } else {
+                emptyState.style.display = 'none';
+            }
+
+            // Renderizar tarjetas de organizaciones existentes
+            orgs.forEach(org => {
+                const card = document.createElement('div');
+                let cardClasses = 'org-card';
+                if (org.my_role === 'member') cardClasses += ' member-card';
+                if (org.status === 'blocked') cardClasses += ' blocked-card';
+                card.className = cardClasses;
+                card.onclick = () => enterOrganization(org);
+
+                // Determinar icono y estilo según tipo
+                let iconName = 'barbell-outline';
+                let typeLabel = 'Gimnasio';
+                let badgeClass = 'gym-badge';
+
+                if (org.org_type === 'KIOSK') {
+                    iconName = 'storefront-outline';
+                    typeLabel = 'Kiosco';
+                    badgeClass = 'kiosk-badge';
+                } else if (org.org_type === 'RESTO') {
+                    iconName = 'restaurant-outline';
+                    typeLabel = 'Restaurante';
+                    badgeClass = 'resto-badge';
+                } else if (org.org_type === 'VET') {
+                    iconName = 'paw-outline';
+                    typeLabel = 'Veterinaria';
+                    badgeClass = 'gym-badge'; // Reusar hasta tener un badge propio
+                }
+
+                // Estilo visual según rol
+                let roleLabel = translateRole(org.my_role);
+                let roleColor = 'var(--text-muted)';
+
+                if (org.my_role === 'member') {
+                    roleLabel = '👋 Soy Socio';
+                    roleColor = 'var(--member-color)';
+                } else if (org.my_role === 'owner') {
+                    roleLabel = '👑 ' + translateRole(org.my_role);
+                    roleColor = 'var(--owner-color)';
+                }
+
+                // Ícono o logo según tipo
+                const coverContent = org.org_type === 'GYM'
+                    ? `<img src="assets/logo-gym.png" class="org-logo-img" alt="Gym Logo">`
+                    : `<ion-icon name="${iconName}" class="org-icon" style="color: #fff;"></ion-icon>`;
+
+                card.innerHTML = `
+                    <div class="org-cover">
+                        <span class="${badgeClass} org-type-badge">${typeLabel}</span>
+                        ${coverContent}
+                    </div>
+                    <div class="org-body">
+                        <h3 class="org-title">${org.org_name || 'Sin nombre'}</h3>
+                        <div class="org-role" style="color: ${roleColor}; font-weight: 500;">
+                            <span class="role-dot" style="background-color: ${org.my_role === 'member' ? '#38bdf8' : 'var(--success)'}"></span>
+                            ${roleLabel}
+                        </div>
+                        <div class="org-status">
+                            Estado: <span style="color: ${getStatusColor(org.status)}">${translateStatus(org.status)}</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Tarjeta "Crear Nueva" — Solo visible para NO-members
+            const hasOwnerOrStaffRole = orgs.some(o => o.my_role !== 'member');
+            if (hasOwnerOrStaffRole || orgs.length === 0) {
+                const newCard = document.createElement('div');
+                newCard.className = 'org-card new-org';
+                newCard.onclick = () => showCreateModal();
+                newCard.innerHTML = `
+                    <div class="add-content">
+                        <ion-icon name="add-circle-outline" class="add-icon"></ion-icon>
+                        <h3>Abrir Nuevo Negocio</h3>
+                        <p style="font-size: 0.8rem; margin-top:0.5rem">Gimnasio, Kiosco, Resto...</p>
+                    </div>
+                `;
+                grid.appendChild(newCard);
+            }
+        }
+
+        async function enterOrganization(org) {
+            // Validar que la org no esté bloqueada
+            if (org.status === 'blocked') {
+                alert('⛔ Esta organización está bloqueada. Regularizá tu suscripción para continuar.');
+                return;
+            }
+
+            // Guardar contexto completo de la organización
+            localStorage.setItem('current_org_id', org.org_id);
+            localStorage.setItem('current_org_role', org.my_role);
+            localStorage.setItem('current_org_name', org.org_name || '');
+            localStorage.setItem('current_org_type', org.org_type || 'GYM');
+
+            // Mostrar pantalla de carga
+            const loader = document.getElementById('loadingScreen');
+            loader.style.display = 'flex';
+            loader.style.opacity = '1';
+
+            setTimeout(() => {
+                if (org.my_role === CONFIG.ROLES.MEMBER) {
+                    window.location.href = CONFIG.ROUTES.MEMBER_PORTAL;
+                } else {
+                    window.location.href = CONFIG.ROUTES.DASHBOARD;
+                }
+            }, 800);
+        }
+
+        function showCreateModal() {
+            alert('¡Próximamente! Aquí podrás dar de alta nuevos sistemas como Kioscos o Restaurantes.');
+        }
+
+        // ============================================
+        // HELPERS
+        // ============================================
+
+        function translateRole(role) {
+            const roles = {
+                'owner': 'Dueño',
+                'admin': 'Administrador',
+                'staff': 'Personal',
+                'reception': 'Recepción',
+                'member': 'Socio'
+            };
+            return roles[role] || role;
+        }
+
+        function translateStatus(status) {
+            const statuses = {
+                'active': 'Activo',
+                'pending': 'Pendiente',
+                'blocked': 'Bloqueado'
+            };
+            return statuses[status] || status;
+        }
+
+        function getStatusColor(status) {
+            if (status === 'active') return 'var(--success)';
+            if (status === 'blocked') return 'var(--error)';
+            return 'var(--warning)';
+        }
+    </script>
+</body>
+
+</html>

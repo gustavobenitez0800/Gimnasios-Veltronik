@@ -39,7 +39,7 @@ const ConnectionMonitor = (function () {
 
         // Notificar si hubo cambio
         if (wasOnline !== isOnlineStatus) {
-            console.log(`[ConnectionMonitor] Estado cambiado: ${isOnlineStatus ? 'ONLINE' : 'OFFLINE'}`);
+            log(`[ConnectionMonitor] Estado cambiado: ${isOnlineStatus ? 'ONLINE' : 'OFFLINE'}`);
             notifyListeners(isOnlineStatus);
         }
     }
@@ -52,7 +52,7 @@ const ConnectionMonitor = (function () {
             try {
                 callback(online);
             } catch (error) {
-                console.error('[ConnectionMonitor] Error en listener:', error);
+                logWarn('[ConnectionMonitor] Error en listener:', error);
             }
         });
 
@@ -72,12 +72,12 @@ const ConnectionMonitor = (function () {
     function init() {
         // Escuchar eventos nativos del navegador
         window.addEventListener('online', () => {
-            console.log('[ConnectionMonitor] Evento: online');
+            log('[ConnectionMonitor] Evento: online');
             updateStatus();
         });
 
         window.addEventListener('offline', () => {
-            console.log('[ConnectionMonitor] Evento: offline');
+            log('[ConnectionMonitor] Evento: offline');
             isOnlineStatus = false;
             notifyListeners(false);
         });
@@ -88,7 +88,7 @@ const ConnectionMonitor = (function () {
         // Verificar estado inicial
         updateStatus();
 
-        console.log('[ConnectionMonitor] Inicializado');
+        log('[ConnectionMonitor] Inicializado');
     }
 
     /**

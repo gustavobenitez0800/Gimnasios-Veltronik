@@ -1,0 +1,18 @@
+  • electron-builder  version=26.8.1 os=10.0.26200
+  • loaded configuration  file=package.json ("build" field)
+  • loaded parent configuration  file=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik\electron-builder.yml
+  • executing @electron/rebuild  electronVersion=28.3.3 arch=x64 buildFromSource=false workspaceRoot=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=28.3.3 appOutDir=dist\win-unpacked
+  • searching for node modules  pm=npm searchDir=C:\Users\Gustavo Benitez\Desktop\Gimnasio Veltronik
+(node:6312) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  • duplicate dependency references  dependencies=["@capacitor/core@8.1.0"]
+  • updating asar integrity executable resource  executablePath=dist\win-unpacked\Veltronik.exe
+  • signing with signtool.exe  path=dist\win-unpacked\Veltronik.exe
+  • building        target=nsis file=dist\Veltronik-Setup-1.0.8.exe archs=x64 oneClick=false perMachine=false
+  • signing with signtool.exe  path=dist\win-unpacked\resources\elevate.exe
+  • signing with signtool.exe  path=dist\Veltronik-Setup-1.0.8.__uninstaller.exe
+  • signing with signtool.exe  path=dist\Veltronik-Setup-1.0.8.exe
+  • building block map  blockMapFile=dist\Veltronik-Setup-1.0.8.exe.blockmap

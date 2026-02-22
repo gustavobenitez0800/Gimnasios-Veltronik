@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     mp_payer_id TEXT,
     mp_payer_email TEXT,
     status TEXT DEFAULT 'pending'
-        CHECK (status IN ('pending', 'active', 'past_due', 'canceled')),
+        CHECK (status IN ('pending', 'active', 'authorized', 'past_due', 'canceled', 'cancelled')),
     current_period_start TIMESTAMPTZ,
     current_period_end TIMESTAMPTZ,
     next_payment_date TIMESTAMPTZ,

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Gestión de Socios - Gimnasio Veltronik">
+    <meta name="description" content="Gestión de Socios - Veltronik Platform">
     <title>Socios | Veltronik</title>
     <!-- Deploy v2.1 - 2026-01-20 -->
 
@@ -456,12 +456,29 @@
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius-md);
-            cursor: not-allowed;
+            cursor: pointer;
             transition: all 0.2s;
+        }
+
+        .biometric-option:hover {
+            border-color: var(--primary-400);
+            background: var(--bg-tertiary);
+            transform: translateY(-2px);
+        }
+
+        .biometric-option:hover i {
+            color: var(--primary-500);
         }
 
         .biometric-option.disabled {
             opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .biometric-option.disabled:hover {
+            border-color: var(--border-color);
+            background: var(--bg-secondary);
+            transform: none;
         }
 
         .biometric-option i {
@@ -485,7 +502,14 @@
 
         .biometric-option.registered {
             border-color: var(--success-500);
+            background: rgba(34, 197, 94, 0.08);
             opacity: 1;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.15);
+        }
+
+        .biometric-option.registered:hover {
+            background: rgba(34, 197, 94, 0.12);
+            border-color: var(--success-400);
         }
 
         .biometric-option.registered i {
@@ -493,8 +517,9 @@
         }
 
         .biometric-option.registered .status-badge {
-            background: rgba(34, 197, 94, 0.2);
-            color: var(--success-600);
+            background: rgba(34, 197, 94, 0.25);
+            color: var(--success-500);
+            font-weight: 600;
         }
 
         .biometrics-note {
@@ -580,6 +605,14 @@
                     <a href="settings.html" class="nav-item">
                         <span class="nav-item-icon" data-icon="settings"></span>
                         Ajustes
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Plataforma</div>
+                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
+                        <span class="nav-item-icon" data-icon="globe"></span>
+                        Cambiar Sistema
                     </a>
                 </div>
             </nav>
@@ -755,36 +788,37 @@
                         <div class="days-summary" id="daysSummary">Seleccioná los días que asistirá el socio</div>
                     </div>
 
-                    <!-- Biometrics Section (Coming Soon) -->
-                    <div class="form-group full-width biometrics-section">
+                    <!-- Biometrics Section -->
+                    <div class="form-group full-width biometrics-section" id="biometricsSection">
                         <label class="form-label">
                             <i class="fa-solid fa-fingerprint"
                                 style="margin-right: 0.5rem; color: var(--primary-500);"></i>
                             Datos Biométricos
-                            <span class="badge badge-neutral"
-                                style="margin-left: 0.5rem; font-size: 0.65rem;">PRÓXIMAMENTE</span>
                         </label>
                         <div class="biometrics-placeholder">
                             <div class="biometrics-options">
-                                <div class="biometric-option disabled" title="Huella Digital - Próximamente">
+                                <div class="biometric-option" id="biometricFingerprint"
+                                    onclick="handleBiometricCapture('fingerprint')" title="Huella Digital">
                                     <i class="fa-solid fa-fingerprint"></i>
                                     <span>Huella</span>
-                                    <span class="status-badge">No registrada</span>
+                                    <span class="status-badge" id="fingerprintStatus">No registrada</span>
                                 </div>
-                                <div class="biometric-option disabled" title="Reconocimiento Facial - Próximamente">
+                                <div class="biometric-option" id="biometricFacial"
+                                    onclick="handleBiometricCapture('facial')" title="Reconocimiento Facial">
                                     <i class="fa-solid fa-user-circle"></i>
                                     <span>Facial</span>
-                                    <span class="status-badge">No registrado</span>
+                                    <span class="status-badge" id="facialStatus">No registrado</span>
                                 </div>
-                                <div class="biometric-option disabled" title="Tarjeta RFID - Próximamente">
+                                <div class="biometric-option" id="biometricCard"
+                                    onclick="handleBiometricCapture('rfid_card')" title="Tarjeta RFID">
                                     <i class="fa-solid fa-id-card"></i>
                                     <span>Tarjeta</span>
-                                    <span class="status-badge">No asignada</span>
+                                    <span class="status-badge" id="cardStatus">No asignada</span>
                                 </div>
                             </div>
                             <p class="biometrics-note">
                                 <i class="fa-solid fa-circle-info"></i>
-                                Los métodos biométricos estarán disponibles en una próxima actualización.
+                                Conectá tu lector RFID o escáner para registrar datos biométricos.
                             </p>
                         </div>
                     </div>
@@ -817,7 +851,144 @@
         </div>
     </div>
 
+    <!-- Biometric Capture Modal (Profesional - redesigned) -->
+    <div class="modal-overlay" id="biometricCaptureModal">
+        <div class="modal-container" style="max-width: 520px;">
+            <h2 class="modal-title" id="biometricModalTitle">
+                <i class="fa-solid fa-id-card" style="margin-right: 0.5rem; color: var(--primary-500);"></i>
+                Registrar Biométrico
+            </h2>
+
+            <!-- Estado de espera (RFID/Huella) -->
+            <div id="biometricCaptureStatus" class="text-center" style="display: none;">
+                <div
+                    style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1)); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: var(--border-radius-lg); padding: 2rem; margin-bottom: 1rem;">
+                    <div id="biometricWaitingIcon"
+                        style="font-size: 3.5rem; margin-bottom: 1rem; color: var(--primary-400);">
+                        <i class="fa-solid fa-id-card fa-beat-fade"></i>
+                    </div>
+                    <h4 id="biometricWaitingTitle" style="color: var(--text-primary); margin-bottom: 0.5rem;">Acercá la
+                        tarjeta al lector</h4>
+                    <p id="biometricWaitingMessage"
+                        style="color: var(--text-muted); font-size: var(--font-size-sm); margin: 0;">
+                        <i class="fa-solid fa-circle-info"></i> El lector detectará la tarjeta automáticamente
+                    </p>
+                </div>
+                <!-- Device Status -->
+                <div
+                    style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--bg-tertiary); border-radius: var(--border-radius-sm);">
+                    <span id="bioDeviceIndicator"
+                        style="width: 8px; height: 8px; border-radius: 50%; background: var(--success-400); box-shadow: 0 0 6px var(--success-400);"></span>
+                    <span style="font-size: var(--font-size-xs); color: var(--text-muted);">Lector listo</span>
+                </div>
+            </div>
+
+            <!-- Captura Facial con Cámara (Profesional) -->
+            <div id="facialCaptureContainer" style="display: none;">
+                <!-- Camera Select -->
+                <select class="camera-select" id="memberCameraSelect" onchange="switchMemberCamera(this.value)"
+                    style="width: 100%; padding: 0.6rem 1rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); color: var(--text-primary); font-size: var(--font-size-sm); margin-bottom: 0.75rem; cursor: pointer;">
+                    <option value="">Seleccionar cámara...</option>
+                </select>
+
+                <!-- Camera Container -->
+                <div id="memberCameraContainer"
+                    style="position: relative; width: 100%; aspect-ratio: 4/3; max-height: 300px; background: linear-gradient(135deg, #0a0a0a, #1a1a2e); border-radius: var(--border-radius-lg); overflow: hidden; margin-bottom: 0.75rem; border: 2px solid var(--border-color); transition: all 0.3s;">
+                    <video id="facialCaptureVideo" autoplay muted playsinline
+                        style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+                    <canvas id="facialCaptureOverlay"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1);"></canvas>
+
+                    <!-- Face Guide -->
+                    <div id="memberFaceGuide"
+                        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 175px; border: 2.5px dashed rgba(255,255,255,0.3); border-radius: 50% 50% 45% 45%; pointer-events: none; transition: all 0.3s;">
+                    </div>
+
+                    <!-- Camera Placeholder -->
+                    <div id="memberCameraPlaceholder"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 0.75rem;">
+                        <i class="fa-solid fa-video" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                        <span style="font-size: var(--font-size-sm);">Cámara no iniciada</span>
+                    </div>
+
+                    <!-- Quality Indicator -->
+                    <div id="memberQualityIndicator"
+                        style="display: none; position: absolute; bottom: 0.75rem; left: 0.75rem; right: 0.75rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); padding: 0.5rem 0.75rem; border-radius: var(--border-radius-md); color: white;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                            <span id="memberQualityText" style="font-size: var(--font-size-xs);">Buscando
+                                rostro...</span>
+                        </div>
+                        <div
+                            style="height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
+                            <div id="memberQualityBar"
+                                style="height: 100%; width: 0%; background: var(--success-400); border-radius: 2px; transition: width 0.3s;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loading overlay -->
+                    <div id="memberCameraLoading"
+                        style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 0.75rem; color: white;">
+                        <div class="spinner" style="width: 36px; height: 36px;"></div>
+                        <span id="memberCameraLoadingText" style="font-size: var(--font-size-sm);">Iniciando
+                            cámara...</span>
+                    </div>
+                </div>
+
+                <!-- Camera Controls -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <button type="button" class="btn btn-primary" id="btnMemberStartCamera"
+                        onclick="startFacialCapture()" style="flex: 1;">
+                        <i class="fa-solid fa-video"></i> Iniciar Cámara
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnMemberStopCamera" onclick="stopFacialCapture()"
+                        style="flex: 1; display: none; background: var(--error-500);">
+                        <i class="fa-solid fa-stop"></i> Detener
+                    </button>
+                    <button type="button" class="btn btn-primary" id="captureFaceBtn" onclick="captureFaceFromCamera()"
+                        style="flex: 1; display: none; background: linear-gradient(135deg, var(--success-500), #16a34a);">
+                        <i class="fa-solid fa-camera"></i> Capturar
+                    </button>
+                </div>
+
+                <!-- Status Message -->
+                <div id="facialCaptureMessage"
+                    style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 0.6rem 1rem; text-align: center; font-size: var(--font-size-sm); color: var(--text-muted);">
+                    <i class="fa-solid fa-circle-info"></i> Iniciá la cámara para capturar rostro
+                </div>
+            </div>
+
+            <!-- Resultado de captura -->
+            <div id="biometricCaptureResult" style="display: none;">
+                <div class="text-center" style="padding: 1.5rem 0;">
+                    <div id="capturedFacePreview" style="display: none; margin-bottom: 1rem;">
+                        <img id="capturedFaceImage"
+                            style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid var(--success-500); box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);" />
+                    </div>
+                    <div style="font-size: 3.5rem; color: var(--success-500); margin-bottom: 1rem;"
+                        id="captureSuccessIcon">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <p id="capturedCodeDisplay"
+                        style="font-family: monospace; font-size: 0.95rem; background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: var(--border-radius-md); margin-bottom: 0.75rem; word-break: break-all; border: 1px solid var(--border-color);">
+                    </p>
+                    <p class="text-success" id="captureResultMessage" style="font-weight: 600;">¡Datos capturados!</p>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeBiometricModal()">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveBiometricBtn" onclick="saveCapturedBiometric()"
+                    style="display: none;">
+                    <i class="fa-solid fa-check"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
@@ -830,6 +1001,11 @@
     <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/biometrics-client.js"></script>
+
+    <!-- Face Recognition (para captura facial con cámara) -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+    <script src="js/face-recognition.js"></script>
 
     <script>
         let allMembers = [];
@@ -1446,6 +1622,9 @@
 
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
+            // LOBBY GUARD: require org selection first
+            if (!requireOrgContext()) return;
+
             let hasSession = false;
 
             try {
@@ -1478,10 +1657,18 @@
                     return;
                 }
 
-                // If trial expired and gym not active, redirect to plans
-                if (!isTrialActive && !gym.subscription_id) {
-                    window.location.href = CONFIG.ROUTES.PLANS;
-                    return;
+                // If trial expired, check subscription status
+                if (!isTrialActive) {
+                    const subscription = await getSubscription();
+                    const hasActiveSubscription = isActiveSubscription(subscription) ||
+                        (subscription &&
+                            subscription.status === 'past_due' &&
+                            subscription.grace_period_ends_at &&
+                            new Date(subscription.grace_period_ends_at) > new Date());
+                    if (!hasActiveSubscription) {
+                        window.location.href = CONFIG.ROUTES.PLANS;
+                        return;
+                    }
                 }
 
                 await loadUserInfo();
@@ -1518,6 +1705,7 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeMemberModal();
+                closeBiometricModal();
             }
         });
 
@@ -1525,6 +1713,652 @@
         document.getElementById('memberModal').addEventListener('click', (e) => {
             if (e.target.id === 'memberModal') {
                 closeMemberModal();
+            }
+        });
+
+        // ============================================
+        // BIOMETRICS FUNCTIONS
+        // ============================================
+
+        let currentBiometricType = null;
+        let capturedBiometricData = null;
+        let currentMemberIdForBiometric = null;
+
+        /**
+         * Cargar y mostrar estado de biométricos del socio actual
+         */
+        async function loadMemberBiometrics(memberId) {
+            if (!memberId || !window.biometricsClient) return;
+
+            try {
+                const biometrics = await window.biometricsClient.getMemberBiometrics(memberId);
+
+                // Reset estados
+                updateBiometricStatus('fingerprint', false);
+                updateBiometricStatus('facial', false);
+                updateBiometricStatus('rfid_card', false);
+
+                // Actualizar estados según registros
+                biometrics.forEach(bio => {
+                    updateBiometricStatus(bio.biometric_type, true);
+                });
+            } catch (error) {
+                console.error('Error cargando biométricos:', error);
+            }
+        }
+
+        /**
+         * Actualizar UI del estado de un biométrico
+         */
+        function updateBiometricStatus(type, isRegistered) {
+            const elementMap = {
+                'fingerprint': { option: 'biometricFingerprint', status: 'fingerprintStatus' },
+                'facial': { option: 'biometricFacial', status: 'facialStatus' },
+                'rfid_card': { option: 'biometricCard', status: 'cardStatus' }
+            };
+
+            const config = elementMap[type];
+            if (!config) return;
+
+            const optionEl = document.getElementById(config.option);
+            const statusEl = document.getElementById(config.status);
+
+            if (optionEl && statusEl) {
+                if (isRegistered) {
+                    optionEl.classList.add('registered');
+                    const texts = {
+                        'fingerprint': 'Registrada',
+                        'facial': 'Registrado',
+                        'rfid_card': 'Asignada'
+                    };
+                    statusEl.textContent = texts[type] || 'Registrado';
+                } else {
+                    optionEl.classList.remove('registered');
+                    const texts = {
+                        'fingerprint': 'No registrada',
+                        'facial': 'No registrado',
+                        'rfid_card': 'No asignada'
+                    };
+                    statusEl.textContent = texts[type] || 'No registrado';
+                }
+            }
+        }
+
+        /**
+         * Manejar click en botón de biométrico
+         */
+        async function handleBiometricCapture(type) {
+            const memberId = document.getElementById('memberId').value;
+            currentBiometricType = type;
+            currentMemberIdForBiometric = memberId || 'pending';
+            capturedBiometricData = null;
+
+            // UI config por tipo
+            const uiConfig = {
+                'fingerprint': {
+                    title: '<i class="fa-solid fa-fingerprint" style="color: var(--primary-500);"></i> Registrar Huella Digital',
+                    icon: '<i class="fa-solid fa-fingerprint fa-beat-fade"></i>',
+                    waitTitle: 'Colocá el dedo en el lector',
+                    waitMsg: '<i class="fa-solid fa-circle-info"></i> El lector detectará la huella automáticamente'
+                },
+                'facial': {
+                    title: '<i class="fa-solid fa-camera" style="color: var(--primary-500);"></i> Registrar Rostro',
+                    icon: null,
+                    waitTitle: null,
+                    waitMsg: null
+                },
+                'rfid_card': {
+                    title: '<i class="fa-solid fa-id-card" style="color: var(--primary-500);"></i> Registrar Tarjeta RFID',
+                    icon: '<i class="fa-solid fa-id-card fa-beat-fade"></i>',
+                    waitTitle: 'Acercá la tarjeta al lector',
+                    waitMsg: '<i class="fa-solid fa-circle-info"></i> El lector detectará la tarjeta automáticamente'
+                }
+            };
+
+            const cfg = uiConfig[type] || uiConfig['rfid_card'];
+            document.getElementById('biometricModalTitle').innerHTML = cfg.title;
+
+            // Resetear UI
+            document.getElementById('biometricCaptureResult').style.display = 'none';
+            document.getElementById('saveBiometricBtn').style.display = 'none';
+            document.getElementById('capturedFacePreview').style.display = 'none';
+
+            if (type === 'facial') {
+                document.getElementById('biometricCaptureStatus').style.display = 'none';
+                document.getElementById('facialCaptureContainer').style.display = 'block';
+                // Reset facial UI
+                resetFacialUI();
+            } else {
+                document.getElementById('facialCaptureContainer').style.display = 'none';
+                document.getElementById('biometricCaptureStatus').style.display = 'block';
+                document.getElementById('biometricWaitingIcon').innerHTML = cfg.icon;
+                document.getElementById('biometricWaitingTitle').textContent = cfg.waitTitle;
+                document.getElementById('biometricWaitingMessage').innerHTML = cfg.waitMsg;
+            }
+
+            openBiometricModal();
+
+            // Iniciar captura
+            if (type === 'facial') {
+                await loadMemberCameras();
+            } else {
+                if (window.biometricsClient) {
+                    await window.biometricsClient.startCapture({ mode: 'keyboard' }, (data) => {
+                        onBiometricCaptured(data);
+                    });
+                }
+            }
+        }
+
+        /**
+         * Reset facial UI to initial state
+         */
+        function resetFacialUI() {
+            const msg = document.getElementById('facialCaptureMessage');
+            msg.innerHTML = '<i class="fa-solid fa-circle-info"></i> Seleccioná una cámara e iniciá la captura';
+            msg.style.background = 'var(--bg-tertiary)';
+            msg.style.borderColor = 'var(--border-color)';
+            msg.style.color = 'var(--text-muted)';
+
+            document.getElementById('btnMemberStartCamera').style.display = 'flex';
+            document.getElementById('btnMemberStopCamera').style.display = 'none';
+            document.getElementById('captureFaceBtn').style.display = 'none';
+            document.getElementById('memberCameraPlaceholder').style.display = 'flex';
+            document.getElementById('memberQualityIndicator').style.display = 'none';
+            document.getElementById('memberCameraContainer').style.borderColor = 'var(--border-color)';
+        }
+
+        /**
+         * Cargar lista de cámaras disponibles
+         */
+        async function loadMemberCameras() {
+            const select = document.getElementById('memberCameraSelect');
+            select.innerHTML = '<option value="">Cargando cámaras...</option>';
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(d => d.kind === 'videoinput');
+
+                select.innerHTML = '';
+                if (cameras.length === 0) {
+                    select.innerHTML = '<option value="">No se encontraron cámaras</option>';
+                    return;
+                }
+
+                cameras.forEach((cam, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = cam.deviceId;
+                    opt.textContent = cam.label || `Cámara ${i + 1}`;
+                    select.appendChild(opt);
+                });
+
+                // Seleccionar la primera por defecto
+                if (cameras.length > 0) {
+                    select.value = cameras[0].deviceId;
+                }
+            } catch (error) {
+                console.error('[Members] Error listando cámaras:', error);
+                select.innerHTML = '<option value="">Error al detectar cámaras</option>';
+            }
+        }
+
+        /** Face detection loop handle */
+        let memberFaceDetectionLoop = null;
+        let memberCameraActive = false;
+
+        /**
+         * Iniciar captura facial con cámara
+         */
+        async function startFacialCapture() {
+            const video = document.getElementById('facialCaptureVideo');
+            const msg = document.getElementById('facialCaptureMessage');
+            const select = document.getElementById('memberCameraSelect');
+            const deviceId = select.value;
+
+            if (!video) return console.error('Video element not found');
+
+            // Show loading
+            msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando cámara...';
+            msg.style.color = 'var(--primary-400)';
+            document.getElementById('btnMemberStartCamera').disabled = true;
+
+            try {
+                // Init faceRecognition if available
+                if (window.faceRecognition) {
+                    if (typeof window.faceRecognition.isReady === 'function' && !window.faceRecognition.isReady()) {
+                        msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cargando modelos de IA...';
+                        const init = await window.faceRecognition.initialize();
+                        if (!init.success) {
+                            throw new Error(init.error || 'Error inicializando reconocimiento facial');
+                        }
+                    }
+
+                    msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando cámara...';
+                    const result = await window.faceRecognition.startCamera(video, deviceId || null);
+                    if (!result.success) {
+                        throw new Error(result.error || 'No se pudo iniciar la cámara');
+                    }
+                } else {
+                    // Fallback: getUserMedia directo
+                    msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando cámara...';
+                    const constraints = {
+                        video: {
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'user'
+                        }
+                    };
+                    if (deviceId) constraints.video.deviceId = { exact: deviceId };
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    await video.play();
+                }
+
+                memberCameraActive = true;
+
+                // Update UI
+                document.getElementById('memberCameraPlaceholder').style.display = 'none';
+                document.getElementById('btnMemberStartCamera').style.display = 'none';
+                document.getElementById('btnMemberStopCamera').style.display = 'flex';
+                document.getElementById('captureFaceBtn').style.display = 'flex';
+                document.getElementById('memberCameraContainer').style.borderColor = 'var(--primary-400)';
+                document.getElementById('memberQualityIndicator').style.display = 'block';
+
+                msg.innerHTML = '<i class="fa-solid fa-face-smile"></i> Posicioná tu rostro en el óvalo y presioná <strong>Capturar</strong>';
+                msg.style.color = 'var(--text-primary)';
+
+                // Start face detection loop
+                startMemberFaceDetectionLoop(video);
+
+            } catch (error) {
+                console.error('[Members] Error cámara:', error);
+                msg.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + (error.message || 'No se pudo acceder a la cámara');
+                msg.style.color = 'var(--error-400)';
+                msg.style.borderColor = 'var(--error-400)';
+                showToast('Error al iniciar cámara: ' + error.message, 'error');
+            } finally {
+                document.getElementById('btnMemberStartCamera').disabled = false;
+            }
+        }
+
+        /**
+         * Loop de detección facial para quality indicator
+         */
+        function startMemberFaceDetectionLoop(video) {
+            if (memberFaceDetectionLoop) clearInterval(memberFaceDetectionLoop);
+
+            const qualityText = document.getElementById('memberQualityText');
+            const qualityBar = document.getElementById('memberQualityBar');
+            const faceGuide = document.getElementById('memberFaceGuide');
+            const captureBtn = document.getElementById('captureFaceBtn');
+
+            memberFaceDetectionLoop = setInterval(async () => {
+                if (!memberCameraActive || !video.srcObject || video.readyState < 2) return;
+
+                try {
+                    // Use face-api if available
+                    if (typeof faceapi !== 'undefined' && faceapi.detectSingleFace) {
+                        const detection = await faceapi
+                            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+                            .withFaceLandmarks()
+                            .withFaceDescriptor();
+
+                        if (detection) {
+                            const score = detection.detection.score;
+                            const pct = Math.round(score * 100);
+                            qualityBar.style.width = pct + '%';
+
+                            if (pct >= 75) {
+                                qualityText.textContent = '✓ Rostro detectado - Excelente calidad';
+                                qualityBar.style.background = 'var(--success-400)';
+                                faceGuide.style.borderColor = 'rgba(34, 197, 94, 0.8)';
+                                captureBtn.disabled = false;
+                            } else if (pct >= 50) {
+                                qualityText.textContent = 'Rostro detectado - Acercate un poco más';
+                                qualityBar.style.background = 'var(--warning-400)';
+                                faceGuide.style.borderColor = 'rgba(234, 179, 8, 0.6)';
+                                captureBtn.disabled = false;
+                            } else {
+                                qualityText.textContent = 'Rostro detectado - Mejorá la iluminación';
+                                qualityBar.style.background = 'var(--error-400)';
+                                faceGuide.style.borderColor = 'rgba(239, 68, 68, 0.6)';
+                                captureBtn.disabled = false;
+                            }
+                        } else {
+                            qualityText.textContent = 'Buscando rostro...';
+                            qualityBar.style.width = '0%';
+                            faceGuide.style.borderColor = 'rgba(255,255,255,0.3)';
+                        }
+                    } else {
+                        // Without face-api, just check video is playing
+                        if (video.videoWidth > 0) {
+                            qualityText.textContent = 'Cámara activa - Presioná Capturar';
+                            qualityBar.style.width = '100%';
+                            qualityBar.style.background = 'var(--success-400)';
+                            faceGuide.style.borderColor = 'rgba(255,255,255,0.5)';
+                            captureBtn.disabled = false;
+                        }
+                    }
+                } catch (e) {
+                    // Silently fail detection errors
+                }
+            }, 800);
+        }
+
+        /**
+         * Cambiar cámara activa
+         */
+        async function switchMemberCamera(deviceId) {
+            if (!memberCameraActive) return;
+            stopFacialCapture();
+            setTimeout(() => startFacialCapture(), 300);
+        }
+
+        /**
+         * Detener cámara
+         */
+        function stopFacialCapture() {
+            memberCameraActive = false;
+
+            if (memberFaceDetectionLoop) {
+                clearInterval(memberFaceDetectionLoop);
+                memberFaceDetectionLoop = null;
+            }
+
+            // Use faceRecognition.stopCamera if available
+            if (window.faceRecognition) {
+                try { window.faceRecognition.stopCamera(); } catch (e) { }
+            }
+
+            // Clean up video directly
+            const video = document.getElementById('facialCaptureVideo');
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+
+            // Reset UI
+            resetFacialUI();
+        }
+
+        /**
+         * Capturar rostro desde la cámara
+         */
+        async function captureFaceFromCamera() {
+            const video = document.getElementById('facialCaptureVideo');
+            const msg = document.getElementById('facialCaptureMessage');
+            const captureBtn = document.getElementById('captureFaceBtn');
+
+            if (!video || !video.srcObject) {
+                showToast('Cámara no disponible', 'error');
+                return;
+            }
+
+            if (video.videoWidth === 0 || video.videoHeight === 0) {
+                showToast('Esperá a que la cámara esté lista', 'warning');
+                return;
+            }
+
+            captureBtn.disabled = true;
+            captureBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+            msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analizando rostro...';
+            msg.style.color = 'var(--primary-400)';
+
+            try {
+                let faceDescriptor = null;
+
+                // Try to get face descriptor with face-api
+                if (typeof faceapi !== 'undefined' && faceapi.detectSingleFace) {
+                    const detection = await faceapi
+                        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 }))
+                        .withFaceLandmarks()
+                        .withFaceDescriptor();
+
+                    if (detection) {
+                        faceDescriptor = Array.from(detection.descriptor);
+                    } else {
+                        msg.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> No se detectó rostro. Intentá otra vez.';
+                        msg.style.color = 'var(--warning-400)';
+                        captureBtn.disabled = false;
+                        captureBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Reintentar';
+                        return;
+                    }
+                }
+
+                // Capture image from video
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                ctx.restore();
+                const imageData = canvas.toDataURL('image/jpeg', 0.85);
+
+                // Stop camera
+                stopFacialCapture();
+
+                // Store captured data
+                capturedBiometricData = {
+                    type: 'facial',
+                    image: imageData,
+                    descriptor: faceDescriptor,
+                    code: 'FACE_' + Date.now(),
+                    timestamp: new Date().toISOString()
+                };
+
+                // Show result
+                document.getElementById('facialCaptureContainer').style.display = 'none';
+                document.getElementById('biometricCaptureResult').style.display = 'block';
+                document.getElementById('capturedFaceImage').src = imageData;
+                document.getElementById('capturedFacePreview').style.display = 'block';
+                document.getElementById('capturedCodeDisplay').textContent = faceDescriptor
+                    ? '✓ Rostro capturado con descriptor biométrico (' + faceDescriptor.length + ' puntos)'
+                    : '✓ Foto facial capturada';
+                document.getElementById('captureResultMessage').textContent = '¡Rostro capturado correctamente!';
+                document.getElementById('saveBiometricBtn').style.display = 'inline-flex';
+
+            } catch (error) {
+                console.error('[Members] Error capturando rostro:', error);
+                msg.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error: ' + error.message;
+                msg.style.color = 'var(--error-400)';
+                captureBtn.disabled = false;
+                captureBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Reintentar';
+            }
+        }
+
+        /**
+         * Callback cuando se captura un biométrico (RFID/fingerprint)
+         */
+        function onBiometricCaptured(data) {
+            capturedBiometricData = data;
+
+            // Sonido de feedback
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 880;
+                osc.type = 'sine';
+                gain.gain.value = 0.15;
+                osc.start();
+                osc.frequency.setValueAtTime(1100, audioCtx.currentTime + 0.1);
+                osc.stop(audioCtx.currentTime + 0.2);
+            } catch (e) { }
+
+            // Update UI
+            document.getElementById('biometricCaptureStatus').style.display = 'none';
+            document.getElementById('biometricCaptureResult').style.display = 'block';
+            document.getElementById('capturedCodeDisplay').textContent = data.code;
+            document.getElementById('captureResultMessage').textContent = currentBiometricType === 'fingerprint'
+                ? '¡Huella capturada correctamente!'
+                : '¡Tarjeta detectada correctamente!';
+            document.getElementById('captureSuccessIcon').innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+            document.getElementById('saveBiometricBtn').style.display = 'inline-flex';
+        }
+
+        /**
+         * Guardar biométrico capturado
+         */
+        async function saveCapturedBiometric() {
+            if (!capturedBiometricData) {
+                showToast('No hay datos para guardar', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveBiometricBtn');
+            const originalHtml = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+
+            // Socio aún no guardado → guardar temporalmente
+            if (!currentMemberIdForBiometric || currentMemberIdForBiometric === 'pending') {
+                window.pendingBiometricData = {
+                    type: currentBiometricType,
+                    data: capturedBiometricData
+                };
+                showToast('Datos biométricos capturados. Se guardarán al guardar el socio.', 'success');
+                updateBiometricStatus(currentBiometricType, true);
+                closeBiometricModal();
+                return;
+            }
+
+            try {
+                const gymId = localStorage.getItem('currentGymId');
+                if (!gymId) throw new Error('No se encontró el gimnasio');
+
+                if (capturedBiometricData.type === 'facial') {
+                    if (window.faceRecognition && capturedBiometricData.descriptor) {
+                        // Register with real face descriptor
+                        await window.faceRecognition.registerFaceInDB(
+                            currentMemberIdForBiometric,
+                            gymId,
+                            capturedBiometricData.descriptor
+                        );
+                    } else {
+                        // Fallback: save as simple biometric record
+                        const { error } = await window.supabase
+                            .from('member_biometrics')
+                            .upsert({
+                                gym_id: gymId,
+                                member_id: currentMemberIdForBiometric,
+                                biometric_type: 'facial',
+                                template_hash: capturedBiometricData.code,
+                                status: 'active',
+                                enrolled_at: new Date().toISOString()
+                            }, {
+                                onConflict: 'member_id,biometric_type,template_hash'
+                            });
+                        if (error) throw error;
+                    }
+                } else {
+                    // RFID / Fingerprint - Check for duplicates first
+                    const { data: existing } = await window.supabase
+                        .from('member_biometrics')
+                        .select('member_id, members!inner(full_name)')
+                        .eq('gym_id', gymId)
+                        .eq('template_hash', capturedBiometricData.code)
+                        .eq('status', 'active')
+                        .neq('member_id', currentMemberIdForBiometric)
+                        .limit(1);
+
+                    if (existing && existing.length > 0) {
+                        const ownerName = existing[0].members?.full_name || 'otro socio';
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = originalHtml;
+                        showToast(`Esta tarjeta ya está registrada para: ${ownerName}`, 'error');
+                        return;
+                    }
+
+                    if (window.biometricsClient) {
+                        await window.biometricsClient.registerCard(
+                            currentMemberIdForBiometric,
+                            capturedBiometricData.code,
+                            gymId
+                        );
+                    }
+                }
+
+                showToast('¡Biométrico registrado exitosamente!', 'success');
+                updateBiometricStatus(currentBiometricType, true);
+                closeBiometricModal();
+
+            } catch (error) {
+                console.error('[Members] Error guardando biométrico:', error);
+                showToast('Error al guardar: ' + error.message, 'error');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalHtml;
+            }
+        }
+
+        /**
+         * Actualizar UI de botón biométrico al registrar
+         */
+        function updateBiometricStatus(type, isRegistered) {
+            const mapping = {
+                'fingerprint': { optionId: 'biometricFingerprint', badgeId: 'fingerprintStatus', regText: '✓ Registrada', unregText: 'No registrada' },
+                'facial': { optionId: 'biometricFacial', badgeId: 'facialStatus', regText: '✓ Registrado', unregText: 'No registrado' },
+                'rfid_card': { optionId: 'biometricCard', badgeId: 'cardStatus', regText: '✓ Asignada', unregText: 'No asignada' }
+            };
+
+            const cfg = mapping[type];
+            if (!cfg) return;
+
+            const optionEl = document.getElementById(cfg.optionId);
+            const badgeEl = document.getElementById(cfg.badgeId);
+
+            if (optionEl) {
+                if (isRegistered) {
+                    optionEl.classList.add('registered');
+                } else {
+                    optionEl.classList.remove('registered');
+                }
+            }
+
+            if (badgeEl) {
+                badgeEl.textContent = isRegistered ? cfg.regText : cfg.unregText;
+            }
+        }
+
+        /**
+         * Abrir modal de captura biométrica
+         */
+        function openBiometricModal() {
+            document.getElementById('biometricCaptureModal').classList.add('active');
+        }
+
+        /**
+         * Cerrar modal de captura biométrica
+         */
+        async function closeBiometricModal() {
+            document.getElementById('biometricCaptureModal').classList.remove('active');
+
+            // Detener captura biométrica
+            if (window.biometricsClient) {
+                await window.biometricsClient.stopCapture();
+            }
+
+            // Detener cámara
+            stopFacialCapture();
+
+            // Reset save button
+            const saveBtn = document.getElementById('saveBiometricBtn');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Guardar';
+            }
+
+            currentBiometricType = null;
+            capturedBiometricData = null;
+        }
+
+        // Cerrar modal biométrico en overlay click
+        document.getElementById('biometricCaptureModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'biometricCaptureModal') {
+                closeBiometricModal();
             }
         });
     </script>
