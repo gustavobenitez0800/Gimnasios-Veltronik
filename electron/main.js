@@ -41,8 +41,9 @@ const WINDOW_CONFIG = {
 function createWindow() {
     mainWindow = new BrowserWindow(WINDOW_CONFIG);
 
-    // Cargar la app - Platform Lobby como punto de entrada
-    mainWindow.loadFile('platform-lobby.html');
+    // Cargar la app - Login como punto de entrada
+    // Si el usuario ya tiene sesión, será redirigido al lobby automáticamente
+    mainWindow.loadFile('index.html');
 
     // Mostrar cuando esté lista (evita flash blanco)
     mainWindow.once('ready-to-show', () => {

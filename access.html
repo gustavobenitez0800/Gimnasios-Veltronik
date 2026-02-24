@@ -3084,7 +3084,8 @@
             console.log('[Access] Tarjeta escaneada:', data.code);
 
             try {
-                const gymId = localStorage.getItem('currentGymId');
+                // Usar el ID de organización/gimnasio actual almacenado por el lobby
+                const gymId = localStorage.getItem('current_org_id') || currentGymId;
                 if (!gymId) {
                     showToast('Error: Gimnasio no encontrado', 'error');
                     return;

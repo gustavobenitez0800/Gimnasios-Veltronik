@@ -2227,8 +2227,9 @@
             }
 
             try {
-                const gymId = localStorage.getItem('currentGymId');
-                if (!gymId) throw new Error('No se encontró el gimnasio');
+                // Usar el ID de organización/gimnasio actual almacenado por el lobby
+                const gymId = localStorage.getItem('current_org_id');
+                if (!gymId) throw new Error('No se encontró el gimnasio actual');
 
                 if (capturedBiometricData.type === 'facial') {
                     if (window.faceRecognition && capturedBiometricData.descriptor) {

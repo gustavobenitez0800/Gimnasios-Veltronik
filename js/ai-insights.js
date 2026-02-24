@@ -127,8 +127,17 @@ function detectAtRiskMembers(members, accessLogs = []) {
         // Factor 3: Sin asistencia reciente (si hay logs)
         if (accessLogs.length > 0) {
             const memberLogs = accessLogs.filter(l => l.member_id === member.id);
-            const lastVisit = memberLogs.length > 0 ?
-                new Date(Math.max(...memberLogs.map(l => new Date(l.checked_in_at)))) : null;
+
+            // Compatibilidad: algunos logs usan "check_in_at" (correcto) y otros
+            // podrían venir como "checked_in_at". Usamos cualquiera disponible.
+            const lastVisit = memberLogs.length > 0
+                ? new Date(Math.max(
+                    ...memberLogs
+                        .map(l => l.check_in_at || l.checked_in_at)
+                        .filter(Boolean)
+                        .map(d => new Date(d))
+                  ))
+                : null;
 
             if (!lastVisit) {
                 riskScore += 20;

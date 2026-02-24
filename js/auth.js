@@ -42,6 +42,15 @@ async function checkAuthAndRedirect() {
             return { session, profile };
         }
 
+        // On public pages (login/register), always redirect to lobby
+        // Let the lobby handle org selection and further routing
+        if (isPublicPage()) {
+            window.location.href = CONFIG.ROUTES.LOBBY;
+            return { session, profile };
+        }
+
+        // Below here: Only applies to protected system pages
+
         // Check if user has a gym
         if (!profile.gym_id) {
             // User needs to complete onboarding
