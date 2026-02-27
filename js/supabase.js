@@ -102,7 +102,7 @@ async function signInWithGoogle() {
     const { data, error } = await client.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin + '/onboarding.html'
+            redirectTo: window.location.origin + '/platform-lobby.html'
         }
     });
 
