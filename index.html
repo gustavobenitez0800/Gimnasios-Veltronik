@@ -19,6 +19,8 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/logo-main.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8b5cf6">
 </head>
 
 <body>
@@ -191,6 +193,7 @@
             }
         });
     </script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{})}</script>
 </body>
 
 </html>

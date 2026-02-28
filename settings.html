@@ -211,6 +211,8 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/VeltronikGym.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8b5cf6">
 </head>
 
 <body>
@@ -224,85 +226,8 @@
     </div>
 
     <div class="app-layout" id="appContent" style="display: none;">
-        <!-- Sidebar Overlay (mobile) -->
-        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-logo">
-                    <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
-                        style="width:32px;height:32px;object-fit:contain;">
-                    <span class="sidebar-logo-text">Veltronik</span>
-                </div>
-            </div>
-
-            <nav class="sidebar-nav">
-                <div class="nav-section">
-                    <div class="nav-section-title">Principal</div>
-                    <a href="dashboard.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="dashboard"></span>
-                        Dashboard
-                    </a>
-                    <a href="members.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="users"></span>
-                        Socios
-                    </a>
-                    <a href="payments.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="wallet"></span>
-                        Pagos
-                    </a>
-                    <a href="classes.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="calendar"></span>
-                        Clases
-                    </a>
-                    <a href="access.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="door"></span>
-                        Acceso
-                    </a>
-                    <a href="retention.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="shield"></span>
-                        Retención
-                    </a>
-                    <a href="reports.html" class="nav-item">
-                        <span class="nav-item-icon" data-icon="chart"></span>
-                        Reportes
-                    </a>
-                </div>
-
-                <div class="nav-section">
-                    <div class="nav-section-title">Administración</div>
-                    <a href="team.html" class="nav-item">`n                        <span class="nav-item-icon" data-icon="userCog"></span>
-                        Equipo
-                    </a>
-                    <a href="settings.html" class="nav-item active">
-                        <span class="nav-item-icon" data-icon="settings"></span>
-                        Ajustes
-                    </a>
-                </div>
-
-                <div class="nav-section">
-                    <div class="nav-section-title">Plataforma</div>
-                    <a href="platform-lobby.html" class="nav-item" title="Volver al lobby y elegir otro sistema">
-                        <span class="nav-item-icon" data-icon="switchSystem"></span>
-                        Cambiar Sistema
-                    </a>
-                </div>
-            </nav>
-
-            <div class="sidebar-footer">
-                <div class="sidebar-user">
-                    <div class="avatar" id="userAvatar">--</div>
-                    <div class="sidebar-user-info">
-                        <div class="sidebar-user-name" id="userName">Cargando...</div>
-                        <div class="sidebar-user-role" id="userRole">--</div>
-                    </div>
-                    <button class="sidebar-logout" onclick="handleLogout()" title="Cerrar sesión">
-                        <span data-icon="logout"></span>
-                    </button>
-                </div>
-            </div>
-        </aside>
+        <!-- Sidebar (rendered by sidebar.js) -->
+        <aside class="sidebar" id="sidebar"></aside>
 
         <!-- Main Content -->
         <main class="main-content">
@@ -1046,6 +971,7 @@
     <script src="js/offline-ui.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/icons.js"></script>
+    <script src="js/sidebar.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/permissions.js"></script>
@@ -1583,6 +1509,9 @@
 
         // Check auth and load data
         document.addEventListener('DOMContentLoaded', async () => {
+            // SIDEBAR: render shared sidebar component
+            Sidebar.init();
+
             // LOBBY GUARD: require org selection first
             if (!requireOrgContext()) return;
 
@@ -1662,6 +1591,7 @@
             }
         });
     </script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{})}</script>
 </body>
 
 </html>
