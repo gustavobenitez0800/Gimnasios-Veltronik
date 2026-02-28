@@ -649,6 +649,7 @@
     <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/permissions.js"></script>
 
     <script>
         // ============================================
@@ -1052,6 +1053,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // LOBBY GUARD: require org selection first
             if (!requireOrgContext()) return;
+            Permissions.applyPageRestrictions();
 
             let hasSession = false;
 

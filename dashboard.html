@@ -364,7 +364,7 @@
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card" data-permission="admin">
                         <div class="stat-icon stat-icon-success"><span data-icon="wallet"></span></div>
                         <div class="stat-content">
                             <div class="stat-value" id="statRevenue">$0</div>
@@ -372,7 +372,7 @@
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card" data-permission="admin">
                         <div class="stat-icon stat-icon-warning"><span data-icon="warning"></span></div>
                         <div class="stat-content">
                             <div class="stat-value" id="statOverdue">0</div>
@@ -389,8 +389,8 @@
                     </div>
                 </div>
 
-                <!-- AI Section: Predicción e Insights -->
-                <div class="ai-section">
+                <!-- AI Section: Predicción e Insights (admin-only) -->
+                <div class="ai-section" data-permission="admin">
                     <h2 class="ai-section-title">
                         <span data-icon="brain" class="ai-title-icon"></span> Inteligencia Artificial
                         <span class="ai-badge">AI Powered</span>
@@ -516,7 +516,7 @@
                                     <span class="quick-action-icon" data-icon="plus"></span>
                                     <span class="quick-action-label">Nuevo Socio</span>
                                 </a>
-                                <a href="payments.html?action=new" class="quick-action">
+                                <a href="payments.html?action=new" class="quick-action" data-permission="admin">
                                     <span class="quick-action-icon" data-icon="creditCard"></span>
                                     <span class="quick-action-label">Registrar Pago</span>
                                 </a>
@@ -549,6 +549,7 @@
     <script src="js/icons.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/permissions.js"></script>
     <script src="js/ai-insights.js"></script>
     <script src="js/email-service.js"></script>
     <script src="js/notification-panel.js"></script>
@@ -621,50 +622,55 @@
                     return endDate >= today && endDate <= nextWeek;
                 }).length;
 
-                // Load payments for this month
-                const payments = await getMemberPayments();
-                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                const monthlyRevenue = payments
-                    .filter(p => new Date(p.payment_date) >= startOfMonth && p.status === 'paid')
-                    .reduce((sum, p) => sum + parseFloat(p.amount), 0);
-
-                // Update stats
+                // Update basic stats (visible to all)
                 document.getElementById('statMembers').textContent = activeMembers;
-                document.getElementById('statRevenue').textContent = formatCurrency(monthlyRevenue);
-                document.getElementById('statOverdue').textContent = expiredMembers;
                 document.getElementById('statExpiring').textContent = expiringMembers;
+
+                // Financial data — admin only
+                let payments = [];
+                if (Permissions.isOwnerOrAdmin()) {
+                    payments = await getMemberPayments();
+                    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    const monthlyRevenue = payments
+                        .filter(p => new Date(p.payment_date) >= startOfMonth && p.status === 'paid')
+                        .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+                    document.getElementById('statRevenue').textContent = formatCurrency(monthlyRevenue);
+                    document.getElementById('statOverdue').textContent = expiredMembers;
+                }
 
                 // Render recent members
                 renderRecentMembers(members);
 
                 // ============================================
-                // AI INSIGHTS INTEGRATION
+                // AI INSIGHTS INTEGRATION (admin only)
                 // ============================================
+                Permissions.ifAdmin(() => {
+                    // 1. Revenue Prediction
+                    const prediction = AIInsights.predictNextMonthRevenue(payments);
+                    renderPrediction(prediction);
 
-                // 1. Revenue Prediction
-                const prediction = AIInsights.predictNextMonthRevenue(payments);
-                renderPrediction(prediction);
+                    // 2. Payment Alerts
+                    const alerts = AIInsights.getPaymentAlerts(members);
+                    renderAlerts(alerts);
 
-                // 2. Payment Alerts
-                const alerts = AIInsights.getPaymentAlerts(members);
-                renderAlerts(alerts);
+                    // 3. Daily Insights
+                    const insights = AIInsights.generateDailyInsights({ members, payments, gym });
+                    renderInsights(insights);
 
-                // 3. Daily Insights
-                const insights = AIInsights.generateDailyInsights({ members, payments, gym });
-                renderInsights(insights);
+                    // 4. Revenue Chart
+                    const revenueData = AIInsights.getMonthlyRevenueChartData(payments, 6);
+                    renderRevenueChart(revenueData);
 
-                // 4. Revenue Chart
-                const revenueData = AIInsights.getMonthlyRevenueChartData(payments, 6);
-                renderRevenueChart(revenueData);
+                    // 5. Members Status Chart
+                    const membersData = AIInsights.getMemberStatusChartData(members);
+                    renderMembersChart(membersData);
 
-                // 5. Members Status Chart
-                const membersData = AIInsights.getMemberStatusChartData(members);
-                renderMembersChart(membersData);
-
-                // Run automated notification checks
-                if (typeof VeltronikNotifications !== 'undefined') {
-                    VeltronikNotifications.runChecks(members, payments);
-                }
+                    // Run automated notification checks
+                    if (typeof VeltronikNotifications !== 'undefined') {
+                        VeltronikNotifications.runChecks(members, payments);
+                    }
+                });
 
             } catch (error) {
                 console.error('Dashboard error:', error);
@@ -859,6 +865,9 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // LOBBY GUARD: require org selection first
             if (!requireOrgContext()) return;
+
+            // PERMISSIONS: apply role-based UI restrictions
+            Permissions.applyPageRestrictions();
 
             let hasSession = false;
 
