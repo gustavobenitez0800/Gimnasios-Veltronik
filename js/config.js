@@ -40,7 +40,8 @@ const CONFIG = {
         RETENTION: 'retention.html',
         RESET_PASSWORD: 'reset-password.html',
         LOBBY: 'platform-lobby.html',
-        MEMBER_PORTAL: 'member-portal.html'
+        MEMBER_PORTAL: 'member-portal.html',
+        TEAM: 'team.html'
     },
 
     // Gym Status (MUST match backend values)

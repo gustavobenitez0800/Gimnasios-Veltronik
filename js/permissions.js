@@ -137,7 +137,8 @@ const Permissions = (function () {
         const restrictedPages = [
             'reports.html',     // Financial reports
             'retention.html',   // AI retention analytics  
-            'settings.html'     // System configuration
+            'settings.html',    // System configuration
+            'team.html'         // Team management (admin only)
         ];
 
         document.querySelectorAll('.sidebar-nav a.nav-item').forEach(link => {
