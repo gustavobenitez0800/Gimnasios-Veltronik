@@ -7,6 +7,11 @@
 
 let supabaseClient = null;
 
+// Debug logger (prevents ReferenceError for log() calls)
+function log(...args) {
+    if (typeof console !== 'undefined') console.log(...args);
+}
+
 /**
  * Initialize the Supabase client
  */
@@ -365,6 +370,48 @@ async function getMembers() {
             log('[Supabase] Network error - returning cached members');
             const cached = await OfflineStorage.getAllMembers();
             if (cached && cached.length > 0) return cached;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Get members with pagination (for scaling)
+ * @param {number} page - Page number (0-indexed)
+ * @param {number} pageSize - Items per page (default 50)
+ * @param {string} search - Optional search query
+ * @returns {object} { data, count, hasMore }
+ */
+async function getMembersPaginated(page = 0, pageSize = 50, search = '') {
+    try {
+        const client = getSupabase();
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        let query = client
+            .from('members')
+            .select('*', { count: 'exact' })
+            .order('full_name', { ascending: true })
+            .range(from, to);
+
+        // Apply search filter if provided
+        if (search) {
+            query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%,email.ilike.%${search}%`);
+        }
+
+        const { data, error, count } = await query;
+        if (error) throw error;
+
+        return {
+            data: data || [],
+            count: count || 0,
+            hasMore: (from + pageSize) < (count || 0)
+        };
+    } catch (error) {
+        // Fallback to offline cache
+        if (typeof OfflineStorage !== 'undefined') {
+            const cached = await OfflineStorage.getAllMembers();
+            return { data: cached || [], count: (cached || []).length, hasMore: false };
         }
         throw error;
     }
