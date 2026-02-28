@@ -178,9 +178,9 @@
 
                 showToast('¡Negocio creado! Tu prueba gratuita de 30 días ha comenzado.', 'success');
 
-                // Redirect to dashboard
+                // Redirect to lobby to select the new org
                 setTimeout(() => {
-                    window.location.href = CONFIG.ROUTES.DASHBOARD;
+                    window.location.href = CONFIG.ROUTES.LOBBY;
                 }, 1500);
 
             } catch (error) {

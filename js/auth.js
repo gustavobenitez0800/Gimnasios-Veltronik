@@ -37,8 +37,8 @@ async function checkAuthAndRedirect() {
             return null;
         }
 
-        // Platform Logic: Allow Lobby and Member Portal access
-        if (isLobbyPage() || isMemberPortalPage()) {
+        // Platform Logic: Allow Lobby, Member Portal, and Onboarding access
+        if (isLobbyPage() || isMemberPortalPage() || isOnboardingPage()) {
             return { session, profile };
         }
 
@@ -53,10 +53,8 @@ async function checkAuthAndRedirect() {
 
         // Check if user has a gym
         if (!profile.gym_id) {
-            // User needs to complete onboarding
-            if (!isOnboardingPage()) {
-                window.location.href = CONFIG.ROUTES.ONBOARDING;
-            }
+            // No gym — send to lobby (lobby shows empty state + 'Crear Negocio' card)
+            window.location.href = CONFIG.ROUTES.LOBBY;
             return { session, profile, gym: null };
         }
 
@@ -65,7 +63,7 @@ async function checkAuthAndRedirect() {
 
         if (!gym) {
             console.error('Gym not found');
-            window.location.href = CONFIG.ROUTES.ONBOARDING;
+            window.location.href = CONFIG.ROUTES.LOBBY;
             return null;
         }
 

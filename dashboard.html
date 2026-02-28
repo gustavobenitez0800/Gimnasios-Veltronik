@@ -876,14 +876,14 @@
                 const profile = await getProfile();
 
                 if (!profile || !profile.gym_id) {
-                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    window.location.href = CONFIG.ROUTES.LOBBY;
                     return;
                 }
 
                 const gym = await getGym();
 
                 if (!gym) {
-                    window.location.href = CONFIG.ROUTES.ONBOARDING;
+                    window.location.href = CONFIG.ROUTES.LOBBY;
                     return;
                 }
 
