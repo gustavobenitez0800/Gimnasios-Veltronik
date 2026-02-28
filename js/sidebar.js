@@ -76,11 +76,16 @@ const Sidebar = (() => {
                 </div>`;
         }
 
+        // Dynamic logo based on system type
+        const orgType = localStorage.getItem('current_org_type') || 'GYM';
+        const logoSrc = orgType === 'GYM' ? 'assets/VeltronikGym.png' : 'assets/logo-main.png';
+        const logoAlt = orgType === 'GYM' ? 'VeltronikGym' : 'Veltronik';
+
         return `
         <div class="sidebar-header">
             <div class="sidebar-logo">
-                <img src="assets/VeltronikGym.png" alt="Veltronik" class="sidebar-logo-icon"
-                    style="width:32px;height:32px;object-fit:contain;">
+                <img src="${logoSrc}" alt="${logoAlt}" class="sidebar-logo-icon"
+                    style="width:32px;height:32px;object-fit:contain;" loading="lazy">
                 <span class="sidebar-logo-text">Veltronik</span>
             </div>
         </div>
