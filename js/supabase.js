@@ -320,7 +320,20 @@ async function getSubscription() {
 
     if (!profile || !profile.gym_id) return null;
 
-    const { data, error } = await client
+    // First: look for an active subscription (highest priority)
+    // DB constraint only allows: pending, active, past_due, canceled
+    const { data: activeSub } = await client
+        .from('subscriptions')
+        .select('*')
+        .eq('gym_id', profile.gym_id)
+        .eq('status', 'active')
+        .limit(1)
+        .single();
+
+    if (activeSub) return activeSub;
+
+    // Fallback: return the most recent subscription (pending, past_due, etc.)
+    const { data: latestSub, error } = await client
         .from('subscriptions')
         .select('*')
         .eq('gym_id', profile.gym_id)
@@ -331,7 +344,7 @@ async function getSubscription() {
     // No subscription found is not an error
     if (error && error.code === 'PGRST116') return null;
     if (error) throw error;
-    return data;
+    return latestSub;
 }
 
 // ============================================

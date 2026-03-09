@@ -343,6 +343,13 @@
 
                 const result = await response.json();
 
+                // If already has an active subscription, redirect to dashboard
+                if (result.already_active) {
+                    showToast('Ya tenés una suscripción activa ✅', 'success');
+                    setTimeout(() => { window.location.href = CONFIG.ROUTES.DASHBOARD; }, 1500);
+                    return;
+                }
+
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || 'Error al crear suscripción');
                 }

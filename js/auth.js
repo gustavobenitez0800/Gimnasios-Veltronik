@@ -4,12 +4,13 @@
 
 /**
  * Helper: Check if subscription is in an active/valid state.
- * Accepts 'active' and 'authorized' (MP's confirmed state).
+ * DB only allows: pending, active, past_due, canceled.
+ * MP's 'authorized' status is mapped to 'active' by the webhook.
  * Use this EVERYWHERE instead of comparing status === 'active' directly.
  */
 function isActiveSubscription(subscription) {
     if (!subscription) return false;
-    return subscription.status === 'active' || subscription.status === 'authorized';
+    return subscription.status === 'active';
 }
 
 /**

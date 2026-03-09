@@ -51,10 +51,10 @@ const CONFIG = {
         BLOCKED: 'blocked'
     },
 
-    // Subscription Status
+    // Subscription Status (matches DB CHECK constraint exactly)
+    // NOTE: MP's 'authorized' status is mapped to 'active' by the webhook
     SUBSCRIPTION_STATUS: {
         ACTIVE: 'active',
-        AUTHORIZED: 'authorized',
         PAST_DUE: 'past_due',
         CANCELED: 'canceled',
         PENDING: 'pending'

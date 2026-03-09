@@ -83,13 +83,13 @@ const GYM_STATUS = {
 
 const SUBSCRIPTION_STATUS = {
     ACTIVE: 'active',
-    AUTHORIZED: 'authorized',
     PAST_DUE: 'past_due',
     CANCELED: 'canceled',
     PENDING: 'pending'
 };
 
 // Mapeo de estados MP → Sistema interno
+// MP 'authorized' maps to our internal 'active' status
 const MP_STATUS_MAP = {
     'authorized': SUBSCRIPTION_STATUS.ACTIVE,
     'pending': SUBSCRIPTION_STATUS.PENDING,

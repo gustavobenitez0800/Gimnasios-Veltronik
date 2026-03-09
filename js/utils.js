@@ -3,35 +3,20 @@
 // ============================================
 // Common functions shared across multiple pages
 
-/**
- * Toggle sidebar visibility (mobile)
- */
-function toggleSidebar() {
-    // Try by ID first (used in most pages), then by class
-    const sidebar = document.getElementById('sidebar') || document.querySelector('.sidebar');
-    const overlay = document.getElementById('sidebarOverlay') || document.querySelector('.sidebar-overlay');
-
-    if (sidebar) {
-        sidebar.classList.toggle('open');
-        sidebar.classList.toggle('show');
-    }
-    if (overlay) {
-        overlay.classList.toggle('show');
-    }
-}
+// toggleSidebar() is defined in sidebar.js — do NOT duplicate here
 
 /**
  * Close sidebar when clicking overlay
  */
 function closeSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
 
     if (sidebar) {
-        sidebar.classList.remove('show');
+        sidebar.classList.remove('sidebar-open');
     }
     if (overlay) {
-        overlay.classList.remove('show');
+        overlay.classList.remove('overlay-show');
     }
 }
 

@@ -103,14 +103,21 @@ module.exports = async function handler(req, res) {
             .from('subscriptions')
             .select('id, status, mp_preapproval_id')
             .eq('gym_id', gym_id)
-            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.AUTHORIZED, SUBSCRIPTION_STATUS.PENDING])
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING])
             .single();
 
         if (existingSubscription) {
-            // LOGIC FIX: En lugar de bloquear, si el usuario está intentando crear una nueva suscripción,
-            // asumimos que quiere reactivar o cambiar método de pago.
-            // Marcamos la anterior como cancelada localmente para permitir el nuevo flujo.
-            logSecure('info', 'Cancelling existing subscription to allow new one', { id: existingSubscription.id });
+            // If the subscription is truly active, do NOT cancel it
+            if (existingSubscription.status === SUBSCRIPTION_STATUS.ACTIVE) {
+                return jsonResponse(res, 200, {
+                    success: false,
+                    error: 'Ya tenés una suscripción activa. No es necesario crear una nueva.',
+                    already_active: true
+                }, req);
+            }
+
+            // If it's pending, cancel it to allow a fresh retry
+            logSecure('info', 'Cancelling pending subscription to allow new one', { id: existingSubscription.id });
 
             await supabase
                 .from('subscriptions')
