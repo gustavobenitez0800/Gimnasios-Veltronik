@@ -231,6 +231,13 @@
     transform: translateY(-1px);
 }
 
+/* Subscription Active Banner (green theme) */
+.subscription-active-banner {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.15)) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    color: var(--success-600) !important;
+}
+
 .header-btn {
     padding: 0.5rem;
     background: none;

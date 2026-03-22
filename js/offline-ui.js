@@ -31,22 +31,14 @@ const OfflineUI = (function () {
     }
 
     /**
-     * Crea el indicador de conexión para el header
+     * Crea el indicador de conexión para el header (Deshabilitado)
      */
     function createConnectionIndicator() {
+        // Disabled per user request to hide the "En línea" indicator
+        /*
         connectionIndicator = document.createElement('div');
-        connectionIndicator.className = 'connection-status online';
-        connectionIndicator.id = 'connectionStatus';
-        connectionIndicator.innerHTML = `
-            <span class="connection-status-dot"></span>
-            <span>En línea</span>
-        `;
-
-        // Insertar en el header
-        const headerRight = document.querySelector('.header-right');
-        if (headerRight) {
-            headerRight.insertBefore(connectionIndicator, headerRight.firstChild);
-        }
+        ...
+        */
     }
 
     /**
@@ -72,22 +64,10 @@ const OfflineUI = (function () {
     }
 
     /**
-     * Crea indicador en la barra lateral
+     * Crea indicador en la barra lateral (Deshabilitado)
      */
     function createSidebarIndicator() {
-        const sidebarNav = document.querySelector('.sidebar-nav');
-        if (!sidebarNav) return;
-
-        const sidebarConnection = document.createElement('div');
-        sidebarConnection.className = 'sidebar-connection online';
-        sidebarConnection.id = 'sidebarConnection';
-        sidebarConnection.innerHTML = `
-            <span class="connection-status-dot"></span>
-            <span>Conectado</span>
-        `;
-
-        // Insertar al inicio del nav
-        sidebarNav.insertBefore(sidebarConnection, sidebarNav.firstChild);
+        // Disabled per user request
     }
 
     // ============================================

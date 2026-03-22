@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index 8d7638f..d808100 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gimnasio-veltronik",
+-  "version": "1.0.11",
++  "version": "1.0.12",
+   "description": "Veltronik",
+   "main": "electron/main.js",
+   "private": true,

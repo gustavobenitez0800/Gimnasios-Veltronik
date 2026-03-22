@@ -1,35 +1,24 @@
-ACUERDO DE LICENCIA DE USUARIO FINAL (EULA)
-PARA EL SOFTWARE PROPIETARIO "VEITRONIK"
+# Veltronik Software License Agreement
 
-IMPORTANTE - LÉALO ATENTAMENTE: Este Acuerdo de Licencia de Usuario Final ("EULA") es un acuerdo legal entre usted (ya sea una persona física o jurídica) y VELTRONIK ("EL PROPIETARIO") para el software "GIMNASIO VELTRONIK" que acompaña a este EULA, incluyendo medios asociados, materiales impresos y documentación "en línea" o electrónica ("EL SOFTWARE").
+Copyright (c) 2026 Veltronik
 
-AL INSTALAR, COPIAR O UTILIZAR DE CUALQUIER OTRA MANERA EL SOFTWARE, USTED ACEPTA QUEDAR OBLIGADO POR LOS TÉRMINOS DE ESTE EULA. SI NO ACEPTA LOS TÉRMINOS DE ESTE EULA, NO INSTALE NI UTILICE EL SOFTWARE.
+*** END USER LICENSE AGREEMENT ***
 
-1. CONCESIÓN DE LICENCIA
-VELTRONIK le otorga una licencia limitada, no exclusiva e intransferible para usar EL SOFTWARE sujeto a los términos establecidos en este acuerdo.
-(a) Uso Autorizado: Usted puede instalar y utilizar EL SOFTWARE únicamente para la gestión de su negocio o fines personales.
-(b) Propiedad: EL SOFTWARE es licenciado, no vendido. VELTRONIK conserva todos los derechos de propiedad intelectual, título e intereses sobre EL SOFTWARE.
+IMPORTANT: PLEASE READ THIS LICENSE CAREFULLY BEFORE USING THIS SOFTWARE.
 
-2. RESTRICCIONES DE USO
-Usted no podrá, ni permitirá que terceros:
-(a) Ingeniería Inversa: Realizar ingeniería inversa, descompilar, desensamblar o intentar descubrir el código fuente del SOFTWARE.
-(b) Redistribución: Copiar, distribuir, alquilar, arrendar, sublicenciar o transmitir EL SOFTWARE a terceros.
-(c) Modificación: Modificar, adaptar, traducir o crear trabajos derivados basados en EL SOFTWARE.
-(d) Seguridad: Eludir cualquier medida de protección técnica del SOFTWARE.
+By downloading, installing, or using the Veltronik software, you agree to be bound by the terms of this License Agreement.
 
-3. DERECHOS DE AUTOR
-Todos los títulos y derechos de autor sobre EL SOFTWARE (incluyendo, entre otros, imágenes, fotografías, animaciones, vídeo, audio, música, texto y "applets" incorporados al SOFTWARE), los materiales impresos y cualquier copia del SOFTWARE son propiedad de VELTRONIK. EL SOFTWARE está protegido por leyes de derechos de autor y tratados internacionales.
+1. LICENSE GRANT
+Veltronik grants you a personal, non-exclusive, and non-transferable license to use the Software for gym management purposes.
 
-4. RENUNCIA DE GARANTÍA
-EL SOFTWARE SE SUMINISTRA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O IMPLÍCITA. EL PROPIETARIO NO GARANTIZA QUE EL SOFTWARE CUMPLA CON SUS REQUISITOS O QUE EL FUNCIONAMIENTO DEL SOFTWARE SEA ININTERRUMPIDO O LIBRE DE ERRORES.
+2. RESTRICTIONS
+You may not:
+- Modify, translate, reverse engineer, decompile, disassemble, or create derivative works based on the Software.
+- Rent, lease, grant a security interest in, or otherwise transfer rights to the Software.
+- Remove any proprietary notices or labels on the Software.
 
-5. LIMITACIÓN DE RESPONSABILIDAD
-EN NINGÚN CASO VELTRONIK SERÁ RESPONSABLE DE NINGÚN DAÑO ESPECIAL, INCIDENTAL, PUNITIVO, INDIRECTO O CONSECUENTE (INCLUYENDO, PERO NO LIMITADO A, DAÑOS POR PÉRDIDA DE BENEFICIOS, PÉRDIDA DE DATOS O INTERRUPCIÓN DEL NEGOCIO) QUE SURJA DEL USO O LA IMPOSIBILIDAD DE USAR EL SOFTWARE.
+3. DISCLAIMER OF WARRANTY
+The Software is provided "AS IS", without warranty of any kind.
 
-6. TERMINACIÓN
-Sin perjuicio de cualquier otro derecho, VELTRONIK puede terminar este EULA si usted no cumple con los términos y condiciones. En tal caso, usted debe destruir todas las copias del SOFTWARE y todos sus componentes.
-
-7. LEY APLICABLE
-Este acuerdo se regirá e interpretará de acuerdo con las leyes vigentes en la jurisdicción del autor.
-
-© 2026 VELTRONIK. TODOS LOS DERECHOS RESERVADOS.
+4. LIMITATION OF LIABILITY
+In no event shall Veltronik or its suppliers be liable for any special, incidental, indirect, or consequential damages whatsoever arising out of the use of or inability to use the software.

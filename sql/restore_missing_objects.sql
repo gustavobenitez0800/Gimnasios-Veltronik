@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS classes (
     capacity INTEGER DEFAULT 20,
     room TEXT,
     color TEXT DEFAULT '#0EA5E9',
-    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'cancelled')),
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'cancelled')), i
     recurring BOOLEAN DEFAULT true,
     specific_date DATE,
     created_at TIMESTAMPTZ DEFAULT now(),

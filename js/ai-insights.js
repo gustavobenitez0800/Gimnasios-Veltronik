@@ -30,11 +30,19 @@ function predictNextMonthRevenue(payments) {
     payments.forEach(p => {
         if (p.status !== 'paid') return;
         const date = new Date(p.payment_date);
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        monthlyRevenue[key] = (monthlyRevenue[key] || 0) + parseFloat(p.amount);
+        // Zero-padded key for correct chronological sorting
+        const key = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`;
+        monthlyRevenue[key] = (monthlyRevenue[key] || 0) + parseFloat(p.amount || 0);
     });
 
-    const values = Object.values(monthlyRevenue);
+    // Sort keys chronologically so regression works correctly
+    const sortedKeys = Object.keys(monthlyRevenue).sort();
+    const values = sortedKeys.map(k => monthlyRevenue[k]);
+
+    console.log('[AI Prediction] Payments received:', payments.length);
+    console.log('[AI Prediction] Paid payments by month:', sortedKeys.map(k => `${k}: $${monthlyRevenue[k].toFixed(0)}`));
+    console.log('[AI Prediction] Monthly values for regression:', values);
+
     if (values.length < 2) {
         const avg = values.length > 0 ? values[0] : 0;
         return { predicted: avg, confidence: 30, trend: 'neutral' };

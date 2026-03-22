@@ -1,6 +1,6 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Veltronik",
   "main": "electron/main.js",
   "private": true,

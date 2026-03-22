@@ -11,7 +11,7 @@ function initNotificationPanel() {
     // Crear el HTML del panel
     const panelHTML = `
         <!-- Notification Bell -->
-        <div class="notification-bell" id="notificationBell" onclick="toggleNotificationPanel()">
+        <div class="notification-bell" id="notificationBell">
             <span class="bell-icon">🔔</span>
             <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
         </div>
@@ -20,7 +20,7 @@ function initNotificationPanel() {
         <div class="notification-panel" id="notificationPanel">
             <div class="notification-panel-header">
                 <h4>Notificaciones</h4>
-                <button class="mark-all-read" onclick="handleMarkAllRead()">Marcar todas como leídas</button>
+                <button type="button" class="mark-all-read" id="markAllReadBtn">Marcar todas como leídas</button>
             </div>
             <div class="notification-list" id="notificationList">
                 <div class="notification-empty">
@@ -260,8 +260,45 @@ function initNotificationPanel() {
         const overlay = document.createElement('div');
         overlay.className = 'notification-overlay';
         overlay.id = 'notificationOverlay';
-        overlay.onclick = closeNotificationPanel;
+        // Remove direct onclick to use delegation below
         document.body.appendChild(overlay);
+    }
+
+    // Attach ONE global event listener for all notification interactions (Event Delegation)
+    if (!window._veltronikNotificationListenerBound) {
+        document.addEventListener('click', (e) => {
+            // Click in Mark all Read
+            if (e.target.closest('#markAllReadBtn') || e.target.closest('.mark-all-read')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleMarkAllRead();
+                return;
+            }
+            
+            // Click in Notification Bell
+            if (e.target.closest('#notificationBell')) {
+                e.preventDefault();
+                toggleNotificationPanel();
+                return;
+            }
+
+            // Click in Overlay
+            if (e.target.closest('#notificationOverlay')) {
+                e.preventDefault();
+                closeNotificationPanel();
+                return;
+            }
+
+            // Click in single notification item
+            const item = e.target.closest('.notification-item');
+            if (item) {
+                const id = item.getAttribute('data-id');
+                if (id) {
+                    handleNotificationClick(id);
+                }
+            }
+        });
+        window._veltronikNotificationListenerBound = true;
     }
 
     // Escuchar eventos de notificaciones
@@ -342,8 +379,7 @@ function updateNotificationUI() {
         const time = formatRelativeTime(n.createdAt);
 
         return `
-            <div class="notification-item ${n.read ? '' : 'unread'}" 
-                 onclick="handleNotificationClick('${n.id}')">
+            <div class="notification-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
                 <div class="notification-icon ${n.type}">${icon}</div>
                 <div class="notification-content">
                     <div class="notification-title">${escapeHtml(n.title)}</div>

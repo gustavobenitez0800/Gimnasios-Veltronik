@@ -272,7 +272,11 @@
                     <h1 class="page-title">Dashboard</h1>
                 </div>
                 <div class="header-right">
-                    <!-- Trial Banner -->
+                    <!-- Subscription / Trial Banner -->
+                    <div id="subscriptionBanner" class="trial-banner subscription-active-banner" style="display: none;">
+                        <span data-icon="checkCircle"></span>
+                        <span>Suscripción activa: <strong id="subscriptionDays">0</strong> días restantes</span>
+                    </div>
                     <div id="trialBanner" class="trial-banner" style="display: none;">
                         <span data-icon="sparkles"></span>
                         <span>Prueba gratuita: <strong id="trialDays">30</strong> días restantes</span>
@@ -842,8 +846,21 @@
                     console.warn('Could not load subscription:', e);
                 }
 
-                // Show trial banner if trial is active
-                if (isTrialActive && trialDays > 0) {
+                // Show subscription or trial banner
+                const hasActiveSubscription = isActiveSubscription(subscription);
+                if (hasActiveSubscription && subscription.current_period_end) {
+                    // Active subscription: show remaining days
+                    const periodEnd = new Date(subscription.current_period_end);
+                    const now = new Date();
+                    const subDaysLeft = Math.ceil((periodEnd - now) / (1000 * 60 * 60 * 24));
+                    const subBanner = document.getElementById('subscriptionBanner');
+                    const subDaysEl = document.getElementById('subscriptionDays');
+                    if (subBanner && subDaysEl) {
+                        subDaysEl.textContent = Math.max(0, subDaysLeft);
+                        subBanner.style.display = 'flex';
+                    }
+                } else if (isTrialActive && trialDays > 0) {
+                    // Trial active: show trial banner with subscribe button
                     const trialBanner = document.getElementById('trialBanner');
                     const trialDaysEl = document.getElementById('trialDays');
                     if (trialBanner && trialDaysEl) {
@@ -859,7 +876,6 @@
                 }
 
                 // Check subscription and trial status for access
-                const hasActiveSubscription = isActiveSubscription(subscription);
                 const hasGracePeriod = subscription && subscription.status === 'past_due'
                     && subscription.grace_period_ends_at
                     && new Date(subscription.grace_period_ends_at) > new Date();
