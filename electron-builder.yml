@@ -7,17 +7,19 @@ files:
   - "electron/**/*"
   - "dist/**/*"
   - "assets/**/*"
-  - "api/**/*"
   - "package.json"
-  - "!node_modules/**/*"
   - "!src/**/*"
   - "!public/**/*"
+  - "!api/**/*"
   - "!.git/**/*"
+  - "!.github/**/*"
   - "!.env"
   - "!.env.*"
   - "!*.md"
   - "!vite.config.js"
   - "!eslint.config.js"
+  - "!vercel.json"
+  - "!.vercelignore"
 
 # Incluir dependencias de producción automáticamente
 asar: true
