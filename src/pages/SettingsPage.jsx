@@ -60,13 +60,28 @@ export default function SettingsPage() {
           .eq('gym_id', gymData.id)
           .maybeSingle();
 
-        if (sub?.current_period_end) {
-          const endDate = new Date(sub.current_period_end);
-          const diffDays = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
-          const dateStr = endDate.toLocaleDateString('es-AR');
-          nextPaymentText = diffDays > 0
-            ? `${dateStr} (en ${diffDays} días)`
-            : diffDays === 0 ? `${dateStr} (hoy)` : `${dateStr} (vencido hace ${Math.abs(diffDays)} días)`;
+        if (sub) {
+          // Determine next payment date from best available source
+          const nextDate = sub.current_period_end || sub.next_payment_date;
+          
+          if (nextDate) {
+            const endDate = new Date(nextDate);
+            const diffDays = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+            const dateStr = endDate.toLocaleDateString('es-AR');
+            nextPaymentText = diffDays > 0
+              ? `${dateStr} (en ${diffDays} días)`
+              : diffDays === 0 ? `${dateStr} (hoy)` : `${dateStr} (vencido hace ${Math.abs(diffDays)} días)`;
+          } else if (sub.last_payment_date) {
+            // Fallback: last_payment_date + 30 days
+            const lastPay = new Date(sub.last_payment_date);
+            const estimated = new Date(lastPay);
+            estimated.setDate(estimated.getDate() + 30);
+            const diffDays = Math.ceil((estimated - new Date()) / (1000 * 60 * 60 * 24));
+            const dateStr = estimated.toLocaleDateString('es-AR');
+            nextPaymentText = diffDays > 0
+              ? `~${dateStr} (estimado, en ${diffDays} días)`
+              : `~${dateStr} (estimado)`;
+          }
         }
       } catch {
         // Subscription table may not exist

@@ -138,6 +138,10 @@ async function handleSubscriptionEvent(preapprovalId) {
     if (mpSub.status === 'authorized') {
         subscriptionUpdate.grace_period_ends_at = null;
         subscriptionUpdate.retry_count = 0;
+        // Actualizar período actual con next_payment_date de MP
+        if (mpSub.next_payment_date) {
+            subscriptionUpdate.current_period_end = mpSub.next_payment_date;
+        }
     }
 
     // UPDATE existing subscription, or INSERT if none exists
@@ -291,10 +295,16 @@ async function handleSubscriptionPayment(paymentId) {
 
     if (mpPayment.status === 'approved') {
         // Pago aprobado → activar suscripción, limpiar gracia
+        // Calcular próximo período: pago + 30 días
+        const paymentDate = mpPayment.date_approved ? new Date(mpPayment.date_approved) : new Date();
+        const nextPeriodEnd = new Date(paymentDate);
+        nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30);
+
         const { error: subError } = await supabase
             .from('subscriptions')
             .update({
                 last_payment_date: mpPayment.date_approved,
+                current_period_end: nextPeriodEnd.toISOString(),
                 status: SUBSCRIPTION_STATUS.ACTIVE,
                 grace_period_ends_at: null,
                 retry_count: 0,
