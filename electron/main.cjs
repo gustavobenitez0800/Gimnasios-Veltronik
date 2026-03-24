@@ -9,8 +9,8 @@
 
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
-const { initAutoUpdater } = require('./updater');
-const deviceManager = require('./device-manager');
+const { initAutoUpdater } = require('./updater.cjs');
+const deviceManager = require('./device-manager.cjs');
 
 // Mantener referencia global para evitar garbage collection
 let mainWindow = null;
@@ -27,7 +27,7 @@ const WINDOW_CONFIG = {
     webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
+        preload: path.join(__dirname, 'preload.cjs'),
         // Seguridad
         enableRemoteModule: false,
         sandbox: false
