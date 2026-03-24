@@ -7,8 +7,54 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
+  # ============================================
+  # JOB 1: Build web (Vite) + Deploy to GitHub Pages
+  # ============================================
+  deploy-web:
+    name: Deploy Web (GitHub Pages)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Vite (Web)
+        run: npm run build
+
+      - name: Create 404.html for SPA routing
+        run: cp dist/index.html dist/404.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ============================================
+  # JOB 2: Create GitHub Release
+  # ============================================
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -22,6 +68,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ============================================
+  # JOB 3: Build Windows Desktop Installer
+  # ============================================
   build-windows:
     needs: create-release
     name: Build Windows
@@ -35,15 +84,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: npm
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build Electron App
+      - name: Build Vite (React)
+        run: npm run build
+
+      - name: Build & Publish Electron App
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ============================================
+  # JOB 4: Build Linux Desktop Packages
+  # ============================================
   build-linux:
     needs: create-release
     name: Build Linux
@@ -57,20 +113,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: npm
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libarchive-tools
 
-      - name: Build Electron App
+      - name: Build Vite (React)
+        run: npm run build
+
+      - name: Build & Publish Electron App
         run: npx electron-builder --linux --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ============================================
+  # JOB 5: Build macOS Desktop App
+  # ============================================
   build-macos:
     needs: create-release
     name: Build macOS
@@ -84,11 +147,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: npm
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build Electron App
+      - name: Build Vite (React)
+        run: npm run build
+
+      - name: Build & Publish Electron App
         run: npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,14 +4,20 @@ copyright: Copyright © 2026 Veltronik
 
 # Archivos a incluir en el build
 files:
-  - "**/*"
+  - "electron/**/*"
+  - "dist/**/*"
+  - "assets/**/*"
+  - "api/**/*"
+  - "package.json"
+  - "!node_modules/**/*"
+  - "!src/**/*"
+  - "!public/**/*"
   - "!.git/**/*"
   - "!.env"
   - "!.env.*"
   - "!*.md"
-  - "!sql/**/*"
-  - "!dist/**/*"
-  - "!build/**/*"
+  - "!vite.config.js"
+  - "!eslint.config.js"
 
 # Incluir dependencias de producción automáticamente
 asar: true
@@ -24,9 +30,9 @@ extraResources:
   - from: "assets/"
     to: "assets/"
 
-# Directorio de salida
+# Directorio de salida (instaladores)
 directories:
-  output: dist
+  output: release
   buildResources: build
 
 # Auto-updates via GitHub Releases
@@ -40,7 +46,7 @@ publish:
 # WINDOWS
 # ============================================
 win:
-  icon: assets/logo-main.png
+  icon: assets/LogoPrincipalVeltronik.png
   target:
     - target: nsis
       arch:
@@ -79,13 +85,13 @@ mac:
       arch:
         - x64
         - arm64
-  icon: assets/logo-main.png
+  icon: assets/LogoPrincipalVeltronik.png
   artifactName: "Veltronik-${version}-${arch}.${ext}"
   category: public.app-category.business
 
 dmg:
   title: Veltronik Platform
-  icon: assets/logo-main.png
+  icon: assets/LogoPrincipalVeltronik.png
 
 # ============================================
 # LINUX
@@ -98,7 +104,7 @@ linux:
     - target: deb
       arch:
         - x64
-  icon: assets/logo-main.png
+  icon: assets/LogoPrincipalVeltronik.png
   artifactName: "Veltronik-${version}.${ext}"
   category: Office
   maintainer: veltronikcompany@gmail.com

@@ -10,7 +10,6 @@
 const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater');
-const { initBiometrics } = require('./biometrics');
 const deviceManager = require('./device-manager');
 
 // Mantener referencia global para evitar garbage collection
@@ -23,7 +22,7 @@ const WINDOW_CONFIG = {
     minWidth: 1024,
     minHeight: 700,
     title: 'Veltronik',
-    icon: path.join(__dirname, '../assets/logo-main.png'),
+    icon: path.join(__dirname, '../assets/LogoPrincipalVeltronik.png'),
     show: false, // Mostrar cuando esté listo
     webPreferences: {
         nodeIntegration: false,
@@ -41,9 +40,14 @@ const WINDOW_CONFIG = {
 function createWindow() {
     mainWindow = new BrowserWindow(WINDOW_CONFIG);
 
-    // Cargar la app - Login como punto de entrada
-    // Si el usuario ya tiene sesión, será redirigido al lobby automáticamente
-    mainWindow.loadFile('index.html');
+    // Cargar la app - React build output
+    if (isDev()) {
+        // En dev, cargar desde el servidor Vite
+        mainWindow.loadURL('http://localhost:5173');
+    } else {
+        // En producción, cargar el build de Vite
+        mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    }
 
     // Mostrar cuando esté lista (evita flash blanco)
     mainWindow.once('ready-to-show', () => {
@@ -53,9 +57,6 @@ function createWindow() {
         if (!isDev()) {
             initAutoUpdater(mainWindow);
         }
-
-        // Inicializar módulo de biométricos
-        initBiometrics(mainWindow);
 
         // Inicializar gestor universal de dispositivos de acceso
         deviceManager.init(mainWindow);
@@ -88,7 +89,7 @@ function isDev() {
 app.whenReady().then(() => {
     // Configurar permisos para cámara y micrófono
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-        const allowedPermissions = ['media', 'mediaKeySystem', 'geolocation', 'notifications'];
+        const allowedPermissions = ['media', 'mediaKeySystem', 'notifications'];
         if (allowedPermissions.includes(permission)) {
             callback(true);
         } else {
@@ -96,13 +97,12 @@ app.whenReady().then(() => {
         }
     });
 
-    // Permitir acceso a dispositivos de media (cámara, micrófono)
+    // Permitir acceso a dispositivos de hardware (torniquetes, lectores de acceso)
     session.defaultSession.setDevicePermissionHandler((details) => {
-        // Permitir acceso a cámaras y micrófonos
         if (details.deviceType === 'hid' || details.deviceType === 'serial' || details.deviceType === 'usb') {
             return true;
         }
-        return true; // Permitir todos los dispositivos para biométricos
+        return false;
     });
 
     createWindow();

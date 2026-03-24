@@ -25,8 +25,10 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const ALLOWED_ORIGINS = [
     'https://gimnasio-veltronik.vercel.app',
+    'http://localhost:5173',
     'http://localhost:5500',
-    'http://127.0.0.1:5500'
+    'http://127.0.0.1:5500',
+    'http://127.0.0.1:5173'
 ];
 
 // ============================================

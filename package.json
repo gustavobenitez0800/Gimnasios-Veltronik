@@ -1,9 +1,10 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "1.0.13",
-  "description": "Veltronik",
+  "version": "1.0.14",
+  "description": "Veltronik - Plataforma de Gestión para Gimnasios",
   "main": "electron/main.js",
   "private": true,
+  "type": "module",
   "author": {
     "name": "Veltronik",
     "email": "veltronikcompany@gmail.com"
@@ -17,8 +18,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
     "start": "electron .",
-    "dev": "electron . --dev",
+    "electron:dev": "electron . --dev",
     "build:electron": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -29,18 +34,29 @@
     "deploy-api": "vercel --prod"
   },
   "dependencies": {
-    "@capacitor/android": "^8.1.0",
-    "@capacitor/core": "^8.1.0",
-    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/supabase-js": "^2.99.3",
+    "chart.js": "^4.5.1",
     "electron-log": "^5.0.3",
     "electron-updater": "^6.1.7",
-    "mercadopago": "^2.0.0"
+    "mercadopago": "^2.0.0",
+    "react": "^19.2.4",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.1.0",
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
     "electron": "^28.0.0",
     "electron-builder": "^26.8.1",
-    "vercel": "^33.0.0"
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "vercel": "^33.0.0",
+    "vite": "^8.0.1"
   },
   "build": {
     "extends": "electron-builder.yml"

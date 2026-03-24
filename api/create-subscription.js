@@ -83,6 +83,38 @@ module.exports = async function handler(req, res) {
         }
 
         // ============================================
+        // AUTO-ASSIGN DEFAULT PLAN IF NOT PROVIDED
+        // ============================================
+
+        let resolvedPlanId = plan_id;
+        if (!resolvedPlanId) {
+            // Fetch default plan (Profesional) from database
+            const { data: defaultPlan } = await supabase
+                .from('plans')
+                .select('id')
+                .eq('name', 'Profesional')
+                .single();
+
+            if (defaultPlan) {
+                resolvedPlanId = defaultPlan.id;
+                logSecure('info', 'Auto-assigned default plan (Profesional)');
+            } else {
+                // Fallback: get first available plan
+                const { data: firstPlan } = await supabase
+                    .from('plans')
+                    .select('id')
+                    .order('price', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (firstPlan) {
+                    resolvedPlanId = firstPlan.id;
+                    logSecure('info', 'Auto-assigned first available plan');
+                }
+            }
+        }
+
+        // ============================================
         // VALIDACIONES DE NEGOCIO
         // ============================================
 
@@ -148,7 +180,7 @@ module.exports = async function handler(req, res) {
             },
 
             // URL de retorno después del pago
-            back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/payment-callback.html`
+            back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
         };
 
         logSecure('info', 'Creating MP subscription', { gym_id });
@@ -166,7 +198,7 @@ module.exports = async function handler(req, res) {
 
         const subscriptionRecord = {
             gym_id: gym_id,
-            plan_id: plan_id || null,
+            plan_id: resolvedPlanId || null,
             mp_preapproval_id: mpSubscription.id,
             mp_payer_email: sanitizedEmail,
             status: SUBSCRIPTION_STATUS.PENDING,
@@ -184,13 +216,15 @@ module.exports = async function handler(req, res) {
             // No falla la respuesta, el webhook corregirá esto
         }
 
-        // Actualizar plan_id del gimnasio si se proporcionó
-        if (plan_id) {
-            await supabase
-                .from('gyms')
-                .update({ plan_id: plan_id })
-                .eq('id', gym_id);
-        }
+        // ALWAYS update gym plan_id
+        await supabase
+            .from('gyms')
+            .update({
+                plan_id: resolvedPlanId || null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', gym_id);
+
 
         // ============================================
         // RESPUESTA EXITOSA

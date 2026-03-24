@@ -1,47 +1,25 @@
-# ============================================
-# VELTRONIK - GIT IGNORE
-# ============================================
-
 # Dependencies
 node_modules/
-package-lock.json
 
-# Environment files
+# Build output
+dist/
+release/
+
+# Environment
 .env
 .env.*
 !.env.example
 
-# Build output
-dist/
-out/
-*.exe
-*.dmg
-*.AppImage
-*.deb
-*.rpm
-
-# Electron cache
-.cache/
-
-# Logs
-*.log
-logs/
-
-# OS files
-.DS_Store
-Thumbs.db
-Desktop.ini
-
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Vercel
 .vercel/
 
-# Temp
-tmp/
-temp/
-*.tmp
+# Logs
+*.log
