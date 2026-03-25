@@ -295,25 +295,64 @@ async function handleSubscriptionPayment(paymentId) {
 
     if (mpPayment.status === 'approved') {
         // Pago aprobado → activar suscripción, limpiar gracia
-        // Calcular próximo período: pago + 30 días
         const paymentDate = mpPayment.date_approved ? new Date(mpPayment.date_approved) : new Date();
-        const nextPeriodEnd = new Date(paymentDate);
-        nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30);
 
-        const { error: subError } = await supabase
+        // Intentar obtener next_payment_date real de la suscripción en MP
+        let nextPeriodEnd = new Date(paymentDate);
+        nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30); // fallback: +30 días
+
+        // Buscar la suscripción en BD para obtener mp_preapproval_id
+        const { data: currentSub } = await supabase
             .from('subscriptions')
-            .update({
-                last_payment_date: mpPayment.date_approved,
-                current_period_end: nextPeriodEnd.toISOString(),
-                status: SUBSCRIPTION_STATUS.ACTIVE,
-                grace_period_ends_at: null,
-                retry_count: 0,
-                updated_at: new Date().toISOString()
-            })
-            .eq('gym_id', gymId);
+            .select('id, mp_preapproval_id')
+            .eq('gym_id', gymId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
 
-        if (subError) {
-            logSecure('error', 'Error updating subscription last payment');
+        // Si tenemos el preapproval_id, consultar MP para la fecha real
+        if (currentSub?.mp_preapproval_id) {
+            try {
+                const mpSub = await preApproval.get({ id: currentSub.mp_preapproval_id });
+                if (mpSub.next_payment_date) {
+                    nextPeriodEnd = new Date(mpSub.next_payment_date);
+                    logSecure('info', 'Got real next_payment_date from MP preapproval');
+                }
+            } catch (e) {
+                logSecure('warn', 'Could not fetch preapproval for next_payment_date, using fallback +30 days');
+            }
+        }
+
+        const subscriptionUpdate = {
+            last_payment_date: mpPayment.date_approved || paymentDate.toISOString(),
+            current_period_start: paymentDate.toISOString(),
+            current_period_end: nextPeriodEnd.toISOString(),
+            next_payment_date: nextPeriodEnd.toISOString(),
+            status: SUBSCRIPTION_STATUS.ACTIVE,
+            grace_period_ends_at: null,
+            retry_count: 0,
+            updated_at: new Date().toISOString()
+        };
+
+        // Actualizar por ID de suscripción si lo tenemos, sino por gym_id
+        if (currentSub?.id) {
+            const { error: subError } = await supabase
+                .from('subscriptions')
+                .update(subscriptionUpdate)
+                .eq('id', currentSub.id);
+
+            if (subError) {
+                logSecure('error', 'Error updating subscription by id');
+            }
+        } else {
+            const { error: subError } = await supabase
+                .from('subscriptions')
+                .update(subscriptionUpdate)
+                .eq('gym_id', gymId);
+
+            if (subError) {
+                logSecure('error', 'Error updating subscription by gym_id');
+            }
         }
 
         // Activar gimnasio (incluso si estaba bloqueado)
@@ -325,15 +364,18 @@ async function handleSubscriptionPayment(paymentId) {
             })
             .eq('id', gymId);
 
-        logSecure('info', 'Gym activated after payment');
+        logSecure('info', 'Gym activated after payment', {
+            nextPeriodEnd: nextPeriodEnd.toISOString()
+        });
 
     } else if (mpPayment.status === 'rejected') {
         // Pago rechazado → iniciar/mantener período de gracia de 7 días
-        // Obtener suscripción actual para verificar si ya tiene gracia
         const { data: currentSub } = await supabase
             .from('subscriptions')
-            .select('grace_period_ends_at, retry_count')
+            .select('id, grace_period_ends_at, retry_count')
             .eq('gym_id', gymId)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .single();
 
         const retryCount = (currentSub?.retry_count || 0) + 1;
@@ -351,13 +393,18 @@ async function handleSubscriptionPayment(paymentId) {
             logSecure('info', 'Grace period started (7 days) after rejected payment');
         }
 
-        await supabase
-            .from('subscriptions')
-            .update(updateData)
-            .eq('gym_id', gymId);
+        if (currentSub?.id) {
+            await supabase
+                .from('subscriptions')
+                .update(updateData)
+                .eq('id', currentSub.id);
+        } else {
+            await supabase
+                .from('subscriptions')
+                .update(updateData)
+                .eq('gym_id', gymId);
+        }
 
-        // NO bloquear inmediamente - mantener activo durante gracia
-        // El cron job check_subscription_status() bloqueará cuando la gracia expire
         logSecure('warn', 'Payment rejected - grace period active', { retryCount });
     }
 }

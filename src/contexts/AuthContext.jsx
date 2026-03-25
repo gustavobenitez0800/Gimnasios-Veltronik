@@ -10,6 +10,7 @@ import supabase, {
   getProfile,
   getGym,
   getSubscription,
+  updateGym as supabaseUpdateGym,
   signIn as supabaseSignIn,
   signUp as supabaseSignUp,
   signInWithGoogle as supabaseSignInWithGoogle,
@@ -246,6 +247,13 @@ export function AuthProvider({ children }) {
     await initAuth();
   };
 
+  const updateGym = async (updates) => {
+    const result = await supabaseUpdateGym(updates);
+    // Refresh gym state after update
+    if (result) setGym(result);
+    return result;
+  };
+
   const value = {
     user,
     profile,
@@ -261,6 +269,7 @@ export function AuthProvider({ children }) {
     loginWithGoogle,
     logout,
     refreshAuth,
+    updateGym,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

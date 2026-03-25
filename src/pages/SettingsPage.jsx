@@ -135,28 +135,32 @@ export default function SettingsPage() {
     }
   };
 
-  // Cancel subscription properly
+  // Cancel subscription properly (calls API that also cancels in MercadoPago)
   const handleCancelSubscription = async () => {
     try {
-      // First, cancel the subscription record in the database
       const gymId = authGym?.id || localStorage.getItem('current_org_id');
-      if (gymId) {
-        // Update subscription status to canceled
-        await supabase
-          .from('subscriptions')
-          .update({ status: 'canceled', updated_at: new Date().toISOString() })
-          .eq('gym_id', gymId)
-          .in('status', ['active', 'pending', 'past_due']);
-        
-        // Update gym status to blocked
-        await updateGym({ status: 'blocked' });
+      if (!gymId) {
+        showToast('No se encontró el gimnasio', 'error');
+        return;
+      }
+
+      const response = await fetch(`${CONFIG.API_URL}/api/cancel-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_id: gymId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al cancelar suscripción');
       }
 
       showToast('Suscripción cancelada. Tus datos están seguros.', 'info');
       setConfirmCancel(false);
       setTimeout(() => { window.location.hash = '#/blocked'; }, 2000);
     } catch (error) {
-      showToast(getSupabaseErrorMessage(error), 'error');
+      showToast(error.message || 'Error al cancelar suscripción', 'error');
     }
   };
 

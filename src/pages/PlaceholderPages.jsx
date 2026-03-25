@@ -187,24 +187,40 @@ export function PaymentCallbackPage() {
     // MercadoPago redirects back with query params: ?status=approved&external_reference=gym_id
     const params = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
     const paymentStatus = params.get('status') || params.get('collection_status');
-    const externalRef = params.get('external_reference');
 
     if (paymentStatus === 'approved' || paymentStatus === 'authorized') {
       setStatus('success');
-      setMessage('¡Pago aprobado! Tu suscripción está activa. Redirigiendo...');
-      // Refresh auth to get updated subscription status
-      if (refreshAuth) refreshAuth();
-      setTimeout(() => navigate(CONFIG.ROUTES.DASHBOARD, { replace: true }), 3000);
+      setMessage('¡Pago aprobado! Activando tu suscripción...');
+      
+      // Esperar a que el webhook procese el pago, luego refrescar auth
+      // El webhook puede tardar unos segundos en procesar
+      let retries = 0;
+      const pollAuth = async () => {
+        try {
+          await refreshAuth();
+        } catch { /* ignore */ }
+        retries++;
+        if (retries < 3) {
+          setTimeout(pollAuth, 2000);
+        } else {
+          setMessage('¡Pago aprobado! Tu suscripción está activa. Redirigiendo...');
+          setTimeout(() => navigate(CONFIG.ROUTES.DASHBOARD, { replace: true }), 1500);
+        }
+      };
+      // Dar 3 segundos iniciales para que el webhook procese
+      setTimeout(pollAuth, 3000);
+
     } else if (paymentStatus === 'pending' || paymentStatus === 'in_process') {
       setStatus('pending');
       setMessage('Tu pago está siendo procesado. Te notificaremos cuando se confirme.');
+      if (refreshAuth) refreshAuth();
       setTimeout(() => navigate(CONFIG.ROUTES.DASHBOARD, { replace: true }), 5000);
     } else if (paymentStatus === 'rejected' || paymentStatus === 'cancelled') {
       setStatus('error');
       setMessage('El pago no pudo ser procesado. Podés intentar nuevamente.');
       setTimeout(() => navigate(CONFIG.ROUTES.PLANS, { replace: true }), 5000);
     } else {
-      // No status param — user navigated here directly or status unknown
+      // No status param — user navigated here directly
       setStatus('pending');
       setMessage('Verificando el estado de tu pago...');
       if (refreshAuth) refreshAuth();
