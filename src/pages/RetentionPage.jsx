@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { getMembers, getMemberPayments } from '../lib/supabase';
-import { formatDate, formatCurrency, getInitials } from '../lib/utils';
+import { formatDate, getInitials } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
@@ -47,7 +47,6 @@ export default function RetentionPage() {
     // At risk: not expired but haven't paid in 30+ days
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const activeMemberIds = new Set(active.map(m => m.id));
     const recentPayers = new Set(
       payments.filter(p => new Date(p.payment_date) >= thirtyDaysAgo).map(p => p.member_id)
     );

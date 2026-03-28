@@ -5,9 +5,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import supabase from '../lib/supabase';
-import { getSession, getSupabaseErrorMessage } from '../lib/supabase';
+import supabase, { getSession, getSupabaseErrorMessage } from '../lib/supabase';
 import CONFIG from '../lib/config';
+import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -98,7 +98,7 @@ export default function ResetPasswordPage() {
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-logo">
-            <img src="/assets/LogoPrincipalVeltronik.png" alt="Veltronik" className="auth-logo-img" />
+            <img src={logoSrc} alt="Veltronik" className="auth-logo-img" />
             <h1 className="auth-logo-text">Veltronik</h1>
           </div>
 

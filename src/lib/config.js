@@ -2,10 +2,14 @@
 // VELTRONIK PLATFORM - CONFIGURACIÓN v2
 // ============================================
 
+const DEFAULT_SUPABASE_URL = 'https://tztupzgxvaopehcgfmag.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6dHVwemd4dmFvcGVoY2dmbWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDE1NDcsImV4cCI6MjA4NDE3NzU0N30.Za6ob-V--drgZ8Ggzbn3CKQW9sl3qN8ASbDQDKtOcDM';
+
 const CONFIG = {
-  // Supabase Configuration
-  SUPABASE_URL: 'https://tztupzgxvaopehcgfmag.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6dHVwemd4dmFvcGVoY2dmbWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDE1NDcsImV4cCI6MjA4NDE3NzU0N30.Za6ob-V--drgZ8Ggzbn3CKQW9sl3qN8ASbDQDKtOcDM',
+  // Supabase (VITE_* en Vercel / .env local; valores por defecto = despliegue actual sin cambios)
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL,
+  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY,
 
   // Backend API URL
   API_URL: import.meta.env.VITE_API_URL || 'https://gimnasio-veltronik.vercel.app',

@@ -7,7 +7,6 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
-import { formatCurrency } from '../lib/utils';
 import supabase from '../lib/supabase';
 
 const FEATURES = [

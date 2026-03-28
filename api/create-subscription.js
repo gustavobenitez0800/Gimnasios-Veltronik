@@ -241,7 +241,7 @@ module.exports = async function handler(req, res) {
             }
         }, req);
 
-    } catch (error) {
+    } catch {
         logSecure('error', 'Create subscription error');
 
         return errorResponse(res, 500, 'Error al crear suscripción', null, req);

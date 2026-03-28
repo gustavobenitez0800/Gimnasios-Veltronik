@@ -84,7 +84,7 @@ module.exports = async function handler(req, res) {
         // Siempre responder 200 para que MP no reintente
         return jsonResponse(res, 200, { received: true, processed: true }, req);
 
-    } catch (error) {
+    } catch {
         logSecure('error', 'Webhook processing error');
         // Aún así responder 200 para evitar reintentos infinitos
         return jsonResponse(res, 200, { received: true, processed: false }, req);
@@ -318,7 +318,7 @@ async function handleSubscriptionPayment(paymentId) {
                     nextPeriodEnd = new Date(mpSub.next_payment_date);
                     logSecure('info', 'Got real next_payment_date from MP preapproval');
                 }
-            } catch (e) {
+            } catch {
                 logSecure('warn', 'Could not fetch preapproval for next_payment_date, using fallback +30 days');
             }
         }

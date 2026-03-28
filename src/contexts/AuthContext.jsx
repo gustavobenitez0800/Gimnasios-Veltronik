@@ -70,12 +70,6 @@ export function AuthProvider({ children }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, []);
 
-  // Helper: check if trial has expired (had a trial, but it's over)
-  const isTrialExpired = useCallback((gymData) => {
-    if (!gymData?.trial_ends_at) return false;
-    return new Date() >= new Date(gymData.trial_ends_at);
-  }, []);
-
   // Helper: is subscription active
   const isActiveSubscription = useCallback((sub) => {
     return sub?.status === 'active';
@@ -138,7 +132,7 @@ export function AuthProvider({ children }) {
 
     // Listen for auth changes
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (event) => {
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);

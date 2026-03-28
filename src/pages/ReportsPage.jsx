@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { getMembers, getMemberPayments, getTodayAccessLogs, getAccessLogs } from '../lib/supabase';
-import { formatDate, formatCurrency, getStatusLabel, getMethodLabel } from '../lib/utils';
+import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
@@ -14,11 +14,13 @@ function getQuickDates(period) {
   let from, to;
   switch (period) {
     case 'today': from = to = today.toISOString().split('T')[0]; break;
-    case 'week':
+    case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
       from = ws.toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0]; break;
+      to = today.toISOString().split('T')[0];
+      break;
+    }
     case 'month':
       from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
       to = today.toISOString().split('T')[0]; break;

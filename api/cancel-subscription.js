@@ -74,7 +74,7 @@ module.exports = async function handler(req, res) {
                 });
                 mpCancelled = true;
                 logSecure('info', 'Subscription cancelled in MercadoPago');
-            } catch (mpError) {
+            } catch {
                 logSecure('error', 'Error cancelling in MercadoPago (may already be cancelled)');
                 // Continuar con la cancelación en BD de todos modos
             }
@@ -109,7 +109,7 @@ module.exports = async function handler(req, res) {
             message: 'Suscripción cancelada. Tus datos están seguros.'
         }, req);
 
-    } catch (error) {
+    } catch {
         logSecure('error', 'Cancel subscription error');
         return errorResponse(res, 500, 'Error al cancelar suscripción', null, req);
     }

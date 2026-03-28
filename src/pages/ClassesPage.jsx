@@ -59,7 +59,7 @@ export default function ClassesPage() {
       setLoading(true);
       const data = await getClasses();
       setClasses(data || []);
-    } catch (error) {
+    } catch {
       showToast('Error al cargar clases', 'error');
     } finally {
       setLoading(false);

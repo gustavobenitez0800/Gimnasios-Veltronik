@@ -8,6 +8,7 @@ export default defineConfig([
   globalIgnores(['dist']),
   {
     files: ['**/*.{js,jsx}'],
+    ignores: ['api/**'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -21,6 +22,18 @@ export default defineConfig([
         ecmaFeatures: { jsx: true },
         sourceType: 'module',
       },
+    },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'react-refresh/only-export-components': ['warn', { allowExportNames: ['useAuth', 'useTheme', 'useToast'] }],
+    },
+  },
+  {
+    files: ['api/**/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],

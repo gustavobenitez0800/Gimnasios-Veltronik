@@ -21,15 +21,19 @@ import {
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
 
+const today = new Date();
+const nextMonth = new Date(today);
+nextMonth.setMonth(nextMonth.getMonth() + 1);
+
 const INITIAL_FORM = {
   member_id: '',
   amount: '',
-  payment_date: new Date().toISOString().split('T')[0],
+  payment_date: today.toISOString().split('T')[0],
   payment_method: 'cash',
   status: 'paid',
   notes: '',
-  period_start: '',
-  period_end: '',
+  period_start: today.toISOString().split('T')[0],
+  period_end: nextMonth.toISOString().split('T')[0],
 };
 
 export default function PaymentsPage() {
@@ -140,7 +144,28 @@ export default function PaymentsPage() {
   };
 
   const handleFormChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      // Auto-calculate period_end when period_start changes (+1 month)
+      if (field === 'period_start' && value) {
+        const start = new Date(value + 'T12:00:00');
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + 1);
+        updated.period_end = end.toISOString().split('T')[0];
+      }
+
+      // Auto-fill period_start from payment_date if period_start is empty
+      if (field === 'payment_date' && value && !prev.period_start) {
+        updated.period_start = value;
+        const start = new Date(value + 'T12:00:00');
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + 1);
+        updated.period_end = end.toISOString().split('T')[0];
+      }
+
+      return updated;
+    });
   };
 
   const handleSave = async (e) => {

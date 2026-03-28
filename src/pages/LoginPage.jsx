@@ -9,6 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
+import supabase from '../lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -48,7 +49,6 @@ export default function LoginPage() {
     }
 
     try {
-      const { default: supabase } = await import('../lib/supabase');
       const redirectUrl = `${window.location.origin}/#/reset-password`;
       await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
       showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
@@ -60,7 +60,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       await loginWithGoogle();
-    } catch (error) {
+    } catch {
       showToast('Error al iniciar sesión con Google', 'error');
     }
   };

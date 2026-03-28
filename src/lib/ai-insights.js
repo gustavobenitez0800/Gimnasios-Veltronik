@@ -4,8 +4,6 @@
 // Predicciones, alertas inteligentes e insights
 // usando algoritmos locales (regression, stats)
 
-import { formatCurrency } from './utils';
-
 // ============================================
 // PREDICCIÓN DE INGRESOS
 // ============================================
@@ -239,7 +237,7 @@ export function getMemberStatusChartData(members) {
       }
     }
 
-    if (statusCount.hasOwnProperty(effectiveStatus)) {
+    if (Object.prototype.hasOwnProperty.call(statusCount, effectiveStatus)) {
       statusCount[effectiveStatus]++;
     }
   });

@@ -19,7 +19,6 @@ import {
   formatCurrency,
   getStatusLabel,
   getStatusBadgeClass,
-  getMethodLabel,
   debounce,
 } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';

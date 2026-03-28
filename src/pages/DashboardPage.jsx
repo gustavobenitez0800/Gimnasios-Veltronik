@@ -2,7 +2,7 @@
 // VELTRONIK V2 - DASHBOARD PAGE
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -42,12 +42,7 @@ export default function DashboardPage() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load data
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
       const [membersData, paymentsData] = await Promise.all([
@@ -62,7 +57,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   // ─── COMPUTED STATS ───
   const stats = useMemo(() => {

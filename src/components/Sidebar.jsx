@@ -2,7 +2,7 @@
 // VELTRONIK - SIDEBAR COMPONENT
 // ============================================
 
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
@@ -41,7 +41,6 @@ const NAV_SECTIONS = [
 export default function Sidebar({ isOpen, onClose }) {
   const { profile, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
 
   const userName = profile?.full_name || 'Usuario';
   const userRole = localStorage.getItem('current_org_role') || '--';

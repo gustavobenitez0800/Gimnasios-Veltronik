@@ -160,6 +160,32 @@ export async function updateGym(updates) {
   return data;
 }
 
+/**
+ * Get all gyms the current user belongs to (via organization_members)
+ */
+export async function getUserGyms() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('role, gym_id, gyms(*)')
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('getUserGyms error:', error);
+    return [];
+  }
+
+  // Flatten the result: each item has { gym, role }
+  return (data || [])
+    .filter(om => om.gyms) // Filter out any orphaned org members
+    .map(om => ({
+      ...om.gyms,
+      role: om.role || 'owner',
+    }));
+}
+
 // ============================================
 // PLANS & SUBSCRIPTIONS
 // ============================================

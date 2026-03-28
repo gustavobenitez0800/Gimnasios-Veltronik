@@ -171,7 +171,7 @@ function validateWebhookSignature(req) {
             Buffer.from(receivedHash, 'hex'),
             Buffer.from(expectedHash, 'hex')
         );
-    } catch (e) {
+    } catch {
         logSecure('warn', 'Signature comparison failed');
         return false;
     }

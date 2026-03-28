@@ -2,21 +2,18 @@
 // VELTRONIK - LOBBY PAGE
 // ============================================
 
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { getInitials } from '../lib/utils';
-import { createGym } from '../lib/supabase';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
 
 export default function LobbyPage() {
-  const { profile, gym, subscription, logout, refreshAuth, hasValidAccess } = useAuth();
+  const { profile, gym, subscription, logout, hasValidAccess } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const userName = profile?.full_name || 'Usuario';
   const initials = getInitials(userName);
@@ -37,18 +34,6 @@ export default function LobbyPage() {
       navigate(CONFIG.ROUTES.BLOCKED);
     } else {
       navigate(CONFIG.ROUTES.DASHBOARD);
-    }
-  };
-
-  const handleCreateGym = async (gymData) => {
-    try {
-      await createGym(gymData);
-      showToast('¡Negocio creado exitosamente!', 'success');
-      setShowCreateModal(false);
-      await refreshAuth();
-    } catch (error) {
-      console.error('Create gym error:', error);
-      showToast('Error al crear el negocio. Intenta de nuevo.', 'error');
     }
   };
 
