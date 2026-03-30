@@ -47,6 +47,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     restartForUpdate: () => ipcRenderer.invoke('restart-for-update'),
 
     /**
+     * Forzar reinicio para instalar update descargado
+     */
+    forceUpdateRestart: () => ipcRenderer.invoke('force-update-restart'),
+
+    /**
+     * Obtener estado de la actualización
+     * @returns {Promise<{updateDownloaded: boolean, downloadedVersion: string|null}>}
+     */
+    getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+
+    /**
      * Listener para eventos de update
      * @param {function} callback
      */

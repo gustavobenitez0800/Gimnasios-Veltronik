@@ -7,6 +7,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppLayout, AuthLayout } from './components/Layout';
+import ForceUpdateOverlay from './components/ForceUpdateOverlay';
 import CONFIG from './lib/config';
 
 // Pages
@@ -39,6 +40,9 @@ export default function App() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
+            {/* Force Update: bloquea TODA la app si la versión es vieja */}
+            <ForceUpdateOverlay />
+
             <Routes>
               {/* Auth pages (no sidebar) */}
               <Route element={<AuthLayout />}>

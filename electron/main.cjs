@@ -133,7 +133,7 @@ ipcMain.handle('get-app-version', () => {
 
 // Verificar updates manualmente
 ipcMain.handle('check-for-updates', async () => {
-    const { checkForUpdates } = require('./updater');
+    const { checkForUpdates } = require('./updater.cjs');
     return await checkForUpdates();
 });
 
@@ -148,6 +148,6 @@ ipcMain.handle('show-error-dialog', async (event, { title, message }) => {
 
 // Reiniciar app para instalar update
 ipcMain.handle('restart-for-update', () => {
-    const { quitAndInstall } = require('./updater');
+    const { quitAndInstall } = require('./updater.cjs');
     quitAndInstall();
 });
