@@ -74,8 +74,10 @@ jobs:
           cache: npm
 
       - name: Install Dependencies
-        run: npm install
-
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+          
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
