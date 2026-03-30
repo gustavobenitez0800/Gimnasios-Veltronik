@@ -45,7 +45,7 @@ jobs:
           cache: npm
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Vite (React)
         run: npm run build
@@ -74,7 +74,7 @@ jobs:
           cache: npm
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install Linux Dependencies
         run: |

@@ -23,7 +23,7 @@ const CONFIG = {
 
   // App Configuration
   APP_NAME: 'Veltronik',
-  APP_VERSION: '1.0.23',
+  APP_VERSION: '1.0.24',
 
   // Routes (React Router paths)
   ROUTES: Object.freeze({
