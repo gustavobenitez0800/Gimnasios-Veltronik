@@ -59,9 +59,6 @@
         },
         "api/create-subscription.js": {
             "maxDuration": 30
-        },
-        "api/cancel-subscription.js": {
-            "maxDuration": 30
         }
     }
 }
