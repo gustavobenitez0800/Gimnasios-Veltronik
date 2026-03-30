@@ -72,7 +72,7 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: "Veltronik"
   displayLanguageSelector: true
-  license: "LICENSE.md" # Requiere crear este archivo
+  license: "LICENSE.txt" # Requiere crear este archivo
 
 # ============================================
 # MACOS
