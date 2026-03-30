@@ -21,20 +21,21 @@ import {
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
 
-const today = new Date();
-const nextMonth = new Date(today);
-nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-const INITIAL_FORM = {
-  member_id: '',
-  amount: '',
-  payment_date: today.toISOString().split('T')[0],
-  payment_method: 'cash',
-  status: 'paid',
-  notes: '',
-  period_start: today.toISOString().split('T')[0],
-  period_end: nextMonth.toISOString().split('T')[0],
-};
+function getInitialForm() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setMonth(next.getMonth() + 1);
+  return {
+    member_id: '',
+    amount: '',
+    payment_date: now.toISOString().split('T')[0],
+    payment_method: 'cash',
+    status: 'paid',
+    notes: '',
+    period_start: now.toISOString().split('T')[0],
+    period_end: next.toISOString().split('T')[0],
+  };
+}
 
 export default function PaymentsPage() {
   const { showToast } = useToast();
@@ -52,7 +53,7 @@ export default function PaymentsPage() {
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [form, setForm] = useState(getInitialForm);
   const [saving, setSaving] = useState(false);
 
   // Delete
@@ -93,9 +94,13 @@ export default function PaymentsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-open modal
+  // Auto-open modal with optional pre-selected member
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
+      const memberId = searchParams.get('member_id');
+      if (memberId) {
+        setForm((prev) => ({ ...prev, member_id: memberId }));
+      }
       setModalOpen(true);
     }
   }, [searchParams]);
@@ -118,7 +123,7 @@ export default function PaymentsPage() {
   // Handlers
   const openNew = () => {
     setEditingId(null);
-    setForm(INITIAL_FORM);
+    setForm(getInitialForm());
     setModalOpen(true);
   };
 
@@ -140,7 +145,7 @@ export default function PaymentsPage() {
   const closeModal = () => {
     setModalOpen(false);
     setEditingId(null);
-    setForm(INITIAL_FORM);
+    setForm(getInitialForm());
   };
 
   const handleFormChange = (field, value) => {

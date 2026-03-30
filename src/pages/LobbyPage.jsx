@@ -78,7 +78,7 @@ export default function LobbyPage() {
               <span className="badge badge-success">
                 {org.type === 'GYM' ? 'Gimnasio' : org.type}
               </span>
-              <p className="lobby-card-role">{org.role}</p>
+              <p className="lobby-card-role">{{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' }[org.role] || org.role}</p>
             </button>
           ))}
 

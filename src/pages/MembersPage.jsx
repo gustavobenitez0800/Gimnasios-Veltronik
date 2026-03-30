@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import {
   getMembersPaginated,
@@ -22,6 +22,7 @@ import {
   debounce,
 } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
+import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
 
 const PAGE_SIZE = 25;
@@ -45,6 +46,7 @@ const INITIAL_FORM = {
 export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Data state
   const [members, setMembers] = useState([]);
@@ -375,6 +377,12 @@ export default function MembersPage() {
                       <td data-label="Vencimiento">{formatDate(member.membership_end)}</td>
                       <td data-label="Acciones">
                         <div className="table-actions">
+                          <button
+                            className="action-btn-quick"
+                            style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
+                            onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
+                            title="Cobrar cuota"
+                          >💰</button>
                           {member.phone && (
                             <button
                               className="action-btn-quick action-btn-whatsapp"

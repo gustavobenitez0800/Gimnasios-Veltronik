@@ -43,7 +43,9 @@ export default function Sidebar({ isOpen, onClose }) {
   const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.full_name || 'Usuario';
-  const userRole = localStorage.getItem('current_org_role') || '--';
+  const rawRole = localStorage.getItem('current_org_role') || '--';
+  const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
+  const userRole = ROLE_LABELS[rawRole] || rawRole;
   const initials = getInitials(userName);
 
   const handleLogout = async () => {

@@ -97,6 +97,7 @@ export function getRelativeTime(date) {
   if (diffMins < 1) return 'Ahora';
   if (diffMins < 60) return `Hace ${diffMins} min`;
   if (diffHours < 24) return `Hace ${diffHours}h`;
+  if (diffDays === 1) return 'Hace 1 día';
   if (diffDays < 7) return `Hace ${diffDays} días`;
 
   return formatDate(date);

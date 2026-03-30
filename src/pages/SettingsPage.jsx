@@ -177,7 +177,8 @@ export default function SettingsPage() {
 
   const accountEmail = user?.email || profile?.email || '--';
   const accountName = profile?.full_name || user?.user_metadata?.full_name || '--';
-  const accountRole = currentRole ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) : '--';
+  const roleLabels = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
+  const accountRole = roleLabels[currentRole] || currentRole || '--';
   const statusLabels = { active: '● Activo', pending: '○ Pendiente', blocked: '● Bloqueado', trial: '● Prueba' };
 
   return (

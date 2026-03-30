@@ -71,6 +71,9 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
               </Route>
+
+              {/* Fallback: redirige rutas desconocidas al login */}
+              <Route path="*" element={<LoginPage />} />
             </Routes>
           </AuthProvider>
         </ToastProvider>

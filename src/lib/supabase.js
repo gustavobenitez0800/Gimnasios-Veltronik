@@ -205,15 +205,17 @@ export async function getSubscription() {
   if (!profile || !profile.gym_id) return null;
 
   // Priority: active subscription
-  const { data: activeSub } = await supabase
+  const { data: activeSub, error: activeError } = await supabase
     .from('subscriptions')
     .select('*')
     .eq('gym_id', profile.gym_id)
     .eq('status', 'active')
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (activeSub) return activeSub;
+  // Ignore PGRST116 (no rows) on the first query
+  if (activeError && activeError.code !== 'PGRST116') throw activeError;
 
   // Fallback: latest subscription
   const { data: latestSub, error } = await supabase
@@ -222,7 +224,7 @@ export async function getSubscription() {
     .eq('gym_id', profile.gym_id)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error && error.code === 'PGRST116') return null;
   if (error) throw error;
@@ -567,7 +569,7 @@ export async function searchMembersForAccess(query) {
     .from('members')
     .select('id, full_name, dni, phone, status, photo_url, membership_end')
     .or(`dni.ilike.%${query}%,full_name.ilike.%${query}%`)
-    .eq('status', 'active')
+    .in('status', ['active', 'expired', 'inactive'])
     .limit(10);
 
   if (error) throw error;
@@ -581,10 +583,14 @@ export async function searchMembersForAccess(query) {
 export async function isDniDuplicate(dni, excludeId = null) {
   if (!dni || dni.trim() === '') return false;
 
+  const profile = await getProfile();
+  if (!profile || !profile.gym_id) return false;
+
   let query = supabase
     .from('members')
     .select('id')
-    .eq('dni', dni.trim());
+    .eq('dni', dni.trim())
+    .eq('gym_id', profile.gym_id);
 
   if (excludeId) {
     query = query.neq('id', excludeId);
