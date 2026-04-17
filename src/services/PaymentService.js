@@ -13,9 +13,11 @@ class PaymentService extends BaseService {
    * Get all payments with member info, ordered by date.
    */
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*, member:members(full_name, dni)')
+      .eq('gym_id', orgId)
       .order('payment_date', { ascending: false });
 
     if (error) throw error;

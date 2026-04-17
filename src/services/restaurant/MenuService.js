@@ -6,15 +6,17 @@ import { BaseService } from '../base/BaseService';
 
 class MenuService extends BaseService {
   constructor() {
-    super('menu_items');
+    super('menu_items', 'org_id');
   }
 
   // ─── Categories ───
 
   async getCategories() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from('menu_categories')
       .select('*')
+      .eq('org_id', orgId)
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return data || [];
@@ -50,9 +52,11 @@ class MenuService extends BaseService {
   // ─── Items ───
 
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*, category:menu_categories(name, icon)')
+      .eq('org_id', orgId)
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return data || [];

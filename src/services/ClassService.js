@@ -13,9 +13,11 @@ class ClassService extends BaseService {
    * Get all classes ordered by day and time.
    */
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('gym_id', orgId)
       .order('day_of_week', { ascending: true })
       .order('start_time', { ascending: true });
 
@@ -36,11 +38,13 @@ class ClassService extends BaseService {
    * Get bookings for a specific date with class and member info.
    */
   async getBookingsByDate(date) {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from('class_bookings')
       .select(
         '*, class:classes(name, instructor, start_time, end_time, capacity), member:members(full_name, dni)'
       )
+      .eq('gym_id', orgId)
       .eq('booking_date', date)
       .order('booked_at', { ascending: false });
 

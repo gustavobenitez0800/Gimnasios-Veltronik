@@ -6,7 +6,7 @@ import { BaseService } from '../base/BaseService';
 
 class CashRegisterService extends BaseService {
   constructor() {
-    super('cash_register');
+    super('cash_register', 'org_id');
   }
 
   /**

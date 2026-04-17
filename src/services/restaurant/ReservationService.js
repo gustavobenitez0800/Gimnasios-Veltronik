@@ -6,7 +6,7 @@ import { BaseService } from '../base/BaseService';
 
 class ReservationService extends BaseService {
   constructor() {
-    super('reservations');
+    super('reservations', 'org_id');
   }
 
   async getAll(date = null) {

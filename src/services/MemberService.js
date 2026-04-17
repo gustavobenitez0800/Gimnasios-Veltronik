@@ -13,9 +13,11 @@ class MemberService extends BaseService {
    * Get all members ordered by name.
    */
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('gym_id', orgId)
       .order('full_name', { ascending: true });
 
     if (error) throw error;
@@ -26,12 +28,14 @@ class MemberService extends BaseService {
    * Get members with pagination and optional search.
    */
   async getPaginated(page = 0, pageSize = 50, search = '') {
+    const orgId = await this._getOrgId();
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
     let query = this.client
       .from(this.tableName)
       .select('*', { count: 'exact' })
+      .eq('gym_id', orgId)
       .order('full_name', { ascending: true })
       .range(from, to);
 
@@ -90,9 +94,11 @@ class MemberService extends BaseService {
    * Search members for access control (limited fields).
    */
   async searchForAccess(query) {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('id, full_name, dni, phone, status, photo_url, membership_end')
+      .eq('gym_id', orgId)
       .or(`dni.ilike.%${query}%,full_name.ilike.%${query}%`)
       .in('status', ['active', 'expired', 'inactive'])
       .limit(10);

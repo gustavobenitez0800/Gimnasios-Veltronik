@@ -6,16 +6,18 @@ import { BaseService } from '../base/BaseService';
 
 class OrderService extends BaseService {
   constructor() {
-    super('restaurant_orders');
+    super('restaurant_orders', 'org_id');
   }
 
   /**
    * Get orders with optional status filter.
    */
   async getAll(statusFilter = null) {
+    const orgId = await this._getOrgId();
     let query = this.client
       .from(this.tableName)
       .select('*, table:restaurant_tables(table_number), waiter:restaurant_staff(full_name)')
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false });
 
     if (statusFilter) {
@@ -31,11 +33,13 @@ class OrderService extends BaseService {
    * Get active orders with items.
    */
   async getActive() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select(
         '*, table:restaurant_tables(table_number), waiter:restaurant_staff(full_name), items:order_items(*, menu_item:menu_items(name))'
       )
+      .eq('org_id', orgId)
       .in('status', ['pending', 'preparing', 'ready', 'served'])
       .order('created_at', { ascending: true });
     if (error) throw error;

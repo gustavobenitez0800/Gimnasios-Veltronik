@@ -6,7 +6,7 @@ import { BaseService } from '../base/BaseService';
 
 class InventoryService extends BaseService {
   constructor() {
-    super('inventory_items');
+    super('inventory_items', 'org_id');
   }
 
   async getAll() {

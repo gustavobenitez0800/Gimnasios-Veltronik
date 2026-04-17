@@ -11,12 +11,14 @@ import supabase from './SupabaseClient';
 export class BaseService {
   /**
    * @param {string} tableName — Nombre de la tabla en Supabase
+   * @param {string} orgField — Nombre del campo FK de organización ('gym_id' o 'org_id')
    */
-  constructor(tableName) {
+  constructor(tableName, orgField = 'gym_id') {
     if (new.target === BaseService) {
       throw new Error('BaseService es abstracta y no puede instanciarse directamente.');
     }
     this.tableName = tableName;
+    this.orgField = orgField;
     this.client = supabase;
   }
 
@@ -24,11 +26,14 @@ export class BaseService {
 
   /**
    * Obtener todos los registros con orden opcional.
+   * SIEMPRE filtra por la organización actual para evitar mezcla de datos.
    */
   async getAll(orderBy = 'created_at', ascending = false) {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq(this.orgField, orgId)
       .order(orderBy, { ascending });
 
     if (error) throw error;

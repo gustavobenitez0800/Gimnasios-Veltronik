@@ -13,11 +13,13 @@ class AccessService extends BaseService {
    * Get today's access logs with member info.
    */
   async getTodayLogs() {
+    const orgId = await this._getOrgId();
     const today = new Date().toISOString().split('T')[0];
 
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*, member:members(id, full_name, dni, phone, status, membership_end)')
+      .eq('gym_id', orgId)
       .gte('check_in_at', today)
       .order('check_in_at', { ascending: false });
 
@@ -29,9 +31,11 @@ class AccessService extends BaseService {
    * Get access logs for a date range.
    */
   async getLogsByDateRange(startDate, endDate) {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*, member:members(id, full_name, dni)')
+      .eq('gym_id', orgId)
       .gte('check_in_at', startDate)
       .lte('check_in_at', endDate + 'T23:59:59')
       .order('check_in_at', { ascending: false });
@@ -83,11 +87,13 @@ class AccessService extends BaseService {
    * Get currently checked-in members (checked in today, not checked out).
    */
   async getCurrentlyCheckedIn() {
+    const orgId = await this._getOrgId();
     const today = new Date().toISOString().split('T')[0];
 
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*, member:members(id, full_name, dni, phone, photo_url)')
+      .eq('gym_id', orgId)
       .gte('check_in_at', today)
       .is('check_out_at', null)
       .order('check_in_at', { ascending: false });

@@ -6,7 +6,7 @@ import { BaseService } from '../base/BaseService';
 
 class AreaService extends BaseService {
   constructor() {
-    super('restaurant_areas');
+    super('restaurant_areas', 'org_id');
   }
 
   async getAll() {

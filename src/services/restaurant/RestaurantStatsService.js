@@ -15,17 +15,21 @@ class RestaurantStatsService {
   async getDashboardStats() {
     try {
       const today = new Date().toISOString().split('T')[0];
+      const orgId = localStorage.getItem('current_org_id');
+      if (!orgId) return { todayOrders: 0, todayRevenue: 0, activeOrders: 0, tablesOccupied: 0, tablesTotal: 0, todayReservations: 0 };
 
       const [ordersRes, tablesRes, reservationsRes] = await Promise.all([
         this.client
           .from('restaurant_orders')
           .select('id, total, status, payment_method, created_at')
+          .eq('org_id', orgId)
           .gte('created_at', today)
           .order('created_at', { ascending: false }),
-        this.client.from('restaurant_tables').select('id, status'),
+        this.client.from('restaurant_tables').select('id, status').eq('org_id', orgId),
         this.client
           .from('reservations')
           .select('id, status')
+          .eq('org_id', orgId)
           .eq('reservation_date', today),
       ]);
 
