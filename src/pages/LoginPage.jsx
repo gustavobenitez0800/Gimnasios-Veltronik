@@ -9,7 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
-import supabase from '../lib/supabase';
+import { supabase } from '../services';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

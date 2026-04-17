@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import supabase, { getSession, getSupabaseErrorMessage } from '../lib/supabase';
+import { supabase, authService, errorService } from '../services';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
@@ -48,7 +48,7 @@ export default function ResetPasswordPage() {
       }
 
       // Check for existing session
-      const session = await getSession();
+      const session = await authService.getSession();
       if (!session) {
         showToast('El enlace ha expirado. Solicitá uno nuevo.', 'error');
         setTimeout(() => navigate(CONFIG.ROUTES.LOGIN), 2000);
@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
       showToast('¡Contraseña actualizada! Redirigiendo...', 'success');
       setTimeout(() => navigate(CONFIG.ROUTES.LOGIN), 2000);
     } catch (error) {
-      showToast('Error al cambiar contraseña: ' + getSupabaseErrorMessage(error), 'error');
+      showToast('Error al cambiar contraseña: ' + errorService.getMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }

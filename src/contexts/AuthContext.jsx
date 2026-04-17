@@ -4,19 +4,25 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import supabase, {
-  getSession,
-  getCurrentUser,
-  getProfile,
-  getGym,
-  getSubscription,
-  updateGym as supabaseUpdateGym,
-  signIn as supabaseSignIn,
-  signUp as supabaseSignUp,
-  signInWithGoogle as supabaseSignInWithGoogle,
-  signOut as supabaseSignOut,
-  clearPlatformState,
-} from '../lib/supabase';
+import {
+  supabase,
+  authService,
+  profileService,
+  gymService,
+  subscriptionService,
+} from '../services';
+
+// Aliases for backward compat within this file
+const getSession = () => authService.getSession();
+const getCurrentUser = () => authService.getCurrentUser();
+const getProfile = () => profileService.getCurrent();
+const getSubscription = () => subscriptionService.getCurrent();
+const supabaseUpdateGym = (u) => gymService.updateCurrent(u);
+const supabaseSignIn = (e, p) => authService.signIn(e, p);
+const supabaseSignUp = (e, p, n) => authService.signUp(e, p, n);
+const supabaseSignInWithGoogle = () => authService.signInWithGoogle();
+const supabaseSignOut = () => authService.signOut();
+const clearPlatformState = () => authService.clearPlatformState();
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
 
@@ -88,6 +94,58 @@ export function AuthProvider({ children }) {
     return false;
   }, []);
 
+  /**
+   * Load the gym (org) data for the currently selected organization.
+   * Uses current_org_id from localStorage if available, otherwise falls back to profile.gym_id.
+   */
+  const loadCurrentOrg = useCallback(async (userProfile) => {
+    const orgId = localStorage.getItem('current_org_id') || userProfile?.gym_id;
+    if (!orgId) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('gyms')
+        .select('*')
+        .eq('id', orgId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error('loadCurrentOrg error:', err);
+      return null;
+    }
+  }, []);
+
+  /**
+   * Load subscription for a specific org ID.
+   */
+  const loadSubscriptionForOrg = useCallback(async (orgId) => {
+    if (!orgId) return null;
+    try {
+      const { data: activeSub } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('gym_id', orgId)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSub) return activeSub;
+
+      const { data: latestSub } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('gym_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return latestSub || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   // Initialize auth state
   const initAuth = useCallback(async () => {
     try {
@@ -104,28 +162,29 @@ export function AuthProvider({ children }) {
       const userProfile = await getProfile();
       setProfile(userProfile);
 
-      if (userProfile?.gym_id) {
-        const gymData = await getGym();
-        setGym(gymData);
+      // Load the currently selected org (multi-org support)
+      const gymData = await loadCurrentOrg(userProfile);
+      setGym(gymData);
 
+      if (gymData) {
         const trialActive = checkTrialStatus(gymData);
         const trialDays = getTrialDays(gymData);
         setIsTrialActive(trialActive);
         setTrialDaysRemaining(trialDays);
 
-        try {
-          const sub = await getSubscription();
-          setSubscription(sub);
-        } catch {
-          // Subscription loading error is not critical
-        }
+        const sub = await loadSubscriptionForOrg(gymData.id);
+        setSubscription(sub);
+      } else {
+        setIsTrialActive(false);
+        setTrialDaysRemaining(0);
+        setSubscription(null);
       }
     } catch (error) {
       console.error('Auth init error:', error);
     } finally {
       setLoading(false);
     }
-  }, [checkTrialStatus, getTrialDays]);
+  }, [checkTrialStatus, getTrialDays, loadCurrentOrg, loadSubscriptionForOrg]);
 
   useEffect(() => {
     initAuth();
@@ -242,10 +301,19 @@ export function AuthProvider({ children }) {
   };
 
   const updateGym = async (updates) => {
-    const result = await supabaseUpdateGym(updates);
-    // Refresh gym state after update
-    if (result) setGym(result);
-    return result;
+    const orgId = localStorage.getItem('current_org_id') || profile?.gym_id;
+    if (!orgId) throw new Error('No org selected');
+
+    const { data, error } = await supabase
+      .from('gyms')
+      .update(updates)
+      .eq('id', orgId)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) setGym(data);
+    return data;
   };
 
   const value = {

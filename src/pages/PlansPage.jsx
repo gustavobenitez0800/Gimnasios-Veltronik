@@ -7,16 +7,33 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
-import supabase from '../lib/supabase';
+import { supabase } from '../services';
 
-const FEATURES = [
-  'Gestión ilimitada de socios',
-  'Registro de pagos y cuotas',
-  'Dashboard con estadísticas',
-  'Múltiples usuarios por gimnasio',
-  'Soporte técnico prioritario',
-  'Actualizaciones automáticas',
-];
+const FEATURES_BY_TYPE = {
+  GYM: [
+    'Gestión ilimitada de socios',
+    'Registro de pagos y cuotas',
+    'Dashboard con estadísticas',
+    'Control de acceso y asistencia',
+    'Múltiples usuarios por gimnasio',
+    'Soporte técnico prioritario',
+    'Actualizaciones automáticas',
+  ],
+  RESTO: [
+    'Gestión de mesas y áreas',
+    'Menú digital con categorías',
+    'Sistema de pedidos completo',
+    'Pantalla de cocina en tiempo real',
+    'Caja diaria con cierre automático',
+    'Inventario con alertas de stock',
+    'Reservas online',
+    'Reportes de ventas y análisis',
+    'Soporte técnico prioritario',
+  ],
+};
+
+const TYPE_LABELS = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' };
+const TYPE_ICONS = { GYM: '🏋️', RESTO: '🍽️', KIOSK: '🏪', OTHER: '📱' };
 
 export default function PlansPage() {
   const navigate = useNavigate();
@@ -24,6 +41,11 @@ export default function PlansPage() {
   const { gym, profile, isTrialActive, trialDaysRemaining, subscription, isActiveSubscription } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+
+  // Get current org type from localStorage (set when user selects org in Lobby)
+  const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
+  const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
+  const features = FEATURES_BY_TYPE[orgType] || FEATURES_BY_TYPE.GYM;
 
   // If already active subscription → go to dashboard
   useEffect(() => {
@@ -40,7 +62,7 @@ export default function PlansPage() {
           .from('plans')
           .select('*')
           .eq('name', 'Profesional')
-          .single();
+          .maybeSingle();
         if (data) setSelectedPlan(data);
       } catch { /* fallback to hardcoded */ }
     }
@@ -59,6 +81,8 @@ export default function PlansPage() {
           gym_id: gym.id,
           payer_email: profile.email,
           plan_id: selectedPlan?.id || null,
+          org_type: orgType,
+          price: price,
         }),
       });
 
@@ -94,7 +118,7 @@ export default function PlansPage() {
       <div className="plans-container">
         {/* Header */}
         <div className="plans-header">
-          <h1>🚀 Activa tu gimnasio</h1>
+          <h1>🚀 Activá tu {TYPE_LABELS[orgType] || 'negocio'}</h1>
           <p style={{ color: 'var(--text-muted)' }}>Suscripción mensual para acceso completo al sistema</p>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             {isTrialActive && (
@@ -129,16 +153,16 @@ export default function PlansPage() {
 
         {/* Plan Card */}
         <div className="plan-card">
-          <div className="plan-badge">💎 Plan Único</div>
-          <h2 className="plan-name">Veltronik Pro</h2>
-          <p className="plan-desc">Acceso completo a todas las funcionalidades</p>
+          <div className="plan-badge">{TYPE_ICONS[orgType] || '💎'} Veltronik {orgType === 'RESTO' ? 'Restaurante' : 'Pro'}</div>
+          <h2 className="plan-name">Veltronik {orgType === 'RESTO' ? 'Restaurante' : 'Pro'}</h2>
+          <p className="plan-desc">Acceso completo a todas las funcionalidades de {TYPE_LABELS[orgType] || 'tu negocio'}</p>
           <div className="plan-price-box">
             <span className="plan-currency">$</span>
-            <span className="plan-amount">{(CONFIG.SUBSCRIPTION_PRICE || 35000).toLocaleString('es-AR')}</span>
+            <span className="plan-amount">{price.toLocaleString('es-AR')}</span>
             <span className="plan-period">por mes</span>
           </div>
           <ul className="plan-features">
-            {FEATURES.map((f, i) => <li key={i}>{f}</li>)}
+            {features.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
           <button className="subscribe-button" disabled={subscribing} onClick={handleSubscribe}>
             {subscribing ? <><span className="spinner" /> Procesando...</> : 'Suscribirme ahora'}

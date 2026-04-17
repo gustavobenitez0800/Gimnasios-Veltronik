@@ -1,10 +1,10 @@
 // ============================================
-// VELTRONIK V2 - RETENTION PAGE
+// VELTRONIK V2 - RETENTION PAGE (Refactored)
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { getMembers, getMemberPayments } from '../lib/supabase';
+import { memberService, paymentService } from '../services';
 import { formatDate, getInitials } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -18,7 +18,7 @@ export default function RetentionPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [m, p] = await Promise.all([getMembers(), getMemberPayments()]);
+      const [m, p] = await Promise.all([memberService.getAll(), paymentService.getAll()]);
       setMembers(m || []);
       setPayments(p || []);
     } catch { showToast('Error al cargar datos', 'error'); }

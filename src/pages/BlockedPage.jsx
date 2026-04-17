@@ -5,24 +5,27 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { gymService } from '../services';
 import CONFIG from '../lib/config';
-import supabase from '../lib/supabase';
 
 export default function BlockedPage() {
   const navigate = useNavigate();
   const { gym, subscription, isActiveSubscription, isTrialActive, logout } = useAuth();
+  const orgType = localStorage.getItem('current_org_type') || gym?.organization_type || 'GYM';
+  const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco' }[orgType] || 'negocio';
+
   const blockReason = useMemo(() => {
     if (subscription?.status === 'canceled') {
-      return { title: 'Suscripción cancelada', message: 'Tu suscripción fue cancelada. Tus datos están seguros y no serán eliminados. Suscribite nuevamente para reactivar tu cuenta.' };
+      return { title: 'Suscripción cancelada', message: `Tu suscripción del ${typeLabel} fue cancelada. Tus datos están seguros y no serán eliminados. Suscribite nuevamente para reactivar tu cuenta.` };
     }
     if (subscription?.status === 'past_due') {
       return { title: 'Pago vencido', message: 'No pudimos procesar tu pago mensual. Tu cuenta fue bloqueada. Actualizá tu método de pago para reactivarla.' };
     }
     if (gym?.trial_ends_at && new Date(gym.trial_ends_at) < new Date()) {
-      return { title: 'Prueba gratuita finalizada', message: 'Tu período de prueba de 30 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.' };
+      return { title: 'Prueba gratuita finalizada', message: `Tu período de prueba de 30 días para tu ${typeLabel} ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.` };
     }
     return { title: 'Bloqueado', message: 'Tu cuenta fue suspendida. Tus datos están seguros. Contactanos o suscribite para reactivar tu acceso.' };
-  }, [subscription, gym]);
+  }, [subscription, gym, typeLabel]);
 
   const [hasMultipleOrgs, setHasMultipleOrgs] = useState(false);
 
@@ -36,7 +39,7 @@ export default function BlockedPage() {
     // Check for multiple orgs
     (async () => {
       try {
-        const { data: orgs } = await supabase.rpc('get_my_organizations');
+        const orgs = await gymService.getUserGyms();
         if (orgs?.length > 1) setHasMultipleOrgs(true);
       } catch { /* silent */ }
     })();

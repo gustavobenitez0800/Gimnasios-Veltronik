@@ -6,8 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { updateGym, getGym, getSupabaseErrorMessage } from '../lib/supabase';
-import supabase from '../lib/supabase';
+import { supabase, gymService, errorService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import CONFIG from '../lib/config';
@@ -38,7 +37,7 @@ export default function SettingsPage() {
       setLoading(true);
 
       // Fetch gym data (fresh from DB)
-      const gymData = authGym || await getGym();
+      const gymData = authGym || await gymService.getCurrent();
       if (!gymData) { setLoading(false); return; }
 
       setGymForm({
@@ -121,7 +120,7 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
-      await updateGym({
+      await gymService.updateCurrent({
         name: gymForm.name.trim(),
         address: gymForm.address.trim() || null,
         phone: gymForm.phone.trim() || null,
@@ -129,7 +128,7 @@ export default function SettingsPage() {
       });
       showToast('Configuración guardada', 'success');
     } catch (error) {
-      showToast(getSupabaseErrorMessage(error), 'error');
+      showToast(errorService.getMessage(error), 'error');
     } finally {
       setSaving(false);
     }

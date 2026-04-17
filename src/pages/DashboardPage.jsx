@@ -1,5 +1,5 @@
 // ============================================
-// VELTRONIK V2 - DASHBOARD PAGE
+// VELTRONIK V2 - DASHBOARD PAGE (Refactored)
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -18,16 +18,10 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { getMembers, getMemberPayments } from '../lib/supabase';
+import { memberService, paymentService, insightsService } from '../services';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
-import {
-  predictNextMonthRevenue,
-  getPaymentAlerts,
-  generateDailyInsights,
-  getMonthlyRevenueChartData,
-  getMemberStatusChartData,
-} from '../lib/ai-insights';
 import { PageHeader } from '../components/Layout';
+import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 
@@ -46,8 +40,8 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const [membersData, paymentsData] = await Promise.all([
-        getMembers(),
-        getMemberPayments().catch(() => []),
+        memberService.getAll(),
+        paymentService.getAll().catch(() => []),
       ]);
       setMembers(membersData || []);
       setPayments(paymentsData || []);
@@ -90,11 +84,11 @@ export default function DashboardPage() {
   }, [members, payments]);
 
   // ─── AI DATA ───
-  const prediction = useMemo(() => predictNextMonthRevenue(payments), [payments]);
-  const alerts = useMemo(() => getPaymentAlerts(members), [members]);
-  const insights = useMemo(() => generateDailyInsights({ members, payments, gym }), [members, payments, gym]);
-  const revenueChartData = useMemo(() => getMonthlyRevenueChartData(payments, 6), [payments]);
-  const membersChartData = useMemo(() => getMemberStatusChartData(members), [members]);
+  const prediction = useMemo(() => insightsService.predictNextMonthRevenue(payments), [payments]);
+  const alerts = useMemo(() => insightsService.getPaymentAlerts(members), [members]);
+  const insights = useMemo(() => insightsService.generateDailyInsights({ members, payments, gym }), [members, payments, gym]);
+  const revenueChartData = useMemo(() => insightsService.getMonthlyRevenueChartData(payments, 6), [payments]);
+  const membersChartData = useMemo(() => insightsService.getMemberStatusChartData(members), [members]);
 
   // ─── CHART CONFIGS ───
   const revenueChart = {
@@ -204,30 +198,10 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        <StatCard
-          icon="users"
-          label="Socios Activos"
-          value={stats.activeMembers}
-          color="primary"
-        />
-        <StatCard
-          icon="wallet"
-          label="Ingresos del Mes"
-          value={formatCurrency(stats.monthlyRevenue)}
-          color="success"
-        />
-        <StatCard
-          icon="bell"
-          label="Pagos Vencidos"
-          value={stats.expiredMembers}
-          color="warning"
-        />
-        <StatCard
-          icon="calendar"
-          label="Vencen esta semana"
-          value={stats.expiringMembers}
-          color="accent"
-        />
+        <StatCard icon="users" label="Socios Activos" value={stats.activeMembers} color="primary" />
+        <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(stats.monthlyRevenue)} color="success" />
+        <StatCard icon="bell" label="Pagos Vencidos" value={stats.expiredMembers} color="warning" />
+        <StatCard icon="calendar" label="Vencen esta semana" value={stats.expiringMembers} color="accent" />
       </div>
 
       {/* AI Section */}
@@ -396,21 +370,6 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Stat Card Component ───
-function StatCard({ icon, label, value, color }) {
-  return (
-    <div className="stat-card">
-      <div className={`stat-icon stat-icon-${color}`}>
-        <Icon name={icon} />
-      </div>
-      <div className="stat-content">
-        <div className="stat-value">{value}</div>
-        <div className="stat-label">{label}</div>
       </div>
     </div>
   );

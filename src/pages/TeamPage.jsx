@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import supabase from '../lib/supabase';
+import { supabase } from '../services';
 import { getInitials, getRelativeTime } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';

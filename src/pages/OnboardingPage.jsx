@@ -6,14 +6,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import supabase from '../lib/supabase';
-import { getSupabaseErrorMessage } from '../lib/supabase';
+import { supabase, errorService } from '../services';
 import CONFIG from '../lib/config';
 
 const BUSINESS_TYPES = [
   { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: '🏋️', gradient: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', enabled: true },
   { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta, stock e inventario', icon: '🏪', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
-  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos y delivery', icon: '🍽️', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: false },
+  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: '🍽️', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
   { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
@@ -54,7 +53,7 @@ export default function OnboardingPage() {
       if (refreshAuth) await refreshAuth();
       setTimeout(() => navigate(CONFIG.ROUTES.LOBBY), 1500);
     } catch (error) {
-      showToast('Error al crear el negocio: ' + getSupabaseErrorMessage(error), 'error');
+      showToast('Error al crear el negocio: ' + errorService.getMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }

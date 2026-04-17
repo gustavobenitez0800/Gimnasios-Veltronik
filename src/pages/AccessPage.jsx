@@ -1,19 +1,13 @@
 // ============================================
-// VELTRONIK V2 - ACCESS CONTROL PAGE
+// VELTRONIK V2 - ACCESS CONTROL PAGE (Refactored)
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import {
-  searchMembersForAccess,
-  checkInMember,
-  checkOutMember,
-  getCurrentlyCheckedIn,
-  getTodayAccessLogs,
-  getSupabaseErrorMessage,
-} from '../lib/supabase';
+import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
+import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 
 export default function AccessPage() {
@@ -32,8 +26,8 @@ export default function AccessPage() {
     try {
       setLoading(true);
       const [inGym, logs] = await Promise.all([
-        getCurrentlyCheckedIn(),
-        getTodayAccessLogs(),
+        accessService.getCurrentlyCheckedIn(),
+        accessService.getTodayLogs(),
       ]);
       setCheckedIn(inGym || []);
       setTodayLogs(logs || []);
@@ -51,7 +45,7 @@ export default function AccessPage() {
     if (!query || query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     try {
-      const results = await searchMembersForAccess(query);
+      const results = await memberService.searchForAccess(query);
       setSearchResults(results || []);
     } catch { setSearchResults([]); }
     finally { setSearching(false); }
@@ -75,7 +69,7 @@ export default function AccessPage() {
   // Check-in
   const handleCheckIn = async (member) => {
     try {
-      await checkInMember(member.id, 'manual');
+      await accessService.checkIn(member.id, 'manual');
       const daysInfo = getDaysInfo(member.membership_end);
 
       // Show success popup
@@ -94,18 +88,18 @@ export default function AccessPage() {
 
       showToast(`${member.full_name} registrado`, 'success');
     } catch (error) {
-      showToast(getSupabaseErrorMessage(error), 'error');
+      showToast(errorService.getMessage(error), 'error');
     }
   };
 
   // Check-out
   const handleCheckOut = async (logId, memberName) => {
     try {
-      await checkOutMember(logId);
+      await accessService.checkOut(logId);
       showToast(`${memberName} salió`, 'success');
       loadData();
     } catch (error) {
-      showToast(getSupabaseErrorMessage(error), 'error');
+      showToast(errorService.getMessage(error), 'error');
     }
   };
 
@@ -194,18 +188,21 @@ export default function AccessPage() {
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el gimnasio</div>
-            ) : checkedIn.map(log => (
+            ) : checkedIn.map(log => {
+              const member = Array.isArray(log.member) ? log.member[0] : log.member;
+              const memberName = member?.full_name || 'Socio';
+              return (
               <div key={log.id} className="checked-in-item">
-                <div className="member-avatar">{getInitials(log.member?.full_name)}</div>
+                <div className="member-avatar">{getInitials(memberName)}</div>
                 <div className="member-info">
-                  <div className="member-name">{log.member?.full_name || 'Socio'}</div>
+                  <div className="member-name">{memberName}</div>
                   <div className="checkin-time">Entrada: {getRelativeTime(log.check_in_at)}</div>
                 </div>
-                <button className="checkout-btn" onClick={() => handleCheckOut(log.id, log.member?.full_name)}>
+                <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
                   👋 Salida
                 </button>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </div>
@@ -222,15 +219,17 @@ export default function AccessPage() {
             <tbody>
               {todayLogs.length === 0 ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
-              ) : todayLogs.slice(0, 30).map(log => (
+              ) : todayLogs.slice(0, 30).map(log => {
+                const member = Array.isArray(log.member) ? log.member[0] : log.member;
+                return (
                 <tr key={log.id}>
-                  <td><strong>{log.member?.full_name || 'Socio'}</strong></td>
-                  <td>{log.member?.dni || '-'}</td>
+                  <td><strong>{member?.full_name || 'Socio'}</strong></td>
+                  <td>{member?.dni || '-'}</td>
                   <td>{new Date(log.check_in_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</td>
                   <td>{log.check_out_at ? new Date(log.check_out_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
                   <td>{log.access_method === 'manual' ? '✋ Manual' : log.access_method === 'qr' ? '📱 QR' : log.access_method || '-'}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

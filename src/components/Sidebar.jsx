@@ -1,5 +1,5 @@
 // ============================================
-// VELTRONIK - SIDEBAR COMPONENT
+// VELTRONIK - SIDEBAR COMPONENT (Multi-vertical)
 // ============================================
 
 import { NavLink } from 'react-router-dom';
@@ -10,7 +10,9 @@ import Icon from './Icon';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
-const NAV_SECTIONS = [
+// ─── Navigation sections by organization type ───
+
+const GYM_NAV = [
   {
     title: 'Principal',
     items: [
@@ -38,6 +40,50 @@ const NAV_SECTIONS = [
   },
 ];
 
+const RESTO_NAV = [
+  {
+    title: 'Restaurante',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.TABLES, icon: 'grid', label: 'Mesas' },
+      { to: CONFIG.ROUTES.MENU, icon: 'list', label: 'Menú' },
+      { to: CONFIG.ROUTES.ORDERS, icon: 'clipboard', label: 'Pedidos' },
+      { to: CONFIG.ROUTES.KITCHEN, icon: 'fire', label: 'Cocina' },
+    ],
+  },
+  {
+    title: 'Gestión',
+    items: [
+      { to: CONFIG.ROUTES.CASH_REGISTER, icon: 'wallet', label: 'Caja' },
+      { to: CONFIG.ROUTES.INVENTORY, icon: 'package', label: 'Inventario' },
+      { to: CONFIG.ROUTES.RESERVATIONS, icon: 'calendar', label: 'Reservas' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+function getNavSections() {
+  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  switch (orgType) {
+    case 'RESTO': return RESTO_NAV;
+    case 'GYM':
+    default: return GYM_NAV;
+  }
+}
+
 export default function Sidebar({ isOpen, onClose }) {
   const { profile, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -47,6 +93,10 @@ export default function Sidebar({ isOpen, onClose }) {
   const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
   const userRole = ROLE_LABELS[rawRole] || rawRole;
   const initials = getInitials(userName);
+
+  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const orgName = localStorage.getItem('current_org_name') || 'Veltronik';
+  const navSections = getNavSections();
 
   const handleLogout = async () => {
     await logout();
@@ -71,7 +121,14 @@ export default function Sidebar({ isOpen, onClose }) {
               style={{ width: 32, height: 32, objectFit: 'contain' }}
               loading="lazy"
             />
-            <span className="sidebar-logo-text">Veltronik</span>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="sidebar-logo-text">Veltronik</span>
+              {orgType !== 'GYM' && (
+                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' }[orgType] || orgType}
+                </span>
+              )}
+            </div>
           </div>
           <button
             className="sidebar-theme-toggle"
@@ -84,7 +141,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          {NAV_SECTIONS.map((section) => (
+          {navSections.map((section) => (
             <div className="nav-section" key={section.title}>
               <div className="nav-section-title">{section.title}</div>
               {section.items.map((item) => (

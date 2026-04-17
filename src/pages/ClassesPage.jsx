@@ -1,17 +1,10 @@
 // ============================================
-// VELTRONIK V2 - CLASSES PAGE
+// VELTRONIK V2 - CLASSES PAGE (Refactored)
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import {
-  getClasses,
-  createClass,
-  updateClass,
-  deleteClass,
-  getBookingsForClass,
-  getSupabaseErrorMessage,
-} from '../lib/supabase';
+import { classService, errorService } from '../services';
 import { formatTime, getDayName } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -57,7 +50,7 @@ export default function ClassesPage() {
   const loadClasses = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getClasses();
+      const data = await classService.getAll();
       setClasses(data || []);
     } catch {
       showToast('Error al cargar clases', 'error');
@@ -112,7 +105,7 @@ export default function ClassesPage() {
     setDetailModal(true);
     setBookingsLoading(true);
     try {
-      const data = await getBookingsForClass(cls.id, date);
+      const data = await classService.getBookingsForClass(cls.id, date);
       setBookings(data || []);
     } catch { setBookings([]); }
     finally { setBookingsLoading(false); }
@@ -124,31 +117,31 @@ export default function ClassesPage() {
     setSaving(true);
     try {
       const data = { ...form, day_of_week: parseInt(form.day_of_week), capacity: parseInt(form.capacity) };
-      Object.keys(data).forEach(k => { if (data[k] === '') data[k] = null; });
+      Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
 
       if (editingId) {
-        await updateClass(editingId, data);
+        await classService.update(editingId, data);
         showToast('Clase actualizada', 'success');
       } else {
-        await createClass(data);
+        await classService.create(data);
         showToast('Clase creada exitosamente', 'success');
       }
       setModalOpen(false);
       loadClasses();
     } catch (error) {
-      showToast(getSupabaseErrorMessage(error), 'error');
+      showToast(errorService.getMessage(error), 'error');
     } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      await deleteClass(deleteId);
+      await classService.delete(deleteId);
       showToast('Clase eliminada', 'success');
       setDeleteId(null);
       setDetailModal(false);
       loadClasses();
-    } catch (error) { showToast(getSupabaseErrorMessage(error), 'error'); }
+    } catch (error) { showToast(errorService.getMessage(error), 'error'); }
   };
 
   const today = new Date();

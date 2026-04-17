@@ -1,10 +1,10 @@
 // ============================================
-// VELTRONIK V2 - REPORTS PAGE (CSV Export)
+// VELTRONIK V2 - REPORTS PAGE (Refactored)
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { getMembers, getMemberPayments, getTodayAccessLogs, getAccessLogs } from '../lib/supabase';
+import { memberService, paymentService, accessService } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -59,7 +59,7 @@ export default function ReportsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [m, p] = await Promise.all([getMembers(), getMemberPayments()]);
+      const [m, p] = await Promise.all([memberService.getAll(), paymentService.getAll()]);
       setMembers(m || []);
       setPayments(p || []);
     } catch { showToast('Error al cargar datos', 'error'); }
@@ -117,9 +117,9 @@ export default function ReportsPage() {
     try {
       let logs;
       if (dateFrom && dateTo) {
-        logs = await getAccessLogs(dateFrom, dateTo);
+        logs = await accessService.getLogsByDateRange(dateFrom, dateTo);
       } else {
-        logs = await getTodayAccessLogs();
+        logs = await accessService.getTodayLogs();
       }
       downloadCSV(`accesos_${dateFrom}_${dateTo}.csv`,
         ['Socio', 'DNI', 'Entrada', 'Salida', 'Método'],

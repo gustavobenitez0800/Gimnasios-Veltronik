@@ -17,13 +17,19 @@ const CONFIG = {
   // Debug mode
   DEBUG: import.meta.env.DEV,
 
-  // Subscription Price (for display only)
+  // Subscription Prices by org type (ARS)
   SUBSCRIPTION_PRICE: 35000,
   SUBSCRIPTION_CURRENCY: 'ARS',
+  PRICES_BY_TYPE: {
+    GYM: 35000,
+    RESTO: 45000,
+    KIOSK: 25000,
+    OTHER: 35000,
+  },
 
   // App Configuration
   APP_NAME: 'Veltronik',
-  APP_VERSION: '1.0.25',
+  APP_VERSION: __APP_VERSION__ || '1.0.0',
 
   // Routes (React Router paths)
   ROUTES: Object.freeze({
@@ -45,6 +51,14 @@ const CONFIG = {
     LOBBY: '/lobby',
     MEMBER_PORTAL: '/member-portal',
     TEAM: '/team',
+    // Restaurante
+    TABLES: '/tables',
+    MENU: '/menu',
+    ORDERS: '/orders',
+    KITCHEN: '/kitchen',
+    CASH_REGISTER: '/cash',
+    INVENTORY: '/inventory',
+    RESERVATIONS: '/reservations',
   }),
 
   // Gym Status
@@ -71,13 +85,12 @@ const CONFIG = {
     MEMBER: 'member',
   }),
 
-  // Offline Mode
-  OFFLINE: Object.freeze({
-    ENABLED: true,
-    SYNC_INTERVAL: 30000,
-    MAX_RETRY_ATTEMPTS: 5,
-    CONFLICT_STRATEGY: 'last-write-wins',
-    CACHE_DURATION: 86400000,
+  // Organization Types
+  ORG_TYPES: Object.freeze({
+    GYM: 'GYM',
+    RESTO: 'RESTO',
+    KIOSK: 'KIOSK',
+    OTHER: 'OTHER',
   }),
 };
 

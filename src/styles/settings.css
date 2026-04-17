@@ -1,0 +1,187 @@
+﻿/* ============================================
+   PHASE 3: REPORTS PAGE
+   ============================================ */
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.report-card {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  transition: all 0.2s;
+}
+.report-card:hover { border-color: var(--primary-500); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(14,165,233,0.15); }
+.report-title { font-size: var(--font-size-lg); font-weight: 600; margin-bottom: 0.5rem; }
+.report-description { font-size: var(--font-size-sm); color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.5; }
+
+/* ============================================
+   PHASE 3: TEAM PAGE
+   ============================================ */
+
+.team-tabs {
+  display: flex; gap: 0.25rem;
+  background: rgba(255,255,255,0.04); border-radius: 12px;
+  padding: 4px; margin-bottom: 1.5rem;
+}
+.team-tab {
+  flex: 1; padding: 0.6rem 1rem; border: none; background: transparent;
+  color: var(--text-muted); font-size: 0.85rem; font-weight: 500;
+  border-radius: 10px; cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.team-tab.active { background: var(--primary-500); color: white; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3); }
+.team-tab:hover:not(.active) { color: white; background: rgba(255,255,255,0.06); }
+
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+
+.member-card {
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 14px; padding: 1.25rem; transition: all 0.2s;
+}
+.member-card:hover { border-color: rgba(139, 92, 246, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.member-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.member-card-body { display: flex; align-items: center; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--border-color); }
+
+.role-badge { padding: 4px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.role-owner { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.role-admin { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+.role-staff { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
+.role-reception { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+
+.member-actions { display: flex; gap: 0.5rem; }
+.member-actions button {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);
+  color: var(--text-muted); padding: 6px 10px; border-radius: 8px;
+  cursor: pointer; font-size: 0.75rem; transition: all 0.2s;
+}
+.member-actions button:hover { color: white; border-color: var(--primary-500); }
+.member-actions .btn-remove:hover { color: var(--error-500); border-color: var(--error-500); }
+
+@media (max-width: 600px) {
+  .team-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================
+   PHASE 3: RETENTION PAGE
+   ============================================ */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================
+   PHASE 4: SETTINGS PAGE
+   ============================================ */
+
+.settings-grid { display: grid; gap: 1.5rem; max-width: 800px; }
+
+.settings-section {
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg); padding: 1.5rem;
+}
+.settings-section-title {
+  font-size: var(--font-size-lg); font-weight: 600; margin-bottom: 1rem;
+  padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+
+.info-row {
+  display: flex; justify-content: space-between; padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.info-row:last-child { border-bottom: none; }
+.info-label { color: var(--text-muted); font-size: var(--font-size-sm); }
+.info-value { font-weight: 500; color: var(--text-primary); }
+
+.subscription-card {
+  background: linear-gradient(135deg, var(--primary-600), #8b5cf6);
+  color: white; padding: 1.5rem; border-radius: var(--border-radius-lg); margin-bottom: 1rem;
+}
+.subscription-plan { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: 0.5rem; }
+.subscription-status {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.25rem 0.75rem; background: rgba(255,255,255,0.2);
+  border-radius: 9999px; font-size: var(--font-size-sm);
+}
+
+/* Theme Toggle */
+.theme-options { display: flex; gap: 1rem; flex-wrap: wrap; }
+.theme-option {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 1rem 1.25rem; border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-md); cursor: pointer;
+  transition: all 0.2s; flex: 1; min-width: 100px; position: relative;
+  background: var(--bg-tertiary);
+}
+.theme-option:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.theme-option.active { box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3); }
+.theme-option.active::after {
+  content: 'âœ“'; position: absolute; top: 8px; right: 8px;
+  width: 22px; height: 22px; background: var(--primary-500);
+  color: white; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; font-weight: bold;
+}
+.theme-option-icon {
+  width: 44px; height: 44px; border-radius: var(--border-radius-md);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1.2rem;
+}
+.theme-option-icon.sun { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+.theme-option-icon.moon { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.theme-option-icon.system { background: linear-gradient(135deg, #64748b, #475569); }
+.theme-option-text { font-weight: 600; font-size: var(--font-size-sm); }
+
+/* Danger Zone */
+.danger-zone-container {
+  border: 1px solid var(--error-500); background: rgba(239, 68, 68, 0.05);
+  border-radius: var(--border-radius-lg); overflow: hidden; margin-top: 1rem;
+}
+.danger-header {
+  padding: 1.5rem; border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  display: flex; align-items: center; gap: 0.75rem; background: rgba(239, 68, 68, 0.1);
+}
+.danger-title { color: var(--error-500); font-weight: 700; font-size: 1.1rem; margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+.danger-content { padding: 1.5rem; }
+.danger-item {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1.5rem; padding: 1rem 0;
+}
+.danger-item:not(:last-child) { border-bottom: 1px solid var(--border-color); }
+.danger-info h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+.danger-info p { font-size: 0.875rem; color: var(--text-muted); margin: 0; }
+
+.btn-outline-danger {
+  background: transparent; border: 1px solid var(--error-500); color: var(--error-500);
+  transition: all 0.2s; padding: 0.5rem 1rem; border-radius: var(--border-radius-md);
+  cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.btn-outline-danger:hover { background: var(--error-500); color: white; }
+
+.btn-outline-secondary {
+  background: transparent; border: 1px solid var(--text-muted); color: var(--text-primary);
+  transition: all 0.2s; padding: 0.5rem 1rem; border-radius: var(--border-radius-md);
+  cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.btn-outline-secondary:hover { background: var(--bg-tertiary); border-color: var(--text-primary); }
+
+@media (max-width: 600px) {
+  .danger-item { flex-direction: column; align-items: flex-start; gap: 1rem; }
+}
+
+/* Days countdown badges */
+.days-countdown {
+  padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+}
+.days-ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.days-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.days-danger { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.days-none { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }

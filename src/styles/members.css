@@ -1,0 +1,149 @@
+﻿/* ============================================
+   MEMBERS / PAYMENTS PAGE
+   ============================================ */
+
+/* Modal form grid */
+.member-modal { max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left; }
+.payments-modal { max-width: 600px; max-height: 80vh; text-align: left; }
+
+.modal-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.modal-form .form-group.full-width { grid-column: 1 / -1; }
+
+/* Pagination */
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pagination-info { color: var(--text-muted); font-size: var(--font-size-sm); }
+
+.pagination-controls { display: flex; align-items: center; gap: 0.5rem; }
+.pagination-pages { display: flex; gap: 0.25rem; }
+
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all 0.2s;
+}
+
+.page-btn:hover { background: var(--bg-tertiary); border-color: var(--primary-500); }
+.page-btn.active { background: var(--primary-500); border-color: var(--primary-500); color: white; }
+
+/* Days Selector */
+.days-selector { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.day-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.day-option:hover { border-color: var(--primary-400); color: var(--primary-400); transform: scale(1.05); }
+
+.day-option.selected {
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+  border-color: var(--primary-500);
+  color: white;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+}
+
+.days-summary { margin-top: 0.5rem; font-size: var(--font-size-xs); color: var(--text-muted); }
+
+/* Action Buttons */
+.table-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+
+.action-btn-quick {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  transition: all 0.15s;
+}
+
+.action-btn-whatsapp { background: rgba(37, 211, 102, 0.15); color: #25d366; }
+.action-btn-whatsapp:hover { background: #25d366; color: white; transform: scale(1.1); }
+
+.action-btn-payment { background: rgba(14, 165, 233, 0.15); color: var(--primary-500); }
+.action-btn-payment:hover { background: var(--primary-500); color: white; transform: scale(1.1); }
+
+.action-btn-history { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.action-btn-history:hover { background: #a855f7; color: white; transform: scale(1.1); }
+
+/* Days Countdown */
+.days-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.days-ok      { background: rgba(34, 197, 94, 0.15); color: var(--success-500); }
+.days-warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.days-danger  { background: rgba(239, 68, 68, 0.15); color: var(--error-500); }
+.days-expired { background: rgba(239, 68, 68, 0.2); color: var(--error-500); font-weight: 700; }
+.days-none    { background: var(--bg-tertiary); color: var(--text-muted); }
+
+/* Payments History Modal */
+.payment-history-list { max-height: 400px; overflow-y: auto; }
+
+.payment-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.payment-history-item:last-child { border-bottom: none; }
+.payment-info { display: flex; flex-direction: column; gap: 0.25rem; }
+.payment-amount { font-weight: 600; color: var(--success-500); }
+.payment-date { font-size: var(--font-size-sm); color: var(--text-muted); }
+
+/* Table Header / Filters */
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.table-filters { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }

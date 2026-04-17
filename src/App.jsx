@@ -2,6 +2,7 @@
 // VELTRONIK V2 - MAIN APP (React Router)
 // ============================================
 
+import { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -32,6 +33,17 @@ import {
   MemberPortalPage,
 } from './pages/PlaceholderPages';
 
+// Restaurant Pages (lazy loaded — no impacta bundle del gym)
+const RestaurantDashboardPage = lazy(() => import('./pages/restaurant/RestaurantDashboardPage'));
+const TablesPage = lazy(() => import('./pages/restaurant/TablesPage'));
+const MenuPage = lazy(() => import('./pages/restaurant/MenuPage'));
+const OrdersPage = lazy(() => import('./pages/restaurant/OrdersPage'));
+const KitchenPage = lazy(() => import('./pages/restaurant/KitchenPage'));
+const CashRegisterPage = lazy(() => import('./pages/restaurant/CashRegisterPage'));
+const InventoryPage = lazy(() => import('./pages/restaurant/InventoryPage'));
+const ReservationsPage = lazy(() => import('./pages/restaurant/ReservationsPage'));
+const RestaurantReportsPage = lazy(() => import('./pages/restaurant/RestaurantReportsPage'));
+
 import './index.css';
 
 export default function App() {
@@ -61,6 +73,7 @@ export default function App() {
 
               {/* App pages (with sidebar) */}
               <Route element={<AppLayout />}>
+                {/* Gym pages */}
                 <Route path={CONFIG.ROUTES.DASHBOARD} element={<DashboardPage />} />
                 <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
                 <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
@@ -70,6 +83,15 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
+
+                {/* Restaurant pages (lazy) */}
+                <Route path={CONFIG.ROUTES.TABLES} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><TablesPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.MENU} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><MenuPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.ORDERS} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><OrdersPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.KITCHEN} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><KitchenPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.CASH_REGISTER} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><CashRegisterPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.INVENTORY} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><InventoryPage /></Suspense>} />
+                <Route path={CONFIG.ROUTES.RESERVATIONS} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><ReservationsPage /></Suspense>} />
               </Route>
 
               {/* Fallback: redirige rutas desconocidas al login */}
