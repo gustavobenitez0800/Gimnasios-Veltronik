@@ -54,7 +54,7 @@ SELECT
   p.email,
   om.role,
   g.name as gym_name,
-  g.organization_type
+  g.type as organization_type
 FROM organization_members om
 LEFT JOIN profiles p ON p.id = om.user_id
 LEFT JOIN gyms g ON g.id = om.organization_id

@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const { gym } = useAuth();
 
   // Si es restaurante, mostrar dashboard de restaurante
-  if (gym?.organization_type === 'RESTO') {
+  if (gym?.type === 'RESTO') {
     return (
       <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando dashboard...</div>}>
         <RestaurantDashboardPage />

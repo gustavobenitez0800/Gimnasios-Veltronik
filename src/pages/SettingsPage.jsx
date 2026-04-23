@@ -118,7 +118,7 @@ export default function SettingsPage() {
       } catch { /* table may not exist */ }
 
       // Use org-type aware pricing
-      const orgType = gymData.organization_type || localStorage.getItem('current_org_type') || 'GYM';
+      const orgType = gymData.type || localStorage.getItem('current_org_type') || 'GYM';
       const priceMap = { GYM: 35000, RESTO: 45000, KIOSK: 25000, OTHER: 35000 };
       const amount = priceMap[orgType] || CONFIG.SUBSCRIPTION_PRICE || 0;
 

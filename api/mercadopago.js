@@ -95,10 +95,10 @@ async function getSubscriptionPriceForGym(gymId, orgType = null) {
         try {
             const { data: gym } = await supabase
                 .from('gyms')
-                .select('organization_type')
+                .select('type')
                 .eq('id', gymId)
                 .single();
-            resolvedType = gym?.organization_type || 'GYM';
+            resolvedType = gym?.type || 'GYM';
         } catch {
             resolvedType = 'GYM';
         }

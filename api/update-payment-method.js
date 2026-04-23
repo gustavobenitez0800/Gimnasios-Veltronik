@@ -67,7 +67,7 @@ module.exports = async function handler(req, res) {
 
         const { data: gym, error: gymError } = await supabase
             .from('gyms')
-            .select('id, name, plan_id, organization_type')
+            .select('id, name, plan_id, type')
             .eq('id', gym_id)
             .single();
 
@@ -79,7 +79,7 @@ module.exports = async function handler(req, res) {
         // RESOLVE DYNAMIC PRICE
         // ============================================
 
-        const { price, reason } = await getSubscriptionPriceForGym(gym_id, gym.organization_type);
+        const { price, reason } = await getSubscriptionPriceForGym(gym_id, gym.type);
 
         // ============================================
         // CANCEL ALL EXISTING NON-CANCELLED SUBSCRIPTIONS IN MP

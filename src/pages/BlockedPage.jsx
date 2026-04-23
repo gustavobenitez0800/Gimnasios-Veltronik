@@ -13,7 +13,7 @@ export default function BlockedPage() {
   const navigate = useNavigate();
   const { gym, subscription, isActiveSubscription, isTrialActive, logout, user, profile, refreshAuth } = useAuth();
   const { showToast } = useToast();
-  const orgType = localStorage.getItem('current_org_type') || gym?.organization_type || 'GYM';
+  const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
   const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco' }[orgType] || 'negocio';
 
   const [updatingPayment, setUpdatingPayment] = useState(false);
