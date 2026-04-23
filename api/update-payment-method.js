@@ -31,7 +31,7 @@ const {
     isValidEmail,
     isValidUUID,
     sanitizeString
-} = require('./mercadopago.cjs');
+} = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
     // Handle CORS preflight

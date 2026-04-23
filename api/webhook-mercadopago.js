@@ -30,7 +30,7 @@ const {
     validateWebhookSignature,
     logSecure,
     isValidUUID
-} = require('./mercadopago.cjs');
+} = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
     // Handle CORS preflight
