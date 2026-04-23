@@ -359,12 +359,12 @@ export default function MembersPage() {
         onClose={modal.close}
         title={modal.isEditing ? 'Editar Socio' : 'Nuevo Socio'}
       >
-        <form onSubmit={handleSave}>
+        <form onSubmit={handleSave} noValidate>
           <div className="modal-form">
             <div className="form-group full-width">
               <label className="form-label">Nombre completo *</label>
               <input type="text" className="form-input" value={modal.form.full_name}
-                onChange={(e) => modal.handleChange('full_name', e.target.value)} required />
+                onChange={(e) => modal.handleChange('full_name', e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">DNI</label>

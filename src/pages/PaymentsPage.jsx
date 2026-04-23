@@ -205,7 +205,8 @@ export default function PaymentsPage() {
       showToast('Selecciona un socio', 'error');
       return;
     }
-    if (!modal.form.amount || parseFloat(modal.form.amount) <= 0) {
+    const amountVal = parseFloat(modal.form.amount);
+    if (!modal.form.amount || isNaN(amountVal) || amountVal <= 0) {
       showToast('Ingresa un monto válido', 'error');
       return;
     }
@@ -431,7 +432,7 @@ export default function PaymentsPage() {
         onClose={modal.close}
         title={modal.isEditing ? 'Editar Pago' : 'Registrar Pago'}
       >
-        <form onSubmit={handleSave}>
+        <form onSubmit={handleSave} noValidate>
           <div className="modal-form">
             {/* Member selector with search */}
             <div className="form-group full-width">
@@ -481,7 +482,7 @@ export default function PaymentsPage() {
                   {/* Fallback: full select if no search */}
                   {!memberSearch && (
                     <select className="form-select" value={modal.form.member_id} style={{ marginTop: '0.5rem' }}
-                      onChange={(e) => handleFormChange('member_id', e.target.value)} required>
+                      onChange={(e) => handleFormChange('member_id', e.target.value)}>
                       <option value="">Seleccionar socio...</option>
                       {members.map((m) => (
                         <option key={m.id} value={m.id}>
@@ -497,7 +498,7 @@ export default function PaymentsPage() {
               <label className="form-label">Monto *</label>
               <input type="number" className="form-input" placeholder="0"
                 value={modal.form.amount} onChange={(e) => handleFormChange('amount', e.target.value)}
-                required min="1" step="1" />
+                 />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de pago</label>
