@@ -24,7 +24,7 @@ const {
     corsResponse,
     logSecure,
     isValidUUID
-} = require('./mercadopago');
+} = require('./mercadopago.cjs');
 
 module.exports = async function handler(req, res) {
     // Handle CORS preflight

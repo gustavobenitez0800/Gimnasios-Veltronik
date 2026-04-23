@@ -54,16 +54,16 @@
         }
     ],
     "functions": {
-        "api/webhook-mercadopago.js": {
+        "api/webhook-mercadopago.cjs": {
             "maxDuration": 30
         },
-        "api/create-subscription.js": {
+        "api/create-subscription.cjs": {
             "maxDuration": 30
         },
-        "api/cancel-subscription.js": {
+        "api/cancel-subscription.cjs": {
             "maxDuration": 30
         },
-        "api/update-payment-method.js": {
+        "api/update-payment-method.cjs": {
             "maxDuration": 30
         }
     }
