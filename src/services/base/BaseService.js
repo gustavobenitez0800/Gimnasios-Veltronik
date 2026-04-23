@@ -129,7 +129,7 @@ export class BaseService {
    */
   async createForOrg(record) {
     const orgId = await this._getOrgId();
-    return this.create({ gym_id: orgId, ...record });
+    return BaseService.prototype.create.call(this, { [this.orgField]: orgId, ...record });
   }
 
   /**
@@ -138,6 +138,6 @@ export class BaseService {
    */
   async createForOrgAlt(record) {
     const orgId = await this._getOrgId();
-    return this.create({ org_id: orgId, ...record });
+    return BaseService.prototype.create.call(this, { org_id: orgId, ...record });
   }
 }
