@@ -223,12 +223,10 @@ export default function BlockedPage() {
               </button>
             )}
 
-            {hasMultipleOrgs && (
-              <button className="btn btn-ghost" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
-                🔄 Ir a Mis Otros Sistemas
-              </button>
-            )}
+            <button className="btn btn-ghost" style={{ width: '100%' }}
+              onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
+              ← Volver al Lobby
+            </button>
 
             <button className="btn btn-ghost" style={{ width: '100%' }} onClick={logout}>
               Cerrar Sesión

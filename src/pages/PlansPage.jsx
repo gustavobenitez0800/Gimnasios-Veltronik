@@ -38,14 +38,36 @@ const TYPE_ICONS = { GYM: '🏋️', RESTO: '🍽️', KIOSK: '🏪', OTHER: '�
 export default function PlansPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { gym, profile, isTrialActive, trialDaysRemaining, subscription, isActiveSubscription } = useAuth();
+  const { gym, profile, isTrialActive, trialDaysRemaining, subscription, isActiveSubscription, refreshOrgContext } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [resolvedGym, setResolvedGym] = useState(gym);
 
   // Get current org type from localStorage (set when user selects org in Lobby)
-  const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
+  const orgType = localStorage.getItem('current_org_type') || resolvedGym?.type || 'GYM';
   const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
   const features = FEATURES_BY_TYPE[orgType] || FEATURES_BY_TYPE.GYM;
+
+  // If gym is not loaded in AuthContext (coming from blocked state), load it from localStorage
+  useEffect(() => {
+    async function resolveGym() {
+      if (gym) {
+        setResolvedGym(gym);
+        return;
+      }
+      const orgId = localStorage.getItem('current_org_id');
+      if (!orgId) return;
+      try {
+        const { data } = await supabase
+          .from('gyms')
+          .select('*')
+          .eq('id', orgId)
+          .maybeSingle();
+        if (data) setResolvedGym(data);
+      } catch { /* silent */ }
+    }
+    resolveGym();
+  }, [gym]);
 
   // If already active subscription → go to dashboard
   useEffect(() => {
@@ -70,7 +92,9 @@ export default function PlansPage() {
   }, []);
 
   const handleSubscribe = async () => {
-    if (!gym || !profile) { showToast('Datos de usuario no disponibles', 'error'); return; }
+    const gymId = resolvedGym?.id || localStorage.getItem('current_org_id');
+    const payerEmail = profile?.email;
+    if (!gymId || !payerEmail) { showToast('Datos de usuario no disponibles', 'error'); return; }
 
     setSubscribing(true);
     try {
@@ -78,8 +102,8 @@ export default function PlansPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          gym_id: gym.id,
-          payer_email: profile.email,
+          gym_id: gymId,
+          payer_email: payerEmail,
           plan_id: selectedPlan?.id || null,
           org_type: orgType,
           price: price,

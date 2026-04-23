@@ -1,5 +1,11 @@
 // ============================================
-// VELTRONIK - AUTH CONTEXT (React)
+// VELTRONIK - AUTH CONTEXT (React) v2
+// ============================================
+// Improved with:
+// - refreshOrgContext() for switching orgs in Lobby
+// - Per-org subscription validation
+// - Race condition fix for route protection
+// - Scalable for any number of org types
 // ============================================
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -16,8 +22,6 @@ import {
 const getSession = () => authService.getSession();
 const getCurrentUser = () => authService.getCurrentUser();
 const getProfile = () => profileService.getCurrent();
-const getSubscription = () => subscriptionService.getCurrent();
-const supabaseUpdateGym = (u) => gymService.updateCurrent(u);
 const supabaseSignIn = (e, p) => authService.signIn(e, p);
 const supabaseSignUp = (e, p, n) => authService.signUp(e, p, n);
 const supabaseSignInWithGoogle = () => authService.signInWithGoogle();
@@ -56,6 +60,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isTrialActive, setIsTrialActive] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  // Track if initial auth has completed to prevent premature redirects
+  const initCompleteRef = useRef(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,13 +101,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Load the gym (org) data for the currently selected organization.
-   * Uses current_org_id from localStorage if available, otherwise falls back to profile.gym_id.
+   * Load the gym (org) data for a specific org ID.
    */
-  const loadCurrentOrg = useCallback(async (userProfile) => {
-    const orgId = localStorage.getItem('current_org_id') || userProfile?.gym_id;
+  const loadOrgById = useCallback(async (orgId) => {
     if (!orgId) return null;
-
     try {
       const { data, error } = await supabase
         .from('gyms')
@@ -111,13 +114,23 @@ export function AuthProvider({ children }) {
       if (error) throw error;
       return data;
     } catch (err) {
-      console.error('loadCurrentOrg error:', err);
+      console.error('loadOrgById error:', err);
       return null;
     }
   }, []);
 
   /**
+   * Load the gym (org) data for the currently selected organization.
+   * Uses current_org_id from localStorage if available, otherwise falls back to profile.gym_id.
+   */
+  const loadCurrentOrg = useCallback(async (userProfile) => {
+    const orgId = localStorage.getItem('current_org_id') || userProfile?.gym_id;
+    return loadOrgById(orgId);
+  }, [loadOrgById]);
+
+  /**
    * Load subscription for a specific org ID.
+   * Priority: active > latest.
    */
   const loadSubscriptionForOrg = useCallback(async (orgId) => {
     if (!orgId) return null;
@@ -146,6 +159,31 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  /**
+   * Refresh the org context for a specific org.
+   * Called when switching orgs in the Lobby to ensure state is fresh.
+   */
+  const refreshOrgContext = useCallback(async (orgId) => {
+    if (!orgId) return;
+
+    const gymData = await loadOrgById(orgId);
+    setGym(gymData);
+
+    if (gymData) {
+      const trialActive = checkTrialStatus(gymData);
+      const trialDays = getTrialDays(gymData);
+      setIsTrialActive(trialActive);
+      setTrialDaysRemaining(trialDays);
+
+      const sub = await loadSubscriptionForOrg(gymData.id);
+      setSubscription(sub);
+    } else {
+      setIsTrialActive(false);
+      setTrialDaysRemaining(0);
+      setSubscription(null);
+    }
+  }, [loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg]);
+
   // Initialize auth state
   const initAuth = useCallback(async () => {
     try {
@@ -153,6 +191,7 @@ export function AuthProvider({ children }) {
 
       if (!session) {
         setLoading(false);
+        initCompleteRef.current = true;
         return;
       }
 
@@ -183,6 +222,7 @@ export function AuthProvider({ children }) {
       console.error('Auth init error:', error);
     } finally {
       setLoading(false);
+      initCompleteRef.current = true;
     }
   }, [checkTrialStatus, getTrialDays, loadCurrentOrg, loadSubscriptionForOrg]);
 
@@ -200,6 +240,7 @@ export function AuthProvider({ children }) {
           setIsTrialActive(false);
           setTrialDaysRemaining(0);
           trialWarningShownRef.current = false;
+          initCompleteRef.current = false;
           clearPlatformState();
         }
         if (event === 'TOKEN_REFRESHED') {
@@ -213,7 +254,8 @@ export function AuthProvider({ children }) {
 
   // Route protection
   useEffect(() => {
-    if (loading) return;
+    // Don't run until initial auth is complete to prevent premature redirects
+    if (loading || !initCompleteRef.current) return;
 
     const currentPath = location.pathname;
     const isPublic = PUBLIC_ROUTES.includes(currentPath);
@@ -292,6 +334,7 @@ export function AuthProvider({ children }) {
     setIsTrialActive(false);
     setTrialDaysRemaining(0);
     trialWarningShownRef.current = false;
+    initCompleteRef.current = false;
     navigate(CONFIG.ROUTES.LOGIN);
   };
 
@@ -331,8 +374,22 @@ export function AuthProvider({ children }) {
     loginWithGoogle,
     logout,
     refreshAuth,
+    refreshOrgContext,
     updateGym,
   };
+
+  // ─── Splash screen while checking session (Instagram-style) ───
+  // Never show login page flash — show branded splash until auth resolves
+  if (loading) {
+    return (
+      <AuthContext.Provider value={value}>
+        <div className="auth-splash">
+          <img src="/assets/LogoPrincipalVeltronik.png" alt="Veltronik" className="auth-splash-logo" />
+          <div className="auth-splash-spinner"><span className="spinner" /></div>
+        </div>
+      </AuthContext.Provider>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

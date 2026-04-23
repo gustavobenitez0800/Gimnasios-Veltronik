@@ -2,12 +2,15 @@
 // VELTRONIK V2 - REPORTS PAGE (Refactored)
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { memberService, paymentService, accessService } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
+
+const RestaurantReportsPage = lazy(() => import('./restaurant/RestaurantReportsPage'));
 
 function getQuickDates(period) {
   const today = new Date();
@@ -44,6 +47,21 @@ function downloadCSV(filename, headers, rows) {
 }
 
 export default function ReportsPage() {
+  const { gym } = useAuth();
+
+  // Si es restaurante, mostrar reportes de restaurante
+  if (gym?.type === 'RESTO') {
+    return (
+      <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando reportes...</div>}>
+        <RestaurantReportsPage />
+      </Suspense>
+    );
+  }
+
+  return <GymReportsPage />;
+}
+
+function GymReportsPage() {
   const { showToast } = useToast();
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);

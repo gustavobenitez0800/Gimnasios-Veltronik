@@ -1,6 +1,9 @@
 // ============================================
 // VELTRONIK V2 - MAIN APP (React Router)
 // ============================================
+// Routes are protected by OrgTypeGuard to prevent
+// cross-system access (gym vs restaurant).
+// ============================================
 
 import { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
@@ -8,6 +11,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppLayout, AuthLayout } from './components/Layout';
+import OrgTypeGuard from './components/OrgTypeGuard';
 import ForceUpdateOverlay from './components/ForceUpdateOverlay';
 import CONFIG from './lib/config';
 
@@ -34,7 +38,6 @@ import {
 } from './pages/PlaceholderPages';
 
 // Restaurant Pages (lazy loaded — no impacta bundle del gym)
-const RestaurantDashboardPage = lazy(() => import('./pages/restaurant/RestaurantDashboardPage'));
 const TablesPage = lazy(() => import('./pages/restaurant/TablesPage'));
 const MenuPage = lazy(() => import('./pages/restaurant/MenuPage'));
 const OrdersPage = lazy(() => import('./pages/restaurant/OrdersPage'));
@@ -42,9 +45,13 @@ const KitchenPage = lazy(() => import('./pages/restaurant/KitchenPage'));
 const CashRegisterPage = lazy(() => import('./pages/restaurant/CashRegisterPage'));
 const InventoryPage = lazy(() => import('./pages/restaurant/InventoryPage'));
 const ReservationsPage = lazy(() => import('./pages/restaurant/ReservationsPage'));
-const RestaurantReportsPage = lazy(() => import('./pages/restaurant/RestaurantReportsPage'));
 
 import './index.css';
+
+// Shared loading fallback for lazy routes
+const LazyFallback = (
+  <div className="dashboard-loading"><span className="spinner" /> Cargando...</div>
+);
 
 export default function App() {
   return (
@@ -73,25 +80,33 @@ export default function App() {
 
               {/* App pages (with sidebar) */}
               <Route element={<AppLayout />}>
-                {/* Gym pages */}
+                {/* Dashboard — shared route, renders correct dashboard by org type internally */}
                 <Route path={CONFIG.ROUTES.DASHBOARD} element={<DashboardPage />} />
-                <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
-                <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
-                <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
-                <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
-                <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
+
+                {/* Shared routes (both gym & restaurant use these) */}
                 <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
 
-                {/* Restaurant pages (lazy) */}
-                <Route path={CONFIG.ROUTES.TABLES} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><TablesPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.MENU} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><MenuPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.ORDERS} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><OrdersPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.KITCHEN} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><KitchenPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.CASH_REGISTER} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><CashRegisterPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.INVENTORY} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><InventoryPage /></Suspense>} />
-                <Route path={CONFIG.ROUTES.RESERVATIONS} element={<Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando...</div>}><ReservationsPage /></Suspense>} />
+                {/* ─── GYM-ONLY ROUTES ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['GYM']} />}>
+                  <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
+                  <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
+                  <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
+                  <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
+                  <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
+                </Route>
+
+                {/* ─── RESTAURANT-ONLY ROUTES ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['RESTO']} />}>
+                  <Route path={CONFIG.ROUTES.TABLES} element={<Suspense fallback={LazyFallback}><TablesPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.MENU} element={<Suspense fallback={LazyFallback}><MenuPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.ORDERS} element={<Suspense fallback={LazyFallback}><OrdersPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.KITCHEN} element={<Suspense fallback={LazyFallback}><KitchenPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.CASH_REGISTER} element={<Suspense fallback={LazyFallback}><CashRegisterPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.INVENTORY} element={<Suspense fallback={LazyFallback}><InventoryPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.RESERVATIONS} element={<Suspense fallback={LazyFallback}><ReservationsPage /></Suspense>} />
+                </Route>
               </Route>
 
               {/* Fallback: redirige rutas desconocidas al login */}
