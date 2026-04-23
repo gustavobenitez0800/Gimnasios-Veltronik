@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    PHASE 4: ONBOARDING PAGE
    ============================================ */
 
@@ -142,6 +142,460 @@
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
+}
+
+/* ============================================
+   PAYMENT CALLBACK PAGE (Netflix-level)
+   ============================================ */
+
+.payment-callback-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #0c0a1a 100%);
+  position: relative;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+.payment-callback-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.payment-callback-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.3;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
+  top: -10%;
+  right: -10%;
+}
+
+.orb-2 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%);
+  bottom: -10%;
+  left: -5%;
+  animation-delay: -4s;
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(20px, -20px) scale(1.05); }
+  50% { transform: translate(-10px, 10px) scale(0.95); }
+  75% { transform: translate(15px, 15px) scale(1.02); }
+}
+
+.payment-callback-card {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  width: 100%;
+  padding: 3rem 2.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-xl);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  animation: cardSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.payment-callback-icon {
+  margin-bottom: 1.5rem;
+}
+
+.callback-icon-emoji {
+  display: inline-block;
+  font-size: 4.5rem;
+  line-height: 1;
+}
+
+.callback-icon-emoji.spinning {
+  animation: spin 1.5s linear infinite;
+}
+
+.callback-icon-emoji.bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.payment-callback-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+  transition: color 0.3s ease;
+}
+
+.payment-callback-message {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  min-height: 48px;
+}
+
+.payment-callback-progress {
+  margin-bottom: 1.5rem;
+}
+
+.payment-callback-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.payment-callback-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+}
+
+.payment-callback-progress-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.payment-callback-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.payment-callback-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-500);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.payment-callback-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.payment-callback-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.payment-callback-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.payment-callback-secure {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  opacity: 0.6;
+}
+
+@media (max-width: 480px) {
+  .payment-callback-card {
+    padding: 2rem 1.5rem;
+  }
+  .callback-icon-emoji {
+    font-size: 3.5rem;
+  }
+}
+
+/* ============================================
+   PAYMENT WARNING BANNER (in AppLayout)
+   ============================================ */
+
+.payment-warning-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  font-size: var(--font-size-sm);
+  animation: bannerSlideDown 0.3s ease;
+  flex-wrap: wrap;
+}
+
+@keyframes bannerSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.payment-warning-warning {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.1));
+  border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.payment-warning-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.payment-warning-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.4rem 1rem;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.payment-warning-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateX(2px);
+}
+
+/* ============================================
+   BLOCKED PAGE (Netflix-Level)
+   ============================================ */
+
+.blocked-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #0c0a1a 100%);
+  position: relative;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+.blocked-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.blocked-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.25;
+  animation: orbFloat 10s ease-in-out infinite;
+}
+
+.blocked-orb-1 {
+  width: 350px;
+  height: 350px;
+  top: -5%;
+  right: -5%;
+}
+
+.blocked-orb-2 {
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+  bottom: -5%;
+  left: -5%;
+  animation-delay: -5s;
+}
+
+.blocked-container {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  width: 100%;
+}
+
+.blocked-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-xl);
+  padding: 3rem 2.5rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  animation: cardSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.blocked-icon-wrapper {
+  margin-bottom: 1.5rem;
+}
+
+.blocked-icon-emoji {
+  display: inline-block;
+  font-size: 4rem;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+.blocked-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  color: white;
+  margin-bottom: 0.75rem;
+}
+
+.blocked-message {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+/* Grace period countdown bar */
+.blocked-grace-bar {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.blocked-grace-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.blocked-grace-header .text-danger {
+  color: #ef4444;
+}
+
+.blocked-grace-header .text-warning {
+  color: #f59e0b;
+}
+
+.blocked-grace-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.blocked-grace-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+/* Status badge */
+.blocked-status-badge {
+  padding: 0.6rem 1rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid;
+  margin-bottom: 1.5rem;
+  font-size: var(--font-size-sm);
+}
+
+/* Actions */
+.blocked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.blocked-btn-main {
+  width: 100%;
+  padding: 0.85rem !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: 700;
+  animation: forceUpdatePulseBtn 3s ease-in-out infinite;
+}
+
+/* Tip box */
+.blocked-tip-box {
+  padding: 1rem;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: var(--border-radius-md);
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.blocked-tip-box p {
+  color: var(--primary-400);
+  font-size: var(--font-size-sm);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Footer */
+.blocked-footer {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.blocked-footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.blocked-footer-links a {
+  color: var(--primary-400);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.blocked-footer-links a:hover {
+  color: var(--primary-300);
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .blocked-card {
+    padding: 2rem 1.5rem;
+  }
+  .blocked-icon-emoji {
+    font-size: 3rem;
+  }
 }
 
 /* ============================================

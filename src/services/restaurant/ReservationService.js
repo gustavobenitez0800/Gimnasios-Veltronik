@@ -10,9 +10,11 @@ class ReservationService extends BaseService {
   }
 
   async getAll(date = null) {
+    const orgId = await this._getOrgId();
     let query = this.client
       .from(this.tableName)
       .select('*, table:restaurant_tables(table_number)')
+      .eq('org_id', orgId)
       .order('reservation_date', { ascending: true })
       .order('reservation_time', { ascending: true });
 

@@ -369,7 +369,7 @@ async function handleSubscriptionPayment(paymentId) {
         });
 
     } else if (mpPayment.status === 'rejected') {
-        // Pago rechazado → iniciar/mantener período de gracia de 7 días
+        // Pago rechazado → manejar gracia y bloqueo
         const { data: currentSub } = await supabase
             .from('subscriptions')
             .select('id, grace_period_ends_at, retry_count')
@@ -379,33 +379,67 @@ async function handleSubscriptionPayment(paymentId) {
             .single();
 
         const retryCount = (currentSub?.retry_count || 0) + 1;
-        const updateData = {
-            status: SUBSCRIPTION_STATUS.PAST_DUE,
-            retry_count: retryCount,
-            updated_at: new Date().toISOString()
-        };
+        const now = new Date();
 
-        // Solo establecer gracia si no tiene una ya activa
-        if (!currentSub?.grace_period_ends_at || new Date(currentSub.grace_period_ends_at) < new Date()) {
-            const gracePeriodEnd = new Date();
-            gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
-            updateData.grace_period_ends_at = gracePeriodEnd.toISOString();
-            logSecure('info', 'Grace period started (7 days) after rejected payment');
-        }
+        // Check if grace period already expired OR too many retries
+        const graceExpired = currentSub?.grace_period_ends_at && new Date(currentSub.grace_period_ends_at) < now;
+        const tooManyRetries = retryCount >= 4;
 
-        if (currentSub?.id) {
+        if (graceExpired || tooManyRetries) {
+            // BLOCK: Grace period expired or 4+ failed retries
+            logSecure('warn', 'Blocking gym - grace expired or max retries', { retryCount, graceExpired });
+
+            if (currentSub?.id) {
+                await supabase
+                    .from('subscriptions')
+                    .update({
+                        status: SUBSCRIPTION_STATUS.PAST_DUE,
+                        retry_count: retryCount,
+                        updated_at: now.toISOString()
+                    })
+                    .eq('id', currentSub.id);
+            }
+
+            // Block the gym immediately
             await supabase
-                .from('subscriptions')
-                .update(updateData)
-                .eq('id', currentSub.id);
+                .from('gyms')
+                .update({
+                    status: GYM_STATUS.BLOCKED,
+                    updated_at: now.toISOString()
+                })
+                .eq('id', gymId);
+
+            logSecure('warn', 'Gym blocked after grace expiry / max retries', { gymId });
         } else {
-            await supabase
-                .from('subscriptions')
-                .update(updateData)
-                .eq('gym_id', gymId);
-        }
+            // GRACE: Start or maintain grace period
+            const updateData = {
+                status: SUBSCRIPTION_STATUS.PAST_DUE,
+                retry_count: retryCount,
+                updated_at: now.toISOString()
+            };
 
-        logSecure('warn', 'Payment rejected - grace period active', { retryCount });
+            // Start grace period if none active
+            if (!currentSub?.grace_period_ends_at) {
+                const gracePeriodEnd = new Date(now);
+                gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+                updateData.grace_period_ends_at = gracePeriodEnd.toISOString();
+                logSecure('info', 'Grace period started (7 days) after rejected payment');
+            }
+
+            if (currentSub?.id) {
+                await supabase
+                    .from('subscriptions')
+                    .update(updateData)
+                    .eq('id', currentSub.id);
+            } else {
+                await supabase
+                    .from('subscriptions')
+                    .update(updateData)
+                    .eq('gym_id', gymId);
+            }
+
+            logSecure('warn', 'Payment rejected - grace period active', { retryCount });
+        }
     }
 }
 

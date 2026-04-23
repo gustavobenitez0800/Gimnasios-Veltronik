@@ -2,7 +2,7 @@
 // VELTRONIK V2 - DASHBOARD PAGE (Refactored)
 // ============================================
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -25,11 +25,27 @@ import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 
+const RestaurantDashboardPage = lazy(() => import('./restaurant/RestaurantDashboardPage'));
+
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
 export default function DashboardPage() {
   const { gym } = useAuth();
+
+  // Si es restaurante, mostrar dashboard de restaurante
+  if (gym?.organization_type === 'RESTO') {
+    return (
+      <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando dashboard...</div>}>
+        <RestaurantDashboardPage />
+      </Suspense>
+    );
+  }
+
+  return <GymDashboard gym={gym} />;
+}
+
+function GymDashboard({ gym }) {
   const { showToast } = useToast();
 
   const [members, setMembers] = useState([]);

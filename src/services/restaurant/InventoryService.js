@@ -10,9 +10,11 @@ class InventoryService extends BaseService {
   }
 
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('org_id', orgId)
       .order('name', { ascending: true });
     if (error) throw error;
     return data || [];
@@ -23,9 +25,11 @@ class InventoryService extends BaseService {
   }
 
   async getLowStock() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('org_id', orgId)
       .filter('current_stock', 'lte', 'minimum_stock');
     if (error) throw error;
     return data || [];

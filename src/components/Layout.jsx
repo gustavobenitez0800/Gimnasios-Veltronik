@@ -2,18 +2,47 @@
 // VELTRONIK - LAYOUT COMPONENTS
 // ============================================
 
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
+import CONFIG from '../lib/config';
 
 /**
  * Main app layout with sidebar (for dashboard pages)
+ * Includes payment warning banner for past_due subscriptions.
  */
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { loading } = useAuth();
+  const { loading, subscription, gym } = useAuth();
+  const navigate = useNavigate();
+
+  // Payment warning banner logic
+  const paymentWarning = useMemo(() => {
+    if (!subscription) return null;
+
+    if (subscription.status === 'past_due') {
+      const graceEnd = subscription.grace_period_ends_at
+        ? new Date(subscription.grace_period_ends_at)
+        : null;
+      const now = new Date();
+      const daysLeft = graceEnd
+        ? Math.max(0, Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24)))
+        : null;
+
+      return {
+        type: 'warning',
+        message: daysLeft !== null && daysLeft > 0
+          ? `⚠️ Tu pago fue rechazado. Tenés ${daysLeft} día${daysLeft !== 1 ? 's' : ''} para actualizar tu método de pago antes de perder acceso.`
+          : '⚠️ Tu pago fue rechazado. Actualizá tu método de pago para mantener el acceso.',
+        action: 'Actualizar pago',
+        route: CONFIG.ROUTES.SETTINGS,
+      };
+    }
+
+    return null;
+  }, [subscription]);
 
   if (loading) {
     return <LoadingScreen />;
@@ -34,6 +63,19 @@ export function AppLayout() {
           </button>
           <span className="mobile-header-title">Veltronik</span>
         </header>
+
+        {/* Payment warning banner */}
+        {paymentWarning && (
+          <div className={`payment-warning-banner payment-warning-${paymentWarning.type}`}>
+            <span className="payment-warning-text">{paymentWarning.message}</span>
+            <button
+              className="payment-warning-btn"
+              onClick={() => navigate(paymentWarning.route)}
+            >
+              {paymentWarning.action} →
+            </button>
+          </div>
+        )}
 
         <div className="page-content">
           <Outlet />

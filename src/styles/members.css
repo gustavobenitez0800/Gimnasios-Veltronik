@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    MEMBERS / PAYMENTS PAGE
    ============================================ */
 
@@ -147,3 +147,115 @@
 }
 
 .table-filters { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+/* ─── Member Search in Payment Modal ─── */
+.member-search-container {
+  position: relative;
+}
+
+.member-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.member-search-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.member-search-option:hover {
+  background: var(--primary-500);
+  color: white;
+}
+
+.member-search-option:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.member-option-name {
+  font-weight: 600;
+}
+
+.member-option-dni {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.member-search-option:hover .member-option-dni {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.member-search-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Selected Member Chip */
+.selected-member-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  border-radius: var(--border-radius-md);
+  color: var(--text-primary);
+}
+
+.selected-member-info {
+  font-size: var(--font-size-sm);
+}
+
+.chip-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.chip-remove:hover {
+  background: #ef4444;
+  color: white;
+  transform: scale(1.1);
+}
+
+/* Stats grid 3 columns */
+.stats-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 768px) {
+  .stats-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}

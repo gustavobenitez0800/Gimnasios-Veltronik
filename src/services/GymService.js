@@ -91,7 +91,22 @@ class GymService extends BaseService {
       .map((om) => ({
         ...om.gyms,
         role: om.role || 'owner',
-      }));
+      }))
+      // Deduplicar por org ID: si el usuario tiene múltiples membresías
+      // al mismo negocio, mantener la de mayor jerarquía (owner > admin > staff)
+      .reduce((unique, org) => {
+        const existing = unique.find(o => o.id === org.id);
+        if (!existing) {
+          unique.push(org);
+        } else {
+          const hierarchy = { owner: 3, admin: 2, staff: 1, reception: 0 };
+          if ((hierarchy[org.role] || 0) > (hierarchy[existing.role] || 0)) {
+            const idx = unique.indexOf(existing);
+            unique[idx] = org;
+          }
+        }
+        return unique;
+      }, []);
   }
 }
 

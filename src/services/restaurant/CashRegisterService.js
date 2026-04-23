@@ -13,9 +13,11 @@ class CashRegisterService extends BaseService {
    * Get the currently open cash register.
    */
   async getOpen() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('org_id', orgId)
       .eq('status', 'open')
       .maybeSingle();
 

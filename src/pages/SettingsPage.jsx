@@ -1,5 +1,5 @@
 // ============================================
-// VELTRONIK V2 - SETTINGS PAGE
+// VELTRONIK V2 - SETTINGS PAGE (Fixed & Enhanced)
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,7 +13,7 @@ import CONFIG from '../lib/config';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
-  const { user, gym: authGym, profile, logout } = useAuth();
+  const { user, gym: authGym, profile, logout, refreshAuth } = useAuth();
   const { preference, setTheme } = useTheme();
   const currentRole = localStorage.getItem('current_org_role');
 
@@ -25,12 +25,15 @@ export default function SettingsPage() {
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
-    plan: 'Veltronik Pro', status: 'active', nextPayment: '--', amount: '--'
+    plan: 'Veltronik Pro', status: 'active', nextPayment: '--', amount: '--',
+    payerEmail: '', hasSubscription: false
   });
 
-  // Danger zone confirm
+  // Action states
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -49,7 +52,8 @@ export default function SettingsPage() {
 
       // Subscription info
       let nextPaymentText = '--';
-      const amount = CONFIG.SUBSCRIPTION_PRICE || 0;
+      let payerEmail = '';
+      let hasSubscription = false;
 
       // Try to get subscription info
       try {
@@ -57,9 +61,14 @@ export default function SettingsPage() {
           .from('subscriptions')
           .select('*')
           .eq('gym_id', gymData.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (sub) {
+          hasSubscription = sub.status === 'active' || sub.status === 'past_due';
+          payerEmail = sub.mp_payer_email || '';
+
           // Determine next payment date from best available source
           const nextDate = sub.current_period_end || sub.next_payment_date;
           
@@ -96,11 +105,31 @@ export default function SettingsPage() {
           : `${dateStr} (período de prueba finalizado)`;
       }
 
+      // Load billing history
+      let billingHistory = [];
+      try {
+        const { data: payments } = await supabase
+          .from('subscription_payments')
+          .select('id, amount, status, payment_date, created_at')
+          .eq('gym_id', gymData.id)
+          .order('created_at', { ascending: false })
+          .limit(6);
+        billingHistory = payments || [];
+      } catch { /* table may not exist */ }
+
+      // Use org-type aware pricing
+      const orgType = gymData.organization_type || localStorage.getItem('current_org_type') || 'GYM';
+      const priceMap = { GYM: 35000, RESTO: 45000, KIOSK: 25000, OTHER: 35000 };
+      const amount = priceMap[orgType] || CONFIG.SUBSCRIPTION_PRICE || 0;
+
       setSubscriptionInfo({
-        plan: 'Veltronik Pro',
+        plan: orgType === 'RESTO' ? 'Veltronik Restaurante' : 'Veltronik Pro',
         status: gymData.status || 'active',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
+        payerEmail,
+        hasSubscription,
+        billingHistory,
       });
 
     } catch (error) {
@@ -134,8 +163,50 @@ export default function SettingsPage() {
     }
   };
 
+  // Update payment method — generates new MP checkout link
+  const handleUpdatePaymentMethod = async () => {
+    const gymId = authGym?.id || localStorage.getItem('current_org_id');
+    const email = subscriptionInfo.payerEmail || user?.email || profile?.email;
+
+    if (!gymId || !email) {
+      showToast('No se encontraron los datos necesarios', 'error');
+      return;
+    }
+
+    setUpdatingPayment(true);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/api/update-payment-method`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_id: gymId, payer_email: email }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al actualizar método de pago');
+      }
+
+      const checkoutUrl = CONFIG.DEBUG
+        ? (result.data?.sandbox_init_point || result.data?.init_point)
+        : (result.data?.init_point || result.data?.sandbox_init_point);
+
+      if (checkoutUrl) {
+        showToast('Redirigiendo a Mercado Pago para actualizar tu tarjeta...', 'info');
+        setTimeout(() => { window.location.href = checkoutUrl; }, 1000);
+      } else {
+        throw new Error('No se obtuvo URL de checkout');
+      }
+    } catch (error) {
+      showToast(error.message || 'Error al actualizar método de pago', 'error');
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
+
   // Cancel subscription properly (calls API that also cancels in MercadoPago)
   const handleCancelSubscription = async () => {
+    setCancellingSubscription(true);
     try {
       const gymId = authGym?.id || localStorage.getItem('current_org_id');
       if (!gymId) {
@@ -157,9 +228,17 @@ export default function SettingsPage() {
 
       showToast('Suscripción cancelada. Tus datos están seguros.', 'info');
       setConfirmCancel(false);
+
+      // Refresh auth state before redirecting
+      if (refreshAuth) {
+        try { await refreshAuth(); } catch { /* ignore */ }
+      }
+
       setTimeout(() => { window.location.hash = '#/blocked'; }, 2000);
     } catch (error) {
       showToast(error.message || 'Error al cancelar suscripción', 'error');
+    } finally {
+      setCancellingSubscription(false);
     }
   };
 
@@ -224,6 +303,18 @@ export default function SettingsPage() {
             <div className="subscription-plan">{subscriptionInfo.plan}</div>
             <div className="subscription-status">{statusLabels[subscriptionInfo.status] || subscriptionInfo.status}</div>
           </div>
+
+          {/* Past due warning */}
+          {subscriptionInfo.status === 'blocked' && (
+            <div style={{
+              padding: '0.75rem 1rem', marginBottom: '1rem',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 'var(--border-radius-md)', color: '#ef4444', fontSize: 'var(--font-size-sm)'
+            }}>
+              ⚠️ Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
+            </div>
+          )}
+
           <div className="info-row">
             <span className="info-label">Próximo cobro</span>
             <span className="info-value">{subscriptionInfo.nextPayment}</span>
@@ -232,6 +323,62 @@ export default function SettingsPage() {
             <span className="info-label">Monto mensual</span>
             <span className="info-value">{subscriptionInfo.amount}</span>
           </div>
+          {subscriptionInfo.payerEmail && (
+            <div className="info-row">
+              <span className="info-label">Email de pago</span>
+              <span className="info-value">{subscriptionInfo.payerEmail}</span>
+            </div>
+          )}
+
+          {/* Payment Method Actions */}
+          {subscriptionInfo.hasSubscription && (
+            <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={handleUpdatePaymentMethod}
+                disabled={updatingPayment}
+                style={{ flex: '1', minWidth: '200px' }}
+              >
+                {updatingPayment ? (
+                  <><span className="spinner" /> Procesando...</>
+                ) : (
+                  '🔄 Cambiar Tarjeta / Método de Pago'
+                )}
+              </button>
+            </div>
+          )}
+          {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
+            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
+              💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná el botón de arriba.
+              Serás redirigido a Mercado Pago para ingresar los nuevos datos.
+            </p>
+          )}
+
+          {/* Billing History */}
+          {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
+                📋 Historial de Facturación
+              </h3>
+              <div className="billing-history-list">
+                {subscriptionInfo.billingHistory.map((p, i) => (
+                  <div key={p.id || i} className="billing-history-item">
+                    <div className="billing-history-left">
+                      <span className="billing-history-date">
+                        {new Date(p.payment_date || p.created_at).toLocaleDateString('es-AR')}
+                      </span>
+                      <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
+                        {p.status === 'approved' ? '✓ Aprobado' : p.status === 'rejected' ? '✗ Rechazado' : '◌ Pendiente'}
+                      </span>
+                    </div>
+                    <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
+                      {formatCurrency(p.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Account */}
@@ -299,8 +446,8 @@ export default function SettingsPage() {
 
       {/* Confirm Dialogs */}
       <ConfirmDialog open={confirmCancel} title="Cancelar Suscripción"
-        message="¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual."
-        icon="⚠️" confirmText="Sí, cancelar" confirmClass="btn-danger"
+        message="¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual. Tu suscripción en Mercado Pago también será cancelada."
+        icon="⚠️" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
         onConfirm={handleCancelSubscription} onCancel={() => setConfirmCancel(false)} />
 
       <ConfirmDialog open={confirmLogout} title="Cerrar Sesión"

@@ -8,16 +8,18 @@
  * Crea una suscripción mensual en Mercado Pago
  * usando la API de Preapproval.
  * 
- * SECURITY HARDENED VERSION:
- * - Validación estricta de inputs
- * - Sanitización de datos
- * - Logs seguros
+ * NETFLIX-LEVEL: Handles all edge cases:
+ * - New subscription
+ * - Reactivation after cancellation
+ * - Retry after rejected payment (past_due)
+ * - Dynamic pricing by org type
  * 
  * Body esperado:
  * {
  *   "gym_id": "uuid del gimnasio",
  *   "payer_email": "email del pagador",
- *   "plan_id": "uuid del plan seleccionado (opcional)"
+ *   "plan_id": "uuid del plan seleccionado (opcional)",
+ *   "org_type": "GYM|RESTO|KIOSK|OTHER (opcional)"
  * }
  */
 
@@ -27,6 +29,7 @@ const {
     SUBSCRIPTION_CONFIG,
     GYM_STATUS,
     SUBSCRIPTION_STATUS,
+    getSubscriptionPriceForGym,
     jsonResponse,
     errorResponse,
     corsResponse,
@@ -48,13 +51,12 @@ module.exports = async function handler(req, res) {
     }
 
     try {
-        const { gym_id, payer_email, plan_id } = req.body;
+        const { gym_id, payer_email, plan_id, org_type } = req.body;
 
         // ============================================
         // SECURITY: VALIDACIÓN DE INPUTS
         // ============================================
 
-        // Validar gym_id (obligatorio, debe ser UUID)
         if (!gym_id) {
             return errorResponse(res, 400, 'gym_id es requerido', null, req);
         }
@@ -64,7 +66,6 @@ module.exports = async function handler(req, res) {
             return errorResponse(res, 400, 'gym_id inválido', null, req);
         }
 
-        // Validar email (obligatorio, formato válido)
         if (!payer_email) {
             return errorResponse(res, 400, 'payer_email es requerido', null, req);
         }
@@ -74,13 +75,19 @@ module.exports = async function handler(req, res) {
             return errorResponse(res, 400, 'Email inválido', null, req);
         }
 
-        // Sanitizar email (trim y lowercase)
         const sanitizedEmail = payer_email.trim().toLowerCase();
 
-        // Validar plan_id si está presente (debe ser UUID)
         if (plan_id && !isValidUUID(plan_id)) {
             return errorResponse(res, 400, 'plan_id inválido', null, req);
         }
+
+        // ============================================
+        // RESOLVE DYNAMIC PRICE BY ORG TYPE
+        // ============================================
+
+        const { price, reason } = await getSubscriptionPriceForGym(gym_id, org_type);
+
+        logSecure('info', 'Resolved subscription price', { price, org_type: org_type || 'auto' });
 
         // ============================================
         // AUTO-ASSIGN DEFAULT PLAN IF NOT PROVIDED
@@ -88,7 +95,6 @@ module.exports = async function handler(req, res) {
 
         let resolvedPlanId = plan_id;
         if (!resolvedPlanId) {
-            // Fetch default plan (Profesional) from database
             const { data: defaultPlan } = await supabase
                 .from('plans')
                 .select('id')
@@ -97,9 +103,7 @@ module.exports = async function handler(req, res) {
 
             if (defaultPlan) {
                 resolvedPlanId = defaultPlan.id;
-                logSecure('info', 'Auto-assigned default plan (Profesional)');
             } else {
-                // Fallback: get first available plan
                 const { data: firstPlan } = await supabase
                     .from('plans')
                     .select('id')
@@ -107,18 +111,14 @@ module.exports = async function handler(req, res) {
                     .limit(1)
                     .single();
 
-                if (firstPlan) {
-                    resolvedPlanId = firstPlan.id;
-                    logSecure('info', 'Auto-assigned first available plan');
-                }
+                if (firstPlan) resolvedPlanId = firstPlan.id;
             }
         }
 
         // ============================================
-        // VALIDACIONES DE NEGOCIO
+        // VALIDATE GYM EXISTS
         // ============================================
 
-        // Validar que el gimnasio existe
         const { data: gym, error: gymError } = await supabase
             .from('gyms')
             .select('id, name, status')
@@ -130,17 +130,21 @@ module.exports = async function handler(req, res) {
             return errorResponse(res, 404, 'Gimnasio no encontrado', null, req);
         }
 
-        // Verificar si ya tiene una suscripción activa
-        const { data: existingSubscription } = await supabase
+        // ============================================
+        // HANDLE EXISTING SUBSCRIPTIONS
+        // ============================================
+
+        // Check for ANY non-cancelled subscription (active, pending, or past_due)
+        const { data: existingSubs } = await supabase
             .from('subscriptions')
             .select('id, status, mp_preapproval_id')
             .eq('gym_id', gym_id)
-            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING])
-            .single();
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE])
+            .order('created_at', { ascending: false });
 
-        if (existingSubscription) {
-            // If the subscription is truly active, do NOT cancel it
-            if (existingSubscription.status === SUBSCRIPTION_STATUS.ACTIVE) {
+        for (const sub of (existingSubs || [])) {
+            if (sub.status === SUBSCRIPTION_STATUS.ACTIVE) {
+                // Truly active → don't create another
                 return jsonResponse(res, 200, {
                     success: false,
                     error: 'Ya tenés una suscripción activa. No es necesario crear una nueva.',
@@ -148,42 +152,44 @@ module.exports = async function handler(req, res) {
                 }, req);
             }
 
-            // If it's pending, cancel it to allow a fresh retry
-            logSecure('info', 'Cancelling pending subscription to allow new one', { id: existingSubscription.id });
+            // Cancel pending or past_due subscriptions in MP + DB to allow fresh start
+            if (sub.mp_preapproval_id) {
+                try {
+                    await preApproval.update({
+                        id: sub.mp_preapproval_id,
+                        body: { status: 'cancelled' }
+                    });
+                } catch {
+                    logSecure('warn', 'Could not cancel old MP subscription');
+                }
+            }
 
             await supabase
                 .from('subscriptions')
-                .update({ status: SUBSCRIPTION_STATUS.CANCELED })
-                .eq('id', existingSubscription.id);
+                .update({ status: SUBSCRIPTION_STATUS.CANCELED, updated_at: new Date().toISOString() })
+                .eq('id', sub.id);
+
+            logSecure('info', 'Cleaned up old subscription', { oldStatus: sub.status });
         }
 
         // ============================================
-        // CREAR SUSCRIPCIÓN EN MERCADO PAGO
+        // CREATE SUBSCRIPTION IN MERCADO PAGO
         // ============================================
 
         const subscriptionData = {
-            // Razón de la suscripción (aparece en MP)
-            reason: sanitizeString(SUBSCRIPTION_CONFIG.REASON, 100),
-
-            // external_reference: Clave para identificar el gimnasio en webhooks
+            reason: sanitizeString(reason, 100),
             external_reference: gym_id,
-
-            // Configuración del pagador
             payer_email: sanitizedEmail,
-
-            // Configuración de pago recurrente
             auto_recurring: {
                 frequency: SUBSCRIPTION_CONFIG.FREQUENCY,
                 frequency_type: SUBSCRIPTION_CONFIG.FREQUENCY_TYPE,
-                transaction_amount: SUBSCRIPTION_CONFIG.PRICE,
+                transaction_amount: price,
                 currency_id: SUBSCRIPTION_CONFIG.CURRENCY
             },
-
-            // URL de retorno después del pago
             back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
         };
 
-        logSecure('info', 'Creating MP subscription', { gym_id });
+        logSecure('info', 'Creating MP subscription', { gym_id, price });
 
         const mpSubscription = await preApproval.create({ body: subscriptionData });
 
@@ -193,7 +199,7 @@ module.exports = async function handler(req, res) {
         });
 
         // ============================================
-        // GUARDAR EN BASE DE DATOS
+        // SAVE TO DATABASE
         // ============================================
 
         const subscriptionRecord = {
@@ -213,21 +219,20 @@ module.exports = async function handler(req, res) {
 
         if (saveError) {
             logSecure('error', 'Error saving subscription to DB');
-            // No falla la respuesta, el webhook corregirá esto
         }
 
-        // ALWAYS update gym plan_id
+        // Update gym plan_id + unblock if blocked
         await supabase
             .from('gyms')
             .update({
                 plan_id: resolvedPlanId || null,
+                // Don't activate yet — webhook will do it after payment
                 updated_at: new Date().toISOString()
             })
             .eq('id', gym_id);
 
-
         // ============================================
-        // RESPUESTA EXITOSA
+        // SUCCESS RESPONSE
         // ============================================
 
         return jsonResponse(res, 200, {
@@ -235,15 +240,15 @@ module.exports = async function handler(req, res) {
             data: {
                 subscription_id: savedSubscription?.id || null,
                 mp_preapproval_id: mpSubscription.id,
-                init_point: mpSubscription.init_point, // URL para redirigir al usuario
-                sandbox_init_point: mpSubscription.sandbox_init_point, // URL sandbox
-                status: mpSubscription.status
+                init_point: mpSubscription.init_point,
+                sandbox_init_point: mpSubscription.sandbox_init_point,
+                status: mpSubscription.status,
+                price: price,
             }
         }, req);
 
     } catch {
         logSecure('error', 'Create subscription error');
-
         return errorResponse(res, 500, 'Error al crear suscripción', null, req);
     }
 };

@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    PHASE 3: REPORTS PAGE
    ============================================ */
 
@@ -185,3 +185,73 @@
 .days-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .days-danger { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .days-none { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
+
+/* ============================================
+   BILLING HISTORY (Settings Page)
+   ============================================ */
+
+.billing-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+}
+
+.billing-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-tertiary);
+  transition: background 0.15s;
+}
+
+.billing-history-item:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.billing-history-item:hover {
+  background: var(--bg-secondary);
+}
+
+.billing-history-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.billing-history-date {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+  min-width: 90px;
+}
+
+.billing-history-badge {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success-500);
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-500);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.billing-history-amount {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}

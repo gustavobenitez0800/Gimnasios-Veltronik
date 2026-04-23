@@ -64,14 +64,62 @@ const supabase = createClient(
 // CONFIGURACIÓN DE SUSCRIPCIÓN
 // ============================================
 
+// Precios por tipo de organización (ARS)
+const PRICES_BY_TYPE = {
+    GYM: 35000,
+    RESTO: 45000,
+    KIOSK: 25000,
+    OTHER: 35000
+};
+
 const SUBSCRIPTION_CONFIG = {
-    PRICE: 35000,
+    PRICE: 35000, // Default fallback
     CURRENCY: 'ARS',
     FREQUENCY: 1,
     FREQUENCY_TYPE: 'months',
-    REASON: 'Veltronik - Gestión de Gimnasios (Mensual)',
-    BACK_URL: process.env.FRONTEND_URL || 'https://gimnasio-veltronik.vercel.app'
+    REASON: 'Veltronik - Gestión de Negocios (Mensual)',
+    BACK_URL: process.env.FRONTEND_URL || 'https://gimnasio-veltronik.vercel.app',
+    GRACE_PERIOD_DAYS: 7, // Días de gracia antes de bloquear
 };
+
+/**
+ * Obtiene el precio correcto para un gimnasio según su tipo de organización.
+ * @param {string} gymId - UUID del gimnasio
+ * @param {string} orgType - Tipo forzado (opcional, si ya lo sabemos)
+ * @returns {Promise<{price: number, orgType: string, reason: string}>}
+ */
+async function getSubscriptionPriceForGym(gymId, orgType = null) {
+    let resolvedType = orgType;
+
+    if (!resolvedType && gymId) {
+        try {
+            const { data: gym } = await supabase
+                .from('gyms')
+                .select('organization_type')
+                .eq('id', gymId)
+                .single();
+            resolvedType = gym?.organization_type || 'GYM';
+        } catch {
+            resolvedType = 'GYM';
+        }
+    }
+
+    resolvedType = resolvedType || 'GYM';
+    const price = PRICES_BY_TYPE[resolvedType] || PRICES_BY_TYPE.GYM;
+
+    const reasonMap = {
+        GYM: 'Veltronik - Gestión de Gimnasios (Mensual)',
+        RESTO: 'Veltronik - Gestión de Restaurantes (Mensual)',
+        KIOSK: 'Veltronik - Gestión de Kioscos (Mensual)',
+        OTHER: 'Veltronik - Gestión de Negocios (Mensual)',
+    };
+
+    return {
+        price,
+        orgType: resolvedType,
+        reason: reasonMap[resolvedType] || reasonMap.OTHER,
+    };
+}
 
 // ============================================
 // ESTADOS DEL SISTEMA
@@ -316,12 +364,15 @@ module.exports = {
     payment,
     supabase,
     SUBSCRIPTION_CONFIG,
+    PRICES_BY_TYPE,
     GYM_STATUS,
     SUBSCRIPTION_STATUS,
     MP_STATUS_MAP,
     MP_PAYMENT_STATUS_MAP,
     ALLOWED_ORIGINS,
     IS_PRODUCTION,
+    // Business logic
+    getSubscriptionPriceForGym,
     // Security functions
     validateWebhookSignature,
     logSecure,

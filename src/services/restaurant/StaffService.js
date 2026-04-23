@@ -10,9 +10,11 @@ class StaffService extends BaseService {
   }
 
   async getAll() {
+    const orgId = await this._getOrgId();
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
+      .eq('org_id', orgId)
       .order('full_name', { ascending: true });
     if (error) throw error;
     return data || [];

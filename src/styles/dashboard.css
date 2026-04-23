@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    DASHBOARD
    ============================================ */
 
@@ -54,6 +54,7 @@
 .stat-icon-success { background: rgba(34, 197, 94, 0.15); color: var(--success-500); }
 .stat-icon-warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 .stat-icon-accent  { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.stat-icon-neutral { background: var(--bg-tertiary); color: var(--text-muted); }
 
 .stat-value {
   font-size: var(--font-size-2xl);
