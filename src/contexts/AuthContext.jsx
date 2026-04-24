@@ -29,6 +29,7 @@ const supabaseSignOut = () => authService.signOut();
 const clearPlatformState = () => authService.clearPlatformState();
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
+import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
 const AuthContext = createContext(null);
 
@@ -384,7 +385,7 @@ export function AuthProvider({ children }) {
     return (
       <AuthContext.Provider value={value}>
         <div className="auth-splash">
-          <img src="/assets/LogoPrincipalVeltronik.png" alt="Veltronik" className="auth-splash-logo" />
+          <img src={logoSrc} alt="Veltronik" className="auth-splash-logo" />
           <div className="auth-splash-spinner"><span className="spinner" /></div>
         </div>
       </AuthContext.Provider>

@@ -22,6 +22,7 @@ export { errorService } from './ErrorService';
 // Analytics
 import InsightsService from './InsightsService';
 export const insightsService = new InsightsService();
+export { dashboardStatsService } from './DashboardStatsService';
 
 // Restaurant Services
 export { areaService } from './restaurant/AreaService';

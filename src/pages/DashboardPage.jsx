@@ -18,7 +18,7 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { memberService, paymentService, insightsService } from '../services';
+import { memberService, paymentService, insightsService, dashboardStatsService } from '../services';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
@@ -50,15 +50,22 @@ function GymDashboard({ gym }) {
 
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const [membersData, paymentsData] = await Promise.all([
+      // Optimizado: stats vienen de vista materializada (1 RPC)
+      // Members y payments solo se cargan para AI/charts que necesitan
+      // los datos crudos. En futuro, charts también usarán RPC.
+      const [dashStats, membersData, paymentsData] = await Promise.all([
+        dashboardStatsService.getDashboardStats(),
         memberService.getAll(),
         paymentService.getAll().catch(() => []),
       ]);
+      setStats(dashStats);
       setMembers(membersData || []);
       setPayments(paymentsData || []);
     } catch (error) {
@@ -73,31 +80,37 @@ function GymDashboard({ gym }) {
     loadDashboard();
   }, [loadDashboard]);
 
-  // ─── COMPUTED STATS ───
-  const stats = useMemo(() => {
-    const today = new Date();
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  // Refrescar vistas materializadas manualmente
+  const handleRefreshStats = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const ok = await dashboardStatsService.refreshStats();
+      if (ok) {
+        await loadDashboard();
+        showToast('Estadísticas actualizadas', 'success');
+      } else {
+        showToast('Las estadísticas se están calculando en tiempo real', 'info');
+      }
+    } catch {
+      showToast('Error al actualizar', 'error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDashboard, showToast]);
 
-    const activeMembers = members.filter((m) => m.status === 'active').length;
-
-    const expiredMembers = members.filter((m) => {
-      if (!m.membership_end) return false;
-      return new Date(m.membership_end) < today;
-    }).length;
-
-    const expiringMembers = members.filter((m) => {
-      if (!m.membership_end) return false;
-      const endDate = new Date(m.membership_end);
-      return endDate >= today && endDate <= nextWeek;
-    }).length;
-
-    const monthlyRevenue = payments
-      .filter((p) => new Date(p.payment_date) >= startOfMonth && p.status === 'paid')
-      .reduce((sum, p) => sum + parseFloat(p.amount), 0);
-
-    return { activeMembers, expiredMembers, expiringMembers, monthlyRevenue };
-  }, [members, payments]);
+  // ─── STATS FROM RPC (or fallback computed) ───
+  const dashboardStats = useMemo(() => {
+    if (stats) {
+      return {
+        activeMembers: stats.active_members || 0,
+        expiredMembers: stats.expired_members || 0,
+        expiringMembers: stats.expiring_this_week || 0,
+        monthlyRevenue: parseFloat(stats.monthly_revenue || 0),
+      };
+    }
+    // Fallback if RPC returns null
+    return { activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
+  }, [stats]);
 
   // ─── AI DATA ───
   const prediction = useMemo(() => insightsService.predictNextMonthRevenue(payments), [payments]);
@@ -206,18 +219,28 @@ function GymDashboard({ gym }) {
         subtitle="Vista general de tu negocio"
         icon="dashboard"
         actions={
-          <span className={`badge ${gym?.status === 'active' ? 'badge-success' : 'badge-warning'}`}>
-            {gym?.status === 'active' ? 'Activo' : gym?.status || '--'}
-          </span>
+          <div className="flex gap-2 items-center">
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={handleRefreshStats}
+              disabled={refreshing}
+              title="Actualizar estadísticas"
+            >
+              {refreshing ? <span className="spinner" /> : <Icon name="refresh" />}
+            </button>
+            <span className={`badge ${gym?.status === 'active' ? 'badge-success' : 'badge-warning'}`}>
+              {gym?.status === 'active' ? 'Activo' : gym?.status || '--'}
+            </span>
+          </div>
         }
       />
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        <StatCard icon="users" label="Socios Activos" value={stats.activeMembers} color="primary" />
-        <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(stats.monthlyRevenue)} color="success" />
-        <StatCard icon="bell" label="Pagos Vencidos" value={stats.expiredMembers} color="warning" />
-        <StatCard icon="calendar" label="Vencen esta semana" value={stats.expiringMembers} color="accent" />
+        <StatCard icon="users" label="Socios Activos" value={dashboardStats.activeMembers} color="primary" />
+        <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
+        <StatCard icon="bell" label="Pagos Vencidos" value={dashboardStats.expiredMembers} color="warning" />
+        <StatCard icon="calendar" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
       </div>
 
       {/* AI Section */}
