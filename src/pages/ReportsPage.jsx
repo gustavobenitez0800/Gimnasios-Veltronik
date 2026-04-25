@@ -145,7 +145,23 @@ function GymReportsPage() {
         return p.payment_date >= dateFrom && p.payment_date <= dateTo;
       });
       const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
-      const rows = filtered.map(p => [p.member?.full_name || '', p.amount || 0, p.payment_date || '', getMethodLabel(p.payment_method), p.status || '']);
+      
+      const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+
+      const rows = filtered.map(p => [
+        p.member?.full_name || '', 
+        formatCurrency(p.amount || 0), 
+        p.payment_date || '', 
+        getMethodLabel(p.payment_method), 
+        p.status || ''
+      ]);
+      
+      // Calcular total sumado (solo de pagos completados)
+      const totalSum = filtered.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+      
+      // Agregar filas de total al final
+      rows.push(['', '', '', '', '']); // Separador visual
+      rows.push(['TOTAL SUMADO (Aprobados)', formatCurrency(totalSum), '', '', '']);
       
       if (format === 'excel') {
         downloadExcel(`pagos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
@@ -183,18 +199,42 @@ function GymReportsPage() {
     finally { setExporting(e => ({ ...e, access: null })); }
   };
 
-  const exportSummary = (format) => {
+  const exportSummary = async (format) => {
     setExporting(e => ({ ...e, summary: format }));
     try {
+      // 1. Ya no se calculan ingresos en el resumen general para separar la información
+      
+      // 2. Socios en general
       const active = members.filter(m => m.status === 'active').length;
-      const totalIncome = payments.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+      const newMembers = members.filter(m => {
+        if (!dateFrom || !dateTo || !m.membership_start) return true;
+        return m.membership_start >= dateFrom && m.membership_start <= dateTo;
+      });
+
+      // 3. Accesos del período
+      let logs = [];
+      try {
+        if (dateFrom && dateTo) {
+          logs = await accessService.getLogsByDateRange(dateFrom, dateTo);
+        } else {
+          logs = await accessService.getTodayLogs();
+        }
+      } catch (err) {
+        console.error("Error obteniendo accesos:", err);
+      }
+
       const headers = ['Métrica', 'Valor'];
-      const rows = [['Socios Activos', active], ['Ingresos Totales', totalIncome], ['Total Socios', members.length], ['Total Pagos', payments.length]];
+      const rows = [
+        ['Socios Activos (Total Histórico)', active], 
+        ['Total Socios (Total Histórico)', members.length], 
+        [`Nuevos Socios (${dateFrom || 'Inicio'} al ${dateTo || 'Fin'})`, newMembers.length],
+        [`Accesos Registrados (${dateFrom || 'Inicio'} al ${dateTo || 'Fin'})`, logs?.length || 0]
+      ];
       
       if (format === 'excel') {
-        downloadExcel(`resumen_${new Date().toISOString().split('T')[0]}.xlsx`, headers, rows);
+        downloadExcel(`resumen_${dateFrom || 'total'}_${dateTo || 'total'}.xlsx`, headers, rows);
       } else {
-        downloadPDF('Resumen General', `resumen_${new Date().toISOString().split('T')[0]}.pdf`, headers, rows);
+        downloadPDF('Resumen General', `resumen_${dateFrom || 'total'}_${dateTo || 'total'}.pdf`, headers, rows);
       }
       
       addToHistory('Resumen', format === 'excel' ? 'Excel' : 'PDF');
@@ -207,7 +247,7 @@ function GymReportsPage() {
     { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: '👥', color: 'primary', action: exportMembers },
     { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: '💰', color: 'success', action: exportPayments },
     { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: '🚪', color: 'accent', action: exportAccess },
-    { key: 'summary', title: 'Resumen General', desc: 'Socios activos, ingresos totales y métricas clave.', icon: '📊', color: 'warning', action: exportSummary },
+    { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: '📊', color: 'warning', action: exportSummary },
   ];
 
   return (

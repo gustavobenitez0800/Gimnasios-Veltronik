@@ -145,11 +145,11 @@ autoUpdater.on('update-downloaded', (info) => {
     updateDownloaded = true;
     downloadedVersion = info.version;
 
-    // Notificación en español
+    // Notificación nativa de Windows (Silenciosa, no intrusiva)
     try {
         const notification = new Notification({
             title: '✅ Actualización lista',
-            body: `La versión ${info.version} está lista. Se reiniciará para instalar.`,
+            body: `La versión ${info.version} se descargó. Se instalará automáticamente al cerrar el sistema.`,
             silent: false
         });
         notification.show();
@@ -157,7 +157,7 @@ autoUpdater.on('update-downloaded', (info) => {
         log.warn('No se pudo mostrar notificación:', e.message);
     }
 
-    // Enviar al renderer
+    // Enviar al renderer (por si en el futuro queremos mostrar un badge sutil)
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-downloaded', {
             version: info.version,
@@ -165,68 +165,10 @@ autoUpdater.on('update-downloaded', (info) => {
         });
     }
 
-    // AGRESIVO: Después de 2 minutos, mostrar diálogo nativo BLOQUEANTE
-    // Si el usuario no hizo nada, forzar la instalación
-    setTimeout(async () => {
-        if (!updateDownloaded) return; // Ya se instaló
-
-        try {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                const result = await dialog.showMessageBox(mainWindow, {
-                    type: 'info',
-                    title: 'Actualización Lista',
-                    message: `La versión ${info.version} está lista para instalar.`,
-                    detail: 'La aplicación se reiniciará para aplicar la actualización. Esto solo tomará unos segundos.',
-                    buttons: ['Reiniciar Ahora', 'Reiniciar en 5 minutos'],
-                    defaultId: 0,
-                    cancelId: 1,
-                    noLink: true
-                });
-
-                if (result.response === 0) {
-                    // Reiniciar ahora
-                    autoUpdater.quitAndInstall(false, true);
-                } else {
-                    // Esperar 5 minutos e intentar de nuevo (loop hasta que acepte)
-                    setTimeout(() => {
-                        forceInstallLoop(info.version);
-                    }, 5 * 60 * 1000);
-                }
-            }
-        } catch (e) {
-            log.error('Error mostrando diálogo de update:', e);
-        }
-    }, 2 * 60 * 1000);
+    // NOTA: Eliminado el diálogo bloqueante y el reinicio forzado.
+    // Al estar autoInstallOnAppQuit = true, la actualización se aplicará 
+    // cuando el usuario cierre la ventana (al terminar su día).
 });
-
-/**
- * Loop insistente para forzar la instalación
- */
-async function forceInstallLoop(version) {
-    if (!updateDownloaded) return;
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-
-    try {
-        const result = await dialog.showMessageBox(mainWindow, {
-            type: 'warning',
-            title: 'Actualización Pendiente',
-            message: `Es necesario instalar la versión ${version}.`,
-            detail: 'Esta actualización contiene mejoras importantes y correcciones. La aplicación se reiniciará.',
-            buttons: ['Reiniciar Ahora'],
-            defaultId: 0,
-            noLink: true
-        });
-
-        // Solo hay un botón, siempre reinicia
-        autoUpdater.quitAndInstall(false, true);
-    } catch (e) {
-        log.error('Error en force install loop:', e);
-        // Reiniciar de todas formas después de un error
-        setTimeout(() => {
-            autoUpdater.quitAndInstall(false, true);
-        }, 60 * 1000);
-    }
-}
 
 module.exports = {
     initAutoUpdater,

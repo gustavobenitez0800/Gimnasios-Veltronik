@@ -13,6 +13,29 @@ import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
+function getQuickDates(period) {
+  const today = new Date();
+  let from, to;
+  switch (period) {
+    case 'today': from = to = today.toISOString().split('T')[0]; break;
+    case 'week': {
+      const ws = new Date(today);
+      ws.setDate(today.getDate() - today.getDay() + 1);
+      from = ws.toISOString().split('T')[0];
+      to = today.toISOString().split('T')[0];
+      break;
+    }
+    case 'month':
+      from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+      to = today.toISOString().split('T')[0]; break;
+    case 'year':
+      from = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+      to = today.toISOString().split('T')[0]; break;
+    default: break;
+  }
+  return { from, to };
+}
+
 function getInitialForm() {
   const now = new Date();
   const next = new Date(now);
@@ -52,6 +75,16 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
+  const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
+  const [activePeriod, setActivePeriod] = useState('month');
+
+  const setQuickDate = (period) => {
+    const { from, to } = getQuickDates(period);
+    setDateFrom(from);
+    setDateTo(to);
+    setActivePeriod(period);
+  };
 
   // Member search in modal
   const [memberSearch, setMemberSearch] = useState('');
@@ -66,22 +99,21 @@ export default function PaymentsPage() {
 
   // Stats
   const stats = useMemo(() => {
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const filteredByDate = payments.filter(p => {
+      if (!dateFrom || !dateTo) return true;
+      return p.payment_date >= dateFrom && p.payment_date <= dateTo;
+    });
 
-    const monthlyPayments = payments.filter(
-      (p) => new Date(p.payment_date) >= startOfMonth && p.status === 'paid'
-    );
-
-    const pendingPayments = payments.filter((p) => p.status === 'pending');
+    const paidInPeriod = filteredByDate.filter((p) => p.status === 'paid');
+    const pendingInPeriod = filteredByDate.filter((p) => p.status === 'pending');
 
     return {
-      totalMonth: monthlyPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
-      totalCount: monthlyPayments.length,
-      pendingCount: pendingPayments.length,
-      pendingTotal: pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+      totalPeriod: paidInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+      totalCount: paidInPeriod.length,
+      pendingCount: pendingInPeriod.length,
+      pendingTotal: pendingInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
     };
-  }, [payments]);
+  }, [payments, dateFrom, dateTo]);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -161,6 +193,7 @@ export default function PaymentsPage() {
   const filteredPayments = useFilteredData(payments, {
     search,
     customFilter: (p) => {
+      if (dateFrom && dateTo && (p.payment_date < dateFrom || p.payment_date > dateTo)) return false;
       if (methodFilter && p.payment_method !== methodFilter) return false;
       if (statusFilter && p.status !== statusFilter) return false;
       return true;
@@ -305,9 +338,31 @@ export default function PaymentsPage() {
         }
       />
 
+      {/* Date Range */}
+      <div className="card mb-3" style={{ padding: '1.25rem' }}>
+        <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+          <div className="flex gap-1 items-center">
+            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Desde</label>
+            <input type="date" className="form-input" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
+          </div>
+          <div className="flex gap-1 items-center">
+            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Hasta</label>
+            <input type="date" className="form-input" value={dateTo} onChange={e => { setDateTo(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
+          </div>
+          <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
+            {['today', 'week', 'month', 'year'].map(p => (
+              <button key={p} className={`btn btn-sm ${activePeriod === p ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setQuickDate(p)}>
+                {{ today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' }[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="stats-grid stats-grid-3 mb-3">
-        <StatCard icon="wallet" label="Ingresos este mes" value={formatCurrency(stats.totalMonth)} color="success" />
+        <StatCard icon="wallet" label="Ingresos del período" value={formatCurrency(stats.totalPeriod)} color="success" />
         <StatCard icon="check" label="Pagos cobrados" value={stats.totalCount} color="primary" />
         <StatCard icon="clock" label="Pagos pendientes" value={stats.pendingCount} color={stats.pendingCount > 0 ? 'warning' : 'neutral'} />
       </div>

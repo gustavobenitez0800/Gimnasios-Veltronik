@@ -59,9 +59,6 @@ export default function App() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            {/* Force Update: bloquea TODA la app si la versión es vieja */}
-            <ForceUpdateOverlay />
-
             <Routes>
               {/* Auth pages (no sidebar) */}
               <Route element={<AuthLayout />}>
