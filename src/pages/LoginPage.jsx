@@ -9,7 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
-import { supabase } from '../services';
+import { supabase, authService, errorService } from '../services';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password.trim());
     } catch (error) {
       console.error('Login error:', error);
       showToast(getAuthErrorMessage(error), 'error');
@@ -50,10 +50,17 @@ export default function LoginPage() {
 
     try {
       const redirectUrl = `${window.location.origin}/#/reset-password`;
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
+      if (error) throw error;
       showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
-    } catch {
-      showToast('Si el email existe, recibirás instrucciones para recuperar tu contraseña', 'success', 5000);
+    } catch (error) {
+      console.error('Reset password error:', error);
+      const msg = error.message || '';
+      if (msg.includes('rate limit')) {
+        showToast('Has superado el límite de intentos. Por favor espera unos minutos.', 'error', 6000);
+      } else {
+        showToast('Error al enviar el email. Verifica tu conexión e intenta de nuevo.', 'error', 5000);
+      }
     }
   };
 
@@ -159,10 +166,18 @@ export default function LoginPage() {
 
 function getAuthErrorMessage(error) {
   const message = error.message || error.toString();
+  
+  // Rate limiting specific check
+  if (message.includes('Too many requests') || message.includes('rate limit')) {
+    return 'Demasiados intentos. Por favor espera unos minutos e intenta de nuevo.';
+  }
+  
   if (message.includes('Invalid login credentials')) return 'Email o contraseña incorrectos';
   if (message.includes('User already registered')) return 'Este email ya está registrado';
   if (message.includes('Email not confirmed')) return 'Por favor confirma tu email antes de iniciar sesión';
   if (message.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres';
   if (message.includes('Unable to validate email')) return 'Email inválido';
-  return 'Error de autenticación. Intenta de nuevo.';
+  
+  // Use generic error service for network errors and others
+  return errorService.getMessage(error);
 }

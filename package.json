@@ -1,6 +1,6 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "1.0.35",
+  "version": "1.0.36",
   "description": "Veltronik - Plataforma de Gestión para Gimnasios",
   "main": "electron/main.cjs",
   "private": true,
@@ -38,11 +38,14 @@
     "chart.js": "^4.5.1",
     "electron-log": "^5.0.3",
     "electron-updater": "^6.1.7",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "mercadopago": "^2.0.0",
     "react": "^19.2.4",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
