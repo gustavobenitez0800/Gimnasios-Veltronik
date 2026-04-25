@@ -11,7 +11,7 @@ import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const RestaurantReportsPage = lazy(() => import('./restaurant/RestaurantReportsPage'));
 
@@ -54,7 +54,7 @@ function downloadPDF(title, filename, headers, rows) {
   doc.setFontSize(10);
   doc.text(`Generado el: ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}`, 14, 22);
 
-  doc.autoTable({
+  autoTable(doc, {
     head: [headers],
     body: rows,
     startY: 28,
