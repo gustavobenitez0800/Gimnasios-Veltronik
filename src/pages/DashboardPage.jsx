@@ -2,7 +2,7 @@
 // VELTRONIK V2 - DASHBOARD PAGE (Refactored)
 // ============================================
 
-import { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, lazy, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -18,6 +18,7 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { useQueryCache } from '../hooks';
 import { memberService, paymentService, insightsService, dashboardStatsService } from '../services';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
@@ -48,55 +49,41 @@ export default function DashboardPage() {
 function GymDashboard({ gym }) {
   const { showToast } = useToast();
 
-  const [members, setMembers] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const fetchDashboardData = useCallback(async () => {
+    // Stats vienen de vista materializada (1 RPC)
+    // Members y payments solo se cargan para AI/charts
+    const [dashStats, membersData, paymentsData] = await Promise.all([
+      dashboardStatsService.getDashboardStats(),
+      memberService.getAll().catch(() => []),
+      paymentService.getAll().catch(() => []),
+    ]);
+    return { dashStats, membersData, paymentsData };
+  }, []);
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Optimizado: stats vienen de vista materializada (1 RPC)
-      // Members y payments solo se cargan para AI/charts que necesitan
-      // los datos crudos. En futuro, charts también usarán RPC.
-      const [dashStats, membersData, paymentsData] = await Promise.all([
-        dashboardStatsService.getDashboardStats(),
-        memberService.getAll(),
-        paymentService.getAll().catch(() => []),
-      ]);
-      setStats(dashStats);
-      setMembers(membersData || []);
-      setPayments(paymentsData || []);
-    } catch (error) {
-      console.error('Dashboard error:', error);
-      showToast('Error al cargar el dashboard', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  const { data, loading, isFetching, invalidate } = useQueryCache(
+    ['gym_dashboard', gym?.id], 
+    fetchDashboardData,
+    { staleTime: 3 * 60 * 1000 } // 3 minutes stale time
+  );
 
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+  const stats = data?.dashStats;
+  const members = data?.membersData || [];
+  const payments = data?.paymentsData || [];
 
   // Refrescar vistas materializadas manualmente
   const handleRefreshStats = useCallback(async () => {
-    setRefreshing(true);
     try {
       const ok = await dashboardStatsService.refreshStats();
       if (ok) {
-        await loadDashboard();
+        invalidate(); // Forzar recarga completa de caché
         showToast('Estadísticas actualizadas', 'success');
       } else {
         showToast('Las estadísticas se están calculando en tiempo real', 'info');
       }
     } catch {
       showToast('Error al actualizar', 'error');
-    } finally {
-      setRefreshing(false);
     }
-  }, [loadDashboard, showToast]);
+  }, [invalidate, showToast]);
 
   // ─── STATS FROM RPC (or fallback computed) ───
   const dashboardStats = useMemo(() => {
@@ -108,7 +95,6 @@ function GymDashboard({ gym }) {
         monthlyRevenue: parseFloat(stats.monthly_revenue || 0),
       };
     }
-    // Fallback if RPC returns null
     return { activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
   }, [stats]);
 
@@ -216,17 +202,17 @@ function GymDashboard({ gym }) {
     <div className="dashboard">
       <PageHeader
         title="Dashboard"
-        subtitle="Vista general de tu negocio"
+        subtitle={isFetching ? "Actualizando datos..." : "Vista general de tu negocio"}
         icon="dashboard"
         actions={
           <div className="flex gap-2 items-center">
             <button
               className="btn btn-sm btn-ghost"
               onClick={handleRefreshStats}
-              disabled={refreshing}
+              disabled={isFetching}
               title="Actualizar estadísticas"
             >
-              {refreshing ? <span className="spinner" /> : <Icon name="refresh" />}
+              {isFetching ? <span className="spinner" /> : <Icon name="refresh" />}
             </button>
             <span className={`badge ${gym?.status === 'active' ? 'badge-success' : 'badge-warning'}`}>
               {gym?.status === 'active' ? 'Activo' : gym?.status || '--'}

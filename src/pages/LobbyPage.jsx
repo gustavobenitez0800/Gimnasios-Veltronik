@@ -164,7 +164,7 @@ const BLOCK_MESSAGES = {
 // ============================================
 
 export default function LobbyPage() {
-  const { profile, logout, refreshAuth } = useAuth();
+  const { profile, logout, refreshAuth, refreshOrgContext } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 

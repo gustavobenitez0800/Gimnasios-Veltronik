@@ -304,7 +304,7 @@ export default function SettingsPage() {
       <PageHeader title="Configuración" subtitle="Gestión de tu gimnasio y cuenta" icon="settings" />
 
       <div className="settings-grid">
-        {/* Gym Info */}
+        {/* Gym Info - Solo visible/editable para admin/owner */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'GYM' ? (
@@ -316,131 +316,155 @@ export default function SettingsPage() {
             )}
             Información del {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'RESTO' ? 'Restaurante' : 'Gimnasio'}
           </h2>
-          <form onSubmit={handleSaveGym}>
+          
+          {(currentRole === 'owner' || currentRole === 'admin') ? (
+            <form onSubmit={handleSaveGym}>
+              <div className="modal-form">
+                <div className="form-group full-width">
+                  <label className="form-label">Nombre del gimnasio *</label>
+                  <input type="text" className="form-input" value={gymForm.name}
+                    onChange={e => setGymForm(f => ({ ...f, name: e.target.value }))} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Dirección</label>
+                  <input type="text" className="form-input" value={gymForm.address}
+                    onChange={e => setGymForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Teléfono</label>
+                  <input type="tel" className="form-input" value={gymForm.phone}
+                    onChange={e => setGymForm(f => ({ ...f, phone: e.target.value }))} />
+                </div>
+                <div className="form-group full-width">
+                  <label className="form-label">Email de contacto</label>
+                  <input type="email" className="form-input" value={gymForm.email}
+                    onChange={e => setGymForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={saving} style={{ marginTop: '1rem' }}>
+                {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar Cambios'}
+              </button>
+            </form>
+          ) : (
             <div className="modal-form">
               <div className="form-group full-width">
-                <label className="form-label">Nombre del gimnasio *</label>
-                <input type="text" className="form-input" value={gymForm.name}
-                  onChange={e => setGymForm(f => ({ ...f, name: e.target.value }))} required />
+                <label className="form-label">Nombre del gimnasio</label>
+                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.name}</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Dirección</label>
-                <input type="text" className="form-input" value={gymForm.address}
-                  onChange={e => setGymForm(f => ({ ...f, address: e.target.value }))} />
+                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.address || '--'}</div>
               </div>
               <div className="form-group">
                 <label className="form-label">Teléfono</label>
-                <input type="tel" className="form-input" value={gymForm.phone}
-                  onChange={e => setGymForm(f => ({ ...f, phone: e.target.value }))} />
+                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.phone || '--'}</div>
               </div>
               <div className="form-group full-width">
                 <label className="form-label">Email de contacto</label>
-                <input type="email" className="form-input" value={gymForm.email}
-                  onChange={e => setGymForm(f => ({ ...f, email: e.target.value }))} />
+                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.email || '--'}</div>
               </div>
             </div>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ marginTop: '1rem' }}>
-              {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar Cambios'}
-            </button>
-          </form>
+          )}
         </div>
 
-        {/* Subscription */}
-        <div className="settings-section">
-          <h2 className="settings-section-title">💳 Suscripción</h2>
-          <div className="subscription-card">
-            <div className="subscription-plan">{subscriptionInfo.plan}</div>
-            <div className="subscription-status">{statusLabels[subscriptionInfo.status] || subscriptionInfo.status}</div>
-          </div>
-
-          {/* Past due warning */}
-          {subscriptionInfo.status === 'blocked' && (
-            <div style={{
-              padding: '0.75rem 1rem', marginBottom: '1rem',
-              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 'var(--border-radius-md)', color: '#ef4444', fontSize: 'var(--font-size-sm)'
-            }}>
-              ⚠️ Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
+        {/* Subscription - Solo para owner/admin */}
+        {(currentRole === 'owner' || currentRole === 'admin') && (
+          <div className="settings-section">
+            <h2 className="settings-section-title">💳 Suscripción</h2>
+            <div className="subscription-card">
+              <div className="subscription-plan">{subscriptionInfo.plan}</div>
+              <div className="subscription-status">{statusLabels[subscriptionInfo.status] || subscriptionInfo.status}</div>
             </div>
-          )}
 
-          <div className="info-row">
-            <span className="info-label">Próximo cobro</span>
-            <span className="info-value">{subscriptionInfo.nextPayment}</span>
-          </div>
-          <div className="info-row">
-            <span className="info-label">Monto mensual</span>
-            <span className="info-value">{subscriptionInfo.amount}</span>
-          </div>
-          {subscriptionInfo.payerEmail && (
+            {/* Past due warning */}
+            {subscriptionInfo.status === 'blocked' && (
+              <div style={{
+                padding: '0.75rem 1rem', marginBottom: '1rem',
+                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 'var(--border-radius-md)', color: '#ef4444', fontSize: 'var(--font-size-sm)'
+              }}>
+                ⚠️ Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
+              </div>
+            )}
+
             <div className="info-row">
-              <span className="info-label">Email de pago</span>
-              <span className="info-value">{subscriptionInfo.payerEmail}</span>
+              <span className="info-label">Próximo cobro</span>
+              <span className="info-value">{subscriptionInfo.nextPayment}</span>
             </div>
-          )}
-
-          {/* Payment Method Actions */}
-          {subscriptionInfo.hasSubscription && (
-            <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={handleUpdatePaymentMethod}
-                disabled={updatingPayment}
-                style={{ flex: '1', minWidth: '200px' }}
-              >
-                {updatingPayment ? (
-                  <><span className="spinner" /> Procesando...</>
-                ) : (
-                  '🔄 Cambiar Tarjeta / Método de Pago'
-                )}
-              </button>
-              <button
-                className="btn btn-ghost"
-                onClick={handleVerifySubscription}
-                disabled={verifyingSubscription}
-                style={{ flex: '1', minWidth: '200px' }}
-              >
-                {verifyingSubscription ? (
-                  <><span className="spinner" /> Verificando...</>
-                ) : (
-                  '🔍 Verificar Estado con MP'
-                )}
-              </button>
+            <div className="info-row">
+              <span className="info-label">Monto mensual</span>
+              <span className="info-value">{subscriptionInfo.amount}</span>
             </div>
-          )}
-          {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
-              💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
-              Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
-            </p>
-          )}
+            {subscriptionInfo.payerEmail && (
+              <div className="info-row">
+                <span className="info-label">Email de pago</span>
+                <span className="info-value">{subscriptionInfo.payerEmail}</span>
+              </div>
+            )}
 
-          {/* Billing History */}
-          {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
-            <div style={{ marginTop: '1.5rem' }}>
-              <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
-                📋 Historial de Facturación
-              </h3>
-              <div className="billing-history-list">
-                {subscriptionInfo.billingHistory.map((p, i) => (
-                  <div key={p.id || i} className="billing-history-item">
-                    <div className="billing-history-left">
-                      <span className="billing-history-date">
-                        {new Date(p.payment_date || p.created_at).toLocaleDateString('es-AR')}
-                      </span>
-                      <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
-                        {p.status === 'approved' ? '✓ Aprobado' : p.status === 'rejected' ? '✗ Rechazado' : '◌ Pendiente'}
+            {/* Payment Method Actions */}
+            {subscriptionInfo.hasSubscription && (
+              <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleUpdatePaymentMethod}
+                  disabled={updatingPayment}
+                  style={{ flex: '1', minWidth: '200px' }}
+                >
+                  {updatingPayment ? (
+                    <><span className="spinner" /> Procesando...</>
+                  ) : (
+                    '🔄 Cambiar Tarjeta / Método de Pago'
+                  )}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleVerifySubscription}
+                  disabled={verifyingSubscription}
+                  style={{ flex: '1', minWidth: '200px' }}
+                >
+                  {verifyingSubscription ? (
+                    <><span className="spinner" /> Verificando...</>
+                  ) : (
+                    '🔍 Verificar Estado con MP'
+                  )}
+                </button>
+              </div>
+            )}
+            {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
+              <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
+                💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
+                Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
+              </p>
+            )}
+
+            {/* Billing History */}
+            {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
+                  📋 Historial de Facturación
+                </h3>
+                <div className="billing-history-list">
+                  {subscriptionInfo.billingHistory.map((p, i) => (
+                    <div key={p.id || i} className="billing-history-item">
+                      <div className="billing-history-left">
+                        <span className="billing-history-date">
+                          {new Date(p.payment_date || p.created_at).toLocaleDateString('es-AR')}
+                        </span>
+                        <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
+                          {p.status === 'approved' ? '✓ Aprobado' : p.status === 'rejected' ? '✗ Rechazado' : '◌ Pendiente'}
+                        </span>
+                      </div>
+                      <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
+                        {formatCurrency(p.amount)}
                       </span>
                     </div>
-                    <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
-                      {formatCurrency(p.amount)}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Account */}
         <div className="settings-section">
@@ -487,13 +511,15 @@ export default function SettingsPage() {
             <h2 className="danger-title">⚠️ Zona de Peligro</h2>
           </div>
           <div className="danger-content">
-            <div className="danger-item">
-              <div className="danger-info">
-                <h3>Cancelar Suscripción</h3>
-                <p>Perderás el acceso inmediato a todas las funciones premium y tus datos podrían eliminarse después de 30 días.</p>
+            {currentRole === 'owner' && (
+              <div className="danger-item">
+                <div className="danger-info">
+                  <h3>Cancelar Suscripción</h3>
+                  <p>Perderás el acceso inmediato a todas las funciones premium y tus datos podrían eliminarse después de 30 días.</p>
+                </div>
+                <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
               </div>
-              <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
-            </div>
+            )}
             <div className="danger-item">
               <div className="danger-info">
                 <h3>Cerrar Sesión</h3>

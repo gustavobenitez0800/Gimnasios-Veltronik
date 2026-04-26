@@ -1,10 +1,10 @@
 // ============================================
-// VELTRONIK RESTAURANT - DASHBOARD PAGE
+// VELTRONIK RESTAURANT - DASHBOARD PAGE (Cached)
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '../../contexts/ToastContext';
+import { useQueryCache } from '../../hooks';
 import { restaurantStatsService, orderService } from '../../services';
 import { formatCurrency } from '../../lib/utils';
 import { PageHeader } from '../../components/Layout';
@@ -12,44 +12,40 @@ import Icon from '../../components/Icon';
 import CONFIG from '../../lib/config';
 
 export default function RestaurantDashboardPage() {
-  const { showToast } = useToast();
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [activeOrders, setActiveOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [s, orders] = await Promise.all([
-        restaurantStatsService.getDashboardStats(),
-        orderService.getActive(),
-      ]);
-      setStats(s);
-      setActiveOrders(orders || []);
-    } catch (err) {
-      console.error('Dashboard error:', err);
-      showToast('Error al cargar dashboard', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  const fetchRestaurantData = useCallback(async () => {
+    const [s, orders] = await Promise.all([
+      restaurantStatsService.getDashboardStats(),
+      orderService.getActive(),
+    ]);
+    return { stats: s, activeOrders: orders || [] };
+  }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const { data, loading, isFetching, invalidate } = useQueryCache(
+    'restaurant_dashboard',
+    fetchRestaurantData,
+    { staleTime: 30 * 1000 } // 30 sec stale time for restaurants as things move faster
+  );
 
-  // Auto-refresh cada 30 segundos
+  // Auto-refresh en background cada 30 segundos
   useEffect(() => {
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(invalidate, 30000);
     return () => clearInterval(interval);
-  }, [loadData]);
+  }, [invalidate]);
+
+  const s = data?.stats || {};
+  const activeOrders = data?.activeOrders || [];
 
   if (loading) return <div className="dashboard-loading"><span className="spinner" /> Cargando dashboard...</div>;
 
-  const s = stats || {};
-
   return (
     <div className="restaurant-dashboard">
-      <PageHeader title="Dashboard" subtitle="Resumen del día" icon="dashboard" />
+      <PageHeader 
+        title="Dashboard" 
+        subtitle={isFetching && data ? "Actualizando estado de mesas..." : "Resumen del día"} 
+        icon="dashboard" 
+      />
 
       {/* Stats Grid */}
       <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
@@ -144,7 +140,7 @@ export default function RestaurantDashboardPage() {
                   const statusLabels = { pending: 'Pendiente', preparing: 'Preparando', ready: 'Listo', served: 'Servido' };
                   const statusColors = { pending: 'badge-warning', preparing: 'badge-primary', ready: 'badge-success', served: 'badge-neutral' };
                   return (
-                    <tr key={order.id}>
+                    <tr key={order.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                       <td><strong>#{order.order_number}</strong></td>
                       <td>{order.table?.table_number || (order.order_type === 'takeaway' ? '📦 Para llevar' : '-')}</td>
                       <td>{order.waiter?.full_name || '-'}</td>

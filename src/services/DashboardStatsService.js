@@ -76,6 +76,28 @@ class DashboardStatsService extends BaseService {
   }
 
   /**
+   * Obtener análisis de retención en una sola llamada RPC.
+   */
+  async getRetentionAnalytics() {
+    const orgId = await this._getOrgId();
+    try {
+      const { data, error } = await this.client.rpc('get_retention_data', { p_org_id: orgId });
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error('get_retention_data RPC failed:', err);
+      return {
+        total_members: 0,
+        active_members: 0,
+        inactive_members: 0,
+        retention_rate: 0,
+        expiring_soon: [],
+        at_risk: []
+      };
+    }
+  }
+
+  /**
    * Fallback: calcular stats desde tablas directas.
    * Se usa solo si la migración 008 no fue aplicada aún.
    */

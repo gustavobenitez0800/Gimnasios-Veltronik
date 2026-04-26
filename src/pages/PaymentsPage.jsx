@@ -1,5 +1,5 @@
 // ============================================
-// VELTRONIK V2 - PAYMENTS PAGE (Fixed & Enhanced)
+// VELTRONIK V2 - PAYMENTS PAGE (Refactored for Scale & Cache)
 // ============================================
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, paymentService, errorService } from '../services';
 import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
-import { useModal, useConfirmDialog, useFilteredData } from '../hooks';
+import { useModal, useConfirmDialog, useQueryCache } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -67,17 +67,22 @@ export default function PaymentsPage() {
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [payments, setPayments] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   // Filters
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
   const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
   const [activePeriod, setActivePeriod] = useState('month');
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchInput]);
 
   const setQuickDate = (period) => {
     const { from, to } = getQuickDates(period);
@@ -88,24 +93,49 @@ export default function PaymentsPage() {
 
   // Member search in modal
   const [memberSearch, setMemberSearch] = useState('');
+  const [filteredMembers, setFilteredMembers] = useState([]);
+  const [selectedMember, setSelectedMember] = useState(null); // Local state for modal
   const memberSearchRef = useRef(null);
+
+  // Async member search
+  useEffect(() => {
+    if (memberSearch.length < 2) {
+      setFilteredMembers([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await memberService.searchForAccess(memberSearch);
+        setFilteredMembers(results);
+      } catch (e) {
+        console.error(e);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [memberSearch]);
 
   // Modal & Dialog
   const modal = useModal(getInitialForm());
   const deleteDialog = useConfirmDialog();
-
-  // Track if auto-open was already handled
   const autoOpenHandled = useRef(false);
 
-  // Stats
-  const stats = useMemo(() => {
-    const filteredByDate = payments.filter(p => {
-      if (!dateFrom || !dateTo) return true;
-      return p.payment_date >= dateFrom && p.payment_date <= dateTo;
-    });
+  // ─── FETCH PAYMENTS WITH CACHE ───
+  const fetchPayments = useCallback(async () => {
+    return await paymentService.getByFilters(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
+  }, [dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter]);
 
-    const paidInPeriod = filteredByDate.filter((p) => p.status === 'paid');
-    const pendingInPeriod = filteredByDate.filter((p) => p.status === 'pending');
+  const { data, loading, isFetching, invalidate } = useQueryCache(
+    ['payments', dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter],
+    fetchPayments,
+    { staleTime: 60 * 1000 } // 1 min
+  );
+
+  const payments = data || [];
+
+  // Stats computed strictly from currently fetched payments
+  const stats = useMemo(() => {
+    const paidInPeriod = payments.filter((p) => p.status === 'paid');
+    const pendingInPeriod = payments.filter((p) => p.status === 'pending');
 
     return {
       totalPeriod: paidInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
@@ -113,94 +143,48 @@ export default function PaymentsPage() {
       pendingCount: pendingInPeriod.length,
       pendingTotal: pendingInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
     };
-  }, [payments, dateFrom, dateTo]);
+  }, [payments]);
 
-  // Load data
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [paymentsData, membersData] = await Promise.all([
-        paymentService.getAll(),
-        memberService.getAll(),
-      ]);
-      setPayments(paymentsData || []);
-      setMembers(membersData || []);
-    } catch (error) {
-      console.error('Error loading payments:', error);
-      showToast('Error al cargar pagos', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // Auto-open modal with optional pre-selected member (from Members page "Cobrar cuota")
+  // Auto-open modal with pre-selected member
   useEffect(() => {
     if (autoOpenHandled.current) return;
     if (searchParams.get('action') !== 'new') return;
-    if (members.length === 0 && loading) return; // wait for members to load
 
     autoOpenHandled.current = true;
     const memberId = searchParams.get('member_id');
 
     if (memberId) {
-      const member = members.find(m => m.id === memberId);
-      const now = new Date();
-      const next = new Date(now);
-      next.setMonth(next.getMonth() + 1);
+      memberService.searchForAccess(memberId).then(results => {
+        const member = results.find(m => m.id === memberId);
+        if (member) {
+          setSelectedMember(member);
+          const now = new Date();
+          const next = new Date(now);
+          next.setMonth(next.getMonth() + 1);
 
-      const preFilledForm = {
-        ...getInitialForm(),
-        member_id: memberId,
-        // Auto-set period based on member's membership_end if available
-        period_start: member?.membership_end || now.toISOString().split('T')[0],
-        period_end: (() => {
-          if (member?.membership_end) {
-            const start = new Date(member.membership_end + 'T12:00:00');
-            const end = new Date(start);
-            end.setMonth(end.getMonth() + 1);
-            return end.toISOString().split('T')[0];
-          }
-          return next.toISOString().split('T')[0];
-        })(),
-      };
-
-      // Use a synthetic item to open in "create" mode but with pre-filled data
-      // We set editingId=null but pass the form data through the mapFn
-      modal.open({ id: null }, () => preFilledForm);
+          const preFilledForm = {
+            ...getInitialForm(),
+            member_id: memberId,
+            period_start: member?.membership_end || now.toISOString().split('T')[0],
+            period_end: (() => {
+              if (member?.membership_end) {
+                const start = new Date(member.membership_end + 'T12:00:00');
+                const end = new Date(start);
+                end.setMonth(end.getMonth() + 1);
+                return end.toISOString().split('T')[0];
+              }
+              return next.toISOString().split('T')[0];
+            })(),
+          };
+          modal.open({ id: null }, () => preFilledForm);
+        }
+      });
     } else {
+      setSelectedMember(null);
       modal.open();
     }
-
-    // Clean URL params to avoid re-triggering
     setSearchParams({}, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, members, loading]);
-
-  // Filtered members for member select in modal
-  const filteredMembers = useMemo(() => {
-    if (!memberSearch) return members;
-    const q = memberSearch.toLowerCase();
-    return members.filter(m =>
-      (m.full_name && m.full_name.toLowerCase().includes(q)) ||
-      (m.dni && m.dni.toLowerCase().includes(q)) ||
-      (m.email && m.email.toLowerCase().includes(q))
-    );
-  }, [members, memberSearch]);
-
-  // Filtered payments for table
-  const filteredPayments = useFilteredData(payments, {
-    search,
-    customFilter: (p) => {
-      if (dateFrom && dateTo && (p.payment_date < dateFrom || p.payment_date > dateTo)) return false;
-      if (methodFilter && p.payment_method !== methodFilter) return false;
-      if (statusFilter && p.status !== statusFilter) return false;
-      return true;
-    },
-  }, {
-    searchFields: ['member.full_name', 'member.dni'],
-  });
+  }, [searchParams, modal, setSearchParams]);
 
   // Form change handler with auto-period calculation
   const handleFormChange = (field, value) => {
@@ -226,10 +210,23 @@ export default function PaymentsPage() {
     });
   };
 
-  // Quick member select handler
-  const handleMemberSelect = (memberId) => {
-    handleFormChange('member_id', memberId);
+  const handleMemberSelect = (member) => {
+    handleFormChange('member_id', member.id);
+    setSelectedMember(member);
     setMemberSearch('');
+    setFilteredMembers([]);
+  };
+
+  const handleClearSelectedMember = () => {
+    handleFormChange('member_id', '');
+    setSelectedMember(null);
+  };
+
+  const openEditModal = (payment) => {
+    setMemberSearch('');
+    setFilteredMembers([]);
+    setSelectedMember(payment.member || null);
+    modal.open(payment, PAYMENT_MAP_FN);
   };
 
   const handleSave = async (e) => {
@@ -256,21 +253,18 @@ export default function PaymentsPage() {
         await paymentService.create(data);
         showToast('Pago registrado exitosamente', 'success');
 
-        // Auto-update member membership_end if period_end is set
         if (data.period_end && data.member_id && data.status === 'paid') {
           try {
             await memberService.update(data.member_id, {
               membership_end: data.period_end,
               status: 'active',
             });
-          } catch {
-            // Non-critical: don't fail the payment for this
-          }
+          } catch {}
         }
       }
 
       modal.close();
-      loadData();
+      invalidate();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     } finally {
@@ -283,14 +277,13 @@ export default function PaymentsPage() {
       try {
         await paymentService.delete(id);
         showToast('Pago eliminado', 'success');
-        loadData();
+        invalidate();
       } catch (error) {
         showToast(errorService.getMessage(error), 'error');
       }
     });
   };
 
-  // Mark pending as paid
   const handleMarkPaid = async (payment) => {
     try {
       await paymentService.update(payment.id, {
@@ -299,38 +292,32 @@ export default function PaymentsPage() {
       });
       showToast('Pago marcado como pagado', 'success');
 
-      // Also update member membership
       if (payment.period_end && payment.member_id) {
         try {
           await memberService.update(payment.member_id, {
             membership_end: payment.period_end,
             status: 'active',
           });
-        } catch { /* non-critical */ }
+        } catch {}
       }
 
-      loadData();
+      invalidate();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     }
   };
 
-  // Get selected member name for display
-  const selectedMember = useMemo(() => {
-    if (!modal.form.member_id) return null;
-    return members.find(m => m.id === modal.form.member_id);
-  }, [modal.form.member_id, members]);
-
   return (
     <div className="payments-page">
       <PageHeader
         title="Pagos"
-        subtitle="Gestión de pagos de socios"
+        subtitle={isFetching && payments.length > 0 ? "Actualizando datos..." : "Gestión de pagos de socios"}
         icon="wallet"
         actions={
           <button className="btn btn-primary" onClick={() => {
             autoOpenHandled.current = true;
             setMemberSearch('');
+            setSelectedMember(null);
             modal.open();
           }}>
             <Icon name="plus" /> Registrar Pago
@@ -369,7 +356,7 @@ export default function PaymentsPage() {
 
       {/* Filters */}
       <FilterBar
-        onSearch={(e) => setSearch(e.target.value)}
+        onSearch={(e) => setSearchInput(e.target.value)}
         searchPlaceholder="Buscar por socio..."
         searchMaxWidth={280}
         filters={[
@@ -394,7 +381,7 @@ export default function PaymentsPage() {
             ],
           },
         ]}
-        count={filteredPayments.length}
+        count={payments.length}
         countLabel="pagos"
       />
 
@@ -420,15 +407,15 @@ export default function PaymentsPage() {
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
-              ) : filteredPayments.length === 0 ? (
+              ) : payments.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
                     No se encontraron pagos
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((payment) => (
-                  <tr key={payment.id}>
+                payments.map((payment) => (
+                  <tr key={payment.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                     <td data-label="Socio">
                       <strong>{payment.member?.full_name || 'Socio eliminado'}</strong>
                       {payment.member?.dni && (
@@ -460,10 +447,7 @@ export default function PaymentsPage() {
                           </button>
                         )}
                         <button className="action-btn-quick action-btn-payment"
-                          onClick={() => {
-                            setMemberSearch('');
-                            modal.open(payment, PAYMENT_MAP_FN);
-                          }} title="Editar">
+                          onClick={() => openEditModal(payment)} title="Editar">
                           <Icon name="edit" />
                         </button>
                         <button className="action-btn-quick"
@@ -489,7 +473,6 @@ export default function PaymentsPage() {
       >
         <form onSubmit={handleSave} noValidate>
           <div className="modal-form">
-            {/* Member selector with search */}
             <div className="form-group full-width">
               <label className="form-label">Socio *</label>
               {selectedMember ? (
@@ -499,7 +482,7 @@ export default function PaymentsPage() {
                     {selectedMember.dni && <span className="text-muted"> (DNI: {selectedMember.dni})</span>}
                   </div>
                   {!modal.isEditing && (
-                    <button type="button" className="chip-remove" onClick={() => handleFormChange('member_id', '')}
+                    <button type="button" className="chip-remove" onClick={handleClearSelectedMember}
                       title="Cambiar socio">✕</button>
                   )}
                 </div>
@@ -509,19 +492,19 @@ export default function PaymentsPage() {
                     ref={memberSearchRef}
                     type="text"
                     className="form-input"
-                    placeholder="Buscar socio por nombre o DNI..."
+                    placeholder="Buscar socio por nombre o DNI (mínimo 2 letras)..."
                     value={memberSearch}
                     onChange={(e) => setMemberSearch(e.target.value)}
                     autoComplete="off"
                   />
-                  {memberSearch && filteredMembers.length > 0 && (
+                  {memberSearch.length >= 2 && filteredMembers.length > 0 && (
                     <div className="member-search-dropdown">
-                      {filteredMembers.slice(0, 8).map((m) => (
+                      {filteredMembers.map((m) => (
                         <button
                           key={m.id}
                           type="button"
                           className="member-search-option"
-                          onClick={() => handleMemberSelect(m.id)}
+                          onClick={() => handleMemberSelect(m)}
                         >
                           <span className="member-option-name">{m.full_name}</span>
                           {m.dni && <span className="member-option-dni">DNI: {m.dni}</span>}
@@ -529,22 +512,10 @@ export default function PaymentsPage() {
                       ))}
                     </div>
                   )}
-                  {memberSearch && filteredMembers.length === 0 && (
+                  {memberSearch.length >= 2 && filteredMembers.length === 0 && (
                     <div className="member-search-dropdown">
                       <div className="member-search-empty">No se encontraron socios</div>
                     </div>
-                  )}
-                  {/* Fallback: full select if no search */}
-                  {!memberSearch && (
-                    <select className="form-select" value={modal.form.member_id} style={{ marginTop: '0.5rem' }}
-                      onChange={(e) => handleFormChange('member_id', e.target.value)}>
-                      <option value="">Seleccionar socio...</option>
-                      {members.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.full_name} {m.dni ? `(${m.dni})` : ''}
-                        </option>
-                      ))}
-                    </select>
                   )}
                 </div>
               )}
@@ -552,8 +523,7 @@ export default function PaymentsPage() {
             <div className="form-group">
               <label className="form-label">Monto *</label>
               <input type="number" className="form-input" placeholder="0"
-                value={modal.form.amount} onChange={(e) => handleFormChange('amount', e.target.value)}
-                 />
+                value={modal.form.amount} onChange={(e) => handleFormChange('amount', e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de pago</label>
@@ -599,7 +569,6 @@ export default function PaymentsPage() {
         </form>
       </Modal>
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={deleteDialog.isOpen}
         title="Eliminar Pago"

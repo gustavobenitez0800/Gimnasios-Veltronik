@@ -9,10 +9,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase, errorService } from '../services';
 import CONFIG from '../lib/config';
 
+import gymLogo from '../assets/VeltronikGym.png';
+import restoLogo from '../assets/VeltronikRestaurante.png';
+
 const BUSINESS_TYPES = [
-  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: '/assets/VeltronikGym.png', isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: gymLogo, isImage: true, gradient: 'transparent', enabled: true },
   { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta, stock e inventario', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
-  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: '/assets/VeltronikRestaurante.png', isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: restoLogo, isImage: true, gradient: 'transparent', enabled: true },
   { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
@@ -71,8 +74,11 @@ export default function OnboardingPage() {
       }
 
       showToast('¡Negocio creado! Tu prueba gratuita de 30 días ha comenzado.', 'success');
-      if (refreshAuth) await refreshAuth();
-      setTimeout(() => navigate(CONFIG.ROUTES.LOBBY), 1500);
+      
+      // Navigate to Lobby after a brief delay
+      setTimeout(() => {
+        navigate(CONFIG.ROUTES.LOBBY);
+      }, 1500);
     } catch (error) {
       showToast('Error al crear el negocio: ' + errorService.getMessage(error), 'error');
     } finally {

@@ -10,7 +10,7 @@ class PaymentService extends BaseService {
   }
 
   /**
-   * Get all payments with member info, ordered by date.
+   * Get all payments with member info, ordered by date (not recommended for large datasets).
    */
   async getAll() {
     const orgId = await this._getOrgId();
@@ -18,8 +18,39 @@ class PaymentService extends BaseService {
       .from(this.tableName)
       .select('*, member:members(full_name, dni)')
       .eq('gym_id', orgId)
+      .order('payment_date', { ascending: false })
+      .limit(1000); // safety limit
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  /**
+   * Get payments filtered by date range and optional search.
+   * This is much safer for memory and performance.
+   */
+  async getByFilters(dateFrom, dateTo, search = '', method = '', status = '') {
+    const orgId = await this._getOrgId();
+    
+    let query = this.client
+      .from(this.tableName)
+      .select('*, member:members!inner(full_name, dni)')
+      .eq('gym_id', orgId)
       .order('payment_date', { ascending: false });
 
+    if (dateFrom) query = query.gte('payment_date', dateFrom);
+    if (dateTo) query = query.lte('payment_date', dateTo);
+    if (method) query = query.eq('payment_method', method);
+    if (status) query = query.eq('status', status);
+
+    if (search) {
+      // Need to use inner join and filter on member table columns
+      query = query.or(`full_name.ilike.%${search}%,dni.ilike.%${search}%`, { referencedTable: 'members' });
+    }
+
+    // Limit to 2000 records maximum per view to avoid memory issues
+    const { data, error } = await query.limit(2000);
+    
     if (error) throw error;
     return data || [];
   }

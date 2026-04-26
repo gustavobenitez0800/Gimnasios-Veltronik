@@ -18,6 +18,7 @@ export { classService } from './ClassService';
 export { accessService } from './AccessService';
 export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
+export { storageService } from './storageService';
 
 // Analytics
 import InsightsService from './InsightsService';

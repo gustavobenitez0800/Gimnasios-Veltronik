@@ -609,12 +609,7 @@ CREATE POLICY access_update ON access_logs FOR UPDATE USING (
     EXISTS (SELECT 1 FROM organization_members WHERE organization_id = access_logs.gym_id AND user_id = auth.uid())
 );
 
--- Subscriptions
-CREATE POLICY subscriptions_select ON subscriptions FOR SELECT USING (
-    EXISTS (SELECT 1 FROM organization_members WHERE organization_id = subscriptions.gym_id AND user_id = auth.uid())
-);
-CREATE POLICY subscriptions_insert ON subscriptions FOR INSERT WITH CHECK (true);
-CREATE POLICY subscriptions_update ON subscriptions FOR UPDATE USING (true);
+A
 
 -- Subscription Payments
 CREATE POLICY subscription_payments_select ON subscription_payments FOR SELECT USING (

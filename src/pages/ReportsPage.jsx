@@ -1,8 +1,8 @@
 // ============================================
-// VELTRONIK V2 - REPORTS PAGE (Refactored)
+// VELTRONIK V2 - REPORTS PAGE (Refactored to Fetch-on-Demand)
 // ============================================
 
-import { Suspense, lazy, useState, useEffect, useCallback } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, paymentService, accessService } from '../services';
@@ -84,28 +84,15 @@ export default function ReportsPage() {
 
 function GymReportsPage() {
   const { showToast } = useToast();
-  const [members, setMembers] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
   const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
   const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
   const [activePeriod, setActivePeriod] = useState('month');
+  
   const [exporting, setExporting] = useState({});
   const [exportHistory, setExportHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('veltronik_export_history') || '[]'); } catch { return []; }
   });
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [m, p] = await Promise.all([memberService.getAll(), paymentService.getAll()]);
-      setMembers(m || []);
-      setPayments(p || []);
-    } catch { showToast('Error al cargar datos', 'error'); }
-    finally { setLoading(false); }
-  }, [showToast]);
-
-  useEffect(() => { loadData(); }, [loadData]);
 
   const setQuickDate = (period) => {
     const { from, to } = getQuickDates(period);
@@ -124,13 +111,16 @@ function GymReportsPage() {
   const exportMembers = async (format) => {
     setExporting(e => ({ ...e, members: format }));
     try {
+      // Fetch-on-demand
+      const members = await memberService.getAll();
+      
       const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio Membresía', 'Fin Membresía'];
-      const rows = members.map(m => [m.full_name, m.dni || '', m.phone || '', m.email || '', getStatusLabel(m.status), m.membership_start || '', m.membership_end || '']);
+      const rows = (members || []).map(m => [m.full_name, m.dni || '', m.phone || '', m.email || '', getStatusLabel(m.status), m.membership_start || '', m.membership_end || '']);
       
       if (format === 'excel') {
-        downloadExcel(`socios_${dateFrom}.xlsx`, headers, rows);
+        await downloadExcel(`socios_${dateFrom}.xlsx`, headers, rows);
       } else {
-        downloadPDF('Reporte de Socios', `socios_${dateFrom}.pdf`, headers, rows);
+        await downloadPDF('Reporte de Socios', `socios_${dateFrom}.pdf`, headers, rows);
       }
       
       addToHistory('Socios', format === 'excel' ? 'Excel' : 'PDF');
@@ -142,15 +132,13 @@ function GymReportsPage() {
   const exportPayments = async (format) => {
     setExporting(e => ({ ...e, payments: format }));
     try {
-      const filtered = payments.filter(p => {
-        if (!dateFrom || !dateTo) return true;
-        return p.payment_date >= dateFrom && p.payment_date <= dateTo;
-      });
-      const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
+      // Fetch-on-demand using the optimized filter method
+      const payments = await paymentService.getByFilters(dateFrom, dateTo, '', '', '');
       
+      const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
       const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
-      const rows = filtered.map(p => [
+      const rows = (payments || []).map(p => [
         p.member?.full_name || '', 
         formatCurrency(p.amount || 0), 
         p.payment_date || '', 
@@ -159,20 +147,20 @@ function GymReportsPage() {
       ]);
       
       // Calcular total sumado (solo de pagos completados)
-      const totalSum = filtered.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount || 0), 0);
+      const totalSum = (payments || []).filter(p => p.status === 'paid').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
       
       // Agregar filas de total al final
       rows.push(['', '', '', '', '']); // Separador visual
       rows.push(['TOTAL SUMADO (Aprobados)', formatCurrency(totalSum), '', '', '']);
       
       if (format === 'excel') {
-        downloadExcel(`pagos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
+        await downloadExcel(`pagos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
       } else {
-        downloadPDF('Reporte de Pagos', `pagos_${dateFrom}_${dateTo}.pdf`, headers, rows);
+        await downloadPDF('Reporte de Pagos', `pagos_${dateFrom}_${dateTo}.pdf`, headers, rows);
       }
       
       addToHistory('Pagos', format === 'excel' ? 'Excel' : 'PDF');
-      showToast(`Reporte de pagos exportado (${filtered.length} registros)`, 'success');
+      showToast(`Reporte de pagos exportado (${payments.length} registros)`, 'success');
     } catch (err) { showToast('Error: ' + err.message, 'error'); }
     finally { setExporting(e => ({ ...e, payments: null })); }
   };
@@ -186,13 +174,14 @@ function GymReportsPage() {
       } else {
         logs = await accessService.getTodayLogs();
       }
+      
       const headers = ['Socio', 'DNI', 'Entrada', 'Salida', 'Método'];
       const rows = (logs || []).map(l => [l.member?.full_name || '', l.member?.dni || '', l.check_in_at || '', l.check_out_at || '', l.access_method || '']);
       
       if (format === 'excel') {
-        downloadExcel(`accesos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
+        await downloadExcel(`accesos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
       } else {
-        downloadPDF('Reporte de Accesos', `accesos_${dateFrom}_${dateTo}.pdf`, headers, rows);
+        await downloadPDF('Reporte de Accesos', `accesos_${dateFrom}_${dateTo}.pdf`, headers, rows);
       }
       
       addToHistory('Accesos', format === 'excel' ? 'Excel' : 'PDF');
@@ -204,9 +193,18 @@ function GymReportsPage() {
   const exportSummary = async (format) => {
     setExporting(e => ({ ...e, summary: format }));
     try {
-      // 1. Ya no se calculan ingresos en el resumen general para separar la información
+      // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
+      const { data: { user } } = await memberService.client.auth.getUser();
+      const profileRes = await memberService.client.from('profiles').select('gym_id').eq('id', user.id).single();
+      const orgId = profileRes.data.gym_id;
+
+      // Socios activos y total
+      const membersRes = await memberService.client
+        .from('members')
+        .select('id, status, membership_start', { count: 'exact' })
+        .eq('gym_id', orgId);
       
-      // 2. Socios en general
+      const members = membersRes.data || [];
       const active = members.filter(m => m.status === 'active').length;
       const newMembers = members.filter(m => {
         if (!dateFrom || !dateTo || !m.membership_start) return true;
@@ -234,9 +232,9 @@ function GymReportsPage() {
       ];
       
       if (format === 'excel') {
-        downloadExcel(`resumen_${dateFrom || 'total'}_${dateTo || 'total'}.xlsx`, headers, rows);
+        await downloadExcel(`resumen_${dateFrom || 'total'}_${dateTo || 'total'}.xlsx`, headers, rows);
       } else {
-        downloadPDF('Resumen General', `resumen_${dateFrom || 'total'}_${dateTo || 'total'}.pdf`, headers, rows);
+        await downloadPDF('Resumen General', `resumen_${dateFrom || 'total'}_${dateTo || 'total'}.pdf`, headers, rows);
       }
       
       addToHistory('Resumen', format === 'excel' ? 'Excel' : 'PDF');
@@ -288,10 +286,10 @@ function GymReportsPage() {
             <div className="report-title">{r.title}</div>
             <div className="report-description">{r.desc}</div>
             <div className="flex gap-2" style={{ marginTop: 'auto', paddingTop: '1rem' }}>
-              <button className="btn btn-primary btn-sm flex-1" onClick={() => r.action('excel')} disabled={loading || exporting[r.key]}>
+              <button className="btn btn-primary btn-sm flex-1" onClick={() => r.action('excel')} disabled={exporting[r.key]}>
                 {exporting[r.key] === 'excel' ? <><span className="spinner" /> ...</> : <><Icon name="download" /> Excel</>}
               </button>
-              <button className="btn btn-secondary btn-sm flex-1" onClick={() => r.action('pdf')} disabled={loading || exporting[r.key]}>
+              <button className="btn btn-secondary btn-sm flex-1" onClick={() => r.action('pdf')} disabled={exporting[r.key]}>
                 {exporting[r.key] === 'pdf' ? <><span className="spinner" /> ...</> : <><Icon name="download" /> PDF</>}
               </button>
             </div>

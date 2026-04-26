@@ -7,7 +7,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, paymentService, errorService } from '../services';
 import { formatDate, formatCurrency } from '../lib/utils';
-import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
+import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useQueryCache } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -58,7 +58,6 @@ export default function MembersPage() {
   // Data state
   const [members, setMembers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -79,13 +78,21 @@ export default function MembersPage() {
   const [memberPayments, setMemberPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
-  // ─── LOAD MEMBERS ───
-  const loadMembers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const result = await memberService.getPaginated(pagination.page, PAGE_SIZE, search);
+  // ─── FETCH MEMBERS WITH CACHE ───
+  const fetchMembers = useCallback(async () => {
+    return await memberService.getPaginated(pagination.page, PAGE_SIZE, search);
+  }, [pagination.page, search]);
 
-      let filtered = result.data;
+  const { data: resultData, loading, isFetching, invalidate } = useQueryCache(
+    ['members', pagination.page, search],
+    fetchMembers,
+    { staleTime: 60 * 1000 } // 1 minuto
+  );
+
+  // Procesar resultado al cambiar datos o filtro local
+  useEffect(() => {
+    if (resultData) {
+      let filtered = resultData.data;
       if (statusFilter) {
         const today = new Date();
         filtered = filtered.filter((m) => {
@@ -95,18 +102,13 @@ export default function MembersPage() {
           return m.status === statusFilter;
         });
       }
-
       setMembers(filtered);
-      setTotalCount(result.count);
-    } catch (error) {
-      console.error('Load members error:', error);
-      showToast('Error al cargar socios', 'error');
-    } finally {
-      setLoading(false);
+      setTotalCount(resultData.count);
+    } else {
+      setMembers([]);
+      setTotalCount(0);
     }
-  }, [pagination.page, search, statusFilter, showToast]);
-
-  useEffect(() => { loadMembers(); }, [loadMembers]);
+  }, [resultData, statusFilter]);
 
   // Auto-open modal if ?action=new
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function MembersPage() {
       }
 
       modal.close();
-      loadMembers();
+      invalidate(); // Forzar recarga de la caché
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     } finally {
@@ -159,7 +161,7 @@ export default function MembersPage() {
       try {
         await memberService.delete(id);
         showToast('Socio eliminado', 'success');
-        loadMembers();
+        invalidate(); // Forzar recarga de la caché
       } catch (error) {
         showToast(errorService.getMessage(error), 'error');
       }
@@ -234,7 +236,7 @@ export default function MembersPage() {
     <div className="members-page">
       <PageHeader
         title="Socios"
-        subtitle={`${totalCount} socios registrados`}
+        subtitle={isFetching && members.length > 0 ? "Actualizando datos..." : `${totalCount} socios registrados`}
         icon="users"
         actions={
           <div className="flex gap-1">
@@ -296,7 +298,7 @@ export default function MembersPage() {
                 members.map((member) => {
                   const daysInfo = getDaysInfo(member.membership_end);
                   return (
-                    <tr key={member.id}>
+                    <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                       <td data-label="Nombre"><strong>{member.full_name}</strong></td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
