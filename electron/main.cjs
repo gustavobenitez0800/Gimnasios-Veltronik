@@ -87,6 +87,9 @@ function isDev() {
 
 // Listo para crear ventanas
 app.whenReady().then(() => {
+    // Establecer el ID de la aplicación para notificaciones nativas en Windows
+    app.setAppUserModelId('Veltronik');
+
     // Configurar permisos para cámara y micrófono
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
         const allowedPermissions = ['media', 'mediaKeySystem', 'notifications'];
