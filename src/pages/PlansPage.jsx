@@ -33,7 +33,8 @@ const FEATURES_BY_TYPE = {
 };
 
 const TYPE_LABELS = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' };
-const TYPE_ICONS = { GYM: '🏋️', RESTO: '🍽️', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_ICONS = { GYM: '/assets/VeltronikGym.png', RESTO: '/assets/VeltronikRestaurante.png', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_IS_IMAGE = { GYM: true, RESTO: true, KIOSK: false, OTHER: false };
 
 export default function PlansPage() {
   const navigate = useNavigate();
@@ -175,9 +176,15 @@ export default function PlansPage() {
           </div>
         )}
 
-        {/* Plan Card */}
         <div className="plan-card">
-          <div className="plan-badge">{TYPE_ICONS[orgType] || '💎'} Veltronik {orgType === 'RESTO' ? 'Restaurante' : 'Pro'}</div>
+          <div className="plan-badge" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {TYPE_IS_IMAGE[orgType] ? (
+              <img src={TYPE_ICONS[orgType]} alt="" style={{ height: '1.2em' }} />
+            ) : (
+              TYPE_ICONS[orgType] || '💎'
+            )}
+            Veltronik {orgType === 'RESTO' ? 'Restaurante' : 'Pro'}
+          </div>
           <h2 className="plan-name">Veltronik {orgType === 'RESTO' ? 'Restaurante' : 'Pro'}</h2>
           <p className="plan-desc">Acceso completo a todas las funcionalidades de {TYPE_LABELS[orgType] || 'tu negocio'}</p>
           <div className="plan-price-box">

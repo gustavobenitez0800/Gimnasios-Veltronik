@@ -84,8 +84,8 @@ module.exports = async function handler(req, res) {
         // Siempre responder 200 para que MP no reintente
         return jsonResponse(res, 200, { received: true, processed: true }, req);
 
-    } catch {
-        logSecure('error', 'Webhook processing error');
+    } catch (err) {
+        logSecure('error', 'Webhook processing error', { message: err?.message || 'unknown' });
         // Aún así responder 200 para evitar reintentos infinitos
         return jsonResponse(res, 200, { received: true, processed: false }, req);
     }
@@ -239,6 +239,7 @@ async function handleSubscriptionPayment(paymentId) {
 
     logSecure('info', 'MP payment retrieved', {
         status: mpPayment.status,
+        statusDetail: mpPayment.status_detail,
         hasExternalRef: !!mpPayment.external_reference
     });
 
@@ -256,61 +257,106 @@ async function handleSubscriptionPayment(paymentId) {
 
     const { data: existingPayment } = await supabase
         .from('subscription_payments')
-        .select('id')
+        .select('id, status')
         .eq('mp_payment_id', paymentId.toString())
-        .single();
+        .maybeSingle();
 
+    // If payment exists with same status, skip entirely
+    const newStatus = MP_PAYMENT_STATUS_MAP[mpPayment.status] || 'pending';
+    if (existingPayment && existingPayment.status === newStatus) {
+        logSecure('info', 'Payment already processed with same status, skipping');
+        return;
+    }
+
+    // If payment exists but status changed (e.g. approved → refunded), update it
     if (existingPayment) {
-        logSecure('info', 'Payment already processed, skipping');
+        await supabase
+            .from('subscription_payments')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', existingPayment.id);
+        logSecure('info', 'Payment status updated', { from: existingPayment.status, to: newStatus });
+    } else {
+        // ============================================
+        // GUARDAR PAGO NUEVO
+        // ============================================
+        const paymentRecord = {
+            gym_id: gymId,
+            mp_payment_id: paymentId.toString(),
+            amount: mpPayment.transaction_amount,
+            currency: mpPayment.currency_id || 'ARS',
+            status: newStatus,
+            payment_date: mpPayment.date_approved || new Date().toISOString(),
+            created_at: new Date().toISOString()
+        };
+
+        const { error: paymentError } = await supabase
+            .from('subscription_payments')
+            .insert(paymentRecord);
+
+        if (paymentError) {
+            logSecure('error', 'Error saving payment', { code: paymentError.code });
+        } else {
+            logSecure('info', 'Payment saved successfully');
+        }
+    }
+
+    // ============================================
+    // HANDLE: CHARGEBACK / REFUND → Block immediately
+    // ============================================
+
+    if (mpPayment.status === 'refunded' || mpPayment.status === 'charged_back' || mpPayment.status === 'chargedback') {
+        logSecure('warn', 'CHARGEBACK/REFUND detected — blocking gym', { gymId, status: mpPayment.status });
+
+        // Cancel subscription
+        const { data: currentSub } = await supabase
+            .from('subscriptions')
+            .select('id')
+            .eq('gym_id', gymId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (currentSub?.id) {
+            await supabase
+                .from('subscriptions')
+                .update({
+                    status: SUBSCRIPTION_STATUS.CANCELED,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentSub.id);
+        }
+
+        // Block the gym
+        await supabase
+            .from('gyms')
+            .update({
+                status: GYM_STATUS.BLOCKED,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', gymId);
+
+        logSecure('warn', 'Gym BLOCKED due to chargeback/refund', { gymId });
         return;
     }
 
     // ============================================
-    // GUARDAR PAGO
-    // ============================================
-
-    const paymentRecord = {
-        gym_id: gymId,
-        mp_payment_id: paymentId.toString(),
-        amount: mpPayment.transaction_amount,
-        currency: mpPayment.currency_id || 'ARS',
-        status: MP_PAYMENT_STATUS_MAP[mpPayment.status] || 'pending',
-        payment_date: mpPayment.date_approved || new Date().toISOString(),
-        created_at: new Date().toISOString()
-    };
-
-    const { error: paymentError } = await supabase
-        .from('subscription_payments')
-        .insert(paymentRecord);
-
-    if (paymentError) {
-        logSecure('error', 'Error saving payment');
-    } else {
-        logSecure('info', 'Payment saved successfully');
-    }
-
-    // ============================================
-    // ACTUALIZAR SUSCRIPCIÓN CON ÚLTIMO PAGO
+    // HANDLE: APPROVED → Activate
     // ============================================
 
     if (mpPayment.status === 'approved') {
-        // Pago aprobado → activar suscripción, limpiar gracia
         const paymentDate = mpPayment.date_approved ? new Date(mpPayment.date_approved) : new Date();
 
-        // Intentar obtener next_payment_date real de la suscripción en MP
         let nextPeriodEnd = new Date(paymentDate);
-        nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30); // fallback: +30 días
+        nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30);
 
-        // Buscar la suscripción en BD para obtener mp_preapproval_id
         const { data: currentSub } = await supabase
             .from('subscriptions')
             .select('id, mp_preapproval_id')
             .eq('gym_id', gymId)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
-        // Si tenemos el preapproval_id, consultar MP para la fecha real
         if (currentSub?.mp_preapproval_id) {
             try {
                 const mpSub = await preApproval.get({ id: currentSub.mp_preapproval_id });
@@ -334,91 +380,57 @@ async function handleSubscriptionPayment(paymentId) {
             updated_at: new Date().toISOString()
         };
 
-        // Actualizar por ID de suscripción si lo tenemos, sino por gym_id
         if (currentSub?.id) {
-            const { error: subError } = await supabase
-                .from('subscriptions')
-                .update(subscriptionUpdate)
-                .eq('id', currentSub.id);
-
-            if (subError) {
-                logSecure('error', 'Error updating subscription by id');
-            }
+            await supabase.from('subscriptions').update(subscriptionUpdate).eq('id', currentSub.id);
         } else {
-            const { error: subError } = await supabase
-                .from('subscriptions')
-                .update(subscriptionUpdate)
-                .eq('gym_id', gymId);
-
-            if (subError) {
-                logSecure('error', 'Error updating subscription by gym_id');
-            }
+            await supabase.from('subscriptions').update(subscriptionUpdate).eq('gym_id', gymId);
         }
 
-        // Activar gimnasio (incluso si estaba bloqueado)
         await supabase
             .from('gyms')
-            .update({
-                status: GYM_STATUS.ACTIVE,
-                updated_at: new Date().toISOString()
-            })
+            .update({ status: GYM_STATUS.ACTIVE, updated_at: new Date().toISOString() })
             .eq('id', gymId);
 
-        logSecure('info', 'Gym activated after payment', {
-            nextPeriodEnd: nextPeriodEnd.toISOString()
-        });
+        logSecure('info', 'Gym activated after payment', { nextPeriodEnd: nextPeriodEnd.toISOString() });
 
     } else if (mpPayment.status === 'rejected') {
-        // Pago rechazado → manejar gracia y bloqueo
+        // ============================================
+        // HANDLE: REJECTED → Grace period / Block
+        // ============================================
         const { data: currentSub } = await supabase
             .from('subscriptions')
             .select('id, grace_period_ends_at, retry_count')
             .eq('gym_id', gymId)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
         const retryCount = (currentSub?.retry_count || 0) + 1;
         const now = new Date();
-
-        // Check if grace period already expired OR too many retries
         const graceExpired = currentSub?.grace_period_ends_at && new Date(currentSub.grace_period_ends_at) < now;
         const tooManyRetries = retryCount >= 4;
 
         if (graceExpired || tooManyRetries) {
-            // BLOCK: Grace period expired or 4+ failed retries
             logSecure('warn', 'Blocking gym - grace expired or max retries', { retryCount, graceExpired });
 
             if (currentSub?.id) {
-                await supabase
-                    .from('subscriptions')
-                    .update({
-                        status: SUBSCRIPTION_STATUS.PAST_DUE,
-                        retry_count: retryCount,
-                        updated_at: now.toISOString()
-                    })
+                await supabase.from('subscriptions')
+                    .update({ status: SUBSCRIPTION_STATUS.PAST_DUE, retry_count: retryCount, updated_at: now.toISOString() })
                     .eq('id', currentSub.id);
             }
 
-            // Block the gym immediately
-            await supabase
-                .from('gyms')
-                .update({
-                    status: GYM_STATUS.BLOCKED,
-                    updated_at: now.toISOString()
-                })
+            await supabase.from('gyms')
+                .update({ status: GYM_STATUS.BLOCKED, updated_at: now.toISOString() })
                 .eq('id', gymId);
 
             logSecure('warn', 'Gym blocked after grace expiry / max retries', { gymId });
         } else {
-            // GRACE: Start or maintain grace period
             const updateData = {
                 status: SUBSCRIPTION_STATUS.PAST_DUE,
                 retry_count: retryCount,
                 updated_at: now.toISOString()
             };
 
-            // Start grace period if none active
             if (!currentSub?.grace_period_ends_at) {
                 const gracePeriodEnd = new Date(now);
                 gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
@@ -427,26 +439,21 @@ async function handleSubscriptionPayment(paymentId) {
             }
 
             if (currentSub?.id) {
-                await supabase
-                    .from('subscriptions')
-                    .update(updateData)
-                    .eq('id', currentSub.id);
+                await supabase.from('subscriptions').update(updateData).eq('id', currentSub.id);
             } else {
-                await supabase
-                    .from('subscriptions')
-                    .update(updateData)
-                    .eq('gym_id', gymId);
+                await supabase.from('subscriptions').update(updateData).eq('gym_id', gymId);
             }
 
             logSecure('warn', 'Payment rejected - grace period active', { retryCount });
         }
     }
+    // Other statuses (pending, in_process, cancelled) — payment is saved, no action needed
 }
 
 /**
  * Manejar pago individual (backup)
+ * Also handles chargebacks that come as 'payment' type events
  */
 async function handlePaymentEvent(paymentId) {
-    // Reutilizar la misma lógica
     await handleSubscriptionPayment(paymentId);
 }

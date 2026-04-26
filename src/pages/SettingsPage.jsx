@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
+  const [verifyingSubscription, setVerifyingSubscription] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -204,6 +205,45 @@ export default function SettingsPage() {
     }
   };
 
+  // Verify subscription status with MercadoPago
+  const handleVerifySubscription = async () => {
+    const gymId = authGym?.id || localStorage.getItem('current_org_id');
+    if (!gymId) {
+      showToast('No se encontró el gimnasio', 'error');
+      return;
+    }
+
+    setVerifyingSubscription(true);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/api/verify-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_id: gymId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al verificar suscripción');
+      }
+
+      if (result.changed) {
+        showToast(`✅ Estado sincronizado: ${result.message}`, 'success');
+        // Refresh all data
+        if (refreshAuth) {
+          try { await refreshAuth(); } catch { /* ignore */ }
+        }
+        await loadSettings();
+      } else {
+        showToast('✅ Suscripción ya sincronizada correctamente', 'success');
+      }
+    } catch (error) {
+      showToast(error.message || 'Error al verificar suscripción', 'error');
+    } finally {
+      setVerifyingSubscription(false);
+    }
+  };
+
   // Cancel subscription properly (calls API that also cancels in MercadoPago)
   const handleCancelSubscription = async () => {
     setCancellingSubscription(true);
@@ -266,7 +306,16 @@ export default function SettingsPage() {
       <div className="settings-grid">
         {/* Gym Info */}
         <div className="settings-section">
-          <h2 className="settings-section-title">🏋️ Información del Gimnasio</h2>
+          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'GYM' ? (
+              <img src="/assets/VeltronikGym.png" alt="Gym" style={{ height: '1.2em' }} />
+            ) : (authGym?.type || localStorage.getItem('current_org_type')) === 'RESTO' ? (
+              <img src="/assets/VeltronikRestaurante.png" alt="Resto" style={{ height: '1.2em' }} />
+            ) : (
+              '🏢 '
+            )}
+            Información del {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'RESTO' ? 'Restaurante' : 'Gimnasio'}
+          </h2>
           <form onSubmit={handleSaveGym}>
             <div className="modal-form">
               <div className="form-group full-width">
@@ -345,12 +394,24 @@ export default function SettingsPage() {
                   '🔄 Cambiar Tarjeta / Método de Pago'
                 )}
               </button>
+              <button
+                className="btn btn-ghost"
+                onClick={handleVerifySubscription}
+                disabled={verifyingSubscription}
+                style={{ flex: '1', minWidth: '200px' }}
+              >
+                {verifyingSubscription ? (
+                  <><span className="spinner" /> Verificando...</>
+                ) : (
+                  '🔍 Verificar Estado con MP'
+                )}
+              </button>
             </div>
           )}
           {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
-              💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná el botón de arriba.
-              Serás redirigido a Mercado Pago para ingresar los nuevos datos.
+              💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
+              Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
             </p>
           )}
 

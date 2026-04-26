@@ -16,7 +16,8 @@ import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
 
 const TYPE_LABELS = { GYM: 'Gimnasio', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: '🏋️', RESTO: '🍽️', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_ICONS = { GYM: '/assets/VeltronikGym.png', RESTO: '/assets/VeltronikRestaurante.png', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_IS_IMAGE = { GYM: true, RESTO: true, KIOSK: false, OTHER: false };
 const TYPE_BADGES = { GYM: 'badge-success', RESTO: 'badge-error', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
 
 // ─── Helpers ───
@@ -307,6 +308,13 @@ export default function LobbyPage() {
   // ─── Render ───
   return (
     <div className="lobby-wrapper">
+      {/* ─── Liquid Glass Background ─── */}
+      <div className="liquid-bg">
+        <div className="liquid-orb liquid-orb-1"></div>
+        <div className="liquid-orb liquid-orb-2"></div>
+        <div className="liquid-orb liquid-orb-3"></div>
+      </div>
+
       <div className="lobby-container">
         {/* Header */}
         <div className="lobby-header">
@@ -358,8 +366,12 @@ export default function LobbyPage() {
                     </div>
                   )}
 
-                  <div className="lobby-card-icon">
-                    <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || '📱'}</span>
+                  <div className="lobby-card-icon" style={{ background: TYPE_IS_IMAGE[orgType] ? 'transparent' : '' }}>
+                    {TYPE_IS_IMAGE[orgType] ? (
+                      <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
+                    ) : (
+                      <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || '📱'}</span>
+                    )}
                   </div>
                   <h3 className="lobby-card-name">{org.name}</h3>
                   <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
@@ -425,7 +437,11 @@ export default function LobbyPage() {
 
             {/* Org name */}
             <div className="lobby-blocked-org-badge">
-              <span>{TYPE_ICONS[blockedOrg.type || 'GYM']}</span>
+              {TYPE_IS_IMAGE[blockedOrg.type || 'GYM'] ? (
+                <img src={TYPE_ICONS[blockedOrg.type || 'GYM']} alt="" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+              ) : (
+                <span>{TYPE_ICONS[blockedOrg.type || 'GYM']}</span>
+              )}
               <span>{blockedOrg.name}</span>
             </div>
 

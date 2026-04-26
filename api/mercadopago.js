@@ -153,7 +153,9 @@ const MP_PAYMENT_STATUS_MAP = {
     'in_process': 'pending',
     'rejected': 'rejected',
     'cancelled': 'rejected',
-    'refunded': 'refunded'
+    'refunded': 'refunded',
+    'charged_back': 'chargedback',
+    'chargedback': 'chargedback'
 };
 
 // ============================================

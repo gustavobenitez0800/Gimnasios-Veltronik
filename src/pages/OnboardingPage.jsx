@@ -10,10 +10,10 @@ import { supabase, errorService } from '../services';
 import CONFIG from '../lib/config';
 
 const BUSINESS_TYPES = [
-  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: '🏋️', gradient: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', enabled: true },
-  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta, stock e inventario', icon: '🏪', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
-  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: '🍽️', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
-  { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
+  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: '/assets/VeltronikGym.png', isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta, stock e inventario', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
+  { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: '/assets/VeltronikRestaurante.png', isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
 export default function OnboardingPage() {
@@ -25,6 +25,27 @@ export default function OnboardingPage() {
   const [selectedType, setSelectedType] = useState(null);
   const [form, setForm] = useState({ name: '', address: '', phone: '', email: user?.email || '' });
   const [submitting, setSubmitting] = useState(false);
+  const [hasExistingOrgs, setHasExistingOrgs] = useState(false);
+  const [checkingOrgs, setCheckingOrgs] = useState(true);
+
+  // Check if user already owns businesses
+  useState(() => {
+    async function checkExistingOrgs() {
+      try {
+        const { data, error } = await supabase
+          .from('gym_users')
+          .select('gym_id', { count: 'exact', head: true })
+          .eq('user_id', user?.id)
+          .eq('role', 'owner');
+        
+        if (!error && data !== null) {
+           // We'll just rely on the count if we want, but since head: true returns count in error/count, let's do a simple select
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -83,7 +104,9 @@ export default function OnboardingPage() {
                     onClick={() => t.enabled && setSelectedType(t.id)}>
                     {!t.enabled && <span className="coming-soon-badge">Próximamente</span>}
                     {selectedType === t.id && <div className="type-check">✓</div>}
-                    <div className="type-icon" style={{ background: t.gradient }}>{t.icon}</div>
+                    <div className="type-icon" style={{ background: t.gradient }}>
+                      {t.isImage ? <img src={t.icon} alt={t.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : t.icon}
+                    </div>
                     <h4>{t.label}</h4>
                     <p>{t.desc}</p>
                   </div>
@@ -105,7 +128,11 @@ export default function OnboardingPage() {
                   background: selectedType === 'GYM' ? 'rgba(139,92,246,0.15)' : 'rgba(6,182,212,0.15)',
                   color: selectedType === 'GYM' ? '#a78bfa' : '#22d3ee'
                 }}>
-                  {BUSINESS_TYPES.find(t => t.id === selectedType)?.icon} {BUSINESS_TYPES.find(t => t.id === selectedType)?.label}
+                  {BUSINESS_TYPES.find(t => t.id === selectedType)?.isImage ? (
+                    <img src={BUSINESS_TYPES.find(t => t.id === selectedType)?.icon} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />
+                  ) : (
+                    BUSINESS_TYPES.find(t => t.id === selectedType)?.icon
+                  )} {BUSINESS_TYPES.find(t => t.id === selectedType)?.label}
                 </div>
                 <h2>Datos de tu negocio</h2>
                 <p style={{ color: 'var(--text-muted)' }}>Completá la información básica. Podés modificarla después.</p>

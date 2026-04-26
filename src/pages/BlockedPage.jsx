@@ -18,6 +18,37 @@ export default function BlockedPage() {
 
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [hasMultipleOrgs, setHasMultipleOrgs] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  // Verify subscription status with MercadoPago
+  const handleVerifyStatus = async () => {
+    const gymId = gym?.id || localStorage.getItem('current_org_id');
+    if (!gymId) return;
+
+    setVerifying(true);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/api/verify-subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gym_id: gymId }),
+      });
+      const result = await response.json();
+
+      if (result.success && result.changed) {
+        showToast(`✅ ${result.message}`, 'success');
+        if (refreshAuth) {
+          try { await refreshAuth(); } catch { /* ignore */ }
+        }
+        setTimeout(() => { window.location.reload(); }, 1500);
+      } else {
+        showToast(result.message || 'Estado verificado, sin cambios', 'info');
+      }
+    } catch {
+      showToast('Error al verificar', 'error');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   // Compute block reason with grace period info
   const blockReason = useMemo(() => {
@@ -222,6 +253,19 @@ export default function BlockedPage() {
                 )}
               </button>
             )}
+
+            <button
+              className="btn btn-ghost"
+              style={{ width: '100%' }}
+              onClick={handleVerifyStatus}
+              disabled={verifying}
+            >
+              {verifying ? (
+                <><span className="spinner" /> Verificando...</>
+              ) : (
+                '🔍 ¿Ya pagaste? Verificar con Mercado Pago'
+              )}
+            </button>
 
             <button className="btn btn-ghost" style={{ width: '100%' }}
               onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>

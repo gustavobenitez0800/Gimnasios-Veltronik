@@ -180,7 +180,9 @@ export default function AccessPage() {
         {/* Currently In Gym */}
         <div className="card currently-in">
           <div className="table-header">
-            <h3 style={{ margin: 0 }}>🏋️ En el Gimnasio</h3>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src="/assets/VeltronikGym.png" alt="Gym" style={{ height: '1.2em' }} /> En el Gimnasio
+            </h3>
             <span className="people-count">👥 {checkedIn.length}</span>
           </div>
           <div className="checked-in-list" style={{ padding: '0 1rem 1rem' }}>
