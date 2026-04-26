@@ -112,24 +112,32 @@ module.exports = async function handler(req, res) {
         });
 
         // ============================================
-        // SAVE NEW SUBSCRIPTION TO DB
+        // SAVE NEW SUBSCRIPTION TO DB (ONLY IF NONE EXISTS)
         // ============================================
 
-        const subscriptionRecord = {
-            gym_id: gym_id,
-            plan_id: gym.plan_id || null,
-            mp_preapproval_id: mpSubscription.id,
-            mp_payer_email: sanitizedEmail,
-            status: SUBSCRIPTION_STATUS.PENDING,
-            created_at: new Date().toISOString()
-        };
-
-        const { error: saveError } = await supabase
+        const { data: existingSubCheck } = await supabase
             .from('subscriptions')
-            .insert(subscriptionRecord);
+            .select('id')
+            .eq('gym_id', gym_id)
+            .maybeSingle();
 
-        if (saveError) {
-            logSecure('error', 'Error saving new subscription to DB');
+        if (!existingSubCheck) {
+            const subscriptionRecord = {
+                gym_id: gym_id,
+                plan_id: gym.plan_id || null,
+                mp_preapproval_id: mpSubscription.id,
+                mp_payer_email: sanitizedEmail,
+                status: SUBSCRIPTION_STATUS.PENDING,
+                created_at: new Date().toISOString()
+            };
+
+            const { error: saveError } = await supabase
+                .from('subscriptions')
+                .insert(subscriptionRecord);
+
+            if (saveError) {
+                logSecure('error', 'Error saving new subscription to DB', { error: saveError });
+            }
         }
 
         // ============================================

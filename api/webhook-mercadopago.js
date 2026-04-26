@@ -148,13 +148,24 @@ async function handleSubscriptionEvent(preapprovalId) {
     // (upsert with onConflict: 'gym_id' fails silently if no UNIQUE constraint)
     const { data: existingSub } = await supabase
         .from('subscriptions')
-        .select('id')
+        .select('id, status')
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
     if (existingSub) {
+        // PREVENT OVERWRITING ACTIVE WITH PENDING
+        // If user is generating a new payment link, it creates a 'pending' subscription.
+        // We shouldn't downgrade their active access until they actually pay the new one.
+        if (
+            (existingSub.status === SUBSCRIPTION_STATUS.ACTIVE || existingSub.status === SUBSCRIPTION_STATUS.PAST_DUE) &&
+            internalStatus === SUBSCRIPTION_STATUS.PENDING
+        ) {
+            logSecure('info', 'Ignoring pending webhook because current subscription is already active/past_due', { gymId });
+            return;
+        }
+
         // Update existing subscription
         const { error: subError } = await supabase
             .from('subscriptions')
