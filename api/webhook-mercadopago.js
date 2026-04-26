@@ -386,6 +386,31 @@ async function handleSubscriptionPayment(paymentId) {
             await supabase.from('subscriptions').update(subscriptionUpdate).eq('gym_id', gymId);
         }
 
+        // ============================================
+        // CLEANUP: Cancel old subscriptions to prevent double-billing
+        // ============================================
+        const { data: oldSubs } = await supabase
+            .from('subscriptions')
+            .select('id, mp_preapproval_id')
+            .eq('gym_id', gymId)
+            .neq('id', currentSub?.id || '00000000-0000-0000-0000-000000000000')
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PAST_DUE]);
+
+        for (const oldSub of (oldSubs || [])) {
+            if (oldSub.mp_preapproval_id) {
+                try {
+                    await preApproval.update({ id: oldSub.mp_preapproval_id, body: { status: 'cancelled' } });
+                    logSecure('info', 'Old MP subscription cancelled to avoid double billing', { oldId: oldSub.mp_preapproval_id });
+                } catch {
+                    // Ignore, might already be cancelled
+                }
+            }
+            await supabase.from('subscriptions').update({
+                status: SUBSCRIPTION_STATUS.CANCELED,
+                updated_at: new Date().toISOString()
+            }).eq('id', oldSub.id);
+        }
+
         await supabase
             .from('gyms')
             .update({ status: GYM_STATUS.ACTIVE, updated_at: new Date().toISOString() })

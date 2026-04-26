@@ -82,42 +82,12 @@ module.exports = async function handler(req, res) {
         const { price, reason } = await getSubscriptionPriceForGym(gym_id, gym.type);
 
         // ============================================
-        // CANCEL ALL EXISTING NON-CANCELLED SUBSCRIPTIONS IN MP
-        // ============================================
-
-        const { data: existingSubs } = await supabase
-            .from('subscriptions')
-            .select('id, mp_preapproval_id, status')
-            .eq('gym_id', gym_id)
-            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE])
-            .order('created_at', { ascending: false });
-
-        for (const sub of (existingSubs || [])) {
-            if (sub.mp_preapproval_id) {
-                try {
-                    await preApproval.update({
-                        id: sub.mp_preapproval_id,
-                        body: { status: 'cancelled' }
-                    });
-                    logSecure('info', 'Old MP subscription cancelled for payment method update');
-                } catch {
-                    logSecure('warn', 'Could not cancel old MP subscription (may already be cancelled)');
-                }
-            }
-
-            // Mark old subscription as cancelled in DB
-            await supabase
-                .from('subscriptions')
-                .update({
-                    status: SUBSCRIPTION_STATUS.CANCELED,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', sub.id);
-        }
-
-        // ============================================
         // CREATE NEW SUBSCRIPTION IN MERCADO PAGO
         // ============================================
+        
+        // NOTE: We no longer cancel old subscriptions here.
+        // If the user abandons the checkout, they shouldn't lose their current access.
+        // Old subscriptions are now cancelled by the webhook ONLY when the new one is successfully paid.
 
         const subscriptionData = {
             reason: sanitizeString(reason, 100),
