@@ -13,10 +13,12 @@ import { gymService, supabase } from '../services';
 import { getInitials } from '../lib/utils';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import gymLogoSrc from '../assets/VeltronikGym.png';
+import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 import CONFIG from '../lib/config';
 
 const TYPE_LABELS = { GYM: 'Gimnasio', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: '/assets/VeltronikGym.png', RESTO: '/assets/VeltronikRestaurante.png', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_ICONS = { GYM: gymLogoSrc, RESTO: restoLogoSrc, KIOSK: '🏪', OTHER: '📱' };
 const TYPE_IS_IMAGE = { GYM: true, RESTO: true, KIOSK: false, OTHER: false };
 const TYPE_BADGES = { GYM: 'badge-success', RESTO: 'badge-error', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
 
