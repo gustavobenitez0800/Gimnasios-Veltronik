@@ -226,7 +226,7 @@ export default function LobbyPage() {
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
 
   // ─── Handle org selection ───
-  const handleSelectOrg = (org) => {
+  const handleSelectOrg = async (org) => {
     const orgType = org.type || 'GYM';
     const accessStatus = orgStatuses[org.id];
 
@@ -236,8 +236,9 @@ export default function LobbyPage() {
     localStorage.setItem('current_org_name', org.name);
     localStorage.setItem('current_org_type', orgType);
 
-    // If org has valid access → navigate to dashboard
+    // If org has valid access → update context and navigate to dashboard
     if (accessStatus?.canAccess) {
+      await refreshOrgContext(org.id);
       navigate(CONFIG.ROUTES.DASHBOARD);
       return;
     }

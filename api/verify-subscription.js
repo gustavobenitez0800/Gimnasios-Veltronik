@@ -21,7 +21,8 @@ const {
     errorResponse,
     corsResponse,
     logSecure,
-    isValidUUID
+    isValidUUID,
+    verifyUserAccess
 } = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
@@ -38,6 +39,12 @@ module.exports = async function handler(req, res) {
 
         if (!gym_id || !isValidUUID(gym_id)) {
             return errorResponse(res, 400, 'gym_id inválido o faltante', null, req);
+        }
+
+        // VALIDACIÓN DE AUTENTICACIÓN
+        const hasAccess = await verifyUserAccess(req, gym_id);
+        if (!hasAccess) {
+            return errorResponse(res, 403, 'No tienes permiso para verificar la suscripción de esta organización', null, req);
         }
 
         // Get current subscription from DB

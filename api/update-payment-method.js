@@ -30,7 +30,8 @@ const {
     logSecure,
     isValidEmail,
     isValidUUID,
-    sanitizeString
+    sanitizeString,
+    verifyUserAccess
 } = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
@@ -48,11 +49,17 @@ module.exports = async function handler(req, res) {
         const { gym_id, payer_email } = req.body;
 
         // ============================================
-        // INPUT VALIDATION
+        // INPUT VALIDATION & SECURITY
         // ============================================
 
         if (!gym_id || !isValidUUID(gym_id)) {
             return errorResponse(res, 400, 'gym_id inválido o faltante', null, req);
+        }
+
+        // VALIDACIÓN DE AUTENTICACIÓN
+        const hasAccess = await verifyUserAccess(req, gym_id);
+        if (!hasAccess) {
+            return errorResponse(res, 403, 'No tienes permiso para actualizar el método de pago de esta organización', null, req);
         }
 
         if (!payer_email || !isValidEmail(payer_email)) {

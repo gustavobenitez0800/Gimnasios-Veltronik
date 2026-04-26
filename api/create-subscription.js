@@ -36,7 +36,8 @@ const {
     logSecure,
     isValidEmail,
     isValidUUID,
-    sanitizeString
+    sanitizeString,
+    verifyUserAccess
 } = require('./mercadopago');
 
 module.exports = async function handler(req, res) {
@@ -54,7 +55,7 @@ module.exports = async function handler(req, res) {
         const { gym_id, payer_email, plan_id, org_type } = req.body;
 
         // ============================================
-        // SECURITY: VALIDACIÓN DE INPUTS
+        // SECURITY: VALIDACIÓN DE INPUTS & AUTH
         // ============================================
 
         if (!gym_id) {
@@ -64,6 +65,12 @@ module.exports = async function handler(req, res) {
         if (!isValidUUID(gym_id)) {
             logSecure('warn', 'Invalid gym_id format received');
             return errorResponse(res, 400, 'gym_id inválido', null, req);
+        }
+
+        // VALIDACIÓN DE AUTENTICACIÓN
+        const hasAccess = await verifyUserAccess(req, gym_id);
+        if (!hasAccess) {
+            return errorResponse(res, 403, 'No tienes permiso para crear una suscripción en esta organización', null, req);
         }
 
         if (!payer_email) {

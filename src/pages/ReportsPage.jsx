@@ -9,10 +9,6 @@ import { memberService, paymentService, accessService } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
 const RestaurantReportsPage = lazy(() => import('./restaurant/RestaurantReportsPage'));
 
 function getQuickDates(period) {
@@ -38,7 +34,9 @@ function getQuickDates(period) {
   return { from, to };
 }
 
-function downloadExcel(filename, headers, rows) {
+async function downloadExcel(filename, headers, rows) {
+  // Dynamic import para no bloquear el bundle principal
+  const XLSX = await import('xlsx');
   const data = [headers, ...rows];
   const worksheet = XLSX.utils.aoa_to_sheet(data);
   const workbook = XLSX.utils.book_new();
@@ -46,7 +44,11 @@ function downloadExcel(filename, headers, rows) {
   XLSX.writeFile(workbook, filename);
 }
 
-function downloadPDF(title, filename, headers, rows) {
+async function downloadPDF(title, filename, headers, rows) {
+  // Dynamic imports
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+  
   const doc = new jsPDF();
   
   doc.setFontSize(16);

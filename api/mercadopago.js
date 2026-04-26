@@ -360,6 +360,50 @@ function errorResponse(res, statusCode, message, details = null, req = null) {
     });
 }
 
+/**
+ * Verifica el JWT del usuario y que tenga permisos en la organización.
+ * Retorna true si es válido, falso si no.
+ */
+async function verifyUserAccess(req, gymId) {
+    if (!gymId) return false;
+    
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        logSecure('warn', 'Missing or invalid Authorization header');
+        return false;
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error || !user) {
+            logSecure('warn', 'Invalid JWT token', { error: error?.message });
+            return false;
+        }
+
+        // Verificar si el usuario es owner o admin de la organización
+        const { data: membership, error: memError } = await supabase
+            .from('organization_members')
+            .select('role')
+            .eq('organization_id', gymId)
+            .eq('user_id', user.id)
+            .in('role', ['owner', 'admin'])
+            .maybeSingle();
+
+        if (memError || !membership) {
+            logSecure('warn', 'User does not have access to this organization', { userId: user.id, gymId });
+            return false;
+        }
+
+        return true;
+    } catch (e) {
+        logSecure('error', 'Auth verification failed', { error: e.message });
+        return false;
+    }
+}
+
 module.exports = {
     mpClient,
     preApproval,
@@ -382,6 +426,7 @@ module.exports = {
     isValidEmail,
     isValidUUID,
     sanitizeString,
+    verifyUserAccess,
     // Response helpers
     corsResponse,
     jsonResponse,
