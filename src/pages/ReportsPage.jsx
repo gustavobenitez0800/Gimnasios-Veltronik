@@ -13,22 +13,29 @@ const RestaurantReportsPage = lazy(() => import('./restaurant/RestaurantReportsP
 
 function getQuickDates(period) {
   const today = new Date();
+  const formatLocal = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   let from, to;
   switch (period) {
-    case 'today': from = to = today.toISOString().split('T')[0]; break;
+    case 'today': from = to = formatLocal(today); break;
     case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
-      from = ws.toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0];
+      from = formatLocal(ws);
+      to = formatLocal(today);
       break;
     }
     case 'month':
-      from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0]; break;
+      from = formatLocal(new Date(today.getFullYear(), today.getMonth(), 1));
+      to = formatLocal(today); break;
     case 'year':
-      from = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0]; break;
+      from = formatLocal(new Date(today.getFullYear(), 0, 1));
+      to = formatLocal(today); break;
     default: break;
   }
   return { from, to };
@@ -112,7 +119,15 @@ function GymReportsPage() {
     setExporting(e => ({ ...e, members: format }));
     try {
       // Fetch-on-demand
-      const members = await memberService.getAll();
+      let members = await memberService.getAll();
+      
+      if (dateFrom && dateTo) {
+        members = (members || []).filter(m => {
+          const d = m.membership_start || (m.created_at ? m.created_at.split('T')[0] : null);
+          if (!d) return true; // keep members with no date
+          return d >= dateFrom && d <= dateTo;
+        });
+      }
       
       const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio Membresía', 'Fin Membresía'];
       const rows = (members || []).map(m => [m.full_name, m.dni || '', m.phone || '', m.email || '', getStatusLabel(m.status), m.membership_start || '', m.membership_end || '']);
