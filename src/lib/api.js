@@ -36,6 +36,19 @@ export async function apiCall(endpoint, body = {}, options = {}) {
       ...options,
     });
 
+    // Check if the response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // It's likely an HTML error page from Vercel (e.g. 404 or 500 crash)
+      const text = await response.text();
+      console.error(`[API Error] No JSON returned from ${endpoint}. Status: ${response.status}`, text.substring(0, 200));
+      return {
+        ok: false,
+        status: response.status,
+        data: { error: 'Error de conexión. Verifica tu internet y probá de nuevo.', details: `Status ${response.status}` },
+      };
+    }
+
     const data = await response.json();
 
     return {

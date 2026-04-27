@@ -1,5 +1,5 @@
 // ============================================
-// VELTRONIK V2 - BLOCKED PAGE (Netflix-Level)
+// VELTRONIK V2 - BLOCKED PAGE (Premium & Professional)
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
@@ -15,7 +15,7 @@ export default function BlockedPage() {
   const { gym, subscription, hasValidAccess, logout, user, profile, refreshAuth } = useAuth();
   const { showToast } = useToast();
   const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
-  const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco' }[orgType] || 'negocio';
+  const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
 
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [hasMultipleOrgs, setHasMultipleOrgs] = useState(false);
@@ -39,23 +39,23 @@ export default function BlockedPage() {
         }
         setTimeout(() => { window.location.reload(); }, 1500);
       } else {
-        showToast(result.message || 'Estado verificado, sin cambios', 'info');
+        showToast(result.message || 'El estado de la suscripción está actualizado', 'info');
       }
     } catch {
-      showToast('Error al verificar', 'error');
+      showToast('No pudimos verificar el estado en este momento. Intenta de nuevo más tarde.', 'error');
     } finally {
       setVerifying(false);
     }
   };
 
-  // Compute block reason with grace period info
+  // Compute block reason with grace period info and beautiful professional wording
   const blockReason = useMemo(() => {
     if (subscription?.status === 'canceled') {
       return {
         type: 'canceled',
-        icon: '🚫',
-        title: 'Suscripción cancelada',
-        message: `Tu suscripción del ${typeLabel} fue cancelada. Tus datos están seguros y no serán eliminados. Suscribite nuevamente para reactivar tu cuenta.`,
+        emoji: '💡',
+        title: 'Suscripción Inactiva',
+        message: `La suscripción de tu ${typeLabel} se encuentra inactiva. Toda tu información y configuraciones están guardadas de forma segura. Puedes reactivar tu cuenta en cualquier momento para continuar utilizando la plataforma.`,
         showUpdateCard: false,
         accentColor: '#64748b',
       };
@@ -70,22 +70,20 @@ export default function BlockedPage() {
       const daysLeft = graceEnd
         ? Math.max(0, Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24)))
         : 0;
-      const retryCount = subscription.retry_count || 0;
-
+      
       const urgencyMessage = daysLeft > 3
-        ? `Tenés ${daysLeft} días para resolver esto.`
+        ? `Cuentas con ${daysLeft} días de gracia para actualizar tus datos sin afectar tu acceso.`
         : daysLeft > 0
-        ? `⚡ Solo te quedan ${daysLeft} día${daysLeft !== 1 ? 's' : ''} antes de perder acceso.`
-        : 'Tu período de gracia expiró.';
+        ? `Te quedan ${daysLeft} día${daysLeft !== 1 ? 's' : ''} para mantener el servicio activo sin interrupciones.`
+        : 'El período de gracia ha finalizado.';
 
       return {
         type: 'past_due',
-        icon: '💳',
-        title: 'Pago rechazado',
-        message: `No pudimos procesar tu pago mensual (intento ${retryCount}/4). ${urgencyMessage} Actualizá tu método de pago para mantener el acceso a tu ${typeLabel}.`,
+        emoji: '💳',
+        title: 'Actualización de Pago Requerida',
+        message: `Tuvimos un inconveniente al procesar el último ciclo de tu suscripción. ${urgencyMessage} Por favor, actualiza tu método de pago para seguir disfrutando de todas las funciones de Veltronik.`,
         showUpdateCard: true,
         daysLeft,
-        retryCount,
         accentColor: daysLeft <= 1 ? '#ef4444' : '#f59e0b',
       };
     }
@@ -93,9 +91,9 @@ export default function BlockedPage() {
     if (gym?.trial_ends_at && new Date(gym.trial_ends_at) < new Date()) {
       return {
         type: 'trial_expired',
-        icon: '⏰',
-        title: 'Prueba gratuita finalizada',
-        message: `Tu período de prueba de 30 días para tu ${typeLabel} ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.`,
+        emoji: '✨',
+        title: 'Tu período de prueba ha finalizado',
+        message: `Esperamos que hayas disfrutado tus días de prueba en tu ${typeLabel}. Tu información está guardada de forma segura. Elige un plan para aprovechar al máximo todas las herramientas de Veltronik.`,
         showUpdateCard: false,
         accentColor: '#3b82f6',
       };
@@ -103,11 +101,11 @@ export default function BlockedPage() {
 
     return {
       type: 'blocked',
-      icon: '🔒',
-      title: 'Acceso suspendido',
-      message: 'Tu cuenta fue suspendida. Tus datos están seguros. Contactanos o suscribite para reactivar tu acceso.',
+      emoji: '⏸️',
+      title: 'Acceso en Pausa',
+      message: 'El acceso a tu espacio de trabajo se encuentra temporalmente en pausa. Tu información y base de datos están seguras con nosotros. Reactiva tu plan para volver a operar con normalidad.',
       showUpdateCard: false,
-      accentColor: '#ef4444',
+      accentColor: '#8b5cf6',
     };
   }, [subscription, gym, typeLabel]);
 
@@ -144,7 +142,7 @@ export default function BlockedPage() {
     } catch { /* use fallback email */ }
 
     if (!gymId || !payerEmail) {
-      showToast('No se encontraron los datos necesarios', 'error');
+      showToast('No pudimos validar la información necesaria. Por favor, intenta de nuevo.', 'error');
       return;
     }
 
@@ -156,7 +154,7 @@ export default function BlockedPage() {
       });
 
       if (!ok) {
-        throw new Error(result.error || 'Error al actualizar método de pago');
+        throw new Error(result.error || 'Tuvimos un problema al preparar la actualización. Intenta en unos minutos.');
       }
 
       const checkoutUrl = CONFIG.DEBUG
@@ -164,131 +162,124 @@ export default function BlockedPage() {
         : (result.data?.init_point || result.data?.sandbox_init_point);
 
       if (checkoutUrl) {
-        showToast('Redirigiendo a Mercado Pago...', 'info');
+        showToast('Abriendo portal de pagos seguro...', 'info');
         setTimeout(() => { window.location.href = checkoutUrl; }, 800);
       } else {
-        throw new Error('No se obtuvo URL de checkout');
+        throw new Error('No se pudo generar el acceso al portal de pagos.');
       }
     } catch (error) {
-      showToast(error.message || 'Error al actualizar método de pago', 'error');
+      showToast(error.message || 'Tuvimos un inconveniente al conectar con el servidor. Revisa tu conexión e intenta de nuevo.', 'error');
     } finally {
       setUpdatingPayment(false);
     }
   };
 
   return (
-    <div className="blocked-wrapper">
-      {/* Background effects */}
-      <div className="blocked-bg">
-        <div className="blocked-orb blocked-orb-1" style={{ background: `radial-gradient(circle, ${blockReason.accentColor}33 0%, transparent 70%)` }} />
-        <div className="blocked-orb blocked-orb-2" />
+    <div className="premium-blocked-wrapper">
+      {/* Dynamic Background Effects */}
+      <div className="premium-blocked-bg">
+        <div className="glow-orb" style={{ background: `radial-gradient(circle, ${blockReason.accentColor}33 0%, transparent 70%)`, top: '-10%', right: '-5%' }} />
+        <div className="glow-orb" style={{ background: 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)', bottom: '-20%', left: '-10%', animationDelay: '-3s' }} />
       </div>
 
-      <div className="blocked-container">
-        <div className="blocked-card">
-          {/* Icon */}
-          <div className="blocked-icon-wrapper">
-            <span className="blocked-icon-emoji">{blockReason.icon}</span>
+      <div className="premium-blocked-content">
+        {/* Left Side: Brand & Context */}
+        <div className="premium-blocked-info">
+          <div className="brand-logo">
+            <div className="logo-icon">V</div>
+            <span className="logo-text">Veltronik</span>
+          </div>
+          
+          <div className="status-hero">
+            <span className="status-emoji" role="img" aria-label="status">{blockReason.emoji}</span>
+            <h1 className="status-title">{blockReason.title}</h1>
+            <p className="status-message">{blockReason.message}</p>
           </div>
 
-          {/* Title & message */}
-          <h1 className="blocked-title">{blockReason.title}</h1>
-          <p className="blocked-message">{blockReason.message}</p>
-
-          {/* Grace period countdown */}
           {blockReason.type === 'past_due' && blockReason.daysLeft !== undefined && (
-            <div className="blocked-grace-bar">
-              <div className="blocked-grace-header">
-                <span>Período de gracia</span>
-                <span className={blockReason.daysLeft <= 1 ? 'text-danger' : blockReason.daysLeft <= 3 ? 'text-warning' : ''}>
-                  {blockReason.daysLeft > 0 ? `${blockReason.daysLeft} días restantes` : 'Expirado'}
+            <div className="grace-period-indicator">
+              <div className="grace-period-header">
+                <span className="grace-label">Estado del servicio</span>
+                <span className="grace-value" style={{ color: blockReason.accentColor }}>
+                  {blockReason.daysLeft > 0 ? `${blockReason.daysLeft} días de gracia` : 'Período finalizado'}
                 </span>
               </div>
-              <div className="blocked-grace-track">
+              <div className="grace-progress-track">
                 <div
-                  className="blocked-grace-fill"
+                  className="grace-progress-fill"
                   style={{
                     width: `${Math.max(5, ((7 - blockReason.daysLeft) / 7) * 100)}%`,
-                    background: blockReason.daysLeft <= 1
-                      ? 'linear-gradient(90deg, #ef4444, #dc2626)'
-                      : blockReason.daysLeft <= 3
-                      ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                      : 'linear-gradient(90deg, var(--primary-500), #f59e0b)',
+                    background: blockReason.accentColor,
+                    boxShadow: `0 0 10px ${blockReason.accentColor}80`
                   }}
                 />
               </div>
             </div>
           )}
-
-          {/* Status badge */}
-          <div className="blocked-status-badge" style={{ borderColor: `${blockReason.accentColor}40`, background: `${blockReason.accentColor}15` }}>
-            <span style={{ color: blockReason.accentColor }}>
-              ⚠️ Estado: <strong>{blockReason.title}</strong>
-            </span>
+          
+          <div className="support-info">
+            <p>¿Necesitas ayuda con tu cuenta?</p>
+            <div className="support-links-row">
+              <a href="mailto:veltronikcompany@gmail.com" className="support-link email">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                <span>Contactar Soporte</span>
+              </a>
+            </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="blocked-actions">
-            <button className="btn btn-primary blocked-btn-main"
-              onClick={() => navigate(CONFIG.ROUTES.PLANS)}>
-              💳 Reactivar Suscripción
-            </button>
+        {/* Right Side: Actions Panel */}
+        <div className="premium-blocked-actions-panel">
+          <div className="actions-card">
+            <div className="actions-header">
+              <h3>Opciones disponibles</h3>
+              <p>Elige cómo deseas continuar</p>
+            </div>
 
-            {blockReason.showUpdateCard && (
-              <button
-                className="btn btn-secondary"
-                style={{ width: '100%', padding: '0.75rem' }}
-                onClick={handleUpdatePaymentMethod}
-                disabled={updatingPayment}
+            <div className="action-buttons-stack">
+              <button 
+                className="premium-btn-primary full-width"
+                onClick={() => navigate(CONFIG.ROUTES.PLANS)}
               >
-                {updatingPayment ? (
-                  <><span className="spinner" /> Procesando...</>
+                <span className="btn-icon">💎</span>
+                <span className="btn-text">Ver Planes y Reactivar</span>
+              </button>
+
+              {blockReason.showUpdateCard && (
+                <button
+                  className="premium-btn-secondary full-width"
+                  onClick={handleUpdatePaymentMethod}
+                  disabled={updatingPayment}
+                >
+                  <span className="btn-icon">💳</span>
+                  <span className="btn-text">
+                    {updatingPayment ? 'Procesando solicitud...' : 'Actualizar Método de Pago'}
+                  </span>
+                </button>
+              )}
+
+              <div className="action-divider"><span>Otras opciones</span></div>
+
+              <button
+                className="premium-btn-outline full-width"
+                onClick={handleVerifyStatus}
+                disabled={verifying}
+              >
+                {verifying ? (
+                  <><span className="spinner-small" /> Sincronizando estado...</>
                 ) : (
-                  '🔄 Cambiar Tarjeta / Método de Pago'
+                  '🔄 Sincronizar estado del pago'
                 )}
               </button>
-            )}
 
-            <button
-              className="btn btn-ghost"
-              style={{ width: '100%' }}
-              onClick={handleVerifyStatus}
-              disabled={verifying}
-            >
-              {verifying ? (
-                <><span className="spinner" /> Verificando...</>
-              ) : (
-                '🔍 ¿Ya pagaste? Verificar con Mercado Pago'
-              )}
-            </button>
-
-            <button className="btn btn-ghost" style={{ width: '100%' }}
-              onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
-              ← Volver al Lobby
-            </button>
-
-            <button className="btn btn-ghost" style={{ width: '100%' }} onClick={logout}>
-              Cerrar Sesión
-            </button>
-          </div>
-
-          {/* Card tips */}
-          {blockReason.showUpdateCard && (
-            <div className="blocked-tip-box">
-              <p>
-                💡 <strong>¿Problemas con tu tarjeta?</strong><br />
-                Presioná "Cambiar Tarjeta" para ingresar una nueva tarjeta o elegir otro método de pago en Mercado Pago.
-                Si usás tarjeta de débito, asegurate de tener saldo suficiente.
-              </p>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="blocked-footer">
-            <p>¿Necesitás ayuda? Contactanos</p>
-            <div className="blocked-footer-links">
-              <a href="https://www.instagram.com/veltroniik/" target="_blank" rel="noreferrer">📷 Instagram</a>
-              <a href="mailto:veltronikcompany@gmail.com">📧 Email</a>
+              <div className="secondary-actions-row">
+                <button className="premium-btn-ghost" onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
+                  Ir al Lobby
+                </button>
+                <button className="premium-btn-ghost text-muted" onClick={logout}>
+                  Cerrar Sesión
+                </button>
+              </div>
             </div>
           </div>
         </div>

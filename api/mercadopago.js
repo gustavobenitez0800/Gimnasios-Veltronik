@@ -24,7 +24,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // ============================================
 
 const ALLOWED_ORIGINS = [
-    'https://gimnasio-veltronik.vercel.app',
+    'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
     'http://localhost:5173',
     'http://localhost:5500',
     'http://127.0.0.1:5500',
@@ -78,7 +78,7 @@ const SUBSCRIPTION_CONFIG = {
     FREQUENCY: 1,
     FREQUENCY_TYPE: 'months',
     REASON: 'Veltronik - Gestión de Negocios (Mensual)',
-    BACK_URL: process.env.FRONTEND_URL || 'https://gimnasio-veltronik.vercel.app',
+    BACK_URL: process.env.FRONTEND_URL || 'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
     GRACE_PERIOD_DAYS: 7, // Días de gracia antes de bloquear
 };
 
@@ -313,15 +313,17 @@ function sanitizeString(str, maxLength = 255) {
 function corsResponse(res, req = null) {
     const origin = req?.headers?.origin || '';
 
-    if (ALLOWED_ORIGINS.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+    if (ALLOWED_ORIGINS.includes(origin) || origin === 'null' || origin.startsWith('file://') || origin.startsWith('veltronik://')) {
+        res.setHeader('Access-Control-Allow-Origin', origin === 'null' ? '*' : origin);
     } else if (!IS_PRODUCTION) {
         // En desarrollo, permitir cualquier origen localhost
         if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
             res.setHeader('Access-Control-Allow-Origin', origin);
         }
+    } else {
+        // Fallback for Electron apps that might not send origin properly
+        res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    // Si no está permitido, simplemente no agregamos el header
 
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

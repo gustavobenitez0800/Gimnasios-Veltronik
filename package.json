@@ -9,7 +9,7 @@
     "name": "Veltronik",
     "email": "veltronikcompany@gmail.com"
   },
-  "homepage": "https://gimnasio-veltronik.vercel.app",
+  "homepage": "https://gimnasio-veltronik-veltroniks-projects.vercel.app",
   "repository": {
     "type": "git",
     "url": "https://github.com/gustavobenitez0800/gimnasios-veltronik.git"
@@ -18,7 +18,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vercel dev",
+    "dev:vite": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -58,7 +59,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
-    "vercel": "^33.0.0",
+    "vercel": "^52.0.0",
     "vite": "^8.0.1"
   },
   "build": {

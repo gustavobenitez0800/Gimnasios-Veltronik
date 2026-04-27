@@ -12,7 +12,7 @@ const CONFIG = {
   SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY,
 
   // Backend API URL
-  API_URL: import.meta.env.VITE_API_URL || 'https://gimnasio-veltronik.vercel.app',
+  API_URL: import.meta.env.VITE_API_URL || 'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
 
   // Debug mode
   DEBUG: import.meta.env.DEV,

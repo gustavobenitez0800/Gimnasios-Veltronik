@@ -66,13 +66,13 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.REGISTER} element={<RegisterPage />} />
                 <Route path={CONFIG.ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
                 <Route path={CONFIG.ROUTES.ONBOARDING} element={<OnboardingPage />} />
-                <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />
-                <Route path={CONFIG.ROUTES.BLOCKED} element={<BlockedPage />} />
                 <Route path={CONFIG.ROUTES.PAYMENT_CALLBACK} element={<PaymentCallbackPage />} />
                 <Route path={CONFIG.ROUTES.MEMBER_PORTAL} element={<MemberPortalPage />} />
               </Route>
 
-              {/* Lobby (special full-screen page) */}
+              {/* Full screen pages without layout wrappers */}
+              <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />
+              <Route path={CONFIG.ROUTES.BLOCKED} element={<BlockedPage />} />
               <Route path={CONFIG.ROUTES.LOBBY} element={<LobbyPage />} />
 
               {/* App pages (with sidebar) */}
