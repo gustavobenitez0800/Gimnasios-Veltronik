@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
 
         const { data: subscription, error: subError } = await supabase
             .from('subscriptions')
-            .select('id, mp_preapproval_id, status')
+            .select('id, mp_preapproval_id, status, current_period_end')
             .eq('gym_id', gym_id)
             .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE])
             .order('created_at', { ascending: false })
@@ -119,20 +119,26 @@ module.exports = async function handler(req, res) {
             logSecure('error', 'Error updating subscription status');
         }
 
-        // Block gym
-        const { error: updateGymError } = await supabase
-            .from('gyms')
-            .update({
-                status: GYM_STATUS.BLOCKED,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', gym_id);
+        // Check if we should block the gym immediately
+        const hasTimeLeft = subscription.current_period_end && new Date() < new Date(subscription.current_period_end);
+        
+        if (!hasTimeLeft) {
+            // Block gym
+            const { error: updateGymError } = await supabase
+                .from('gyms')
+                .update({
+                    status: GYM_STATUS.BLOCKED,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', gym_id);
 
-        if (updateGymError) {
-            logSecure('error', 'Error updating gym status');
+            if (updateGymError) {
+                logSecure('error', 'Error updating gym status');
+            }
+            logSecure('info', 'Subscription cancelled and gym blocked immediately', { gym_id });
+        } else {
+            logSecure('info', 'Subscription cancelled but gym remains active until period ends', { gym_id });
         }
-
-        logSecure('info', 'Subscription cancelled and gym blocked', { gym_id });
 
         return jsonResponse(res, 200, {
             success: true,

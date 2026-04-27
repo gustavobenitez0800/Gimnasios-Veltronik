@@ -135,7 +135,8 @@ module.exports = async function handler(req, res) {
         if (mpStatus === 'authorized') {
             gymStatus = GYM_STATUS.ACTIVE;
         } else if (mpStatus === 'cancelled') {
-            gymStatus = GYM_STATUS.BLOCKED;
+            const hasTimeLeft = subscription.current_period_end && new Date() < new Date(subscription.current_period_end);
+            gymStatus = hasTimeLeft ? GYM_STATUS.ACTIVE : GYM_STATUS.BLOCKED;
         } else if (mpStatus === 'paused') {
             gymStatus = GYM_STATUS.ACTIVE; // Grace period
         } else {

@@ -16,6 +16,7 @@ import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import gymLogoSrc from '../assets/VeltronikGym.png';
 import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 import CONFIG from '../lib/config';
+import { apiCall } from '../lib/api';
 
 const TYPE_LABELS = { GYM: 'Gimnasio', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
 const TYPE_ICONS = { GYM: gymLogoSrc, RESTO: restoLogoSrc, KIOSK: '🏪', OTHER: '📱' };
@@ -96,8 +97,20 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 5. Canceled → blocked
+  // 5. Canceled → blocked (unless current_period_end is in the future)
   if (sub?.status === 'canceled') {
+    if (sub?.current_period_end && new Date() < new Date(sub.current_period_end)) {
+      const daysLeft = Math.max(0, Math.ceil((new Date(sub.current_period_end) - new Date()) / (1000 * 60 * 60 * 24)));
+      return {
+        canAccess: true,
+        status: 'canceled_active',
+        label: `Cancelada (${daysLeft}d rest.)`,
+        icon: '⚠️',
+        color: '#f59e0b',
+        sub,
+      };
+    }
+
     return {
       canAccess: false,
       status: 'canceled',
@@ -279,15 +292,12 @@ export default function LobbyPage() {
 
     setUpdatingPayment(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/update-payment-method`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId, payer_email: payerEmail }),
+      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+        gym_id: gymId,
+        payer_email: payerEmail,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!ok) {
         throw new Error(result.error || 'Error al actualizar método de pago');
       }
 

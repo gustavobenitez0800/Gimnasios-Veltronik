@@ -9,8 +9,14 @@ import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
+import gymLogoSrc from '../assets/VeltronikGym.png';
+import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 
 export default function AccessPage() {
+  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const orgLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
+
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -127,7 +133,7 @@ export default function AccessPage() {
           <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
           <div className="stat-content">
             <div className="stat-value">{stats.inGym}</div>
-            <div className="stat-label">En el gimnasio</div>
+            <div className="stat-label">En el {orgLabel}</div>
           </div>
         </div>
         <div className="stat-card">
@@ -181,7 +187,16 @@ export default function AccessPage() {
         <div className="card currently-in">
           <div className="table-header">
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img src="/assets/VeltronikGym.png" alt="Gym" style={{ height: '1.2em' }} /> En el Gimnasio
+              {orgType === 'GYM' ? (
+                <img src={gymLogoSrc} alt="Gym" style={{ height: '1.2em' }} />
+              ) : orgType === 'RESTO' ? (
+                <img src={restoLogoSrc} alt="Resto" style={{ height: '1.2em' }} />
+              ) : orgType === 'KIOSK' ? (
+                '🏪 '
+              ) : (
+                '🏢 '
+              )}
+              En el {orgLabelCap}
             </h3>
             <span className="people-count">👥 {checkedIn.length}</span>
           </div>
@@ -189,7 +204,7 @@ export default function AccessPage() {
             {loading ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
             ) : checkedIn.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el gimnasio</div>
+              <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
             ) : checkedIn.map(log => {
               const member = Array.isArray(log.member) ? log.member[0] : log.member;
               const memberName = member?.full_name || 'Socio';

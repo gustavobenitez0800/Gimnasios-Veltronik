@@ -98,6 +98,10 @@ export function AuthProvider({ children }) {
     if (sub?.status === 'past_due' && sub?.grace_period_ends_at) {
       if (new Date() < new Date(sub.grace_period_ends_at)) return true;
     }
+    // Canceled but current period hasn't ended
+    if (sub?.status === 'canceled' && sub?.current_period_end) {
+      if (new Date() < new Date(sub.current_period_end)) return true;
+    }
     return false;
   }, []);
 
@@ -171,13 +175,13 @@ export function AuthProvider({ children }) {
     setGym(gymData);
 
     if (gymData) {
-      const trialActive = checkTrialStatus(gymData);
+      const sub = await loadSubscriptionForOrg(gymData.id);
+      setSubscription(sub);
+
+      const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
       const trialDays = getTrialDays(gymData);
       setIsTrialActive(trialActive);
       setTrialDaysRemaining(trialDays);
-
-      const sub = await loadSubscriptionForOrg(gymData.id);
-      setSubscription(sub);
     } else {
       setIsTrialActive(false);
       setTrialDaysRemaining(0);
@@ -207,13 +211,13 @@ export function AuthProvider({ children }) {
       setGym(gymData);
 
       if (gymData) {
-        const trialActive = checkTrialStatus(gymData);
+        const sub = await loadSubscriptionForOrg(gymData.id);
+        setSubscription(sub);
+
+        const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
         const trialDays = getTrialDays(gymData);
         setIsTrialActive(trialActive);
         setTrialDaysRemaining(trialDays);
-
-        const sub = await loadSubscriptionForOrg(gymData.id);
-        setSubscription(sub);
       } else {
         setIsTrialActive(false);
         setTrialDaysRemaining(0);

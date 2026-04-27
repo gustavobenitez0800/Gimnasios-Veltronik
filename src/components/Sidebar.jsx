@@ -77,11 +77,35 @@ const RESTO_NAV = [
 
 function getNavSections() {
   const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const role = localStorage.getItem('current_org_role') || 'owner';
+  
+  let sections;
   switch (orgType) {
-    case 'RESTO': return RESTO_NAV;
+    case 'RESTO': sections = RESTO_NAV; break;
     case 'GYM':
-    default: return GYM_NAV;
+    default: sections = GYM_NAV;
   }
+
+  // Role-based filtering
+  if (role === 'reception') {
+    // Reception: only Dashboard, Access, and platform nav
+    const allowedPaths = [CONFIG.ROUTES.DASHBOARD, CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.LOBBY, CONFIG.ROUTES.SETTINGS];
+    return sections.map(section => ({
+      ...section,
+      items: section.items.filter(item => allowedPaths.includes(item.to)),
+    })).filter(section => section.items.length > 0);
+  }
+
+  if (role === 'staff') {
+    // Staff: everything except Team management
+    const blockedPaths = [CONFIG.ROUTES.TEAM];
+    return sections.map(section => ({
+      ...section,
+      items: section.items.filter(item => !blockedPaths.includes(item.to)),
+    })).filter(section => section.items.length > 0);
+  }
+
+  return sections;
 }
 
 export default function Sidebar({ isOpen, onClose }) {

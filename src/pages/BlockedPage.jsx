@@ -7,11 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { gymService, supabase } from '../services';
+import { apiCall } from '../lib/api';
 import CONFIG from '../lib/config';
 
 export default function BlockedPage() {
   const navigate = useNavigate();
-  const { gym, subscription, isActiveSubscription, isTrialActive, logout, user, profile, refreshAuth } = useAuth();
+  const { gym, subscription, hasValidAccess, logout, user, profile, refreshAuth } = useAuth();
   const { showToast } = useToast();
   const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
   const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco' }[orgType] || 'negocio';
@@ -27,14 +28,11 @@ export default function BlockedPage() {
 
     setVerifying(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/verify-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId }),
+      const { ok, data: result } = await apiCall('/api/verify-subscription', {
+        gym_id: gymId,
       });
-      const result = await response.json();
 
-      if (result.success && result.changed) {
+      if (ok && result.changed) {
         showToast(`✅ ${result.message}`, 'success');
         if (refreshAuth) {
           try { await refreshAuth(); } catch { /* ignore */ }
@@ -114,8 +112,8 @@ export default function BlockedPage() {
   }, [subscription, gym, typeLabel]);
 
   useEffect(() => {
-    // If active subscription or trial → redirect to dashboard
-    if ((gym && isActiveSubscription(subscription)) || isTrialActive) {
+    // If valid access → redirect to dashboard
+    if (gym && hasValidAccess(gym, subscription)) {
       navigate(CONFIG.ROUTES.DASHBOARD, { replace: true });
       return;
     }
@@ -127,7 +125,7 @@ export default function BlockedPage() {
         if (orgs?.length > 1) setHasMultipleOrgs(true);
       } catch { /* silent */ }
     })();
-  }, [gym, subscription, isActiveSubscription, isTrialActive, navigate]);
+  }, [gym, subscription, hasValidAccess, navigate]);
 
   // Update payment method
   const handleUpdatePaymentMethod = async () => {
@@ -152,15 +150,12 @@ export default function BlockedPage() {
 
     setUpdatingPayment(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/update-payment-method`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId, payer_email: payerEmail }),
+      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+        gym_id: gymId,
+        payer_email: payerEmail,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!ok) {
         throw new Error(result.error || 'Error al actualizar método de pago');
       }
 

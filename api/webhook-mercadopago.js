@@ -155,7 +155,7 @@ async function handleSubscriptionEvent(preapprovalId) {
     // (upsert with onConflict: 'gym_id' fails silently if no UNIQUE constraint)
     const { data: existingSub } = await supabase
         .from('subscriptions')
-        .select('id, status')
+        .select('id, status, current_period_end')
         .eq('gym_id', gymId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -207,8 +207,17 @@ async function handleSubscriptionEvent(preapprovalId) {
         // Suscripción autorizada → gym activo
         gymStatus = GYM_STATUS.ACTIVE;
     } else if (mpSub.status === 'cancelled') {
-        // Cancelación voluntaria → bloquear
-        gymStatus = GYM_STATUS.BLOCKED;
+        // Cancelación voluntaria → verificar si hay tiempo restante
+        let hasTimeLeft = false;
+        if (existingSub?.current_period_end && new Date() < new Date(existingSub.current_period_end)) {
+            hasTimeLeft = true;
+        }
+        
+        if (hasTimeLeft) {
+            gymStatus = GYM_STATUS.ACTIVE;
+        } else {
+            gymStatus = GYM_STATUS.BLOCKED;
+        }
     } else if (mpSub.status === 'paused') {
         // Pausada por MP (problemas de pago) → iniciar gracia de 7 días
         // No bloquear inmediatamente, el cron lo hará si la gracia expira

@@ -9,13 +9,19 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase, gymService, errorService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
+import { apiCall } from '../lib/api';
 import CONFIG from '../lib/config';
+import gymLogoSrc from '../assets/VeltronikGym.png';
+import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
   const { user, gym: authGym, profile, logout, refreshAuth } = useAuth();
   const { preference, setTheme } = useTheme();
   const currentRole = localStorage.getItem('current_org_role');
+  const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
+  const orgLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -97,7 +103,7 @@ export default function SettingsPage() {
       }
 
       // Fallback: trial_ends_at
-      if (nextPaymentText === '--' && gymData.trial_ends_at) {
+      if (!hasSubscription && nextPaymentText === '--' && gymData.trial_ends_at) {
         const trialEnd = new Date(gymData.trial_ends_at);
         const diffDays = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
         const dateStr = trialEnd.toLocaleDateString('es-AR');
@@ -123,8 +129,10 @@ export default function SettingsPage() {
       const priceMap = { GYM: 35000, RESTO: 45000, KIOSK: 25000, OTHER: 35000 };
       const amount = priceMap[orgType] || CONFIG.SUBSCRIPTION_PRICE || 0;
 
+      const planNameMap = { GYM: 'Veltronik Pro', RESTO: 'Veltronik Restaurante', KIOSK: 'Veltronik Kiosco', OTHER: 'Veltronik Business' };
+
       setSubscriptionInfo({
-        plan: orgType === 'RESTO' ? 'Veltronik Restaurante' : 'Veltronik Pro',
+        plan: planNameMap[orgType] || 'Veltronik Pro',
         status: gymData.status || 'active',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
@@ -176,15 +184,12 @@ export default function SettingsPage() {
 
     setUpdatingPayment(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/update-payment-method`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId, payer_email: email }),
+      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+        gym_id: gymId,
+        payer_email: email,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!ok) {
         throw new Error(result.error || 'Error al actualizar método de pago');
       }
 
@@ -209,21 +214,17 @@ export default function SettingsPage() {
   const handleVerifySubscription = async () => {
     const gymId = authGym?.id || localStorage.getItem('current_org_id');
     if (!gymId) {
-      showToast('No se encontró el gimnasio', 'error');
+      showToast('No se encontró la organización', 'error');
       return;
     }
 
     setVerifyingSubscription(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/verify-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId }),
+      const { ok, data: result } = await apiCall('/api/verify-subscription', {
+        gym_id: gymId,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!ok) {
         throw new Error(result.error || 'Error al verificar suscripción');
       }
 
@@ -250,23 +251,19 @@ export default function SettingsPage() {
     try {
       const gymId = authGym?.id || localStorage.getItem('current_org_id');
       if (!gymId) {
-        showToast('No se encontró el gimnasio', 'error');
+        showToast('No se encontró la organización', 'error');
         return;
       }
 
-      const response = await fetch(`${CONFIG.API_URL}/api/cancel-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gym_id: gymId }),
+      const { ok, data: result } = await apiCall('/api/cancel-subscription', {
+        gym_id: gymId,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      if (!ok) {
         throw new Error(result.error || 'Error al cancelar suscripción');
       }
 
-      showToast('Suscripción cancelada. Tus datos están seguros.', 'info');
+      showToast('Suscripción cancelada. Tu acceso continuará hasta el fin del período actual.', 'info');
       setConfirmCancel(false);
 
       // Refresh auth state before redirecting
@@ -274,7 +271,8 @@ export default function SettingsPage() {
         try { await refreshAuth(); } catch { /* ignore */ }
       }
 
-      setTimeout(() => { window.location.hash = '#/blocked'; }, 2000);
+      // Reload settings to reflect the new status instead of redirecting to blocked
+      await loadSettings();
     } catch (error) {
       showToast(error.message || 'Error al cancelar suscripción', 'error');
     } finally {
@@ -301,27 +299,29 @@ export default function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <PageHeader title="Configuración" subtitle="Gestión de tu gimnasio y cuenta" icon="settings" />
+      <PageHeader title="Configuración" subtitle={`Gestión de tu ${orgLabel} y cuenta`} icon="settings" />
 
       <div className="settings-grid">
         {/* Gym Info - Solo visible/editable para admin/owner */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'GYM' ? (
-              <img src="/assets/VeltronikGym.png" alt="Gym" style={{ height: '1.2em' }} />
-            ) : (authGym?.type || localStorage.getItem('current_org_type')) === 'RESTO' ? (
-              <img src="/assets/VeltronikRestaurante.png" alt="Resto" style={{ height: '1.2em' }} />
+            {orgType === 'GYM' ? (
+              <img src={gymLogoSrc} alt="Gym" style={{ height: '1.2em' }} />
+            ) : orgType === 'RESTO' ? (
+              <img src={restoLogoSrc} alt="Resto" style={{ height: '1.2em' }} />
+            ) : orgType === 'KIOSK' ? (
+              '🏪 '
             ) : (
               '🏢 '
             )}
-            Información del {(authGym?.type || localStorage.getItem('current_org_type') || 'GYM') === 'RESTO' ? 'Restaurante' : 'Gimnasio'}
+            Información del {orgLabelCap}
           </h2>
           
           {(currentRole === 'owner' || currentRole === 'admin') ? (
             <form onSubmit={handleSaveGym}>
               <div className="modal-form">
                 <div className="form-group full-width">
-                  <label className="form-label">Nombre del gimnasio *</label>
+                  <label className="form-label">Nombre del {orgLabel} *</label>
                   <input type="text" className="form-input" value={gymForm.name}
                     onChange={e => setGymForm(f => ({ ...f, name: e.target.value }))} required />
                 </div>
@@ -348,7 +348,7 @@ export default function SettingsPage() {
           ) : (
             <div className="modal-form">
               <div className="form-group full-width">
-                <label className="form-label">Nombre del gimnasio</label>
+                <label className="form-label">Nombre del {orgLabel}</label>
                 <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.name}</div>
               </div>
               <div className="form-group">
@@ -515,7 +515,7 @@ export default function SettingsPage() {
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Cancelar Suscripción</h3>
-                  <p>Perderás el acceso inmediato a todas las funciones premium y tus datos podrían eliminarse después de 30 días.</p>
+                  <p>Tu suscripción se cancelará al finalizar el período actual ya pagado. Tus datos se conservarán por 30 días adicionales.</p>
                 </div>
                 <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
               </div>

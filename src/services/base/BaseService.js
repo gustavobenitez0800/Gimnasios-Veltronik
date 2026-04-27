@@ -30,14 +30,31 @@ export class BaseService {
    */
   async getAll(orderBy = 'created_at', ascending = false) {
     const orgId = await this._getOrgId();
-    const { data, error } = await this.client
-      .from(this.tableName)
-      .select('*')
-      .eq(this.orgField, orgId)
-      .order(orderBy, { ascending });
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) throw error;
-    return data || [];
+    while (hasMore) {
+      const { data, error } = await this.client
+        .from(this.tableName)
+        .select('*')
+        .eq(this.orgField, orgId)
+        .order(orderBy, { ascending })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        page++;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
   }
 
   /**

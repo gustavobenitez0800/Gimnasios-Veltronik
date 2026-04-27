@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
+import { apiCall } from '../lib/api';
 import { supabase } from '../services';
 
 const FEATURES_BY_TYPE = {
@@ -15,7 +16,7 @@ const FEATURES_BY_TYPE = {
     'Registro de pagos y cuotas',
     'Dashboard con estadísticas',
     'Control de acceso y asistencia',
-    'Múltiples usuarios por gimnasio',
+    'Múltiples usuarios por organización',
     'Soporte técnico prioritario',
     'Actualizaciones automáticas',
   ],
@@ -29,6 +30,22 @@ const FEATURES_BY_TYPE = {
     'Reservas online',
     'Reportes de ventas y análisis',
     'Soporte técnico prioritario',
+  ],
+  KIOSK: [
+    'Gestión de inventario y stock',
+    'Punto de venta rápido',
+    'Dashboard con estadísticas',
+    'Control de caja diaria',
+    'Múltiples usuarios',
+    'Soporte técnico prioritario',
+    'Actualizaciones automáticas',
+  ],
+  OTHER: [
+    'Panel de gestión completo',
+    'Dashboard con estadísticas',
+    'Equipo de trabajo multi-usuario',
+    'Soporte técnico prioritario',
+    'Actualizaciones automáticas',
   ],
 };
 
@@ -99,19 +116,13 @@ export default function PlansPage() {
 
     setSubscribing(true);
     try {
-      const response = await fetch(`${CONFIG.API_URL}/api/create-subscription`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gym_id: gymId,
-          payer_email: payerEmail,
-          plan_id: selectedPlan?.id || null,
-          org_type: orgType,
-          price: price,
-        }),
+      const { ok, data: result } = await apiCall('/api/create-subscription', {
+        gym_id: gymId,
+        payer_email: payerEmail,
+        plan_id: selectedPlan?.id || null,
+        org_type: orgType,
+        price: price,
       });
-
-      const result = await response.json();
 
       if (result.already_active) {
         showToast('Ya tenés una suscripción activa ✅', 'success');
@@ -119,7 +130,7 @@ export default function PlansPage() {
         return;
       }
 
-      if (!response.ok || !result.success) throw new Error(result.error || 'Error al crear suscripción');
+      if (!ok) throw new Error(result.error || 'Error al crear suscripción');
 
       const checkoutUrl = CONFIG.DEBUG
         ? (result.data?.sandbox_init_point || result.data?.init_point)
@@ -166,13 +177,17 @@ export default function PlansPage() {
           </div>
         )}
 
-        {/* Expired trial notice */}
+        {/* Expired / Inactive notice */}
         {!isTrialActive && !isActiveSubscription(subscription) && (
           <div style={{
             padding: '1rem 1.5rem', borderRadius: '0.75rem', textAlign: 'center', marginBottom: '2rem',
             background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444'
           }}>
-            ⚠️ Tu período de prueba gratuita ha finalizado. <strong>Tus datos están seguros</strong>. Suscribite para seguir usando Veltronik.
+            {subscription ? (
+              <>⚠️ Tu suscripción está inactiva o presenta problemas. <strong>Tus datos están seguros</strong>. Renová tu suscripción para seguir usando Veltronik.</>
+            ) : (
+              <>⚠️ Tu período de prueba gratuita ha finalizado. <strong>Tus datos están seguros</strong>. Suscribite para seguir usando Veltronik.</>
+            )}
           </div>
         )}
 

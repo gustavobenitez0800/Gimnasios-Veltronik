@@ -125,6 +125,8 @@ export default function TeamPage() {
   };
 
   const isOwner = currentRole === 'owner';
+  const isAdmin = currentRole === 'admin';
+  const canManageTeam = isOwner || isAdmin;
 
   const getActivityEmoji = (action) => {
     if (action?.includes('create') || action?.includes('invite')) return '➕';
@@ -151,8 +153,8 @@ export default function TeamPage() {
 
       {tab === 'team' ? (
         <>
-          {/* Invite Section (owner / admin only) */}
-          {isOwner && (
+          {/* Invite Section (owner / admin) */}
+          {canManageTeam && (
             <div className="card mb-3" style={{ padding: '1.25rem' }}>
               <h3 style={{ marginBottom: '0.75rem' }}>✉️ Invitar al equipo</h3>
               <p className="text-muted mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>

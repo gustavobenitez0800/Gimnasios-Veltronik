@@ -54,6 +54,8 @@ export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const currentRole = localStorage.getItem('current_org_role');
+  const canDelete = currentRole === 'owner' || currentRole === 'admin';
 
   // Data state
   const [members, setMembers] = useState([]);
@@ -335,12 +337,14 @@ export default function MembersPage() {
                             onClick={() => modal.open(member, MEMBER_MAP_FN)}
                             title="Editar"
                           ><Icon name="edit" /></button>
-                          <button
-                            className="action-btn-quick"
-                            style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
-                            onClick={() => deleteDialog.open(member.id, member.full_name)}
-                            title="Eliminar"
-                          ><Icon name="trash" /></button>
+                          {canDelete && (
+                            <button
+                              className="action-btn-quick"
+                              style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+                              onClick={() => deleteDialog.open(member.id, member.full_name)}
+                              title="Eliminar"
+                            ><Icon name="trash" /></button>
+                          )}
                         </div>
                       </td>
                     </tr>

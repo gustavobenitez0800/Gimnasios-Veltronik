@@ -122,29 +122,24 @@ module.exports = async function handler(req, res) {
         // SAVE NEW SUBSCRIPTION TO DB (ONLY IF NONE EXISTS)
         // ============================================
 
-        const { data: existingSubCheck } = await supabase
+        // We MUST insert a new subscription record.
+        // If the user completes the payment, the webhook will activate this new one
+        // and automatically cancel the old one(s) to prevent double billing.
+        const subscriptionRecord = {
+            gym_id: gym_id,
+            plan_id: gym.plan_id || null,
+            mp_preapproval_id: mpSubscription.id,
+            mp_payer_email: sanitizedEmail,
+            status: SUBSCRIPTION_STATUS.PENDING,
+            created_at: new Date().toISOString()
+        };
+
+        const { error: saveError } = await supabase
             .from('subscriptions')
-            .select('id')
-            .eq('gym_id', gym_id)
-            .maybeSingle();
+            .insert(subscriptionRecord);
 
-        if (!existingSubCheck) {
-            const subscriptionRecord = {
-                gym_id: gym_id,
-                plan_id: gym.plan_id || null,
-                mp_preapproval_id: mpSubscription.id,
-                mp_payer_email: sanitizedEmail,
-                status: SUBSCRIPTION_STATUS.PENDING,
-                created_at: new Date().toISOString()
-            };
-
-            const { error: saveError } = await supabase
-                .from('subscriptions')
-                .insert(subscriptionRecord);
-
-            if (saveError) {
-                logSecure('error', 'Error saving new subscription to DB', { error: saveError });
-            }
+        if (saveError) {
+            logSecure('error', 'Error saving new subscription to DB', { error: saveError });
         }
 
         // ============================================
