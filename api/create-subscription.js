@@ -46,6 +46,11 @@ module.exports = async function handler(req, res) {
         return corsResponse(res, req).status(200).end();
     }
 
+    const { isRateLimited } = require('./_rateLimit.js');
+    if (isRateLimited(req, 10, 60000)) { // 10 peticiones por minuto máximo
+        return errorResponse(res, 429, 'Demasiadas peticiones. Intenta más tarde.', null, req);
+    }
+
     // Solo POST permitido
     if (req.method !== 'POST') {
         return errorResponse(res, 405, 'Method not allowed', null, req);

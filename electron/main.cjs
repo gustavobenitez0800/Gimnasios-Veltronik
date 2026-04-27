@@ -7,10 +7,73 @@
  * Maneja la ventana, auto-updates y ciclo de vida.
  */
 
-const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
 const deviceManager = require('./device-manager.cjs');
+
+// ============================================
+// MENÚ DE APLICACIÓN PERSONALIZADO
+// ============================================
+function createCustomMenu() {
+    const isMac = process.platform === 'darwin';
+
+    const template = [
+        ...(isMac ? [{
+            label: app.name,
+            submenu: [
+                { role: 'about', label: 'Acerca de Veltronik' },
+                { type: 'separator' },
+                { role: 'quit', label: 'Salir' }
+            ]
+        }] : []),
+        {
+            label: 'Archivo',
+            submenu: [
+                {
+                    label: 'Recargar Sistema',
+                    accelerator: 'CmdOrCtrl+R',
+                    click: () => { if (mainWindow) mainWindow.reload(); }
+                },
+                isMac ? { role: 'close', label: 'Cerrar Ventana' } : { role: 'quit', label: 'Salir de Veltronik' }
+            ]
+        },
+        {
+            label: 'Ver',
+            submenu: [
+                { role: 'resetZoom', label: 'Tamaño Normal' },
+                { role: 'zoomIn', label: 'Acercar Zoom' },
+                { role: 'zoomOut', label: 'Alejar Zoom' },
+                { type: 'separator' },
+                { role: 'togglefullscreen', label: 'Pantalla Completa' }
+            ]
+        },
+        {
+            label: 'Herramientas',
+            submenu: [
+                {
+                    label: 'Buscar Actualizaciones',
+                    click: () => {
+                        const { checkForUpdates } = require('./updater.cjs');
+                        if (mainWindow) {
+                            dialog.showMessageBox(mainWindow, {
+                                type: 'info',
+                                title: 'Actualizaciones',
+                                message: 'Buscando actualizaciones de Veltronik...'
+                            });
+                        }
+                        checkForUpdates();
+                    }
+                },
+                { type: 'separator' },
+                { role: 'toggleDevTools', label: 'Consola de Desarrollador' }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+}
 
 // Mantener referencia global para evitar garbage collection
 let mainWindow = null;
@@ -107,6 +170,9 @@ app.whenReady().then(() => {
         }
         return false;
     });
+
+    // Inyectar el nuevo menú personalizado
+    createCustomMenu();
 
     createWindow();
 

@@ -38,6 +38,13 @@ module.exports = async function handler(req, res) {
         return corsResponse(res, req).status(200).end();
     }
 
+    // Rate Limiting (Máx 100 por minuto para webhooks de MP)
+    const { isRateLimited } = require('./_rateLimit.js');
+    if (isRateLimited(req, 100, 60000)) {
+        logSecure('warn', 'Webhook Rate Limited', { ip: req.headers['x-forwarded-for'] });
+        return res.status(429).send('Rate Limited');
+    }
+
     // Solo POST permitido
     if (req.method !== 'POST') {
         return errorResponse(res, 405, 'Method not allowed', null, req);

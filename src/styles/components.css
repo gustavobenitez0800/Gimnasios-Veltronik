@@ -1,4 +1,4 @@
-﻿/* â”€â”€â”€ Buttons â”€â”€â”€ */
+/* â”€â”€â”€ Buttons â”€â”€â”€ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -113,9 +113,12 @@
   font-family: inherit;
   color: var(--text-primary);
   background: var(--bg-tertiary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   transition: all var(--transition-fast);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
 .form-input:focus,
@@ -123,7 +126,7 @@
 .form-textarea:focus {
   outline: none;
   border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15), inset 0 1px 2px rgba(0,0,0,0.05);
   background: var(--bg-secondary);
 }
 
@@ -158,19 +161,22 @@
 
 .password-toggle:hover { color: var(--text-primary); }
 
-/* â”€â”€â”€ Cards â”€â”€â”€ */
+/* ─── Cards ─── */
 .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--card-gradient);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
   border-radius: var(--border-radius-lg);
   padding: 1.5rem;
   transition: all var(--transition-normal);
+  box-shadow: var(--shadow-md);
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--border-color-hover);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
+  border-color: var(--primary-500);
 }
 
 .card-header {
@@ -184,11 +190,15 @@
 
 .card-title { font-size: var(--font-size-lg); font-weight: 600; }
 
-/* â”€â”€â”€ Tables â”€â”€â”€ */
+/* ─── Tables ─── */
 .table-container {
   overflow-x: auto;
+  background: var(--card-gradient);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: var(--border-radius-md);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .table {
@@ -202,25 +212,32 @@
   padding: 0.875rem 1rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
+  transition: background var(--transition-fast);
 }
 
 .table th {
-  background: var(--bg-tertiary);
+  background: rgba(0, 0, 0, 0.2);
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border-color);
+}
+
+/* Light mode specific adjustment for table header */
+[data-theme="light"] .table th {
+  background: rgba(241, 245, 249, 0.7);
 }
 
 .table tr:last-child td { border-bottom: none; }
 
 .table tr:hover td {
-  background: var(--bg-tertiary);
+  background: var(--glass-bg);
 }
 
-/* â”€â”€â”€ Badges â”€â”€â”€ */
+/* ─── Badges ─── */
 .badge {
   display: inline-flex;
   align-items: center;
