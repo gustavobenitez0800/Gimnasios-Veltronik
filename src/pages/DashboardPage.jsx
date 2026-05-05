@@ -26,6 +26,7 @@ import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 
 const RestaurantDashboardPage = lazy(() => import('./restaurant/RestaurantDashboardPage'));
+const SalonDashboardPage = lazy(() => import('./salon/SalonDashboardPage'));
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
@@ -38,6 +39,15 @@ export default function DashboardPage() {
     return (
       <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando dashboard...</div>}>
         <RestaurantDashboardPage />
+      </Suspense>
+    );
+  }
+
+  // Si es salón/peluquería, mostrar dashboard de salón
+  if (gym?.type === 'SALON') {
+    return (
+      <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando dashboard...</div>}>
+        <SalonDashboardPage />
       </Suspense>
     );
   }

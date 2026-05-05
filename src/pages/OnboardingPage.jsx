@@ -18,6 +18,7 @@ const BUSINESS_TYPES = [
   { id: 'CLUB', label: 'Club Deportivo', desc: 'Socios plenos y disciplinas', icon: '⚽', isImage: false, gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', enabled: true },
   { id: 'ACADEMY', label: 'Academia / Dojo', desc: 'Artes marciales y boxeo', icon: '🥋', isImage: false, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
   { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: restoLogo, isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'SALON', label: 'Peluquería / Salón', desc: 'Turnos, estilistas, clientes y caja', icon: '💇', isImage: false, gradient: 'linear-gradient(135deg, #ec4899, #db2777)', enabled: true },
   { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta y stock', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
   { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];

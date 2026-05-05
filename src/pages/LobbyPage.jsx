@@ -18,10 +18,10 @@ import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 
-const TYPE_LABELS = { GYM: 'Gimnasio', PILATES: 'Pilates/Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: gymLogoSrc, PILATES: '🧘‍♀️', CLUB: '⚽', ACADEMY: '🥋', RESTO: restoLogoSrc, KIOSK: '🏪', OTHER: '📱' };
-const TYPE_IS_IMAGE = { GYM: true, PILATES: false, CLUB: false, ACADEMY: false, RESTO: true, KIOSK: false, OTHER: false };
-const TYPE_BADGES = { GYM: 'badge-success', PILATES: 'badge-success', CLUB: 'badge-success', ACADEMY: 'badge-success', RESTO: 'badge-error', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
+const TYPE_LABELS = { GYM: 'Gimnasio', PILATES: 'Pilates/Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', RESTO: 'Restaurante', SALON: 'Peluquería', KIOSK: 'Kiosco', OTHER: 'Negocio' };
+const TYPE_ICONS = { GYM: gymLogoSrc, PILATES: '🧘‍♀️', CLUB: '⚽', ACADEMY: '🥋', RESTO: restoLogoSrc, SALON: '💇', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_IS_IMAGE = { GYM: true, PILATES: false, CLUB: false, ACADEMY: false, RESTO: true, SALON: false, KIOSK: false, OTHER: false };
+const TYPE_BADGES = { GYM: 'badge-success', PILATES: 'badge-success', CLUB: 'badge-success', ACADEMY: 'badge-success', RESTO: 'badge-error', SALON: 'badge-accent', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
 
 // ─── Helpers ───
 

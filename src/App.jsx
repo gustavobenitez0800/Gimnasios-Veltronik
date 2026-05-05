@@ -46,6 +46,14 @@ const CashRegisterPage = lazy(() => import('./pages/restaurant/CashRegisterPage'
 const InventoryPage = lazy(() => import('./pages/restaurant/InventoryPage'));
 const ReservationsPage = lazy(() => import('./pages/restaurant/ReservationsPage'));
 
+// Salon Pages (lazy loaded — no impacta bundle del gym ni restaurant)
+const SalonAgendaPage = lazy(() => import('./pages/salon/SalonAgendaPage'));
+const SalonClientsPage = lazy(() => import('./pages/salon/SalonClientsPage'));
+const SalonServicesPage = lazy(() => import('./pages/salon/SalonServicesPage'));
+const SalonStylistsPage = lazy(() => import('./pages/salon/SalonStylistsPage'));
+const SalonCashPage = lazy(() => import('./pages/salon/SalonCashPage'));
+const SalonProductsPage = lazy(() => import('./pages/salon/SalonProductsPage'));
+
 import './index.css';
 
 // Shared loading fallback for lazy routes
@@ -103,6 +111,16 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.CASH_REGISTER} element={<Suspense fallback={LazyFallback}><CashRegisterPage /></Suspense>} />
                   <Route path={CONFIG.ROUTES.INVENTORY} element={<Suspense fallback={LazyFallback}><InventoryPage /></Suspense>} />
                   <Route path={CONFIG.ROUTES.RESERVATIONS} element={<Suspense fallback={LazyFallback}><ReservationsPage /></Suspense>} />
+                </Route>
+
+                {/* ─── SALON-ONLY ROUTES (Peluquería / Salón de Belleza) ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['SALON']} />}>
+                  <Route path={CONFIG.ROUTES.SALON_AGENDA} element={<Suspense fallback={LazyFallback}><SalonAgendaPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.SALON_CLIENTS} element={<Suspense fallback={LazyFallback}><SalonClientsPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.SALON_SERVICES} element={<Suspense fallback={LazyFallback}><SalonServicesPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.SALON_STYLISTS} element={<Suspense fallback={LazyFallback}><SalonStylistsPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.SALON_CASH} element={<Suspense fallback={LazyFallback}><SalonCashPage /></Suspense>} />
+                  <Route path={CONFIG.ROUTES.SALON_PRODUCTS} element={<Suspense fallback={LazyFallback}><SalonProductsPage /></Suspense>} />
                 </Route>
               </Route>
 

@@ -27,6 +27,7 @@ const CONFIG = {
     ACADEMY: 35000,
     RESTO: 45000,
     KIOSK: 25000,
+    SALON: 25000,
     OTHER: 35000,
   },
 
@@ -62,6 +63,13 @@ const CONFIG = {
     CASH_REGISTER: '/cash',
     INVENTORY: '/inventory',
     RESERVATIONS: '/reservations',
+    // Salón / Peluquería
+    SALON_AGENDA: '/salon/agenda',
+    SALON_CLIENTS: '/salon/clients',
+    SALON_SERVICES: '/salon/services',
+    SALON_STYLISTS: '/salon/stylists',
+    SALON_CASH: '/salon/cash',
+    SALON_PRODUCTS: '/salon/products',
   }),
 
   // Gym Status
@@ -96,6 +104,7 @@ const CONFIG = {
     ACADEMY: 'ACADEMY',
     RESTO: 'RESTO',
     KIOSK: 'KIOSK',
+    SALON: 'SALON',
     OTHER: 'OTHER',
   }),
 };

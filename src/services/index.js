@@ -35,3 +35,12 @@ export { inventoryService } from './restaurant/InventoryService';
 export { reservationService } from './restaurant/ReservationService';
 export { cashRegisterService } from './restaurant/CashRegisterService';
 export { restaurantStatsService } from './restaurant/RestaurantStatsService';
+
+// Salon Services
+export { salonClientService } from './salon/SalonClientService';
+export { salonServiceService } from './salon/SalonServiceService';
+export { salonStylistService } from './salon/SalonStylistService';
+export { salonAppointmentService } from './salon/SalonAppointmentService';
+export { salonSaleService } from './salon/SalonSaleService';
+export { salonProductService } from './salon/SalonProductService';
+export { salonStatsService } from './salon/SalonStatsService';

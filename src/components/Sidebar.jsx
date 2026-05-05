@@ -79,6 +79,40 @@ const RESTO_NAV = [
   },
 ];
 
+const SALON_NAV = [
+  {
+    title: 'Salón',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.SALON_AGENDA, icon: 'calendar', label: 'Agenda' },
+      { to: CONFIG.ROUTES.SALON_CLIENTS, icon: 'users', label: 'Clientes' },
+      { to: CONFIG.ROUTES.SALON_SERVICES, icon: 'list', label: 'Servicios' },
+      { to: CONFIG.ROUTES.SALON_STYLISTS, icon: 'userCog', label: 'Estilistas' },
+    ],
+  },
+  {
+    title: 'Gestión',
+    items: [
+      { to: CONFIG.ROUTES.SALON_CASH, icon: 'wallet', label: 'Caja' },
+      { to: CONFIG.ROUTES.SALON_PRODUCTS, icon: 'package', label: 'Productos' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
 function getNavSections() {
   const orgType = localStorage.getItem('current_org_type') || 'GYM';
   const role = localStorage.getItem('current_org_role') || 'owner';
@@ -86,6 +120,7 @@ function getNavSections() {
   let sections;
   switch (orgType) {
     case 'RESTO': sections = RESTO_NAV; break;
+    case 'SALON': sections = SALON_NAV; break;
     default: sections = getGymNav(orgType);
   }
 
