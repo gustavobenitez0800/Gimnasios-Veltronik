@@ -252,7 +252,10 @@ export default function TablesPage() {
       {modalOpen && (
         <div className="modal-overlay modal-show" onClick={() => setModalOpen(false)}>
           <div className="modal-container member-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">{editingId ? 'Editar Mesa' : 'Nueva Mesa'}</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>{editingId ? 'Editar Mesa' : 'Nueva Mesa'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <form onSubmit={handleSave}>
               <div className="modal-form">
                 <div className="form-group">
@@ -303,7 +306,10 @@ export default function TablesPage() {
       {areaModal && (
         <div className="modal-overlay modal-show" onClick={() => setAreaModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h2 className="modal-title">Nueva Área</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Nueva Área</h2>
+              <button type="button" onClick={() => setAreaModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <div className="form-group mb-2">
               <label className="form-label">Nombre del área</label>
               <input type="text" className="form-input" placeholder="Ej: Salón Principal, Terraza, VIP"

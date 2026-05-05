@@ -223,7 +223,10 @@ export default function TeamPage() {
       {roleModal && roleTarget && (
         <div className="modal-overlay modal-show" onClick={() => setRoleModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h2 className="modal-title">Cambiar Rol</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Cambiar Rol</h2>
+              <button type="button" onClick={() => setRoleModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <p className="text-muted mb-2">Cambiar rol de: {roleTarget.full_name || roleTarget.email}</p>
             <div className="form-group mb-2">
               <select className="form-select" value={newRole} onChange={e => setNewRole(e.target.value)}>

@@ -66,8 +66,8 @@
     grid-template-columns: 1fr;
   }
 
-  .dashboard-grid, .dashboard-grid-3, .dashboard-stats {
-    grid-template-columns: 1fr;
+  .dashboard-grid, .dashboard-grid-3, .dashboard-stats, .stats-grid {
+    grid-template-columns: 1fr !important;
   }
 
   .chart-container {

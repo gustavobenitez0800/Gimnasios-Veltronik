@@ -247,7 +247,10 @@ export default function MenuPage() {
       {modalOpen && (
         <div className="modal-overlay modal-show" onClick={() => setModalOpen(false)}>
           <div className="modal-container member-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">{editingId ? 'Editar Plato' : 'Nuevo Plato'}</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>{editingId ? 'Editar Plato' : 'Nuevo Plato'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <form onSubmit={handleSave}>
               <div className="modal-form">
                 <div className="form-group full-width">
@@ -336,7 +339,10 @@ export default function MenuPage() {
       {catModal && (
         <div className="modal-overlay modal-show" onClick={() => setCatModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h2 className="modal-title">Nueva Categoría</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Nueva Categoría</h2>
+              <button type="button" onClick={() => setCatModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <div className="form-group mb-2">
               <label className="form-label">Nombre</label>
               <input type="text" className="form-input" placeholder="Ej: Entradas, Platos Principales, Postres"

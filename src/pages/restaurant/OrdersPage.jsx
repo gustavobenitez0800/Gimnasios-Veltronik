@@ -216,7 +216,10 @@ export default function OrdersPage() {
       {newOrderModal && (
         <div className="modal-overlay modal-show" onClick={() => setNewOrderModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
-            <h2 className="modal-title">Nuevo Pedido</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Nuevo Pedido</h2>
+              <button type="button" onClick={() => setNewOrderModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <div className="form-group mb-2">
               <label className="form-label">Tipo de pedido</label>
               <div className="flex gap-1">
@@ -260,7 +263,10 @@ export default function OrdersPage() {
       {addItemsModal && (
         <div className="modal-overlay modal-show" onClick={() => setAddItemsModal(false)}>
           <div className="modal-container member-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
-            <h2 className="modal-title">Pedido — Ítems</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>Pedido — Ítems</h2>
+              <button type="button" onClick={() => setAddItemsModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
 
             {/* Current items */}
             <div style={{ marginBottom: '1rem' }}>
@@ -313,7 +319,10 @@ export default function OrdersPage() {
       {closeModal && (
         <div className="modal-overlay modal-show" onClick={() => setCloseModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <h2 className="modal-title">💰 Cobrar Pedido</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>💰 Cobrar Pedido</h2>
+              <button type="button" onClick={() => setCloseModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <div className="form-group mb-2">
               <label className="form-label">Método de pago</label>
               <select className="form-select" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
