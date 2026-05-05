@@ -14,7 +14,7 @@ import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 
 export default function AccessPage() {
   const orgType = localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const { showToast } = useToast();
@@ -191,6 +191,12 @@ export default function AccessPage() {
                 <img src={gymLogoSrc} alt="Gym" style={{ height: '1.2em' }} />
               ) : orgType === 'RESTO' ? (
                 <img src={restoLogoSrc} alt="Resto" style={{ height: '1.2em' }} />
+              ) : orgType === 'PILATES' ? (
+                '🧘‍♀️ '
+              ) : orgType === 'CLUB' ? (
+                '⚽ '
+              ) : orgType === 'ACADEMY' ? (
+                '🥋 '
               ) : orgType === 'KIOSK' ? (
                 '🏪 '
               ) : (

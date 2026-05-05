@@ -67,6 +67,9 @@ const supabase = createClient(
 // Precios por tipo de organización (ARS)
 const PRICES_BY_TYPE = {
     GYM: 35000,
+    PILATES: 35000,
+    CLUB: 35000,
+    ACADEMY: 35000,
     RESTO: 45000,
     KIOSK: 25000,
     OTHER: 35000
@@ -109,6 +112,9 @@ async function getSubscriptionPriceForGym(gymId, orgType = null) {
 
     const reasonMap = {
         GYM: 'Veltronik - Gestión de Gimnasios (Mensual)',
+        PILATES: 'Veltronik - Gestión de Centros de Pilates/Yoga (Mensual)',
+        CLUB: 'Veltronik - Gestión de Clubes Deportivos (Mensual)',
+        ACADEMY: 'Veltronik - Gestión de Academias/Dojos (Mensual)',
         RESTO: 'Veltronik - Gestión de Restaurantes (Mensual)',
         KIOSK: 'Veltronik - Gestión de Kioscos (Mensual)',
         OTHER: 'Veltronik - Gestión de Negocios (Mensual)',

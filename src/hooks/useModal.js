@@ -59,6 +59,7 @@ export function useModal(initialForm = {}) {
   const getCleanedData = useCallback(() => {
     const data = { ...form };
     Object.keys(data).forEach((k) => {
+      // Only convert empty strings to null, preserve arrays, numbers, booleans
       if (data[k] === '') data[k] = null;
     });
     return data;

@@ -145,8 +145,8 @@ module.exports = async function handler(req, res) {
             message: 'Suscripción cancelada exitosamente'
         }, req);
 
-    } catch {
-        logSecure('error', 'Cancel subscription error');
+    } catch (err) {
+        logSecure('error', 'Cancel subscription error', { message: err?.message });
         return errorResponse(res, 500, 'Error al cancelar suscripción', null, req);
     }
 };

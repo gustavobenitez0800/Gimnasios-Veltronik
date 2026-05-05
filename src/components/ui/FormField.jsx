@@ -36,7 +36,7 @@ export default function FormField({
         <textarea
           className="form-textarea"
           rows={rows}
-          value={value || ''}
+          value={value ?? ''}
           onChange={handleChange}
           placeholder={placeholder}
           required={required}
@@ -50,7 +50,7 @@ export default function FormField({
       return (
         <select
           className="form-select"
-          value={value || ''}
+          value={value ?? ''}
           onChange={handleChange}
           required={required}
           {...rest}
@@ -71,7 +71,7 @@ export default function FormField({
       <input
         type={type}
         className="form-input"
-        value={value || ''}
+        value={value ?? ''}
         onChange={handleChange}
         placeholder={placeholder}
         required={required}

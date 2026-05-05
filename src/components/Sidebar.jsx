@@ -12,33 +12,37 @@ import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
 // ─── Navigation sections by organization type ───
 
-const GYM_NAV = [
-  {
-    title: 'Principal',
-    items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: 'Socios' },
-      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos' },
-      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases' },
-      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso' },
-      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención' },
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
-    ],
-  },
-  {
-    title: 'Administración',
-    items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
-    ],
-  },
-  {
-    title: 'Plataforma',
-    items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
-    ],
-  },
-];
+const getGymNav = (orgType) => {
+  const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
+  
+  return [
+    {
+      title: 'Principal',
+      items: [
+        { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+        { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: membersLabel },
+        { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos' },
+        { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases' },
+        { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso' },
+        { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención' },
+        { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+      ],
+    },
+    {
+      title: 'Administración',
+      items: [
+        { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+        { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+      ],
+    },
+    {
+      title: 'Plataforma',
+      items: [
+        { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+      ],
+    },
+  ];
+};
 
 const RESTO_NAV = [
   {
@@ -82,8 +86,7 @@ function getNavSections() {
   let sections;
   switch (orgType) {
     case 'RESTO': sections = RESTO_NAV; break;
-    case 'GYM':
-    default: sections = GYM_NAV;
+    default: sections = getGymNav(orgType);
   }
 
   // Role-based filtering
@@ -149,7 +152,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="sidebar-logo-text">Veltronik</span>
               {orgType !== 'GYM' && (
                 <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' }[orgType] || orgType}
+                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio' }[orgType] || orgType}
                 </span>
               )}
             </div>

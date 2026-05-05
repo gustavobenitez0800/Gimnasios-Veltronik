@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../services';
+import { useTeamController } from '../controllers/useTeamController';
 import { getInitials, getRelativeTime } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -21,13 +21,18 @@ const ROLE_COLORS = {
 export default function TeamPage() {
   const { showToast } = useToast();
   const { user } = useAuth();
-  const orgId = localStorage.getItem('current_org_id');
-  const currentRole = localStorage.getItem('current_org_role');
+  const {
+    teamMembers,
+    activityLog,
+    loading: isFetching,
+    loadTeam,
+    loadActivity,
+    inviteMember: controllerInvite,
+    updateRole: controllerUpdateRole,
+    removeMember: controllerRemoveMember
+  } = useTeamController();
 
   const [tab, setTab] = useState('team');
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [activityLog, setActivityLog] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Invite
   const [inviteEmail, setInviteEmail] = useState('');
@@ -42,30 +47,6 @@ export default function TeamPage() {
   // Delete
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const loadTeam = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.rpc('get_team_members', { org_id: orgId });
-      if (error) throw error;
-      setTeamMembers(data || []);
-    } catch (err) {
-      console.error('Team load error:', err);
-      showToast('Error al cargar equipo: ' + err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId, showToast]);
-
-  const loadActivity = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_activity_log', { org_id: orgId, log_limit: 50 });
-      if (error) throw error;
-      setActivityLog(data || []);
-    } catch {
-      setActivityLog([]);
-    }
-  }, [orgId]);
-
   useEffect(() => { loadTeam(); }, [loadTeam]);
 
   const handleTabChange = (t) => {
@@ -78,13 +59,9 @@ export default function TeamPage() {
     if (!inviteEmail.trim()) { showToast('Ingresá el email del empleado', 'error'); return; }
     setInviting(true);
     try {
-      const { error } = await supabase.rpc('invite_team_member', {
-        org_id: orgId, invite_email: inviteEmail.trim(), invite_role: inviteRole,
-      });
-      if (error) throw error;
+      await controllerInvite(inviteEmail.trim(), inviteRole);
       showToast(`${inviteEmail} agregado como ${ROLE_LABELS[inviteRole]}`, 'success');
       setInviteEmail('');
-      loadTeam();
     } catch (err) {
       showToast(err.message || 'Error al invitar', 'error');
     } finally { setInviting(false); }
@@ -100,13 +77,9 @@ export default function TeamPage() {
   const confirmRoleChange = async () => {
     if (!roleTarget) return;
     try {
-      const { error } = await supabase.rpc('update_team_member_role', {
-        org_id: orgId, target_user_id: roleTarget.user_id, new_role: newRole,
-      });
-      if (error) throw error;
+      await controllerUpdateRole(roleTarget.user_id, newRole);
       showToast(`Rol actualizado a ${ROLE_LABELS[newRole]}`, 'success');
       setRoleModal(false);
-      loadTeam();
     } catch (err) { showToast(err.message || 'Error', 'error'); }
   };
 
@@ -114,16 +87,13 @@ export default function TeamPage() {
   const handleRemove = async () => {
     if (!deleteTarget) return;
     try {
-      const { error } = await supabase.rpc('remove_team_member', {
-        org_id: orgId, target_user_id: deleteTarget.user_id,
-      });
-      if (error) throw error;
+      await controllerRemoveMember(deleteTarget.user_id);
       showToast(`${deleteTarget.full_name || deleteTarget.email} eliminado del equipo`, 'success');
       setDeleteTarget(null);
-      loadTeam();
     } catch (err) { showToast(err.message || 'Error', 'error'); }
   };
 
+  const currentRole = localStorage.getItem('current_org_role');
   const isOwner = currentRole === 'owner';
   const isAdmin = currentRole === 'admin';
   const canManageTeam = isOwner || isAdmin;
@@ -176,7 +146,7 @@ export default function TeamPage() {
           )}
 
           {/* Team Grid */}
-          {loading ? (
+          {isFetching ? (
             <div className="dashboard-loading"><span className="spinner" /> Cargando equipo...</div>
           ) : teamMembers.length === 0 ? (
             <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>

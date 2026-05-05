@@ -107,23 +107,27 @@ module.exports = async function handler(req, res) {
 
         let resolvedPlanId = plan_id;
         if (!resolvedPlanId) {
-            const { data: defaultPlan } = await supabase
-                .from('plans')
-                .select('id')
-                .eq('name', 'Profesional')
-                .single();
-
-            if (defaultPlan) {
-                resolvedPlanId = defaultPlan.id;
-            } else {
-                const { data: firstPlan } = await supabase
+            try {
+                const { data: defaultPlan } = await supabase
                     .from('plans')
                     .select('id')
-                    .order('price', { ascending: false })
-                    .limit(1)
-                    .single();
+                    .eq('name', 'Profesional')
+                    .maybeSingle();
 
-                if (firstPlan) resolvedPlanId = firstPlan.id;
+                if (defaultPlan) {
+                    resolvedPlanId = defaultPlan.id;
+                } else {
+                    const { data: firstPlan } = await supabase
+                        .from('plans')
+                        .select('id')
+                        .order('price', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (firstPlan) resolvedPlanId = firstPlan.id;
+                }
+            } catch (err) {
+                logSecure('warn', 'Error resolviendo plan_id por defecto', { error: err.message });
             }
         }
 
@@ -143,7 +147,35 @@ module.exports = async function handler(req, res) {
         }
 
         // ============================================
-        // HANDLE EXISTING SUBSCRIPTIONS
+        // 1. RE-UTILIZACIÓN INTELIGENTE (ANTI RATE-LIMITS)
+        // ============================================
+        let mpSubscription = null;
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60000).toISOString();
+        
+        const { data: recentPending } = await supabase
+            .from('subscriptions')
+            .select('id, mp_preapproval_id')
+            .eq('gym_id', gym_id)
+            .eq('status', SUBSCRIPTION_STATUS.PENDING)
+            .gte('created_at', fifteenMinsAgo)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (recentPending && recentPending.mp_preapproval_id) {
+            try {
+                const fetchedSub = await preApproval.get({ id: recentPending.mp_preapproval_id });
+                if (fetchedSub && (fetchedSub.init_point || fetchedSub.sandbox_init_point) && fetchedSub.status === 'pending') {
+                    mpSubscription = fetchedSub;
+                    logSecure('info', 'Reusing recent MP subscription (Rate-limit saver)', { id: mpSubscription.id });
+                }
+            } catch (e) {
+                logSecure('warn', 'Failed to fetch recent pending subscription, falling back to create new');
+            }
+        }
+
+        // ============================================
+        // 2. HANDLE EXISTING SUBSCRIPTIONS (CLEANUP)
         // ============================================
 
         // Check for ANY non-cancelled subscription (active, pending, or past_due)
@@ -162,6 +194,11 @@ module.exports = async function handler(req, res) {
                     error: 'Ya tenés una suscripción activa. No es necesario crear una nueva.',
                     already_active: true
                 }, req);
+            }
+
+            // Ignorar la que estamos reutilizando
+            if (mpSubscription && sub.mp_preapproval_id === mpSubscription.id) {
+                continue;
             }
 
             // Cancel pending or past_due subscriptions in MP + DB to allow fresh start
@@ -185,52 +222,80 @@ module.exports = async function handler(req, res) {
         }
 
         // ============================================
-        // CREATE SUBSCRIPTION IN MERCADO PAGO
+        // 3. CREATE NEW SUBSCRIPTION IN MP (IF NOT REUSING)
         // ============================================
 
-        const subscriptionData = {
-            reason: sanitizeString(reason, 100),
-            external_reference: gym_id,
-            payer_email: sanitizedEmail,
-            auto_recurring: {
-                frequency: SUBSCRIPTION_CONFIG.FREQUENCY,
-                frequency_type: SUBSCRIPTION_CONFIG.FREQUENCY_TYPE,
-                transaction_amount: price,
-                currency_id: SUBSCRIPTION_CONFIG.CURRENCY
-            },
-            back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
-        };
+        if (!mpSubscription) {
+            if (!price || price <= 0) {
+                return errorResponse(res, 400, 'El precio de la suscripción es inválido.', null, req);
+            }
 
-        logSecure('info', 'Creating MP subscription', { gym_id, price });
+            const subscriptionData = {
+                reason: sanitizeString(reason, 100),
+                external_reference: gym_id,
+                payer_email: sanitizedEmail,
+                auto_recurring: {
+                    frequency: SUBSCRIPTION_CONFIG.FREQUENCY,
+                    frequency_type: SUBSCRIPTION_CONFIG.FREQUENCY_TYPE,
+                    transaction_amount: price,
+                    currency_id: SUBSCRIPTION_CONFIG.CURRENCY
+                },
+                back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
+            };
 
-        const mpSubscription = await preApproval.create({ body: subscriptionData });
+            logSecure('info', 'Creating MP subscription', { gym_id, price, email: sanitizedEmail });
 
-        logSecure('info', 'MP subscription created', {
-            hasInitPoint: !!mpSubscription.init_point,
-            status: mpSubscription.status
-        });
+            mpSubscription = await preApproval.create({ body: subscriptionData });
+
+            if (!mpSubscription || (!mpSubscription.init_point && !mpSubscription.sandbox_init_point)) {
+                throw new Error('Mercado Pago devolvió una respuesta vacía o sin link de pago (init_point).');
+            }
+
+            logSecure('info', 'MP subscription created', {
+                hasInitPoint: !!mpSubscription.init_point,
+                status: mpSubscription.status
+            });
+        }
 
         // ============================================
-        // SAVE TO DATABASE
+        // 4. GUARDAR EN BD (Resolución Atómica de Race Condition)
         // ============================================
 
-        const subscriptionRecord = {
-            gym_id: gym_id,
-            plan_id: resolvedPlanId || null,
-            mp_preapproval_id: mpSubscription.id,
-            mp_payer_email: sanitizedEmail,
-            status: SUBSCRIPTION_STATUS.PENDING,
-            created_at: new Date().toISOString()
-        };
-
-        const { data: savedSubscription, error: saveError } = await supabase
+        // Verificamos si el webhook llegó antes que nosotros (Race condition)
+        const { data: existingSubByMp } = await supabase
             .from('subscriptions')
-            .insert(subscriptionRecord)
-            .select()
-            .single();
+            .select('id')
+            .eq('mp_preapproval_id', mpSubscription.id)
+            .maybeSingle();
 
-        if (saveError) {
-            logSecure('error', 'Error saving subscription to DB');
+        if (existingSubByMp) {
+            // El webhook ya la insertó. Nosotros solo actualizamos los campos faltantes (plan_id, email)
+            await supabase
+                .from('subscriptions')
+                .update({
+                    plan_id: resolvedPlanId || null,
+                    mp_payer_email: sanitizedEmail
+                })
+                .eq('id', existingSubByMp.id);
+            logSecure('info', 'Race condition handled: Updated existing webhook row');
+        } else {
+            // Flujo normal: Insertamos
+            const subscriptionRecord = {
+                gym_id: gym_id,
+                plan_id: resolvedPlanId || null,
+                mp_preapproval_id: mpSubscription.id,
+                mp_payer_email: sanitizedEmail,
+                status: SUBSCRIPTION_STATUS.PENDING,
+                created_at: new Date().toISOString()
+            };
+
+            const { error: saveError } = await supabase
+                .from('subscriptions')
+                .insert(subscriptionRecord);
+
+            if (saveError) {
+                logSecure('error', 'Error saving subscription to DB', { error: saveError.message });
+            }
         }
 
         // Update gym plan_id + unblock if blocked
@@ -250,7 +315,7 @@ module.exports = async function handler(req, res) {
         return jsonResponse(res, 200, {
             success: true,
             data: {
-                subscription_id: savedSubscription?.id || null,
+                subscription_id: existingSubByMp?.id || null,
                 mp_preapproval_id: mpSubscription.id,
                 init_point: mpSubscription.init_point,
                 sandbox_init_point: mpSubscription.sandbox_init_point,
@@ -259,8 +324,32 @@ module.exports = async function handler(req, res) {
             }
         }, req);
 
-    } catch {
-        logSecure('error', 'Create subscription error');
-        return errorResponse(res, 500, 'Error al crear suscripción', null, req);
+    } catch (error) {
+        logSecure('error', 'Create subscription error', { error: error.message, stack: error.stack });
+        console.error("🔥 ACTUAL ERROR:", error);
+        
+        let statusCode = 500;
+        let userMessage = 'Error al crear suscripción en el procesador de pagos.';
+        
+        // Extraer detalles reales de MP (El SDK v2 de MP suele anidar el error en 'cause' o 'response')
+        let mpErrorDetail = error.message;
+        if (error.cause && error.cause.length > 0) {
+            mpErrorDetail = error.cause[0]?.description || error.cause[0]?.message || error.message;
+        } else if (error.response && error.response.message) {
+            mpErrorDetail = error.response.message;
+        }
+
+        // Traducir errores comunes al español para el frontend
+        const errorStr = (mpErrorDetail || '').toLowerCase();
+        
+        if (errorStr.includes('collector_id') || errorStr.includes('payer_id') || errorStr.includes('cannot be the same') || errorStr.includes('mismo email')) {
+            statusCode = 400; // 400 permite que el detail viaje al frontend en producción
+            userMessage = 'Error de Prueba: No puedes suscribirte usando el mismo email de la cuenta dueña de Mercado Pago.';
+        } else if (error.status === 400 || error.status === 401 || error.status === 403) {
+            statusCode = error.status;
+            userMessage = 'Mercado Pago rechazó la operación. Por favor revisa tus datos.';
+        }
+
+        return errorResponse(res, statusCode, userMessage, { details: mpErrorDetail }, req);
     }
 };

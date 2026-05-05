@@ -18,8 +18,7 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { useQueryCache } from '../hooks';
-import { memberService, paymentService, insightsService, dashboardStatsService } from '../services';
+import { useDashboardController } from '../controllers/useDashboardController';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
@@ -48,62 +47,30 @@ export default function DashboardPage() {
 
 function GymDashboard({ gym }) {
   const { showToast } = useToast();
+  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
+  const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
 
-  const fetchDashboardData = useCallback(async () => {
-    // Stats vienen de vista materializada (1 RPC)
-    // Members y payments solo se cargan para AI/charts
-    const [dashStats, membersData, paymentsData] = await Promise.all([
-      dashboardStatsService.getDashboardStats(),
-      memberService.getAll().catch(() => []),
-      paymentService.getAll().catch(() => []),
-    ]);
-    return { dashStats, membersData, paymentsData };
-  }, []);
+  const {
+    dashboardStats,
+    prediction,
+    alerts,
+    insights,
+    revenueChartData,
+    membersChartData,
+    recentMembers,
+    loading,
+    isFetching,
+    handleRefreshStats: controllerRefreshStats
+  } = useDashboardController(gym);
 
-  const { data, loading, isFetching, invalidate } = useQueryCache(
-    ['gym_dashboard', gym?.id], 
-    fetchDashboardData,
-    { staleTime: 3 * 60 * 1000 } // 3 minutes stale time
-  );
-
-  const stats = data?.dashStats;
-  const members = data?.membersData || [];
-  const payments = data?.paymentsData || [];
-
-  // Refrescar vistas materializadas manualmente
   const handleRefreshStats = useCallback(async () => {
-    try {
-      const ok = await dashboardStatsService.refreshStats();
-      if (ok) {
-        invalidate(); // Forzar recarga completa de caché
-        showToast('Estadísticas actualizadas', 'success');
-      } else {
-        showToast('Las estadísticas se están calculando en tiempo real', 'info');
-      }
-    } catch {
-      showToast('Error al actualizar', 'error');
+    const ok = await controllerRefreshStats();
+    if (ok) {
+      showToast('Estadísticas actualizadas', 'success');
+    } else {
+      showToast('Las estadísticas se están calculando en tiempo real', 'info');
     }
-  }, [invalidate, showToast]);
-
-  // ─── STATS FROM RPC (or fallback computed) ───
-  const dashboardStats = useMemo(() => {
-    if (stats) {
-      return {
-        activeMembers: stats.active_members || 0,
-        expiredMembers: stats.expired_members || 0,
-        expiringMembers: stats.expiring_this_week || 0,
-        monthlyRevenue: parseFloat(stats.monthly_revenue || 0),
-      };
-    }
-    return { activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
-  }, [stats]);
-
-  // ─── AI DATA ───
-  const prediction = useMemo(() => insightsService.predictNextMonthRevenue(payments), [payments]);
-  const alerts = useMemo(() => insightsService.getPaymentAlerts(members), [members]);
-  const insights = useMemo(() => insightsService.generateDailyInsights({ members, payments, gym }), [members, payments, gym]);
-  const revenueChartData = useMemo(() => insightsService.getMonthlyRevenueChartData(payments, 6), [payments]);
-  const membersChartData = useMemo(() => insightsService.getMemberStatusChartData(members), [members]);
+  }, [controllerRefreshStats, showToast]);
 
   // ─── CHART CONFIGS ───
   const revenueChart = {
@@ -147,7 +114,7 @@ function GymDashboard({ gym }) {
         grid: { color: 'rgba(148, 163, 184, 0.1)' },
         ticks: {
           color: '#94A3B8',
-          callback: (v) => '$' + (v / 1000) + 'k',
+          callback: (v) => v >= 1000 ? '$' + (v / 1000).toFixed(1) + 'k' : '$' + Math.round(v),
         },
       },
     },
@@ -183,8 +150,7 @@ function GymDashboard({ gym }) {
     },
   };
 
-  // ─── RECENT MEMBERS ───
-  const recentMembers = members.slice(0, 5);
+
 
   if (loading) {
     return (
@@ -223,7 +189,7 @@ function GymDashboard({ gym }) {
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        <StatCard icon="users" label="Socios Activos" value={dashboardStats.activeMembers} color="primary" />
+        <StatCard icon="users" label={`${membersLabel} Activos`} value={dashboardStats.activeMembers} color="primary" />
         <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
         <StatCard icon="bell" label="Pagos Vencidos" value={dashboardStats.expiredMembers} color="warning" />
         <StatCard icon="calendar" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
@@ -262,7 +228,7 @@ function GymDashboard({ gym }) {
 
           {/* Members Chart */}
           <div className="card chart-card">
-            <h4 className="chart-title">👥 Estado de Socios</h4>
+            <h4 className="chart-title">👥 Estado de {membersLabel}</h4>
             <div className="chart-container">
               <Doughnut data={membersChart} options={membersChartOptions} />
             </div>
@@ -330,7 +296,7 @@ function GymDashboard({ gym }) {
         {/* Recent Members */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Últimos Socios</h3>
+            <h3 className="card-title">Últimos {membersLabel}</h3>
             <Link to={CONFIG.ROUTES.MEMBERS} className="btn btn-sm btn-ghost">
               Ver todos →
             </Link>
@@ -349,7 +315,7 @@ function GymDashboard({ gym }) {
                 {recentMembers.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
-                      No hay socios registrados
+                      No hay {membersLabel.toLowerCase()} registrados
                     </td>
                   </tr>
                 ) : (
@@ -379,7 +345,7 @@ function GymDashboard({ gym }) {
           <div className="quick-actions">
             <Link to={`${CONFIG.ROUTES.MEMBERS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="plus" /></span>
-              <span className="quick-action-label">Nuevo Socio</span>
+              <span className="quick-action-label">Nuevo {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
             </Link>
             <Link to={`${CONFIG.ROUTES.PAYMENTS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="wallet" /></span>
@@ -387,7 +353,7 @@ function GymDashboard({ gym }) {
             </Link>
             <Link to={CONFIG.ROUTES.MEMBERS} className="quick-action">
               <span className="quick-action-icon"><Icon name="search" /></span>
-              <span className="quick-action-label">Buscar Socio</span>
+              <span className="quick-action-label">Buscar {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
             </Link>
             <Link to={CONFIG.ROUTES.SETTINGS} className="quick-action">
               <span className="quick-action-icon"><Icon name="settings" /></span>

@@ -1,6 +1,6 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "1.0.52",
+  "version": "1.0.53",
   "description": "Veltronik - Plataforma de Gestión para Gimnasios",
   "main": "electron/main.cjs",
   "private": true,
@@ -18,8 +18,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "vercel dev",
-    "dev:vite": "vite",
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",

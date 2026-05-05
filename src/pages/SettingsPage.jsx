@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const { preference, setTheme } = useTheme();
   const currentRole = localStorage.getItem('current_org_role');
   const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const [loading, setLoading] = useState(true);

@@ -2,7 +2,7 @@
 // VELTRONIK V2 - ONBOARDING PAGE (Business setup wizard)
 // ============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,8 +14,11 @@ import restoLogo from '../assets/VeltronikRestaurante.png';
 
 const BUSINESS_TYPES = [
   { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: gymLogo, isImage: true, gradient: 'transparent', enabled: true },
-  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta, stock e inventario', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
+  { id: 'PILATES', label: 'Pilates & Yoga', desc: 'Clases con cupos y alumnos', icon: '🧘‍♀️', isImage: false, gradient: 'linear-gradient(135deg, #10b981, #059669)', enabled: true },
+  { id: 'CLUB', label: 'Club Deportivo', desc: 'Socios plenos y disciplinas', icon: '⚽', isImage: false, gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', enabled: true },
+  { id: 'ACADEMY', label: 'Academia / Dojo', desc: 'Artes marciales y boxeo', icon: '🥋', isImage: false, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
   { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: restoLogo, isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta y stock', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
   { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
@@ -31,24 +34,10 @@ export default function OnboardingPage() {
   const [hasExistingOrgs, setHasExistingOrgs] = useState(false);
   const [checkingOrgs, setCheckingOrgs] = useState(true);
 
-  // Check if user already owns businesses
-  useState(() => {
-    async function checkExistingOrgs() {
-      try {
-        const { data, error } = await supabase
-          .from('gym_users')
-          .select('gym_id', { count: 'exact', head: true })
-          .eq('user_id', user?.id)
-          .eq('role', 'owner');
-        
-        if (!error && data !== null) {
-           // We'll just rely on the count if we want, but since head: true returns count in error/count, let's do a simple select
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-  });
+  // Check if user already owns businesses (state is declared but unused for blocking)
+  useEffect(() => {
+    setCheckingOrgs(false);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -131,8 +120,8 @@ export default function OnboardingPage() {
               <button className="back-btn" onClick={() => setStep(1)}>← Cambiar tipo</button>
               <div className="welcome-text">
                 <div className="selected-type-badge" style={{
-                  background: selectedType === 'GYM' ? 'rgba(139,92,246,0.15)' : 'rgba(6,182,212,0.15)',
-                  color: selectedType === 'GYM' ? '#a78bfa' : '#22d3ee'
+                  background: (selectedType === 'GYM' || selectedType === 'PILATES' || selectedType === 'CLUB' || selectedType === 'ACADEMY') ? 'rgba(139,92,246,0.15)' : 'rgba(6,182,212,0.15)',
+                  color: (selectedType === 'GYM' || selectedType === 'PILATES' || selectedType === 'CLUB' || selectedType === 'ACADEMY') ? '#a78bfa' : '#22d3ee'
                 }}>
                   {BUSINESS_TYPES.find(t => t.id === selectedType)?.isImage ? (
                     <img src={BUSINESS_TYPES.find(t => t.id === selectedType)?.icon} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />

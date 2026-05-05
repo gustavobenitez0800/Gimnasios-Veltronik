@@ -15,7 +15,7 @@ export default function BlockedPage() {
   const { gym, subscription, hasValidAccess, logout, user, profile, refreshAuth } = useAuth();
   const { showToast } = useToast();
   const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
-  const typeLabel = { GYM: 'gimnasio', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const typeLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
 
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [hasMultipleOrgs, setHasMultipleOrgs] = useState(false);

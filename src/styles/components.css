@@ -213,6 +213,7 @@
   text-align: left;
   border-bottom: 1px solid var(--border-color);
   transition: background var(--transition-fast);
+  white-space: nowrap;
 }
 
 .table th {

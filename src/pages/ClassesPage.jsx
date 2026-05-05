@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { classService, errorService } from '../services';
+import { errorService } from '../services';
+import { useClassController } from '../controllers/useClassController';
 import { formatTime, getDayName } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -27,8 +28,18 @@ function getWeekStart(date) {
 
 export default function ClassesPage() {
   const { showToast } = useToast();
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Controller
+  const {
+    classes,
+    bookings,
+    loading: isFetching,
+    bookingsLoading,
+    loadClasses,
+    saveClass,
+    deleteClass,
+    loadBookingsForClass,
+  } = useClassController();
+
   const [view, setView] = useState('calendar');
   const [weekStart, setWeekStart] = useState(getWeekStart(new Date()));
 
@@ -41,25 +52,13 @@ export default function ClassesPage() {
   // Detail modal
   const [detailModal, setDetailModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
-  const [bookings, setBookings] = useState([]);
-  const [bookingsLoading, setBookingsLoading] = useState(false);
 
   // Delete
   const [deleteId, setDeleteId] = useState(null);
 
-  const loadClasses = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await classService.getAll();
-      setClasses(data || []);
-    } catch {
-      showToast('Error al cargar clases', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadClasses(); }, [loadClasses]);
+  useEffect(() => {
+    loadClasses();
+  }, [loadClasses]);
 
   // Week navigation
   const weekDates = useMemo(() => {
@@ -103,12 +102,7 @@ export default function ClassesPage() {
   const openDetail = async (cls, date) => {
     setSelectedClass(cls);
     setDetailModal(true);
-    setBookingsLoading(true);
-    try {
-      const data = await classService.getBookingsForClass(cls.id, date);
-      setBookings(data || []);
-    } catch { setBookings([]); }
-    finally { setBookingsLoading(false); }
+    await loadBookingsForClass(cls.id, date);
   };
 
   const handleSave = async (e) => {
@@ -116,31 +110,33 @@ export default function ClassesPage() {
     if (!form.name.trim()) { showToast('El nombre es requerido', 'error'); return; }
     setSaving(true);
     try {
-      const data = { ...form, day_of_week: parseInt(form.day_of_week), capacity: parseInt(form.capacity) };
+      const data = { 
+        ...form, 
+        day_of_week: form.day_of_week !== '' ? parseInt(form.day_of_week) : null, 
+        capacity: form.capacity !== '' ? parseInt(form.capacity) : 20 
+      };
       Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
 
       if (editingId) {
-        await classService.update(editingId, data);
-        showToast('Clase actualizada', 'success');
-      } else {
-        await classService.create(data);
-        showToast('Clase creada exitosamente', 'success');
+        data.id = editingId;
       }
+      
+      await saveClass(data);
+      showToast(editingId ? 'Clase actualizada' : 'Clase creada exitosamente', 'success');
+
       setModalOpen(false);
-      loadClasses();
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      showToast(error.message || errorService.getMessage(error), 'error');
     } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      await classService.delete(deleteId);
+      await deleteClass(deleteId);
       showToast('Clase eliminada', 'success');
       setDeleteId(null);
       setDetailModal(false);
-      loadClasses();
     } catch (error) { showToast(errorService.getMessage(error), 'error'); }
   };
 
@@ -169,7 +165,7 @@ export default function ClassesPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isFetching ? (
         <div className="dashboard-loading"><span className="spinner" /> Cargando clases...</div>
       ) : view === 'calendar' ? (
         /* Weekly Calendar */

@@ -89,57 +89,108 @@ module.exports = async function handler(req, res) {
         const { price, reason } = await getSubscriptionPriceForGym(gym_id, gym.type);
 
         // ============================================
-        // CREATE NEW SUBSCRIPTION IN MERCADO PAGO
+        // 1. RE-UTILIZACIÓN INTELIGENTE (ANTI RATE-LIMITS)
+        // ============================================
+        let mpSubscription = null;
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60000).toISOString();
+        
+        const { data: recentPending } = await supabase
+            .from('subscriptions')
+            .select('id, mp_preapproval_id')
+            .eq('gym_id', gym_id)
+            .eq('status', SUBSCRIPTION_STATUS.PENDING)
+            .gte('created_at', fifteenMinsAgo)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (recentPending && recentPending.mp_preapproval_id) {
+            try {
+                const fetchedSub = await preApproval.get({ id: recentPending.mp_preapproval_id });
+                if (fetchedSub && (fetchedSub.init_point || fetchedSub.sandbox_init_point) && fetchedSub.status === 'pending') {
+                    mpSubscription = fetchedSub;
+                    logSecure('info', 'Reusing recent MP subscription for update (Rate-limit saver)', { id: mpSubscription.id });
+                }
+            } catch (e) {
+                logSecure('warn', 'Failed to fetch recent pending subscription, falling back to create new');
+            }
+        }
+
+        // ============================================
+        // 2. CREATE NEW SUBSCRIPTION IN MERCADO PAGO (IF NOT REUSING)
         // ============================================
         
         // NOTE: We no longer cancel old subscriptions here.
         // If the user abandons the checkout, they shouldn't lose their current access.
         // Old subscriptions are now cancelled by the webhook ONLY when the new one is successfully paid.
 
-        const subscriptionData = {
-            reason: sanitizeString(reason, 100),
-            external_reference: gym_id,
-            payer_email: sanitizedEmail,
-            auto_recurring: {
-                frequency: SUBSCRIPTION_CONFIG.FREQUENCY,
-                frequency_type: SUBSCRIPTION_CONFIG.FREQUENCY_TYPE,
-                transaction_amount: price,
-                currency_id: SUBSCRIPTION_CONFIG.CURRENCY
-            },
-            back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
-        };
+        if (!mpSubscription) {
+            const subscriptionData = {
+                reason: sanitizeString(reason, 100),
+                external_reference: gym_id,
+                payer_email: sanitizedEmail,
+                auto_recurring: {
+                    frequency: SUBSCRIPTION_CONFIG.FREQUENCY,
+                    frequency_type: SUBSCRIPTION_CONFIG.FREQUENCY_TYPE,
+                    transaction_amount: price,
+                    currency_id: SUBSCRIPTION_CONFIG.CURRENCY
+                },
+                back_url: `${SUBSCRIPTION_CONFIG.BACK_URL}/#/payment-callback`
+            };
 
-        logSecure('info', 'Creating new MP subscription for payment method update', { gym_id, price });
+            logSecure('info', 'Creating new MP subscription for payment method update', { gym_id, price });
 
-        const mpSubscription = await preApproval.create({ body: subscriptionData });
+            mpSubscription = await preApproval.create({ body: subscriptionData });
 
-        logSecure('info', 'New MP subscription created', {
-            hasInitPoint: !!mpSubscription.init_point,
-            status: mpSubscription.status
-        });
+            if (!mpSubscription || (!mpSubscription.init_point && !mpSubscription.sandbox_init_point)) {
+                throw new Error('Mercado Pago devolvió una respuesta vacía o sin link de pago (init_point).');
+            }
+
+            logSecure('info', 'New MP subscription created', {
+                hasInitPoint: !!mpSubscription.init_point,
+                status: mpSubscription.status
+            });
+        }
 
         // ============================================
-        // SAVE NEW SUBSCRIPTION TO DB (ONLY IF NONE EXISTS)
+        // 3. GUARDAR EN BD (Resolución Atómica de Race Condition)
         // ============================================
 
-        // We MUST insert a new subscription record.
-        // If the user completes the payment, the webhook will activate this new one
-        // and automatically cancel the old one(s) to prevent double billing.
-        const subscriptionRecord = {
-            gym_id: gym_id,
-            plan_id: gym.plan_id || null,
-            mp_preapproval_id: mpSubscription.id,
-            mp_payer_email: sanitizedEmail,
-            status: SUBSCRIPTION_STATUS.PENDING,
-            created_at: new Date().toISOString()
-        };
-
-        const { error: saveError } = await supabase
+        // Verificamos si el webhook llegó antes que nosotros (Race condition)
+        const { data: existingSubByMp } = await supabase
             .from('subscriptions')
-            .insert(subscriptionRecord);
+            .select('id')
+            .eq('mp_preapproval_id', mpSubscription.id)
+            .maybeSingle();
 
-        if (saveError) {
-            logSecure('error', 'Error saving new subscription to DB', { error: saveError });
+        if (existingSubByMp) {
+            // El webhook ya la insertó. Nosotros solo actualizamos los campos faltantes.
+            await supabase
+                .from('subscriptions')
+                .update({
+                    plan_id: gym.plan_id || null,
+                    mp_payer_email: sanitizedEmail
+                })
+                .eq('id', existingSubByMp.id);
+            logSecure('info', 'Race condition handled in update: Updated existing webhook row');
+        } else {
+            // Flujo normal: Insertamos
+            const subscriptionRecord = {
+                gym_id: gym_id,
+                plan_id: gym.plan_id || null,
+                mp_preapproval_id: mpSubscription.id,
+                mp_payer_email: sanitizedEmail,
+                status: SUBSCRIPTION_STATUS.PENDING,
+                created_at: new Date().toISOString()
+            };
+
+            const { error: saveError } = await supabase
+                .from('subscriptions')
+                .insert(subscriptionRecord);
+
+            if (saveError) {
+                logSecure('error', 'Error saving new subscription to DB', { error: saveError.message });
+            }
         }
 
         // ============================================
@@ -157,8 +208,8 @@ module.exports = async function handler(req, res) {
             }
         }, req);
 
-    } catch {
-        logSecure('error', 'Update payment method error');
+    } catch (err) {
+        logSecure('error', 'Update payment method error', { message: err?.message });
         return errorResponse(res, 500, 'Error al actualizar método de pago', null, req);
     }
 };

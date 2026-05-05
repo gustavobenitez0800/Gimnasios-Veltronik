@@ -5,7 +5,7 @@
 import { Suspense, lazy, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { memberService, paymentService, accessService } from '../services';
+import { memberService, paymentService, accessService, supabase } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -96,9 +96,12 @@ function GymReportsPage() {
   const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
   const [activePeriod, setActivePeriod] = useState('month');
   
+  const orgId = localStorage.getItem('current_org_id');
+  const historyKey = `veltronik_export_history_${orgId}`;
+
   const [exporting, setExporting] = useState({});
   const [exportHistory, setExportHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('veltronik_export_history') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch { return []; }
   });
 
   const setQuickDate = (period) => {
@@ -112,7 +115,7 @@ function GymReportsPage() {
     const entry = { type, format, date: new Date().toLocaleString('es-AR') };
     const history = [entry, ...exportHistory].slice(0, 10);
     setExportHistory(history);
-    localStorage.setItem('veltronik_export_history', JSON.stringify(history));
+    localStorage.setItem(historyKey, JSON.stringify(history));
   };
 
   const exportMembers = async (format) => {
@@ -209,15 +212,13 @@ function GymReportsPage() {
     setExporting(e => ({ ...e, summary: format }));
     try {
       // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
-      const { data: { user } } = await memberService.client.auth.getUser();
-      const profileRes = await memberService.client.from('profiles').select('gym_id').eq('id', user.id).single();
-      const orgId = profileRes.data.gym_id;
+      const currentOrgId = localStorage.getItem('current_org_id');
 
       // Socios activos y total
-      const membersRes = await memberService.client
+      const membersRes = await supabase
         .from('members')
         .select('id, status, membership_start', { count: 'exact' })
-        .eq('gym_id', orgId);
+        .eq('gym_id', currentOrgId);
       
       const members = membersRes.data || [];
       const active = members.filter(m => m.status === 'active').length;

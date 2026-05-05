@@ -151,22 +151,20 @@ async function handleSubscriptionEvent(preapprovalId) {
         }
     }
 
-    // UPDATE existing subscription, or INSERT if none exists
-    // (upsert with onConflict: 'gym_id' fails silently if no UNIQUE constraint)
-    const { data: existingSub } = await supabase
+    // ============================================
+    // ACTUALIZAR SUSCRIPCIÓN EN BD (Anti Race-Condition)
+    // ============================================
+    // Buscamos EXACTAMENTE esta suscripción para evitar race conditions
+    const { data: exactSub } = await supabase
         .from('subscriptions')
         .select('id, status, current_period_end')
-        .eq('gym_id', gymId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .eq('mp_preapproval_id', preapprovalId.toString())
+        .maybeSingle();
 
-    if (existingSub) {
+    if (exactSub) {
         // PREVENT OVERWRITING ACTIVE WITH PENDING
-        // If user is generating a new payment link, it creates a 'pending' subscription.
-        // We shouldn't downgrade their active access until they actually pay the new one.
         if (
-            (existingSub.status === SUBSCRIPTION_STATUS.ACTIVE || existingSub.status === SUBSCRIPTION_STATUS.PAST_DUE) &&
+            (exactSub.status === SUBSCRIPTION_STATUS.ACTIVE || exactSub.status === SUBSCRIPTION_STATUS.PAST_DUE) &&
             internalStatus === SUBSCRIPTION_STATUS.PENDING
         ) {
             logSecure('info', 'Ignoring pending webhook because current subscription is already active/past_due', { gymId });
@@ -177,23 +175,24 @@ async function handleSubscriptionEvent(preapprovalId) {
         const { error: subError } = await supabase
             .from('subscriptions')
             .update(subscriptionUpdate)
-            .eq('id', existingSub.id);
+            .eq('id', exactSub.id);
 
         if (subError) {
-            logSecure('error', 'Error updating subscription');
+            logSecure('error', 'Error updating subscription', { code: subError.code });
         } else {
-            logSecure('info', 'Subscription updated successfully');
+            logSecure('info', 'Subscription updated successfully via preapproval event');
         }
     } else {
-        // No subscription found — create new one
+        // No subscription found — webhook arrived before our API inserted it!
+        // We insert it now, and our API will just update the plan_id when it catches up.
         const { error: subError } = await supabase
             .from('subscriptions')
             .insert({ gym_id: gymId, ...subscriptionUpdate });
 
         if (subError) {
-            logSecure('error', 'Error inserting new subscription');
+            logSecure('error', 'Error inserting new subscription via webhook', { code: subError.code });
         } else {
-            logSecure('info', 'New subscription created from webhook');
+            logSecure('info', 'New subscription created from webhook (Race condition resolved)');
         }
     }
 
@@ -209,7 +208,7 @@ async function handleSubscriptionEvent(preapprovalId) {
     } else if (mpSub.status === 'cancelled') {
         // Cancelación voluntaria → verificar si hay tiempo restante
         let hasTimeLeft = false;
-        if (existingSub?.current_period_end && new Date() < new Date(existingSub.current_period_end)) {
+        if (exactSub?.current_period_end && new Date() < new Date(exactSub.current_period_end)) {
             hasTimeLeft = true;
         }
         
@@ -376,13 +375,22 @@ async function handleSubscriptionPayment(paymentId) {
         let nextPeriodEnd = new Date(paymentDate);
         nextPeriodEnd.setDate(nextPeriodEnd.getDate() + 30);
 
-        const { data: currentSub } = await supabase
+        // ============================================
+        // BUSCAR LA SUSCRIPCIÓN CORRECTA A ACTUALIZAR
+        // ============================================
+        // Si ya hay una ACTIVA (por el evento preapproval), la usamos. Si no, tomamos la PENDING más reciente.
+        const { data: possibleSubs } = await supabase
             .from('subscriptions')
-            .select('id, mp_preapproval_id')
+            .select('id, mp_preapproval_id, status')
             .eq('gym_id', gymId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PENDING, SUBSCRIPTION_STATUS.PAST_DUE])
+            .order('created_at', { ascending: false });
+
+        let currentSub = null;
+        if (possibleSubs && possibleSubs.length > 0) {
+            // Priorizamos la activa, sino la última creada
+            currentSub = possibleSubs.find(s => s.status === SUBSCRIPTION_STATUS.ACTIVE) || possibleSubs[0];
+        }
 
         if (currentSub?.mp_preapproval_id) {
             try {
@@ -410,24 +418,25 @@ async function handleSubscriptionPayment(paymentId) {
         if (currentSub?.id) {
             await supabase.from('subscriptions').update(subscriptionUpdate).eq('id', currentSub.id);
         } else {
-            await supabase.from('subscriptions').update(subscriptionUpdate).eq('gym_id', gymId);
+            // Peligro evitado: NUNCA hacer update generico por gym_id. Insertamos si es huérfano total.
+            await supabase.from('subscriptions').insert({ gym_id: gymId, ...subscriptionUpdate });
         }
 
         // ============================================
-        // CLEANUP: Cancel old subscriptions to prevent double-billing
+        // CLEANUP: Cancel old subscriptions to prevent double-billing AND Zombie PENDINGs
         // ============================================
         const { data: oldSubs } = await supabase
             .from('subscriptions')
             .select('id, mp_preapproval_id')
             .eq('gym_id', gymId)
             .neq('id', currentSub?.id || '00000000-0000-0000-0000-000000000000')
-            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PAST_DUE]);
+            .in('status', [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.PAST_DUE, SUBSCRIPTION_STATUS.PENDING]);
 
         for (const oldSub of (oldSubs || [])) {
             if (oldSub.mp_preapproval_id) {
                 try {
                     await preApproval.update({ id: oldSub.mp_preapproval_id, body: { status: 'cancelled' } });
-                    logSecure('info', 'Old MP subscription cancelled to avoid double billing', { oldId: oldSub.mp_preapproval_id });
+                    logSecure('info', 'Old/Zombie MP subscription cancelled', { oldId: oldSub.mp_preapproval_id });
                 } catch {
                     // Ignore, might already be cancelled
                 }

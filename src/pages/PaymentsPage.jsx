@@ -5,9 +5,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { memberService, paymentService, errorService } from '../services';
+import { memberService, errorService } from '../services';
+import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
-import { useModal, useConfirmDialog, useQueryCache } from '../hooks';
+import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -119,18 +120,18 @@ export default function PaymentsPage() {
   const deleteDialog = useConfirmDialog();
   const autoOpenHandled = useRef(false);
 
-  // ─── FETCH PAYMENTS WITH CACHE ───
-  const fetchPayments = useCallback(async () => {
-    return await paymentService.getByFilters(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
-  }, [dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter]);
+  // ─── CONTROLLER ───
+  const {
+    payments,
+    loading: isFetching,
+    loadPayments,
+    savePayment,
+    deletePayment
+  } = usePaymentController();
 
-  const { data, loading, isFetching, invalidate } = useQueryCache(
-    ['payments', dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter],
-    fetchPayments,
-    { staleTime: 60 * 1000 } // 1 min
-  );
-
-  const payments = data || [];
+  useEffect(() => {
+    loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
+  }, [dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter, loadPayments]);
 
   // Stats computed strictly from currently fetched payments
   const stats = useMemo(() => {
@@ -247,24 +248,22 @@ export default function PaymentsPage() {
       Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
 
       if (modal.editingId) {
-        await paymentService.update(modal.editingId, data);
-        showToast('Pago actualizado', 'success');
-      } else {
-        await paymentService.create(data);
-        showToast('Pago registrado exitosamente', 'success');
+        data.id = modal.editingId;
+      }
+      
+      await savePayment(data);
+      showToast(modal.editingId ? 'Pago actualizado' : 'Pago registrado exitosamente', 'success');
 
-        if (data.period_end && data.member_id && data.status === 'paid') {
-          try {
-            await memberService.update(data.member_id, {
-              membership_end: data.period_end,
-              status: 'active',
-            });
-          } catch {}
-        }
+      if (!modal.editingId && data.period_end && data.member_id && data.status === 'paid') {
+        try {
+          await memberService.update(data.member_id, {
+            membership_end: data.period_end,
+            status: 'active',
+          });
+        } catch {}
       }
 
       modal.close();
-      invalidate();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     } finally {
@@ -275,9 +274,8 @@ export default function PaymentsPage() {
   const handleDelete = async () => {
     await deleteDialog.confirm(async (id) => {
       try {
-        await paymentService.delete(id);
+        await deletePayment(id);
         showToast('Pago eliminado', 'success');
-        invalidate();
       } catch (error) {
         showToast(errorService.getMessage(error), 'error');
       }
@@ -286,9 +284,10 @@ export default function PaymentsPage() {
 
   const handleMarkPaid = async (payment) => {
     try {
-      await paymentService.update(payment.id, {
+      await savePayment({
+        ...payment,
         status: 'paid',
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: new Date().toISOString().split('T')[0]
       });
       showToast('Pago marcado como pagado', 'success');
 
@@ -300,8 +299,6 @@ export default function PaymentsPage() {
           });
         } catch {}
       }
-
-      invalidate();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     }
@@ -401,7 +398,7 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {isFetching && payments.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...

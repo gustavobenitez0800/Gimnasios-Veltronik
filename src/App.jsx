@@ -85,8 +85,8 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
 
-                {/* ─── GYM-ONLY ROUTES ─── */}
-                <Route element={<OrgTypeGuard allowedTypes={['GYM']} />}>
+                {/* ─── GYM-ONLY ROUTES (Fitness & Wellness Ecosystem) ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['GYM', 'PILATES', 'CLUB', 'ACADEMY']} />}>
                   <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
                   <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
                   <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />

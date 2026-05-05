@@ -5,7 +5,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { memberService, paymentService, errorService } from '../services';
+import { paymentService, errorService } from '../services';
+import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency } from '../lib/utils';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useQueryCache } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
@@ -55,17 +56,31 @@ export default function MembersPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const currentRole = localStorage.getItem('current_org_role');
+  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const isMemberLabel = (orgType === 'PILATES' || orgType === 'ACADEMY');
+  const memberLabel = isMemberLabel ? 'Alumno' : 'Socio';
+  const membersLabel = isMemberLabel ? 'Alumnos' : 'Socios';
+  const membersLabelLower = membersLabel.toLowerCase();
   const canDelete = currentRole === 'owner' || currentRole === 'admin';
 
-  // Data state
+  // Controller
+  const {
+    members: controllerMembers,
+    loading: isFetching,
+    totalRecords,
+    loadMembers,
+    saveMember,
+    deleteMember
+  } = useMemberController();
+
+  // Local derived state for filtering
   const [members, setMembers] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
 
   // Pagination
-  const pagination = usePagination(totalCount, PAGE_SIZE);
+  const pagination = usePagination(totalRecords, PAGE_SIZE);
   const { search, handleSearchInput } = useDebouncedSearch(300, pagination.reset);
 
   // Modal
@@ -80,37 +95,25 @@ export default function MembersPage() {
   const [memberPayments, setMemberPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
-  // ─── FETCH MEMBERS WITH CACHE ───
-  const fetchMembers = useCallback(async () => {
-    return await memberService.getPaginated(pagination.page, PAGE_SIZE, search);
-  }, [pagination.page, search]);
-
-  const { data: resultData, loading, isFetching, invalidate } = useQueryCache(
-    ['members', pagination.page, search],
-    fetchMembers,
-    { staleTime: 60 * 1000 } // 1 minuto
-  );
+  // ─── FETCH MEMBERS VIA CONTROLLER ───
+  useEffect(() => {
+    loadMembers(pagination.page, PAGE_SIZE, search);
+  }, [pagination.page, search, loadMembers]);
 
   // Procesar resultado al cambiar datos o filtro local
   useEffect(() => {
-    if (resultData) {
-      let filtered = resultData.data;
-      if (statusFilter) {
-        const today = new Date();
-        filtered = filtered.filter((m) => {
-          if (statusFilter === 'expired') {
-            return m.membership_end && new Date(m.membership_end) < today;
-          }
-          return m.status === statusFilter;
-        });
-      }
-      setMembers(filtered);
-      setTotalCount(resultData.count);
-    } else {
-      setMembers([]);
-      setTotalCount(0);
+    let filtered = controllerMembers;
+    if (statusFilter) {
+      const today = new Date();
+      filtered = filtered.filter((m) => {
+        if (statusFilter === 'expired') {
+          return m.membership_end && new Date(m.membership_end) < today;
+        }
+        return m.status === statusFilter;
+      });
     }
-  }, [resultData, statusFilter]);
+    setMembers(filtered);
+  }, [controllerMembers, statusFilter]);
 
   // Auto-open modal if ?action=new
   useEffect(() => {
@@ -128,30 +131,18 @@ export default function MembersPage() {
       return;
     }
 
-    if (modal.form.dni) {
-      const isDuplicate = await memberService.isDniDuplicate(modal.form.dni, modal.editingId);
-      if (isDuplicate) {
-        showToast('Ya existe un socio con este DNI', 'error');
-        return;
-      }
-    }
-
     modal.setSaving(true);
     try {
       const data = modal.getCleanedData();
-
       if (modal.editingId) {
-        await memberService.update(modal.editingId, data);
-        showToast('Socio actualizado exitosamente', 'success');
-      } else {
-        await memberService.create(data);
-        showToast('Socio creado exitosamente', 'success');
+        data.id = modal.editingId;
       }
-
+      
+      await saveMember(data);
+      showToast(`${memberLabel} guardado exitosamente`, 'success');
       modal.close();
-      invalidate(); // Forzar recarga de la caché
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      showToast(error.message || errorService.getMessage(error), 'error');
     } finally {
       modal.setSaving(false);
     }
@@ -161,9 +152,8 @@ export default function MembersPage() {
   const handleDelete = async () => {
     await deleteDialog.confirm(async (id) => {
       try {
-        await memberService.delete(id);
-        showToast('Socio eliminado', 'success');
-        invalidate(); // Forzar recarga de la caché
+        await deleteMember(id);
+        showToast(`${memberLabel} eliminado`, 'success');
       } catch (error) {
         showToast(errorService.getMessage(error), 'error');
       }
@@ -214,7 +204,7 @@ export default function MembersPage() {
   // ─── WHATSAPP ───
   const openWhatsApp = (member) => {
     if (!member.phone) {
-      showToast('Este socio no tiene teléfono registrado', 'warning');
+      showToast(`Este ${memberLabel.toLowerCase()} no tiene teléfono registrado`, 'warning');
       return;
     }
     const phone = member.phone.replace(/\D/g, '');
@@ -237,8 +227,8 @@ export default function MembersPage() {
   return (
     <div className="members-page">
       <PageHeader
-        title="Socios"
-        subtitle={isFetching && members.length > 0 ? "Actualizando datos..." : `${totalCount} socios registrados`}
+        title={membersLabel}
+        subtitle={isFetching && members.length > 0 ? "Actualizando datos..." : `${totalRecords} ${membersLabelLower} registrados`}
         icon="users"
         actions={
           <div className="flex gap-1">
@@ -246,7 +236,7 @@ export default function MembersPage() {
               <Icon name="download" /> Exportar
             </button>
             <button className="btn btn-primary" onClick={() => modal.open()}>
-              <Icon name="plus" /> Nuevo Socio
+              <Icon name="plus" /> Nuevo {memberLabel}
             </button>
           </div>
         }
@@ -263,8 +253,8 @@ export default function MembersPage() {
             options: STATUS_FILTER_OPTIONS,
           },
         ]}
-        count={totalCount}
-        countLabel="socios"
+        count={totalRecords}
+        countLabel={membersLabelLower}
       />
 
       {/* Table */}
@@ -284,7 +274,7 @@ export default function MembersPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {isFetching && members.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...
@@ -293,7 +283,7 @@ export default function MembersPage() {
               ) : members.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
-                    No se encontraron socios
+                    No se encontraron {membersLabelLower}
                   </td>
                 </tr>
               ) : (
@@ -356,14 +346,14 @@ export default function MembersPage() {
         </div>
 
         {/* Pagination */}
-        <Pagination {...pagination} totalCount={totalCount} />
+        <Pagination {...pagination} totalCount={totalRecords} />
       </div>
 
       {/* ─── MEMBER MODAL ─── */}
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.isEditing ? 'Editar Socio' : 'Nuevo Socio'}
+        title={modal.isEditing ? `Editar ${memberLabel}` : `Nuevo ${memberLabel}`}
       >
         <form onSubmit={handleSave} noValidate>
           <div className="modal-form">
@@ -465,7 +455,7 @@ export default function MembersPage() {
       {/* ─── DELETE CONFIRMATION ─── */}
       <ConfirmDialog
         open={deleteDialog.isOpen}
-        title="Eliminar Socio"
+        title={`Eliminar ${memberLabel}`}
         message={`¿Estás seguro de eliminar a "${deleteDialog.itemName}"? Esta acción no se puede deshacer.`}
         icon="🗑️"
         confirmText="Eliminar"

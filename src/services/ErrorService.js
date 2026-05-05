@@ -36,7 +36,7 @@ class ErrorService {
         match: (msg) => msg.includes('duplicate key') || msg.includes('unique constraint'),
         message: (msg) =>
           msg.includes('dni')
-            ? 'Ya existe un socio con este DNI en tu gimnasio.'
+            ? 'Ya existe un socio con este DNI en tu negocio.'
             : 'Este registro ya existe.',
       },
       {

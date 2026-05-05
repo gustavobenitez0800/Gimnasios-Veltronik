@@ -84,14 +84,14 @@ export default function MenuPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price) { showToast('Nombre y precio son requeridos', 'error'); return; }
+    if (!form.name.trim() || form.price === '') { showToast('Nombre y precio son requeridos', 'error'); return; }
     setSaving(true);
     try {
       const data = {
         ...form,
-        price: parseFloat(form.price),
-        cost: form.cost ? parseFloat(form.cost) : 0,
-        prep_time_min: parseInt(form.prep_time_min) || 15,
+        price: form.price !== '' ? parseFloat(form.price) : 0,
+        cost: form.cost !== '' ? parseFloat(form.cost) : 0,
+        prep_time_min: form.prep_time_min !== '' ? parseInt(form.prep_time_min) : 15,
         category_id: form.category_id || null,
       };
       if (editingId) {

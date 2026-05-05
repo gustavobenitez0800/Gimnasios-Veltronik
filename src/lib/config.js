@@ -22,6 +22,9 @@ const CONFIG = {
   SUBSCRIPTION_CURRENCY: 'ARS',
   PRICES_BY_TYPE: {
     GYM: 35000,
+    PILATES: 35000,
+    CLUB: 35000,
+    ACADEMY: 35000,
     RESTO: 45000,
     KIOSK: 25000,
     OTHER: 35000,
@@ -88,6 +91,9 @@ const CONFIG = {
   // Organization Types
   ORG_TYPES: Object.freeze({
     GYM: 'GYM',
+    PILATES: 'PILATES',
+    CLUB: 'CLUB',
+    ACADEMY: 'ACADEMY',
     RESTO: 'RESTO',
     KIOSK: 'KIOSK',
     OTHER: 'OTHER',

@@ -79,8 +79,8 @@
     radial-gradient(circle at 85% 30%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
   color: #fff;
   position: relative;
-  overflow-x: hidden;
   font-family: 'Inter', -apple-system, sans-serif;
+  box-sizing: border-box;
 }
 
 .premium-plans-bg {
@@ -325,6 +325,12 @@
   position: absolute;
   top: 0; left: 0; right: 0; height: 4px;
   background: linear-gradient(90deg, var(--primary-500), #8b5cf6);
+  opacity: 0;
+}
+
+.premium-plan-card.recommended-neon {
+  border: 2px solid #00b4d8;
+  box-shadow: 0 0 15px rgba(0, 180, 216, 0.2), inset 0 0 10px rgba(0, 180, 216, 0.1);
 }
 
 .plan-badge {

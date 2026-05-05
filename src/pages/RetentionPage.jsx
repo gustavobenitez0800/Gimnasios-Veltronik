@@ -35,7 +35,8 @@ export default function RetentionPage() {
   const openWhatsApp = (member) => {
     if (!member.phone) { showToast('Sin teléfono registrado', 'warning'); return; }
     const phone = member.phone.replace(/\D/g, '');
-    const msg = encodeURIComponent(`¡Hola ${member.full_name.split(' ')[0]}! Te escribimos desde el gimnasio. Tu membresía está por vencer, ¿querés renovarla?`);
+    const orgName = localStorage.getItem('current_org_name') || 'tu centro';
+    const msg = encodeURIComponent(`¡Hola ${member.full_name.split(' ')[0]}! Te escribimos desde ${orgName}. Tu membresía está por vencer, ¿querés renovarla?`);
     window.open(`https://wa.me/54${phone}?text=${msg}`, '_blank');
   };
 

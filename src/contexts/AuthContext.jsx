@@ -17,6 +17,7 @@ import {
   gymService,
   subscriptionService,
 } from '../services';
+import { clearQueryCache } from '../hooks/useQueryCache';
 
 // Aliases for backward compat within this file
 const getSession = () => authService.getSession();
@@ -171,13 +172,19 @@ export function AuthProvider({ children }) {
   const refreshOrgContext = useCallback(async (orgId) => {
     if (!orgId) return;
 
-    const gymData = await loadOrgById(orgId);
+    // Clear all cached data when switching orgs to prevent cross-org data leaks
+    clearQueryCache();
+
+    // Load gym data and subscription in parallel
+    const [gymData, sub] = await Promise.all([
+      loadOrgById(orgId),
+      loadSubscriptionForOrg(orgId),
+    ]);
+
     setGym(gymData);
+    setSubscription(sub);
 
     if (gymData) {
-      const sub = await loadSubscriptionForOrg(gymData.id);
-      setSubscription(sub);
-
       const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
       const trialDays = getTrialDays(gymData);
       setIsTrialActive(trialActive);
@@ -185,7 +192,6 @@ export function AuthProvider({ children }) {
     } else {
       setIsTrialActive(false);
       setTrialDaysRemaining(0);
-      setSubscription(null);
     }
   }, [loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg]);
 
@@ -200,28 +206,47 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      const currentUser = await getCurrentUser();
+      // session.user is already available — skip the redundant getCurrentUser() call
+      const currentUser = session.user;
       setUser(currentUser);
 
-      const userProfile = await getProfile();
+      // We already have the user ID — query profile directly instead of
+      // calling profileService.getCurrent() which would call auth.getUser() AGAIN
+      const orgId = localStorage.getItem('current_org_id');
+
+      // Fire all independent queries in parallel
+      const [profileResult, gymData, sub] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
+        orgId ? loadOrgById(orgId) : Promise.resolve(null),
+        orgId ? loadSubscriptionForOrg(orgId) : Promise.resolve(null),
+      ]);
+
+      const userProfile = profileResult.data;
       setProfile(userProfile);
 
-      // Load the currently selected org (multi-org support)
-      const gymData = await loadCurrentOrg(userProfile);
-      setGym(gymData);
+      // If no orgId from localStorage, try profile.gym_id as fallback
+      let finalGym = gymData;
+      let finalSub = sub;
+      if (!orgId && userProfile?.gym_id) {
+        const [fallbackGym, fallbackSub] = await Promise.all([
+          loadOrgById(userProfile.gym_id),
+          loadSubscriptionForOrg(userProfile.gym_id),
+        ]);
+        finalGym = fallbackGym;
+        finalSub = fallbackSub;
+      }
 
-      if (gymData) {
-        const sub = await loadSubscriptionForOrg(gymData.id);
-        setSubscription(sub);
+      setGym(finalGym);
+      setSubscription(finalSub);
 
-        const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
-        const trialDays = getTrialDays(gymData);
+      if (finalGym) {
+        const trialActive = checkTrialStatus(finalGym) && !['active', 'past_due', 'canceled'].includes(finalSub?.status);
+        const trialDays = getTrialDays(finalGym);
         setIsTrialActive(trialActive);
         setTrialDaysRemaining(trialDays);
       } else {
         setIsTrialActive(false);
         setTrialDaysRemaining(0);
-        setSubscription(null);
       }
     } catch (error) {
       console.error('Auth init error:', error);
@@ -229,7 +254,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
       initCompleteRef.current = true;
     }
-  }, [checkTrialStatus, getTrialDays, loadCurrentOrg, loadSubscriptionForOrg]);
+  }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
 
   useEffect(() => {
     initAuth();
@@ -238,6 +263,7 @@ export function AuthProvider({ children }) {
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === 'SIGNED_OUT') {
+          clearQueryCache();
           setUser(null);
           setProfile(null);
           setGym(null);
@@ -332,6 +358,7 @@ export function AuthProvider({ children }) {
     } catch {
       // Force redirect anyway
     }
+    clearQueryCache();
     setUser(null);
     setProfile(null);
     setGym(null);

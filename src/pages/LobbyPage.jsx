@@ -18,10 +18,10 @@ import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 
-const TYPE_LABELS = { GYM: 'Gimnasio', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: gymLogoSrc, RESTO: restoLogoSrc, KIOSK: '🏪', OTHER: '📱' };
-const TYPE_IS_IMAGE = { GYM: true, RESTO: true, KIOSK: false, OTHER: false };
-const TYPE_BADGES = { GYM: 'badge-success', RESTO: 'badge-error', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
+const TYPE_LABELS = { GYM: 'Gimnasio', PILATES: 'Pilates/Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', RESTO: 'Restaurante', KIOSK: 'Kiosco', OTHER: 'Negocio' };
+const TYPE_ICONS = { GYM: gymLogoSrc, PILATES: '🧘‍♀️', CLUB: '⚽', ACADEMY: '🥋', RESTO: restoLogoSrc, KIOSK: '🏪', OTHER: '📱' };
+const TYPE_IS_IMAGE = { GYM: true, PILATES: false, CLUB: false, ACADEMY: false, RESTO: true, KIOSK: false, OTHER: false };
+const TYPE_BADGES = { GYM: 'badge-success', PILATES: 'badge-success', CLUB: 'badge-success', ACADEMY: 'badge-success', RESTO: 'badge-error', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
 
 // ─── Helpers ───
 
@@ -249,10 +249,10 @@ export default function LobbyPage() {
     localStorage.setItem('current_org_name', org.name);
     localStorage.setItem('current_org_type', orgType);
 
-    // If org has valid access → update context and navigate to dashboard
+    // If org has valid access → navigate immediately, refresh in background (optimistic)
     if (accessStatus?.canAccess) {
-      await refreshOrgContext(org.id);
       navigate(CONFIG.ROUTES.DASHBOARD);
+      refreshOrgContext(org.id); // non-blocking — loads in background
       return;
     }
 
@@ -428,7 +428,7 @@ export default function LobbyPage() {
                 <Icon name="plus" size="2rem" />
               </div>
               <h3 className="lobby-card-name">Crear Negocio</h3>
-              <p className="lobby-card-role">Registrá tu gimnasio, restaurante o negocio</p>
+              <p className="lobby-card-role">Registrá tu gimnasio, estudio, club o restaurante</p>
             </button>
           </div>
         )}
