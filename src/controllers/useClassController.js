@@ -59,7 +59,9 @@ export function useClassController() {
         }
         return [...prev, saved].sort((a, b) => {
           if (a.day_of_week === b.day_of_week) {
-            return a.start_time.localeCompare(b.start_time);
+            const timeA = a.start_time || '';
+            const timeB = b.start_time || '';
+            return timeA.localeCompare(timeB);
           }
           return a.day_of_week - b.day_of_week;
         });

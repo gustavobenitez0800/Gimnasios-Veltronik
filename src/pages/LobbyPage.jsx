@@ -195,7 +195,9 @@ export default function LobbyPage() {
     try {
       setLoading(true);
       const data = await gymService.getUserGyms();
-      const orgsList = data || [];
+      // Filtrar duplicados en caso de errores en la DB
+      const uniqueOrgs = Array.from(new Map((data || []).map(org => [org.id, org])).values());
+      const orgsList = uniqueOrgs;
       setOrgs(orgsList);
 
       // Batch load subscriptions for all orgs

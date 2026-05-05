@@ -135,6 +135,17 @@
 .form-hint { margin-top: 0.25rem; font-size: var(--font-size-xs); color: var(--text-muted); }
 .form-error { margin-top: 0.25rem; font-size: var(--font-size-xs); color: var(--error-500); }
 
+.form-input[type="date"]::-webkit-calendar-picker-indicator,
+.form-input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.6;
+}
+.form-input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.form-input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* Password wrapper */
 .password-wrapper {
   position: relative;

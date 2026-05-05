@@ -28,7 +28,14 @@ export default function Modal({
         className={`modal-container ${sizeClass} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {title && <h2 className="modal-title">{title}</h2>}
+        {title && (
+          <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h2 className="modal-title" style={{ margin: 0 }}>{title}</h2>
+            <button type="button" onClick={onClose} className="btn-icon" style={{ padding: '0.25rem' }}>
+              &times;
+            </button>
+          </div>
+        )}
         {children}
         {actions && (
           <div className="modal-actions" style={{ marginTop: '1.5rem' }}>

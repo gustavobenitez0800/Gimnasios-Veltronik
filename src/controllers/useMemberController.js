@@ -73,6 +73,7 @@ export function useMemberController() {
         if (exists) {
           return prev.map(m => m.id === savedMember.id ? savedMember : m);
         }
+        setTotalRecords(t => t + 1);
         return [savedMember, ...prev];
       });
 

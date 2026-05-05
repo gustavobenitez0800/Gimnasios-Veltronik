@@ -9,6 +9,7 @@ import { useClassController } from '../controllers/useClassController';
 import { formatTime, getDayName } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import Icon from '../components/Icon';
+import DaySelector from '../components/ui/DaySelector';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const COLORS = ['#0EA5E9', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
@@ -16,6 +17,7 @@ const COLORS = ['#0EA5E9', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'
 const INITIAL_FORM = {
   name: '', instructor: '', start_time: '', end_time: '',
   day_of_week: '', capacity: 20, room: '', color: '#0EA5E9', description: '', status: 'active',
+  days_of_week: [],
 };
 
 function getWeekStart(date) {
@@ -110,19 +112,35 @@ export default function ClassesPage() {
     if (!form.name.trim()) { showToast('El nombre es requerido', 'error'); return; }
     setSaving(true);
     try {
-      const data = { 
-        ...form, 
-        day_of_week: form.day_of_week !== '' ? parseInt(form.day_of_week) : null, 
-        capacity: form.capacity !== '' ? parseInt(form.capacity) : 20 
-      };
-      Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
-
       if (editingId) {
+        const data = { 
+          ...form, 
+          day_of_week: form.day_of_week !== '' ? parseInt(form.day_of_week) : null, 
+          capacity: form.capacity !== '' ? parseInt(form.capacity) : 20 
+        };
+        delete data.days_of_week;
+        Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
         data.id = editingId;
+        await saveClass(data);
+        showToast('Clase actualizada', 'success');
+      } else {
+        if (!form.days_of_week || form.days_of_week.length === 0) {
+          showToast('Seleccioná al menos un día', 'warning');
+          setSaving(false);
+          return;
+        }
+        for (const day of form.days_of_week) {
+          const data = { 
+            ...form, 
+            day_of_week: day, 
+            capacity: form.capacity !== '' ? parseInt(form.capacity) : 20 
+          };
+          delete data.days_of_week;
+          Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
+          await saveClass(data);
+        }
+        showToast('Clases creadas exitosamente', 'success');
       }
-      
-      await saveClass(data);
-      showToast(editingId ? 'Clase actualizada' : 'Clase creada exitosamente', 'success');
 
       setModalOpen(false);
     } catch (error) {
@@ -239,7 +257,10 @@ export default function ClassesPage() {
       {modalOpen && (
         <div className="modal-overlay modal-show" onClick={() => setModalOpen(false)}>
           <div className="modal-container member-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">{editingId ? 'Editar Clase' : 'Nueva Clase'}</h2>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 className="modal-title" style={{ margin: 0 }}>{editingId ? 'Editar Clase' : 'Nueva Clase'}</h2>
+              <button type="button" onClick={() => setModalOpen(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+            </div>
             <form onSubmit={handleSave}>
               <div className="modal-form">
                 <div className="form-group full-width">
@@ -252,14 +273,30 @@ export default function ClassesPage() {
                   <input type="text" className="form-input" value={form.instructor}
                     onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Día *</label>
-                  <select className="form-select" value={form.day_of_week}
-                    onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))} required>
-                    <option value="">Seleccionar</option>
-                    {[1,2,3,4,5,6,0].map(d => <option key={d} value={d}>{getDayName(d)}</option>)}
-                  </select>
-                </div>
+                {editingId ? (
+                  <div className="form-group">
+                    <label className="form-label">Día de la semana *</label>
+                    <select className="form-select" value={form.day_of_week}
+                      onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))} required>
+                      <option value="">Seleccionar...</option>
+                      <option value="1">Lunes</option>
+                      <option value="2">Martes</option>
+                      <option value="3">Miércoles</option>
+                      <option value="4">Jueves</option>
+                      <option value="5">Viernes</option>
+                      <option value="6">Sábado</option>
+                      <option value="0">Domingo</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group full-width">
+                    <label className="form-label">Días de la semana *</label>
+                    <DaySelector
+                      selectedDays={form.days_of_week || []}
+                      onChange={(days) => setForm(f => ({ ...f, days_of_week: days }))}
+                    />
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">Hora inicio *</label>
                   <input type="time" className="form-input" value={form.start_time}

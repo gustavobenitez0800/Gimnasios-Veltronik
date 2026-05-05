@@ -139,6 +139,9 @@ export default function MembersPage() {
       }
       
       await saveMember(data);
+      // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador
+      loadMembers(pagination.page, PAGE_SIZE, search);
+      
       showToast(`${memberLabel} guardado exitosamente`, 'success');
       modal.close();
     } catch (error) {
@@ -364,7 +367,8 @@ export default function MembersPage() {
             </div>
             <div className="form-group">
               <label className="form-label">DNI</label>
-              <input type="text" className="form-input" placeholder="12345678"
+              <input type="text" className="form-input" placeholder="12345678" pattern="\d*"
+                onInput={(e) => e.target.value = e.target.value.replace(/\D/g, '')}
                 value={modal.form.dni} onChange={(e) => modal.handleChange('dni', e.target.value)} />
             </div>
             <div className="form-group">
