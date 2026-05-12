@@ -24,7 +24,7 @@ const STEPS = {
 
 export function PaymentCallbackPage() {
   const navigate = useNavigate();
-  const { refreshAuth } = useAuth();
+  const { refreshAuth, hasValidAccess, gym, subscription } = useAuth();
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('Conectando con Mercado Pago...');
   const [progress, setProgress] = useState(0);
@@ -65,6 +65,14 @@ export function PaymentCallbackPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Helper: determine best redirect destination after payment
+  function getPostPaymentRedirect() {
+    // Re-read latest state from AuthContext after refreshAuth()
+    // We can't read React state synchronously after async updates,
+    // so we navigate to Lobby which will handle routing correctly
+    return CONFIG.ROUTES.LOBBY;
+  }
+
   async function handleApproved(cleanup) {
     setStatus('success');
     setMessage('¡Tu pago fue aprobado exitosamente!');
@@ -78,13 +86,10 @@ export function PaymentCallbackPage() {
     setProgress(70);
 
     // Poll auth state to detect when subscription is active
-    let activated = false;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       try {
         await refreshAuth();
-        // Check if we now have an active subscription by reloading
-        activated = true;
-        setProgress(85 + attempt * 3);
+        setProgress(75 + attempt * 4);
       } catch { /* ignore */ }
       await delay(2000);
     }
@@ -95,9 +100,10 @@ export function PaymentCallbackPage() {
     setStatus('success');
     setShowCTA(true);
 
-    // Auto redirect after showing success
+    // Auto redirect after showing success — go to Lobby which will
+    // route to Dashboard if access is valid, or show proper state
     await delay(3000);
-    navigate(CONFIG.ROUTES.DASHBOARD, { replace: true });
+    navigate(getPostPaymentRedirect(), { replace: true });
   }
 
   async function handlePending(cleanup) {
@@ -112,7 +118,7 @@ export function PaymentCallbackPage() {
     setShowCTA(true);
 
     await delay(6000);
-    navigate(CONFIG.ROUTES.DASHBOARD, { replace: true });
+    navigate(CONFIG.ROUTES.LOBBY, { replace: true });
   }
 
   async function handleRejected(cleanup, paymentStatus) {
@@ -211,13 +217,13 @@ export function PaymentCallbackPage() {
               </>
             ) : status === 'success' ? (
               <button className="btn btn-primary" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.DASHBOARD, { replace: true })}>
-                🚀 Ir al Dashboard
+                onClick={() => navigate(CONFIG.ROUTES.LOBBY, { replace: true })}>
+                🚀 Continuar
               </button>
             ) : (
               <button className="btn btn-primary" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.DASHBOARD, { replace: true })}>
-                Continuar al Dashboard
+                onClick={() => navigate(CONFIG.ROUTES.LOBBY, { replace: true })}>
+                Continuar
               </button>
             )}
           </div>
