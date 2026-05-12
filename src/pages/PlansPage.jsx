@@ -82,43 +82,64 @@ const TYPE_IS_IMAGE = { GYM: true, PILATES: false, CLUB: false, ACADEMY: false, 
 export default function PlansPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { gym, profile, isTrialActive, trialDaysRemaining, subscription, isActiveSubscription } = useAuth();
+  const { gym, profile, subscription, isActiveSubscription, refreshOrgContext } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [resolvedGym, setResolvedGym] = useState(gym);
+  const [localSub, setLocalSub] = useState(subscription);
 
   // Get current org type from localStorage (set when user selects org in Lobby)
   const orgType = localStorage.getItem('current_org_type') || resolvedGym?.type || 'GYM';
   const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
   const features = FEATURES_BY_TYPE[orgType] || FEATURES_BY_TYPE.GYM;
 
+  // ─── Compute trial status LOCALLY from resolved gym ───
+  const computedTrialActive = (() => {
+    if (!resolvedGym?.trial_ends_at) return false;
+    const trialEnd = new Date(resolvedGym.trial_ends_at);
+    const now = new Date();
+    // Trial is only active if no subscription exists
+    if (['active', 'past_due', 'canceled'].includes(localSub?.status)) return false;
+    return now < trialEnd;
+  })();
+
+  const computedTrialDays = (() => {
+    if (!resolvedGym?.trial_ends_at) return 0;
+    const diff = new Date(resolvedGym.trial_ends_at) - new Date();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  })();
+
   // If gym is not loaded in AuthContext (coming from blocked state), load it from localStorage
   useEffect(() => {
     async function resolveGym() {
       if (gym) {
         setResolvedGym(gym);
+        setLocalSub(subscription);
         return;
       }
       const orgId = localStorage.getItem('current_org_id');
       if (!orgId) return;
       try {
-        const { data } = await supabase
-          .from('gyms')
-          .select('*')
-          .eq('id', orgId)
-          .maybeSingle();
-        if (data) setResolvedGym(data);
+        // Load both gym and subscription in parallel
+        const [gymResult, subResult] = await Promise.all([
+          supabase.from('gyms').select('*').eq('id', orgId).maybeSingle(),
+          supabase.from('subscriptions').select('*').eq('gym_id', orgId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        if (gymResult.data) setResolvedGym(gymResult.data);
+        if (subResult.data) setLocalSub(subResult.data);
+        // Also refresh AuthContext so it's in sync for future navigation
+        refreshOrgContext(orgId);
       } catch { /* silent */ }
     }
     resolveGym();
-  }, [gym]);
+  }, [gym, subscription, refreshOrgContext]);
 
   // If already active subscription → go to dashboard
   useEffect(() => {
-    if (isActiveSubscription(subscription)) {
+    if (isActiveSubscription(localSub)) {
       navigate(CONFIG.ROUTES.DASHBOARD, { replace: true });
     }
-  }, [subscription, isActiveSubscription, navigate]);
+  }, [localSub, isActiveSubscription, navigate]);
 
   // Fetch default plan from DB
   useEffect(() => {
@@ -203,17 +224,17 @@ export default function PlansPage() {
           </button>
 
           {/* Trial / Error Notices */}
-          {isTrialActive && trialDaysRemaining > 0 && (
+          {computedTrialActive && computedTrialDays > 0 && (
             <div className="premium-notice notice-info" style={{ maxWidth: '460px', margin: '0 auto 2rem', textAlign: 'left', padding: '1rem', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)' }}>
               <span className="notice-icon">✨</span>
-              <span>Te quedan <strong>{trialDaysRemaining} días</strong> de prueba. Asegura tu acceso continuo suscribiéndote ahora.</span>
+              <span>Te quedan <strong>{computedTrialDays} días</strong> de prueba. Asegura tu acceso continuo suscribiéndote ahora.</span>
             </div>
           )}
 
-          {!isTrialActive && !isActiveSubscription(subscription) && (
+          {!computedTrialActive && !isActiveSubscription(localSub) && (
             <div className="premium-notice notice-warning" style={{ maxWidth: '460px', margin: '0 auto 2rem', textAlign: 'center', padding: '1.2rem', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '12px', background: 'rgba(30, 10, 10, 0.8)' }}>
               <div style={{ color: '#ef4444', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                ⚠️ Tu período de prueba gratuita ha finalizado.
+                Tu período de prueba gratuita ha finalizado.
               </div>
               <div style={{ color: '#f87171' }}>Tus datos están seguros.</div>
               <div style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.2rem' }}>Suscribite para seguir usando Veltronik.</div>

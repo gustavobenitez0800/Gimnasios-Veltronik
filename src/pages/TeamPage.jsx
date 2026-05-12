@@ -20,7 +20,7 @@ const ROLE_COLORS = {
 
 export default function TeamPage() {
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, orgRole } = useAuth();
   const {
     teamMembers,
     activityLog,
@@ -93,7 +93,7 @@ export default function TeamPage() {
     } catch (err) { showToast(err.message || 'Error', 'error'); }
   };
 
-  const currentRole = localStorage.getItem('current_org_role');
+  const currentRole = orgRole;
   const isOwner = currentRole === 'owner';
   const isAdmin = currentRole === 'admin';
   const canManageTeam = isOwner || isAdmin;
@@ -114,10 +114,10 @@ export default function TeamPage() {
       {/* Tabs */}
       <div className="team-tabs">
         <button className={`team-tab ${tab === 'team' ? 'active' : ''}`} onClick={() => handleTabChange('team')}>
-          👥 Miembros
+          <Icon name="users" size="1em" /> Miembros
         </button>
         <button className={`team-tab ${tab === 'activity' ? 'active' : ''}`} onClick={() => handleTabChange('activity')}>
-          🕐 Actividad
+          <Icon name="clock" size="1em" /> Actividad
         </button>
       </div>
 
@@ -126,7 +126,7 @@ export default function TeamPage() {
           {/* Invite Section (owner / admin) */}
           {canManageTeam && (
             <div className="card mb-3" style={{ padding: '1.25rem' }}>
-              <h3 style={{ marginBottom: '0.75rem' }}>✉️ Invitar al equipo</h3>
+              <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Invitar al equipo</h3>
               <p className="text-muted mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
                 El empleado debe tener cuenta en Veltronik. Ingresá su email para agregarlo.
               </p>
@@ -139,7 +139,7 @@ export default function TeamPage() {
                   <option value="reception">Recepción</option>
                 </select>
                 <button className="btn btn-primary" onClick={handleInvite} disabled={inviting}>
-                  {inviting ? <span className="spinner" /> : '📨 Invitar'}
+                  {inviting ? <span className="spinner" /> : <><Icon name="send" size="1em" /> Invitar</>}
                 </button>
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function TeamPage() {
                           <button className="btn-remove" onClick={() => setDeleteTarget(m)} title="Eliminar">🗑️</button>
                         </div>
                       ) : m.role === 'owner' ? (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>👑 Dueño</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Icon name="crown" size="1em" /> Dueño</span>
                       ) : null}
                     </div>
                   </div>
@@ -192,7 +192,7 @@ export default function TeamPage() {
         /* Activity Tab */
         <div className="card">
           <div className="table-header">
-            <h3 style={{ margin: 0 }}>📋 Historial de Actividad</h3>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Historial de Actividad</h3>
           </div>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
             {activityLog.length === 0 ? (

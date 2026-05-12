@@ -116,9 +116,21 @@ export default function SalonClientsPage() {
                     </div>
                   </div>
                 </td>
-                <td>{c.phone || '-'}</td>
+                <td>
+                  {c.phone ? (
+                    <a href={`https://wa.me/${c.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#25D366', textDecoration: 'none', fontWeight: 500 }} title="Enviar WhatsApp">
+                      <Icon name="messageCircle" size={14} /> {c.phone}
+                    </a>
+                  ) : '-'}
+                </td>
                 <td>{c.email || '-'}</td>
-                <td>{c.instagram ? <span style={{ color: 'var(--primary-400)' }}>@{c.instagram}</span> : '-'}</td>
+                <td>
+                  {c.instagram ? (
+                    <a href={`https://instagram.com/${c.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#E1306C', textDecoration: 'none', fontWeight: 500 }} title="Ver Instagram">
+                      <Icon name="instagram" size={14} /> @{(c.instagram || '').replace('@', '')}
+                    </a>
+                  ) : '-'}
+                </td>
                 <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.notes || '-'}</td>
                 <td>
                   <div className="table-actions">

@@ -9,11 +9,13 @@ import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
+import { useAuth } from '../contexts/AuthContext';
 import gymLogoSrc from '../assets/VeltronikGym.png';
 import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 
 export default function AccessPage() {
-  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const { gym } = useAuth();
+  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
@@ -156,7 +158,7 @@ export default function AccessPage() {
       <div className="access-grid">
         {/* Check-in Search */}
         <div className="checkin-section">
-          <h3>✅ Registrar Entrada</h3>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
             <input type="text" className="search-input" placeholder="Buscar por nombre o DNI..."
               value={searchQuery} onChange={e => handleSearch(e.target.value)} />
@@ -187,24 +189,10 @@ export default function AccessPage() {
         <div className="card currently-in">
           <div className="table-header">
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {orgType === 'GYM' ? (
-                <img src={gymLogoSrc} alt="Gym" style={{ height: '1.2em' }} />
-              ) : orgType === 'RESTO' ? (
-                <img src={restoLogoSrc} alt="Resto" style={{ height: '1.2em' }} />
-              ) : orgType === 'PILATES' ? (
-                '🧘‍♀️ '
-              ) : orgType === 'CLUB' ? (
-                '⚽ '
-              ) : orgType === 'ACADEMY' ? (
-                '🥋 '
-              ) : orgType === 'KIOSK' ? (
-                '🏪 '
-              ) : (
-                '🏢 '
-              )}
+              <Icon name="building" size="1.2em" />
               En el {orgLabelCap}
             </h3>
-            <span className="people-count">👥 {checkedIn.length}</span>
+            <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
           </div>
           <div className="checked-in-list" style={{ padding: '0 1rem 1rem' }}>
             {loading ? (
@@ -222,7 +210,7 @@ export default function AccessPage() {
                   <div className="checkin-time">Entrada: {getRelativeTime(log.check_in_at)}</div>
                 </div>
                 <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
-                  👋 Salida
+                  <Icon name="handWave" size="1em" /> Salida
                 </button>
               </div>
             )})}
@@ -233,7 +221,7 @@ export default function AccessPage() {
       {/* Today's Log */}
       <div className="card mt-3">
         <div className="table-header">
-          <h3 style={{ margin: 0 }}>📋 Registro de hoy</h3>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
           <span className="text-muted">{todayLogs.length} accesos</span>
         </div>
         <div className="table-container">

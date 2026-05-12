@@ -113,9 +113,7 @@ const SALON_NAV = [
   },
 ];
 
-function getNavSections() {
-  const orgType = localStorage.getItem('current_org_type') || 'GYM';
-  const role = localStorage.getItem('current_org_role') || 'owner';
+function getNavSections(orgType, role) {
   
   let sections;
   switch (orgType) {
@@ -147,18 +145,17 @@ function getNavSections() {
 }
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { profile, logout } = useAuth();
+  const { profile, logout, gym, orgRole, orgName } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.full_name || 'Usuario';
-  const rawRole = localStorage.getItem('current_org_role') || '--';
   const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
-  const userRole = ROLE_LABELS[rawRole] || rawRole;
+  const userRole = ROLE_LABELS[orgRole] || orgRole;
   const initials = getInitials(userName);
 
-  const orgType = localStorage.getItem('current_org_type') || 'GYM';
-  const orgName = localStorage.getItem('current_org_name') || 'Veltronik';
-  const navSections = getNavSections();
+  const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
+  const currentOrgName = orgName || gym?.name || localStorage.getItem('current_org_name') || 'Veltronik';
+  const navSections = getNavSections(currentOrgType, orgRole);
 
   const handleLogout = async () => {
     await logout();
@@ -185,9 +182,9 @@ export default function Sidebar({ isOpen, onClose }) {
             />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="sidebar-logo-text">Veltronik</span>
-              {orgType !== 'GYM' && (
+              {currentOrgType !== 'GYM' && (
                 <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio' }[orgType] || orgType}
+                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza' }[currentOrgType] || currentOrgType}
                 </span>
               )}
             </div>

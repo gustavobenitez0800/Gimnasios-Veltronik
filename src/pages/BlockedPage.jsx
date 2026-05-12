@@ -8,13 +8,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { gymService, supabase } from '../services';
 import { apiCall } from '../lib/api';
+import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 
 export default function BlockedPage() {
   const navigate = useNavigate();
   const { gym, subscription, hasValidAccess, logout, user, profile, refreshAuth } = useAuth();
   const { showToast } = useToast();
-  const orgType = localStorage.getItem('current_org_type') || gym?.type || 'GYM';
+  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const typeLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
 
   const [updatingPayment, setUpdatingPayment] = useState(false);
@@ -23,7 +24,7 @@ export default function BlockedPage() {
 
   // Verify subscription status with MercadoPago
   const handleVerifyStatus = async () => {
-    const gymId = gym?.id || localStorage.getItem('current_org_id');
+    const gymId = gym?.id;
     if (!gymId) return;
 
     setVerifying(true);
@@ -127,7 +128,7 @@ export default function BlockedPage() {
 
   // Update payment method
   const handleUpdatePaymentMethod = async () => {
-    const gymId = gym?.id || localStorage.getItem('current_org_id');
+    const gymId = gym?.id;
     
     let payerEmail = user?.email || profile?.email;
     try {
@@ -241,7 +242,7 @@ export default function BlockedPage() {
                 className="premium-btn-primary full-width"
                 onClick={() => navigate(CONFIG.ROUTES.PLANS)}
               >
-                <span className="btn-icon">💎</span>
+                <span className="btn-icon"><Icon name="diamond" size="1.2em" /></span>
                 <span className="btn-text">Ver Planes y Reactivar</span>
               </button>
 
@@ -251,7 +252,7 @@ export default function BlockedPage() {
                   onClick={handleUpdatePaymentMethod}
                   disabled={updatingPayment}
                 >
-                  <span className="btn-icon">💳</span>
+                  <span className="btn-icon"><Icon name="creditCard" size="1.2em" /></span>
                   <span className="btn-text">
                     {updatingPayment ? 'Procesando solicitud...' : 'Actualizar Método de Pago'}
                   </span>
@@ -268,7 +269,7 @@ export default function BlockedPage() {
                 {verifying ? (
                   <><span className="spinner-small" /> Sincronizando estado...</>
                 ) : (
-                  '🔄 Sincronizar estado del pago'
+                  <><Icon name="rotateCw" size="1em" /> Sincronizar estado del pago</>
                 )}
               </button>
 

@@ -2,7 +2,7 @@
 // VELTRONIK - LAYOUT COMPONENTS
 // ============================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
@@ -17,6 +17,15 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { loading, subscription, gym } = useAuth();
   const navigate = useNavigate();
+
+  // Apply vertical theme
+  useEffect(() => {
+    const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
+    document.documentElement.setAttribute('data-vertical', orgType.toLowerCase());
+    return () => {
+      document.documentElement.removeAttribute('data-vertical');
+    };
+  }, [gym]);
 
   // Payment warning banner logic
   const paymentWarning = useMemo(() => {
@@ -34,8 +43,8 @@ export function AppLayout() {
       return {
         type: 'warning',
         message: daysLeft !== null && daysLeft > 0
-          ? `⚠️ Tu pago fue rechazado. Tenés ${daysLeft} día${daysLeft !== 1 ? 's' : ''} para actualizar tu método de pago antes de perder acceso.`
-          : '⚠️ Tu pago fue rechazado. Actualizá tu método de pago para mantener el acceso.',
+          ? <><Icon name="alertTriangle" size="1em" style={{ marginRight: '6px' }} /> Tu pago fue rechazado. Tenés {daysLeft} día{daysLeft !== 1 ? 's' : ''} para actualizar tu método de pago antes de perder acceso.</>
+          : <><Icon name="alertTriangle" size="1em" style={{ marginRight: '6px' }} /> Tu pago fue rechazado. Actualizá tu método de pago para mantener el acceso.</>,
         action: 'Actualizar pago',
         route: CONFIG.ROUTES.SETTINGS,
       };
@@ -147,13 +156,13 @@ export function EmptyState({ icon, title, description, action }) {
 /**
  * Confirm dialog component
  */
-export function ConfirmDialog({ open, title, message, icon = '⚠️', confirmText = 'Confirmar', cancelText = 'Cancelar', confirmClass = 'btn-danger', onConfirm, onCancel }) {
+export function ConfirmDialog({ open, title, message, icon = 'alertTriangle', confirmText = 'Confirmar', cancelText = 'Cancelar', confirmClass = 'btn-danger', onConfirm, onCancel }) {
   if (!open) return null;
 
   return (
     <div className="modal-overlay modal-show" onClick={onCancel}>
       <div className="modal-container confirm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-icon">{icon}</div>
+        <div className="modal-icon">{typeof icon === 'string' && icon.length > 2 ? <Icon name={icon} size="2rem" /> : icon}</div>
         <h2 className="modal-title">{title}</h2>
         <p className="modal-message">{message}</p>
         <div className="modal-actions">

@@ -183,6 +183,21 @@ export default function SalonAgendaPage() {
     finally { setPaying(false); }
   };
 
+  // Send WhatsApp confirmation
+  const sendWhatsAppMsg = () => {
+    if (!selectedAppt || !selectedAppt.client?.phone) {
+      showToast('El cliente no tiene teléfono registrado', 'error');
+      return;
+    }
+    const phone = selectedAppt.client.phone.replace(/\D/g, '');
+    if (!phone) return;
+    const dateStr = new Date(selectedAppt.appointment_date + 'T12:00:00').toLocaleDateString('es-AR');
+    const timeStr = selectedAppt.start_time?.slice(0, 5);
+    const serviceName = selectedAppt.service?.name || 'tu turno';
+    const message = `Hola ${selectedAppt.client.full_name}, te escribimos del salón para confirmar tu turno para *${serviceName}* el día ${dateStr} a las ${timeStr}hs. ¡Te esperamos!`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   // ─── Render Agenda Grid ───
   const startHour = 8;
   const endHour = 22;
@@ -396,6 +411,11 @@ export default function SalonAgendaPage() {
             </div>
 
             <div className="modal-actions" style={{ flexWrap: 'wrap' }}>
+              {selectedAppt.client?.phone && (
+                <button className="btn" style={{ background: '#25D366', color: '#fff', borderColor: '#25D366' }} onClick={sendWhatsAppMsg}>
+                  <Icon name="messageCircle" size={16} /> Enviar WhatsApp
+                </button>
+              )}
               {selectedAppt.status === 'confirmed' && (
                 <>
                   <button className="btn btn-primary" onClick={() => changeStatus('in_progress')}>▶️ Iniciar</button>

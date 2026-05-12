@@ -9,18 +9,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase, errorService } from '../services';
 import CONFIG from '../lib/config';
 
+import Icon from '../components/Icon';
 import gymLogo from '../assets/VeltronikGym.png';
 import restoLogo from '../assets/VeltronikRestaurante.png';
 
 const BUSINESS_TYPES = [
   { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: gymLogo, isImage: true, gradient: 'transparent', enabled: true },
-  { id: 'PILATES', label: 'Pilates & Yoga', desc: 'Clases con cupos y alumnos', icon: '🧘‍♀️', isImage: false, gradient: 'linear-gradient(135deg, #10b981, #059669)', enabled: true },
-  { id: 'CLUB', label: 'Club Deportivo', desc: 'Socios plenos y disciplinas', icon: '⚽', isImage: false, gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', enabled: true },
-  { id: 'ACADEMY', label: 'Academia / Dojo', desc: 'Artes marciales y boxeo', icon: '🥋', isImage: false, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
+  { id: 'PILATES', label: 'Pilates & Yoga', desc: 'Clases con cupos y alumnos', icon: <Icon name="heart" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #10b981, #059669)', enabled: true },
+  { id: 'CLUB', label: 'Club Deportivo', desc: 'Socios plenos y disciplinas', icon: <Icon name="target" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', enabled: true },
+  { id: 'ACADEMY', label: 'Academia / Dojo', desc: 'Artes marciales y boxeo', icon: <Icon name="users" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', enabled: true },
   { id: 'RESTO', label: 'Restaurante', desc: 'Mesas, pedidos, cocina y delivery', icon: restoLogo, isImage: true, gradient: 'transparent', enabled: true },
-  { id: 'SALON', label: 'Peluquería / Salón', desc: 'Turnos, estilistas, clientes y caja', icon: '💇', isImage: false, gradient: 'linear-gradient(135deg, #ec4899, #db2777)', enabled: true },
-  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta y stock', icon: '🏪', isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
-  { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: '📱', isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
+  { id: 'SALON', label: 'Peluquería / Salón', desc: 'Turnos, estilistas, clientes y caja', icon: <Icon name="scissors" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #ec4899, #db2777)', enabled: true },
+  { id: 'KIOSK', label: 'Kiosco', desc: 'Punto de venta y stock', icon: <Icon name="store" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', enabled: false },
+  { id: 'OTHER', label: 'Otro negocio', desc: 'Veterinarias, clínicas y más', icon: <Icon name="building" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
 export default function OnboardingPage() {
@@ -90,7 +91,7 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div className="step-container active" style={{ animation: 'fadeSlideIn 0.4s ease' }}>
               <div className="welcome-text">
-                <h2>✨ ¿Qué tipo de negocio tenés?</h2>
+                <h2><Icon name="sparkles" size="1em" /> ¿Qué tipo de negocio tenés?</h2>
                 <p style={{ color: 'var(--text-muted)' }}>Elegí el sistema que mejor se adapte</p>
               </div>
               <div className="type-grid">
@@ -99,7 +100,7 @@ export default function OnboardingPage() {
                     className={`type-card ${selectedType === t.id ? 'selected' : ''} ${!t.enabled ? 'coming-soon' : ''}`}
                     onClick={() => t.enabled && setSelectedType(t.id)}>
                     {!t.enabled && <span className="coming-soon-badge">Próximamente</span>}
-                    {selectedType === t.id && <div className="type-check">✓</div>}
+                    {selectedType === t.id && <div className="type-check"><Icon name="check" size="1em" /></div>}
                     <div className="type-icon" style={{ background: t.gradient }}>
                       {t.isImage ? <img src={t.icon} alt={t.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : t.icon}
                     </div>
@@ -159,16 +160,16 @@ export default function OnboardingPage() {
                   background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
                   borderRadius: '0.75rem', textAlign: 'center'
                 }}>
-                  <p style={{ color: '#10b981', fontWeight: 600, margin: 0, fontSize: '0.875rem' }}>
-                    ✨ 30 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
+                  <p style={{ color: '#10b981', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <Icon name="sparkles" size="1em" /> 30 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
                   </p>
                 </div>
                 <button type="submit" className="auth-submit" disabled={submitting}>
-                  {submitting ? <><span className="spinner" /> Creando negocio...</> : '🚀 Comenzar mi prueba gratis'}
+                  {submitting ? <><span className="spinner" /> Creando negocio...</> : <><Icon name="rocket" size="1em" /> Comenzar mi prueba gratis</>}
                 </button>
               </form>
-              <p className="auth-links" style={{ marginTop: '1.5rem', fontSize: '0.75rem' }}>
-                🔒 Tus datos están seguros y podés modificarlos después
+              <p className="auth-links" style={{ marginTop: '1.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <Icon name="lock" size="1em" /> Tus datos están seguros y podés modificarlos después
               </p>
             </div>
           )}

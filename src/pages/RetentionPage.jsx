@@ -4,6 +4,7 @@
 
 import { useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { dashboardStatsService } from '../services';
 import { formatDate, getInitials } from '../lib/utils';
 import { useQueryCache } from '../hooks';
@@ -12,6 +13,7 @@ import Icon from '../components/Icon';
 
 export default function RetentionPage() {
   const { showToast } = useToast();
+  const { orgName } = useAuth();
 
   const fetchRetentionData = useCallback(async () => {
     return await dashboardStatsService.getRetentionAnalytics();
@@ -35,8 +37,8 @@ export default function RetentionPage() {
   const openWhatsApp = (member) => {
     if (!member.phone) { showToast('Sin teléfono registrado', 'warning'); return; }
     const phone = member.phone.replace(/\D/g, '');
-    const orgName = localStorage.getItem('current_org_name') || 'tu centro';
-    const msg = encodeURIComponent(`¡Hola ${member.full_name.split(' ')[0]}! Te escribimos desde ${orgName}. Tu membresía está por vencer, ¿querés renovarla?`);
+    const currentOrgName = orgName || 'tu centro';
+    const msg = encodeURIComponent(`¡Hola ${member.full_name.split(' ')[0]}! Te escribimos desde ${currentOrgName}. Tu membresía está por vencer, ¿querés renovarla?`);
     window.open(`https://wa.me/54${phone}?text=${msg}`, '_blank');
   };
 

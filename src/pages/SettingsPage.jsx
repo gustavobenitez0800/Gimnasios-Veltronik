@@ -11,14 +11,13 @@ import { formatCurrency } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import CONFIG from '../lib/config';
-import gymLogoSrc from '../assets/VeltronikGym.png';
-import restoLogoSrc from '../assets/VeltronikRestaurante.png';
+import Icon from '../components/Icon';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
-  const { user, gym: authGym, profile, logout, refreshAuth } = useAuth();
+  const { user, gym: authGym, profile, logout, refreshAuth, orgRole } = useAuth();
   const { preference, setTheme } = useTheme();
-  const currentRole = localStorage.getItem('current_org_role');
+  const currentRole = orgRole;
   const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
@@ -78,7 +77,7 @@ export default function SettingsPage() {
 
           // Determine next payment date from best available source
           const nextDate = sub.current_period_end || sub.next_payment_date;
-          
+
           if (nextDate) {
             const endDate = new Date(nextDate);
             const diffDays = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
@@ -125,7 +124,7 @@ export default function SettingsPage() {
       } catch { /* table may not exist */ }
 
       // Use org-type aware pricing
-      const orgType = gymData.type || localStorage.getItem('current_org_type') || 'GYM';
+      const orgType = gymData.type || 'GYM';
       const priceMap = { GYM: 35000, RESTO: 45000, KIOSK: 25000, OTHER: 35000 };
       const amount = priceMap[orgType] || CONFIG.SUBSCRIPTION_PRICE || 0;
 
@@ -174,7 +173,7 @@ export default function SettingsPage() {
 
   // Update payment method — generates new MP checkout link
   const handleUpdatePaymentMethod = async () => {
-    const gymId = authGym?.id || localStorage.getItem('current_org_id');
+    const gymId = authGym?.id;
     const email = subscriptionInfo.payerEmail || user?.email || profile?.email;
 
     if (!gymId || !email) {
@@ -212,7 +211,7 @@ export default function SettingsPage() {
 
   // Verify subscription status with MercadoPago
   const handleVerifySubscription = async () => {
-    const gymId = authGym?.id || localStorage.getItem('current_org_id');
+    const gymId = authGym?.id;
     if (!gymId) {
       showToast('No se encontró la organización', 'error');
       return;
@@ -249,7 +248,7 @@ export default function SettingsPage() {
   const handleCancelSubscription = async () => {
     setCancellingSubscription(true);
     try {
-      const gymId = authGym?.id || localStorage.getItem('current_org_id');
+      const gymId = authGym?.id;
       if (!gymId) {
         showToast('No se encontró la organización', 'error');
         return;
@@ -305,18 +304,9 @@ export default function SettingsPage() {
         {/* Gym Info - Solo visible/editable para admin/owner */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {orgType === 'GYM' ? (
-              <img src={gymLogoSrc} alt="Gym" style={{ height: '1.2em' }} />
-            ) : orgType === 'RESTO' ? (
-              <img src={restoLogoSrc} alt="Resto" style={{ height: '1.2em' }} />
-            ) : orgType === 'KIOSK' ? (
-              '🏪 '
-            ) : (
-              '🏢 '
-            )}
-            Información del {orgLabelCap}
+            <Icon name="settings" size="1.2em" /> Información del {orgLabelCap}
           </h2>
-          
+
           {(currentRole === 'owner' || currentRole === 'admin') ? (
             <form onSubmit={handleSaveGym}>
               <div className="modal-form">
@@ -370,7 +360,7 @@ export default function SettingsPage() {
         {/* Subscription - Solo para owner/admin */}
         {(currentRole === 'owner' || currentRole === 'admin') && (
           <div className="settings-section">
-            <h2 className="settings-section-title">💳 Suscripción</h2>
+            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="creditCard" size="1.1em" /> Suscripción</h2>
             <div className="subscription-card">
               <div className="subscription-plan">{subscriptionInfo.plan}</div>
               <div className="subscription-status">{statusLabels[subscriptionInfo.status] || subscriptionInfo.status}</div>
@@ -383,7 +373,7 @@ export default function SettingsPage() {
                 background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
                 borderRadius: 'var(--border-radius-md)', color: '#ef4444', fontSize: 'var(--font-size-sm)'
               }}>
-                ⚠️ Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
+                <Icon name="alertTriangle" size="1em" style={{ flexShrink: 0 }} /> Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
               </div>
             )}
 
@@ -414,7 +404,7 @@ export default function SettingsPage() {
                   {updatingPayment ? (
                     <><span className="spinner" /> Procesando...</>
                   ) : (
-                    '🔄 Cambiar Tarjeta / Método de Pago'
+                    <><Icon name="rotateCw" size="1em" /> Cambiar Tarjeta / Método de Pago</>
                   )}
                 </button>
                 <button
@@ -426,14 +416,14 @@ export default function SettingsPage() {
                   {verifyingSubscription ? (
                     <><span className="spinner" /> Verificando...</>
                   ) : (
-                    '🔍 Verificar Estado con MP'
+                    'Verificar Estado con MP'
                   )}
                 </button>
               </div>
             )}
             {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
-                💡 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
+                Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
                 Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
               </p>
             )}
@@ -441,8 +431,8 @@ export default function SettingsPage() {
             {/* Billing History */}
             {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
               <div style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
-                  📋 Historial de Facturación
+                <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Icon name="fileText" size="1em" /> Historial de Facturación
                 </h3>
                 <div className="billing-history-list">
                   {subscriptionInfo.billingHistory.map((p, i) => (
@@ -452,7 +442,7 @@ export default function SettingsPage() {
                           {new Date(p.payment_date || p.created_at).toLocaleDateString('es-AR')}
                         </span>
                         <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
-                          {p.status === 'approved' ? '✓ Aprobado' : p.status === 'rejected' ? '✗ Rechazado' : '◌ Pendiente'}
+                          {p.status === 'approved' ? <><Icon name="check" size="0.75em" /> Aprobado</> : p.status === 'rejected' ? <><Icon name="x" size="0.75em" /> Rechazado</> : <><Icon name="clock" size="0.75em" /> Pendiente</>}
                         </span>
                       </div>
                       <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
@@ -468,7 +458,7 @@ export default function SettingsPage() {
 
         {/* Account */}
         <div className="settings-section">
-          <h2 className="settings-section-title">👤 Mi Cuenta</h2>
+          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size="1.1em" /> Mi Cuenta</h2>
           <div className="info-row">
             <span className="info-label">Email</span>
             <span className="info-value">{accountEmail}</span>
@@ -485,7 +475,7 @@ export default function SettingsPage() {
 
         {/* Appearance */}
         <div className="settings-section">
-          <h2 className="settings-section-title">🎨 Apariencia</h2>
+          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
             Elige el tema de la interfaz
           </p>
@@ -508,7 +498,7 @@ export default function SettingsPage() {
         {/* Danger Zone */}
         <div className="danger-zone-container">
           <div className="danger-header">
-            <h2 className="danger-title">⚠️ Zona de Peligro</h2>
+            <h2 className="danger-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="alertTriangle" size="1.1em" /> Zona de Peligro</h2>
           </div>
           <div className="danger-content">
             {currentRole === 'owner' && (

@@ -19,7 +19,7 @@ import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 
 const TYPE_LABELS = { GYM: 'Gimnasio', PILATES: 'Pilates/Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', RESTO: 'Restaurante', SALON: 'Peluquería', KIOSK: 'Kiosco', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: gymLogoSrc, PILATES: '🧘‍♀️', CLUB: '⚽', ACADEMY: '🥋', RESTO: restoLogoSrc, SALON: '💇', KIOSK: '🏪', OTHER: '📱' };
+const TYPE_ICONS = { GYM: gymLogoSrc, PILATES: <Icon name="heart" size="1em" />, CLUB: <Icon name="target" size="1em" />, ACADEMY: <Icon name="users" size="1em" />, RESTO: restoLogoSrc, SALON: <Icon name="scissors" size="1em" />, KIOSK: <Icon name="store" size="1em" />, OTHER: <Icon name="building" size="1em" /> };
 const TYPE_IS_IMAGE = { GYM: true, PILATES: false, CLUB: false, ACADEMY: false, RESTO: true, SALON: false, KIOSK: false, OTHER: false };
 const TYPE_BADGES = { GYM: 'badge-success', PILATES: 'badge-success', CLUB: 'badge-success', ACADEMY: 'badge-success', RESTO: 'badge-error', SALON: 'badge-accent', KIOSK: 'badge-warning', OTHER: 'badge-neutral' };
 
@@ -60,7 +60,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: true,
       status: 'trial',
       label: `${trialDays} días de prueba`,
-      icon: '✨',
+      icon: <Icon name="sparkles" size="1em" />,
       color: trialDays <= 7 ? '#f59e0b' : '#22c55e',
       sub,
       trialDays,
@@ -186,6 +186,9 @@ export default function LobbyPage() {
   const [loading, setLoading] = useState(true);
   const [blockedOrg, setBlockedOrg] = useState(null); // For blocked modal
   const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // For delete confirmation
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const userName = profile?.full_name || 'Usuario';
   const initials = getInitials(userName);
@@ -264,6 +267,10 @@ export default function LobbyPage() {
 
   // ─── Handle reactivation ───
   const handleReactivate = () => {
+    if (blockedOrg) {
+      // Ensure AuthContext is synced with the blocked org before navigating
+      refreshOrgContext(blockedOrg.id);
+    }
     setBlockedOrg(null);
     navigate(CONFIG.ROUTES.PLANS);
   };
@@ -317,6 +324,28 @@ export default function LobbyPage() {
       showToast(error.message || 'Error al actualizar método de pago', 'error');
     } finally {
       setUpdatingPayment(false);
+    }
+  };
+
+  // ─── Handle delete organization ───
+  const handleDeleteOrg = async () => {
+    if (!deleteTarget) return;
+    if (deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()) {
+      showToast('El nombre no coincide. Escribí el nombre exacto del negocio para confirmar.', 'error');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await gymService.deleteOrg(deleteTarget.id);
+      showToast(`"${deleteTarget.name}" eliminado correctamente`, 'success');
+      setDeleteTarget(null);
+      setDeleteConfirmName('');
+      await loadOrgs(); // Refresh the list
+    } catch (error) {
+      showToast(error.message || 'Error al eliminar el negocio', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -374,10 +403,25 @@ export default function LobbyPage() {
                   className={`lobby-card card-hover ${isBlocked ? 'lobby-card-blocked' : ''}`}
                   onClick={() => handleSelectOrg(org)}
                 >
+                  {/* Delete button (owner only) */}
+                  {org.role === 'owner' && (
+                    <button
+                      className="lobby-card-delete"
+                      title="Eliminar negocio"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(org);
+                        setDeleteConfirmName('');
+                      }}
+                    >
+                      <Icon name="trash" size="0.9em" />
+                    </button>
+                  )}
+
                   {/* Blocked overlay */}
                   {isBlocked && (
                     <div className="lobby-card-blocked-overlay">
-                      <span className="lobby-card-lock">🔒</span>
+                      <span className="lobby-card-lock"><Icon name="lock" size="1.2em" /></span>
                     </div>
                   )}
 
@@ -515,7 +559,60 @@ export default function LobbyPage() {
 
             {/* Data safety */}
             <div className="lobby-blocked-safety">
-              🔒 Tus datos están seguros y no serán eliminados
+              <Icon name="lock" size="1em" /> Tus datos están seguros y no serán eliminados
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DELETE ORG CONFIRMATION MODAL ─── */}
+      {deleteTarget && (
+        <div className="lobby-blocked-overlay" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+          <div className="lobby-blocked-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <button className="lobby-blocked-close" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+              <Icon name="x" size="1em" />
+            </button>
+
+            <div className="lobby-blocked-icon" style={{ color: '#ef4444' }}>
+              <Icon name="alertTriangle" size="2rem" />
+            </div>
+
+            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Negocio</h2>
+            <p className="lobby-blocked-message">
+              Estás a punto de eliminar <strong>"{deleteTarget.name}"</strong> y <strong>todos sus datos</strong>: socios, pagos, accesos, equipo y suscripciones. Esta acción es <strong>irreversible</strong>.
+            </p>
+
+            <div style={{ margin: '1.25rem 0' }}>
+              <label className="form-label" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+                Escribí <strong style={{ color: '#ef4444' }}>{deleteTarget.name}</strong> para confirmar:
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder={deleteTarget.name}
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                style={{ marginTop: '0.5rem', borderColor: deleteConfirmName.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase() ? '#ef4444' : undefined }}
+                autoFocus
+              />
+            </div>
+
+            <div className="lobby-blocked-actions">
+              <button
+                className="btn lobby-blocked-btn-main"
+                style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                onClick={handleDeleteOrg}
+                disabled={deleting || deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()}
+              >
+                {deleting ? (
+                  <><span className="spinner" /> Eliminando...</>
+                ) : (
+                  <><Icon name="trash" size="1em" /> Eliminar Permanentemente</>
+                )}
+              </button>
+              <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

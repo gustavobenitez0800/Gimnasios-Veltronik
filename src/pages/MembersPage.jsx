@@ -13,6 +13,7 @@ import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
+import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
 const PAGE_SIZE = 25;
@@ -55,8 +56,9 @@ export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const currentRole = localStorage.getItem('current_org_role');
-  const orgType = localStorage.getItem('current_org_type') || 'GYM';
+  const { orgRole, gym } = useAuth();
+  const currentRole = orgRole;
+  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const isMemberLabel = (orgType === 'PILATES' || orgType === 'ACADEMY');
   const memberLabel = isMemberLabel ? 'Alumno' : 'Socio';
   const membersLabel = isMemberLabel ? 'Alumnos' : 'Socios';

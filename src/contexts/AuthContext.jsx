@@ -62,6 +62,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isTrialActive, setIsTrialActive] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  const [orgRole, setOrgRole] = useState(localStorage.getItem('current_org_role') || 'owner');
+  const [orgName, setOrgName] = useState(localStorage.getItem('current_org_name') || '');
   // Track if initial auth has completed to prevent premature redirects
   const initCompleteRef = useRef(false);
 
@@ -169,20 +171,49 @@ export function AuthProvider({ children }) {
    * Refresh the org context for a specific org.
    * Called when switching orgs in the Lobby to ensure state is fresh.
    */
+  /**
+   * Load the role of the current user for a specific org.
+   */
+  const loadRoleForOrg = useCallback(async (orgId, userId) => {
+    if (!orgId || !userId) return 'owner';
+    try {
+      const { data } = await supabase
+        .from('gym_members')
+        .select('role')
+        .eq('gym_id', orgId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      return data?.role || 'owner';
+    } catch {
+      return localStorage.getItem('current_org_role') || 'owner';
+    }
+  }, []);
+
   const refreshOrgContext = useCallback(async (orgId) => {
     if (!orgId) return;
 
     // Clear all cached data when switching orgs to prevent cross-org data leaks
     clearQueryCache();
 
-    // Load gym data and subscription in parallel
-    const [gymData, sub] = await Promise.all([
+    // Load gym data, subscription, and role in parallel
+    const currentUserId = user?.id;
+    const [gymData, sub, role] = await Promise.all([
       loadOrgById(orgId),
       loadSubscriptionForOrg(orgId),
+      loadRoleForOrg(orgId, currentUserId),
     ]);
 
     setGym(gymData);
     setSubscription(sub);
+    setOrgRole(role);
+    setOrgName(gymData?.name || '');
+
+    // Sync localStorage with fresh data
+    if (gymData) {
+      localStorage.setItem('current_org_name', gymData.name || '');
+      localStorage.setItem('current_org_type', gymData.type || 'GYM');
+    }
+    localStorage.setItem('current_org_role', role);
 
     if (gymData) {
       const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
@@ -193,7 +224,7 @@ export function AuthProvider({ children }) {
       setIsTrialActive(false);
       setTrialDaysRemaining(0);
     }
-  }, [loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg]);
+  }, [user, loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg, loadRoleForOrg]);
 
   // Initialize auth state
   const initAuth = useCallback(async () => {
@@ -376,7 +407,7 @@ export function AuthProvider({ children }) {
   };
 
   const updateGym = async (updates) => {
-    const orgId = localStorage.getItem('current_org_id') || profile?.gym_id;
+    const orgId = gym?.id || localStorage.getItem('current_org_id');
     if (!orgId) throw new Error('No org selected');
 
     const { data, error } = await supabase
@@ -387,7 +418,13 @@ export function AuthProvider({ children }) {
       .maybeSingle();
 
     if (error) throw error;
-    if (data) setGym(data);
+    if (data) {
+      setGym(data);
+      setOrgName(data.name || '');
+      // Keep localStorage in sync for page refreshes
+      localStorage.setItem('current_org_name', data.name || '');
+      if (data.type) localStorage.setItem('current_org_type', data.type);
+    }
     return data;
   };
 
@@ -401,6 +438,8 @@ export function AuthProvider({ children }) {
     trialDaysRemaining,
     isActiveSubscription,
     hasValidAccess,
+    orgRole,
+    orgName,
     login,
     register,
     loginWithGoogle,

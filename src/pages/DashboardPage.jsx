@@ -57,7 +57,7 @@ export default function DashboardPage() {
 
 function GymDashboard({ gym }) {
   const { showToast } = useToast();
-  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
+  const orgType = gym?.type || 'GYM';
   const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
 
   const {
@@ -208,7 +208,7 @@ function GymDashboard({ gym }) {
       {/* AI Section */}
       <div className="ai-section">
         <h2 className="ai-section-title">
-          🧠 Inteligencia Artificial
+          <Icon name="brain" size="1.2em" /> Inteligencia Artificial
           <span className="ai-badge">AI Powered</span>
         </h2>
 
@@ -216,13 +216,13 @@ function GymDashboard({ gym }) {
           {/* Prediction Card */}
           <div className="prediction-card">
             <div className="prediction-header">
-              <span className="prediction-label">📊 Predicción Próximo Mes</span>
-              <span className="prediction-confidence">🎯 {prediction.confidence}% confianza</span>
+              <span className="prediction-label"><Icon name="chart" size="1em" /> Predicción Próximo Mes</span>
+              <span className="prediction-confidence"><Icon name="target" size="1em" /> {prediction.confidence}% confianza</span>
             </div>
             <div className="prediction-value">{formatCurrency(prediction.predicted)}</div>
             <div className="prediction-trend">
               <span className={`trend-${prediction.trend}`}>
-                {prediction.trend === 'up' ? '📈' : prediction.trend === 'down' ? '📉' : '➡️'}
+                <Icon name={prediction.trend === 'up' ? 'trendingUp' : prediction.trend === 'down' ? 'trendingDown' : 'arrowRight'} size="1em" />
                 {' '}{parseFloat(prediction.percentChange) > 0 ? '+' : ''}{prediction.percentChange}% vs promedio
               </span>
             </div>
@@ -230,7 +230,7 @@ function GymDashboard({ gym }) {
 
           {/* Revenue Chart */}
           <div className="card chart-card">
-            <h4 className="chart-title">📈 Ingresos Mensuales</h4>
+            <h4 className="chart-title"><Icon name="trendingUp" size="1em" /> Ingresos Mensuales</h4>
             <div className="chart-container">
               <Line data={revenueChart} options={revenueChartOptions} />
             </div>
@@ -238,7 +238,7 @@ function GymDashboard({ gym }) {
 
           {/* Members Chart */}
           <div className="card chart-card">
-            <h4 className="chart-title">👥 Estado de {membersLabel}</h4>
+            <h4 className="chart-title"><Icon name="users" size="1em" /> Estado de {membersLabel}</h4>
             <div className="chart-container">
               <Doughnut data={membersChart} options={membersChartOptions} />
             </div>
@@ -251,7 +251,7 @@ function GymDashboard({ gym }) {
         {/* Insights */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">💡 Insights del Día</h3>
+            <h3 className="card-title"><Icon name="lightbulb" size="1em" /> Insights del Día</h3>
           </div>
           <div className="insights-panel">
             {insights.length === 0 ? (
@@ -279,7 +279,7 @@ function GymDashboard({ gym }) {
         {/* Alerts */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">⚠️ Alertas de Vencimiento</h3>
+            <h3 className="card-title"><Icon name="alertTriangle" size="1em" /> Alertas de Vencimiento</h3>
           </div>
           <div className="alerts-panel">
             {alerts.length === 0 ? (

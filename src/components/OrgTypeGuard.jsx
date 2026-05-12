@@ -3,7 +3,8 @@
 // ============================================
 // Route guard that ensures the user's current
 // organization type matches the required type.
-// Redirects to /dashboard if there's a mismatch.
+// Reads from AuthContext (reactive) with localStorage
+// fallback only during initial load.
 //
 // Usage: <Route element={<OrgTypeGuard allowedTypes={['GYM']} />}>
 //          <Route path="/members" ... />
@@ -11,6 +12,7 @@
 // ============================================
 
 import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
 /**
@@ -21,7 +23,13 @@ import CONFIG from '../lib/config';
  *   allowedTypes — array of ORG_TYPES, e.g. ['GYM'] or ['RESTO']
  */
 export default function OrgTypeGuard({ allowedTypes }) {
-  const currentOrgType = localStorage.getItem('current_org_type') || 'GYM';
+  const { gym, loading } = useAuth();
+
+  // While auth is loading, render nothing to avoid premature redirects
+  if (loading) return null;
+
+  // Read from context first, localStorage only as fallback for F5 scenarios
+  const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
 
   if (!allowedTypes.includes(currentOrgType)) {
     // Mismatch: user is trying to access routes that don't belong to their org type

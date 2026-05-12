@@ -87,6 +87,34 @@
     right: 1rem;
     max-width: none;
   }
+
+  /* Reset vertical layout overrides for mobile */
+  [data-vertical="salon"] .sidebar {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+
+  [data-vertical="salon"] .main-content {
+    margin-left: 0;
+  }
+
+  [data-vertical="resto"] .app-layout {
+    flex-direction: column;
+  }
+
+  [data-vertical="resto"] .sidebar {
+    left: 0;
+    right: auto;
+    border-left: none;
+  }
+
+  [data-vertical="resto"] .main-content {
+    margin-right: 0;
+  }
 }
 
 @media (max-width: 480px) {

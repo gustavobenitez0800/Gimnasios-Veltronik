@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    SIDEBAR
    ============================================ */
 
@@ -236,4 +236,121 @@
   padding: 2rem;
   max-width: 1400px;
   width: 100%;
+}
+
+/* ============================================
+   RADICAL VERTICAL OVERRIDES (Layout & Sidebar)
+   ============================================ */
+
+/* ─── 1. SALON / BELLEZA (iPad Floating Style) ─── */
+[data-vertical="salon"] body {
+  /* Elegant soft gradient background */
+  background: radial-gradient(circle at top right, rgba(244, 63, 94, 0.05), transparent 40%),
+              radial-gradient(circle at bottom left, rgba(251, 113, 133, 0.05), transparent 40%),
+              var(--bg-primary);
+}
+
+[data-vertical="salon"] .sidebar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 20px 0 60px rgba(0, 0, 0, 0.03);
+  
+  /* Floating Island */
+  left: 1.5rem;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  height: calc(100vh - 3rem);
+  border-radius: 32px;
+}
+
+[data-vertical="salon"] .main-content {
+  /* Adjust margin for floating sidebar */
+  margin-left: calc(var(--sidebar-width) + 3rem);
+}
+
+[data-vertical="salon"] .nav-item {
+  border-radius: 9999px; /* Pill-shaped */
+  padding: 0.875rem 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+[data-vertical="salon"] .nav-item.active {
+  background: rgba(244, 63, 94, 0.08); /* Rose very light */
+  color: var(--primary-500);
+}
+
+[data-vertical="salon"] .nav-item.active::before {
+  display: none;
+}
+
+[data-vertical="salon"] .page-header-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ─── 2. RESTAURANT (POS Right-Handed System) ─── */
+[data-vertical="resto"] body {
+  /* Subtle grain/noise texture for operational feel */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+}
+
+[data-vertical="resto"] .app-layout {
+  flex-direction: row-reverse; /* Flip layout! */
+}
+
+[data-vertical="resto"] .sidebar {
+  background: var(--bg-secondary);
+  border-right: none;
+  border-left: 2px solid var(--border-color); /* Separator on the left now */
+  left: auto;
+  right: 0;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.02);
+}
+
+[data-vertical="resto"] .main-content {
+  margin-left: 0;
+  margin-right: var(--sidebar-width);
+}
+
+[data-vertical="resto"] .nav-item {
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+  padding: 0.875rem 1rem;
+}
+
+[data-vertical="resto"] .nav-item.active {
+  background: var(--primary-500);
+  color: white;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+[data-vertical="resto"] .nav-item.active::before {
+  display: none;
+}
+
+[data-vertical="resto"] .nav-item.active .nav-item-icon {
+  color: white;
+}
+
+[data-vertical="resto"] .page-content {
+  background: var(--bg-tertiary);
+}
+
+/* ─── 3. GYM / TECH (Command Center) ─── */
+[data-vertical="gym"] body,
+[data-vertical="club"] body {
+  /* Tech Grid Background */
+  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+[data-theme="light"][data-vertical="gym"] body,
+[data-theme="light"][data-vertical="club"] body {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
 }
