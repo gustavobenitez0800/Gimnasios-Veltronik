@@ -189,6 +189,8 @@ export default function LobbyPage() {
   const [deleteTarget, setDeleteTarget] = useState(null); // For delete confirmation
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [showV2Modal, setShowV2Modal] = useState(false);
+  const [v2NoticeInput, setV2NoticeInput] = useState('');
 
   const userName = profile?.full_name || 'Usuario';
   const initials = getInitials(userName);
@@ -242,6 +244,22 @@ export default function LobbyPage() {
   }, [showToast]);
 
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
+
+  useEffect(() => {
+    if (profile?.id) {
+      const isRead = localStorage.getItem(`v2_notice_read_${profile.id}`);
+      if (!isRead) {
+        setShowV2Modal(true);
+      }
+    }
+  }, [profile?.id]);
+
+  const handleV2NoticeConfirm = () => {
+    if (profile?.id) {
+      localStorage.setItem(`v2_notice_read_${profile.id}`, 'true');
+    }
+    setShowV2Modal(false);
+  };
 
   // ─── Handle org selection ───
   const handleSelectOrg = async (org) => {
@@ -612,6 +630,66 @@ export default function LobbyPage() {
               </button>
               <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── V2 MIGRATION NOTICE MODAL ─── */}
+      {showV2Modal && (
+        <div className="lobby-blocked-overlay" style={{ zIndex: 9999 }}>
+          <div className="lobby-blocked-modal" style={{ maxWidth: '520px', cursor: 'default', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="lobby-blocked-icon" style={{ color: '#3b82f6' }}>
+              <Icon name="zap" size="2.5rem" />
+            </div>
+
+            <h2 className="lobby-blocked-title" style={{ color: '#3b82f6', marginBottom: '1rem' }}>
+              Aviso Importante: Migración a Veltronik V2
+            </h2>
+            
+            <div className="lobby-blocked-message" style={{ textAlign: 'left', fontSize: '0.90rem', lineHeight: '1.5' }}>
+              <p>👋 ¡Hola! Te escribo porque se viene un cambio radical en cómo gestionás tu gimnasio.</p>
+              <br/>
+              <p>Durante mucho tiempo analizamos cuáles son los <strong>mayores dolores de cabeza en el mostrador:</strong> sistemas que se tildan, internet que parpadea y te deja en blanco, o empleados cometiendo errores de carga.</p>
+              <br/>
+              <p>Para solucionar esto definitivamente, tiramos a la basura el sistema viejo y construimos <strong>🚀 Veltronik V2</strong>. No es una actualización, es un motor completamente nuevo.</p>
+              <br/>
+              <p><strong>¿Qué ganas con esta V2?</strong></p>
+              <p>🛡️ <strong>Arquitectura de blindaje:</strong> Programamos el sistema con un nivel de exigencia y aislamiento de datos similar al de las entidades financieras. Cada centavo y cada cliente está protegido. <strong>Cero margen de error en tus finanzas.</strong></p>
+              <br/>
+              <p>⚡ <strong>Supervivencia técnica:</strong> Si el WiFi de tu local se corta por unos segundos, la pantalla ya no se va a quedar en blanco ni perderás lo que estabas haciendo. El sistema congela la operación y se auto-recupera solo. <strong>Se acabaron los momentos de tensión en la recepción.</strong></p>
+              <br/>
+              <p>🤖 <strong>Lo que se viene (Veltronik AI):</strong><br/>
+              Esta nueva arquitectura nos permite dar el siguiente paso. Muy pronto estaremos integrando nuestro asistente de Inteligencia Artificial vía WhatsApp. ¿Qué significa esto? Que vas a tener un bot capaz de responder consultas de precios, reservar turnos y gestionar cobros con tus clientes de forma automática, las 24 horas del día. <strong>El sistema va a facturar por vos mientras dormís.</strong></p>
+              <br/>
+              <p>💰 Para sostener este nivel de ingeniería, infraestructura y los futuros módulos de automatización, Veltronik V2 pasará a tener un valor fijo de <strong>$80.000 mensuales por sucursal</strong>. Entregamos el sistema al 100% de su capacidad, sin planes limitados.</p>
+              <br/>
+              <p>🎯 Nuestro objetivo es simple: que dejes de preocuparte por la tecnología y los errores administrativos, y te enfoques solo en hacer crecer tu negocio.</p>
+              <br/>
+              <p style={{ color: '#f59e0b', fontWeight: 'bold' }}>⚠️ Aclaración importante: Todavía sigues usando la versión actual del sistema. Este mensaje es un aviso previo para que estés al tanto de los beneficios y la nueva tarifa. Muy pronto te pasaremos la fecha exacta y los detalles de tu migración a la V2.</p>
+            </div>
+
+            <div style={{ margin: '1.5rem 0', padding: '1rem', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <label className="form-label" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '1rem', display: 'block', textAlign: 'center' }}>
+                Para continuar al sistema, escribe la palabra <strong style={{ color: '#3b82f6' }}>LEIDO</strong> (en mayúsculas):
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="LEIDO"
+                value={v2NoticeInput}
+                onChange={(e) => setV2NoticeInput(e.target.value)}
+                style={{ width: '100%', textAlign: 'center', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '1rem', padding: '0.75rem' }}
+                autoFocus
+              />
+              <button
+                className="btn btn-primary lobby-blocked-btn-main"
+                style={{ width: '100%', background: '#3b82f6', borderColor: '#3b82f6', opacity: v2NoticeInput !== 'LEIDO' ? 0.5 : 1 }}
+                onClick={handleV2NoticeConfirm}
+                disabled={v2NoticeInput !== 'LEIDO'}
+              >
+                Entendido
               </button>
             </div>
           </div>
