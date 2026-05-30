@@ -89,6 +89,13 @@ public class WebhookController {
                 log.info("Procesando nuevo pago de Mercado Pago: {}", paymentIdStr);
                 try {
                     Long paymentId = Long.parseLong(paymentIdStr);
+                    
+                    // Bypass para el Simulador de MercadoPago
+                    if (paymentId == 123456L || paymentId == 987654321L) {
+                        log.info("Pago de prueba del simulador de MercadoPago detectado. Retornando 200 OK.");
+                        return ResponseEntity.ok("OK");
+                    }
+
                     PaymentClient client = new PaymentClient();
                     Payment payment = client.get(paymentId);
 
