@@ -143,10 +143,6 @@ public class WebhookController {
                     // Retornar 500 para que MP reintente automáticamente
                     return ResponseEntity.internalServerError().build();
                 }
-            }
-        } catch (Exception e) {
-            log.error("Error al parsear el body del webhook: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
         }
 
         return ResponseEntity.ok("OK");
