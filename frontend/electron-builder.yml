@@ -1,0 +1,125 @@
+appId: com.veltronik.gimnasio
+productName: Veltronik
+copyright: Copyright © 2026 Veltronik
+
+# Archivos a incluir en el build
+files:
+  - "electron/**/*"
+  - "dist/**/*"
+  - "assets/**/*"
+  - "package.json"
+  - "!src/**/*"
+  - "!public/**/*"
+  - "!api/**/*"
+  - "!.git/**/*"
+  - "!.github/**/*"
+  - "!.env"
+  - "!.env.*"
+  - "!*.md"
+  - "!vite.config.js"
+  - "!eslint.config.js"
+  - "!vercel.json"
+  - "!.vercelignore"
+
+# Incluir dependencias de producción automáticamente
+asar: true
+asarUnpack:
+  - "node_modules/electron-updater/**/*"
+  - "node_modules/electron-log/**/*"
+
+# Archivos extra a copiar
+extraResources:
+  - from: "assets/"
+    to: "assets/"
+
+# Directorio de salida (instaladores)
+directories:
+  output: release
+  buildResources: build
+
+# Auto-updates via GitHub Releases
+publish:
+  provider: github
+  owner: gustavobenitez0800
+  repo: gimnasios-veltronik
+  releaseType: release
+
+# ============================================
+# WINDOWS
+# ============================================
+win:
+  icon: assets/LogoPrincipalVeltronik.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # Metadatos profesionales
+  legalTrademarks: "TM Veltronik"
+  verifyUpdateCodeSignature: false # Permitir updates sin firma (por ahora)
+  
+  # Configuración de Firma Digital (Code Signing)
+  # Se usará automáticamente si las variables de entorno CSC_LINK y CSC_KEY_PASSWORD están definidas
+  # No es necesario configurarlo aquí explícitamente.
+
+  artifactName: "Veltronik-Setup-${version}.${ext}"
+
+# Configuración del Instalador (Wizard)
+nsis:
+  oneClick: false  # Falso = Instalador tipo asistente (Next -> Next)
+  perMachine: false # true pediría admin siempre, false permite instalar por usuario (mejor para evitar UAC excesivo)
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Veltronik"
+  displayLanguageSelector: true
+  license: "LICENSE.txt" # Requiere crear este archivo
+
+# ============================================
+# MACOS
+# ============================================
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: assets/LogoPrincipalVeltronik.png
+  artifactName: "Veltronik-${version}-${arch}.${ext}"
+  category: public.app-category.business
+
+dmg:
+  title: Veltronik Platform
+  icon: assets/LogoPrincipalVeltronik.png
+
+# ============================================
+# LINUX
+# ============================================
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  icon: assets/LogoPrincipalVeltronik.png
+  artifactName: "Veltronik-${version}.${ext}"
+  category: Office
+  maintainer: veltronikcompany@gmail.com
+  vendor: Veltronik
+
+appImage:
+  artifactName: "Veltronik-${version}.AppImage"
+
+deb:
+  depends:
+    - gconf2
+    - gconf-service
+    - libnotify4
+    - libappindicator1
+    - libxtst6
+    - libnss3

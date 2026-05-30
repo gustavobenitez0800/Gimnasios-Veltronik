@@ -1,0 +1,293 @@
+﻿/* ============================================
+   ATTENDANCE PILLS (Members Page)
+   ============================================ */
+
+.attendance-pills {
+  display: flex;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.day-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.day-pill.active {
+  background: rgba(14, 165, 233, 0.25);
+  color: var(--primary-400);
+  font-weight: 700;
+}
+
+/* ============================================
+   RESTAURANT - TABLES PAGE
+   ============================================ */
+
+.tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.table-card {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+
+.table-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+.table-card.table-round { border-radius: 50%; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+.table-card-number {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.table-card-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.table-card-capacity { font-size: 0.75rem; color: var(--text-muted); }
+.table-card-area { font-size: 0.65rem; color: var(--text-muted); background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
+.table-card-status { font-size: 0.7rem; font-weight: 600; }
+
+.table-card-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 0.75rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.table-card:hover .table-card-actions { opacity: 1; }
+
+.table-status-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+
+.table-status-btn:hover { transform: scale(1.15); }
+
+/* ============================================
+   RESTAURANT - MENU PAGE
+   ============================================ */
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.menu-item-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1.25rem;
+  transition: all 0.2s;
+}
+
+.menu-item-card:hover {
+  border-color: rgba(14,165,233,0.3);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.menu-item-unavailable { opacity: 0.5; }
+
+.menu-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.menu-item-name { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.25rem; }
+.menu-item-price { font-size: 1.1rem; font-weight: 700; color: var(--primary-400); white-space: nowrap; }
+.menu-item-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.75rem; }
+
+.menu-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.menu-item-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.menu-item-actions { display: flex; gap: 0.25rem; }
+
+.text-success { color: #22c55e; }
+.text-warning { color: #f59e0b; }
+.text-danger { color: #ef4444; }
+
+/* ============================================
+   RESTAURANT - KITCHEN PAGE
+   ============================================ */
+
+.kitchen-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  min-height: calc(100vh - 200px);
+}
+
+@media (max-width: 1024px) { .kitchen-columns { grid-template-columns: 1fr; } }
+
+.kitchen-column {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.kitchen-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.kitchen-column-header h3 { margin: 0; font-size: 0.95rem; }
+.kitchen-col-pending { border-bottom-color: #f59e0b; }
+.kitchen-col-preparing { border-bottom-color: #3b82f6; }
+.kitchen-col-ready { border-bottom-color: #22c55e; }
+
+.kitchen-column-body {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.kitchen-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem;
+  font-size: 0.85rem;
+}
+
+.kitchen-order-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  transition: all 0.2s;
+}
+
+.kitchen-order-card:hover { border-color: rgba(14,165,233,0.3); }
+
+.kitchen-urgent {
+  border-color: rgba(239,68,68,0.5) !important;
+  animation: urgentPulse 2s ease-in-out infinite;
+}
+
+@keyframes urgentPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  50% { box-shadow: 0 0 15px 2px rgba(239,68,68,0.15); }
+}
+
+.kitchen-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.kitchen-order-table {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.kitchen-order-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.kitchen-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.kitchen-item-qty {
+  font-weight: 700;
+  color: var(--primary-400);
+  min-width: 24px;
+}
+
+.kitchen-item-name { flex: 1; }
+
+.kitchen-item-note {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.kitchen-order-actions { margin-top: 0.5rem; }
+
+.btn-success {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-success:hover { opacity: 0.9; transform: translateY(-1px); }
+
+@media (max-width: 768px) {
+  .tables-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .menu-grid { grid-template-columns: 1fr; }
+}
+

@@ -1,0 +1,36 @@
+# Ignorar archivos innecesarios en el build de Docker
+# Esto reduce el tamaño del contexto y acelera los builds en Railway
+
+# Maven target
+target/
+
+# Archivos de clase compilados localmente
+*.class
+
+# Archivos de entorno con credenciales
+.env
+.env.*
+*.env
+
+# Control de versiones
+.git/
+.gitignore
+
+# Documentación
+*.md
+README*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Scripts de debug (no deben existir pero por si acaso)
+Check*.java
+Test*.java
+Update*.java
+scripts/
+
+# OS
+.DS_Store
+Thumbs.db

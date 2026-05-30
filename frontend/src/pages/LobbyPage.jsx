@@ -1,0 +1,619 @@
+// ============================================
+// VELTRONIK - LOBBY PAGE (v2 — Per-Org Validation)
+// ============================================
+// Each organization card shows its payment status.
+// Blocked orgs show an in-page modal instead of navigating.
+// ============================================
+
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { gymService } from '../services';
+import { getInitials } from '../lib/utils';
+import Icon from '../components/Icon';
+import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import gymLogoSrc from '../assets/VeltronikGym.png';
+import restoLogoSrc from '../assets/VeltronikRestaurante.png';
+import CONFIG from '../lib/config';
+import { apiCall } from '../lib/api';
+import apiClient from '../lib/apiClient';
+
+const TYPE_LABELS = { GYM: 'Gimnasio', CLUB: 'Club Deportivo', OTHER: 'Negocio' };
+const TYPE_ICONS = { GYM: gymLogoSrc, CLUB: <Icon name="target" size="1em" />, OTHER: <Icon name="building" size="1em" /> };
+const TYPE_IS_IMAGE = { GYM: true, CLUB: false, OTHER: false };
+const TYPE_BADGES = { GYM: 'badge-success', CLUB: 'badge-success', OTHER: 'badge-neutral' };
+
+// ─── Helpers ───
+
+function getTrialDays(org) {
+  if (!org.trialEndsAt) return 0;
+  const diff = new Date(org.trialEndsAt) - new Date();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function isTrialActive(org) {
+  if (!org.trialEndsAt) return false;
+  return new Date() < new Date(org.trialEndsAt);
+}
+
+/**
+ * Determine the access status for an organization.
+ * Returns: { canAccess, status, label, icon, color, sub }
+ */
+function computeOrgAccessStatus(org, sub) {
+  // 1. Active subscription → full access
+  if (sub?.status === 'active') {
+    return {
+      canAccess: true,
+      status: 'active',
+      label: 'Activo',
+      icon: '✅',
+      color: '#22c55e',
+      sub,
+    };
+  }
+
+  // 2. Trial active → access with countdown
+  const trialDays = getTrialDays(org);
+  if (isTrialActive(org)) {
+    return {
+      canAccess: true,
+      status: 'trial',
+      label: `${trialDays} días de prueba`,
+      icon: <Icon name="sparkles" size="1em" />,
+      color: trialDays <= 7 ? '#f59e0b' : '#22c55e',
+      sub,
+      trialDays,
+    };
+  }
+
+  // 3. Past due with grace period → access with warning
+  if (sub?.status === 'past_due' && sub?.grace_period_ends_at) {
+    const graceEnd = new Date(sub.grace_period_ends_at);
+    if (new Date() < graceEnd) {
+      const graceDays = Math.max(0, Math.ceil((graceEnd - new Date()) / (1000 * 60 * 60 * 24)));
+      return {
+        canAccess: true,
+        status: 'past_due_grace',
+        label: `Pago rechazado (${graceDays}d gracia)`,
+        icon: '⚠️',
+        color: '#f59e0b',
+        sub,
+        graceDays,
+      };
+    }
+  }
+
+  // 4. Past due without grace or grace expired → blocked
+  if (sub?.status === 'past_due') {
+    return {
+      canAccess: false,
+      status: 'past_due',
+      label: 'Pago rechazado',
+      icon: '💳',
+      color: '#ef4444',
+      blockReason: 'past_due',
+      sub,
+    };
+  }
+
+  // 5. Canceled → blocked (unless current_period_end is in the future)
+  if (sub?.status === 'canceled') {
+    if (sub?.current_period_end && new Date() < new Date(sub.current_period_end)) {
+      const daysLeft = Math.max(0, Math.ceil((new Date(sub.current_period_end) - new Date()) / (1000 * 60 * 60 * 24)));
+      return {
+        canAccess: true,
+        status: 'canceled_active',
+        label: `Cancelada (${daysLeft}d rest.)`,
+        icon: '⚠️',
+        color: '#f59e0b',
+        sub,
+      };
+    }
+
+    return {
+      canAccess: false,
+      status: 'canceled',
+      label: 'Suscripción cancelada',
+      icon: '🚫',
+      color: '#64748b',
+      blockReason: 'canceled',
+      sub,
+    };
+  }
+
+  // 6. Trial expired, no subscription → blocked
+  if (org.trialEndsAt && new Date(org.trialEndsAt) < new Date()) {
+    return {
+      canAccess: false,
+      status: 'trial_expired',
+      label: 'Prueba finalizada',
+      icon: '⏰',
+      color: '#3b82f6',
+      blockReason: 'trial_expired',
+      sub,
+    };
+  }
+
+  // 7. No trial, no subscription → blocked
+  return {
+    canAccess: false,
+    status: 'no_subscription',
+    label: 'Sin suscripción',
+    icon: '🔒',
+    color: '#ef4444',
+    blockReason: 'no_subscription',
+    sub,
+  };
+}
+
+// ─── Block reason messages ───
+
+const BLOCK_MESSAGES = {
+  past_due: {
+    title: 'Pago Rechazado',
+    message: 'No pudimos procesar tu pago mensual. Actualizá tu método de pago para recuperar el acceso.',
+    showUpdateCard: true,
+  },
+  canceled: {
+    title: 'Suscripción Cancelada',
+    message: 'Tu suscripción fue cancelada. Tus datos están seguros y no serán eliminados. Reactivá tu suscripción para continuar.',
+    showUpdateCard: false,
+  },
+  trial_expired: {
+    title: 'Prueba Gratuita Finalizada',
+    message: 'Tu período de prueba de 30 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.',
+    showUpdateCard: false,
+  },
+  no_subscription: {
+    title: 'Acceso Suspendido',
+    message: 'Este sistema necesita una suscripción activa para funcionar. Suscribite para activar el acceso.',
+    showUpdateCard: false,
+  },
+};
+
+// ============================================
+// LOBBY PAGE COMPONENT
+// ============================================
+
+export default function LobbyPage() {
+  const { profile, logout, refreshAuth, refreshOrgContext } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+
+  const [orgs, setOrgs] = useState([]);
+  const [orgStatuses, setOrgStatuses] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [blockedOrg, setBlockedOrg] = useState(null); // For blocked modal
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // For delete confirmation
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const userName = profile?.fullName || 'Usuario';
+  const initials = getInitials(userName);
+
+  // ─── Load all organizations + their subscription statuses ───
+  const loadOrgs = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await gymService.getUserGyms();
+      // Filtrar duplicados en caso de errores en la DB
+      const uniqueOrgs = Array.from(new Map((data || []).map(org => [org.id, org])).values());
+      const orgsList = uniqueOrgs;
+      setOrgs(orgsList);
+
+      // Batch load subscriptions for all orgs
+      if (orgsList.length > 0) {
+        const orgIds = orgsList.map(o => o.id);
+
+        // Batch load subscriptions for all orgs using apiClient
+        const subPromises = orgsList.map(org => 
+          apiClient.get(`/tenants/${org.id}/subscription`)
+            .then(res => res.data)
+            .catch(() => null)
+        );
+        const allSubsRaw = await Promise.all(subPromises);
+        const allSubs = allSubsRaw.filter(sub => sub !== null && sub !== "");
+
+        // Build a map: orgId → best subscription (active > latest)
+        const subMap = {};
+        for (const sub of allSubs) {
+          const existing = subMap[sub.tenantId || sub.gym_id];
+          if (!existing) {
+            subMap[sub.tenantId || sub.gym_id] = sub;
+          } else if (sub.status === 'active' && existing.status !== 'active') {
+            subMap[sub.tenantId || sub.gym_id] = sub;
+          }
+        }
+
+        // Compute access status for each org
+        const statuses = {};
+        for (const org of orgsList) {
+          const sub = subMap[org.id] || null;
+          statuses[org.id] = computeOrgAccessStatus(org, sub);
+        }
+        setOrgStatuses(statuses);
+      }
+    } catch (err) {
+      console.error('Error loading orgs:', err);
+      showToast('Error al cargar los negocios', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => { loadOrgs(); }, [loadOrgs]);
+
+  // ─── Handle org selection ───
+  const handleSelectOrg = async (org) => {
+    const orgType = org.type || 'GYM';
+    const accessStatus = orgStatuses[org.id];
+
+    // Store org context in localStorage
+    localStorage.setItem('current_org_id', org.id);
+    localStorage.setItem('current_org_role', org.role || 'owner');
+    localStorage.setItem('current_org_name', org.name);
+    localStorage.setItem('current_org_type', orgType);
+
+    // If org has valid access → navigate immediately, refresh in background (optimistic)
+    if (accessStatus?.canAccess) {
+      navigate(CONFIG.ROUTES.DASHBOARD);
+      refreshOrgContext(org.id); // non-blocking — loads in background
+      return;
+    }
+
+    // If blocked → show modal (don't navigate)
+    setBlockedOrg({ ...org, accessStatus });
+  };
+
+  // ─── Handle reactivation ───
+  const handleReactivate = () => {
+    if (blockedOrg) {
+      // Ensure AuthContext is synced with the blocked org before navigating
+      refreshOrgContext(blockedOrg.id);
+    }
+    setBlockedOrg(null);
+    navigate(CONFIG.ROUTES.PLANS);
+  };
+
+  // ─── Handle update payment method ───
+  const handleUpdatePaymentMethod = async () => {
+    if (!blockedOrg) return;
+
+    const gymId = blockedOrg.id;
+    let payerEmail = profile?.email;
+
+    // Try to get the payer email from the subscription
+    try {
+      // Stubbed payerEmail logic
+      payerEmail = profile?.email;
+    } catch { /* use fallback email */ }
+
+    if (!gymId || !payerEmail) {
+      showToast('No se encontraron los datos necesarios', 'error');
+      return;
+    }
+
+    setUpdatingPayment(true);
+    try {
+      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+        gym_id: gymId,
+        payer_email: payerEmail,
+      });
+
+      if (!ok) {
+        throw new Error(result.error || 'Error al actualizar método de pago');
+      }
+
+      const checkoutUrl = CONFIG.DEBUG
+        ? (result.data?.sandbox_init_point || result.data?.init_point)
+        : (result.data?.init_point || result.data?.sandbox_init_point);
+
+      if (checkoutUrl) {
+        showToast('Redirigiendo a Mercado Pago...', 'info');
+        setTimeout(() => { window.location.href = checkoutUrl; }, 800);
+      } else {
+        throw new Error('No se obtuvo URL de checkout');
+      }
+    } catch (error) {
+      showToast(error.message || 'Error al actualizar método de pago', 'error');
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
+
+  // ─── Handle delete organization ───
+  const handleDeleteOrg = async () => {
+    if (!deleteTarget) return;
+    if (deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()) {
+      showToast('El nombre no coincide. Escribí el nombre exacto del negocio para confirmar.', 'error');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await gymService.deleteOrg(deleteTarget.id);
+      showToast(`"${deleteTarget.name}" eliminado correctamente`, 'success');
+      setDeleteTarget(null);
+      setDeleteConfirmName('');
+      await loadOrgs(); // Refresh the list
+    } catch (error) {
+      showToast(error.message || 'Error al eliminar el negocio', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ─── Render ───
+  return (
+    <div className="lobby-wrapper">
+      {/* ─── Liquid Glass Background ─── */}
+      <div className="liquid-bg">
+        <div className="liquid-orb liquid-orb-1"></div>
+        <div className="liquid-orb liquid-orb-2"></div>
+        <div className="liquid-orb liquid-orb-3"></div>
+      </div>
+
+      <div className="lobby-container">
+        {/* Header */}
+        <div className="lobby-header">
+          <div className="lobby-user">
+            <img src={logoSrc} alt="Veltronik" className="lobby-logo" />
+            <div className="lobby-user-info">
+              <div className="lobby-avatar">{initials}</div>
+              <div>
+                <h2 className="lobby-user-name">{userName}</h2>
+                <p className="lobby-user-email">{profile?.email || ''}</p>
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-ghost" onClick={logout} title="Cerrar sesión">
+            <Icon name="logout" /> Salir
+          </button>
+        </div>
+
+        {/* Title */}
+        <div className="lobby-title-section">
+          <h1 className="lobby-title">Mis Negocios</h1>
+          <p className="lobby-subtitle">Seleccioná un negocio para acceder al sistema</p>
+        </div>
+
+        {/* Loading */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <span className="spinner" /> Cargando negocios...
+          </div>
+        ) : (
+          <div className="lobby-grid">
+            {/* Organization Cards */}
+            {orgs.map((org) => {
+              const orgType = org.type || 'GYM';
+              const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
+              const accessStatus = orgStatuses[org.id];
+              const isBlocked = accessStatus && !accessStatus.canAccess;
+
+              return (
+                <button
+                  key={org.id}
+                  className={`lobby-card card-hover ${isBlocked ? 'lobby-card-blocked' : ''}`}
+                  onClick={() => handleSelectOrg(org)}
+                >
+                  {/* Delete button (owner only) */}
+                  {org.role === 'owner' && (
+                    <button
+                      className="lobby-card-delete"
+                      title="Eliminar negocio"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(org);
+                        setDeleteConfirmName('');
+                      }}
+                    >
+                      <Icon name="trash" size="0.9em" />
+                    </button>
+                  )}
+
+                  {/* Blocked overlay */}
+                  {isBlocked && (
+                    <div className="lobby-card-blocked-overlay">
+                      <span className="lobby-card-lock"><Icon name="lock" size="1.2em" /></span>
+                    </div>
+                  )}
+
+                  <div className="lobby-card-icon" style={{ background: TYPE_IS_IMAGE[orgType] ? 'transparent' : '' }}>
+                    {TYPE_IS_IMAGE[orgType] ? (
+                      <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
+                    ) : (
+                      <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || '📱'}</span>
+                    )}
+                  </div>
+                  <h3 className="lobby-card-name">{org.name}</h3>
+                  <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
+                    {TYPE_LABELS[orgType] || orgType}
+                  </span>
+                  <p className="lobby-card-role">
+                    {{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción' }[org.role] || org.role}
+                  </p>
+
+                  {/* Status indicator */}
+                  {accessStatus && (
+                    <div
+                      className="lobby-card-status"
+                      style={{
+                        background: `${accessStatus.color}18`,
+                        color: accessStatus.color,
+                        borderColor: `${accessStatus.color}30`,
+                      }}
+                    >
+                      <span>{accessStatus.icon}</span>
+                      <span>{accessStatus.label}</span>
+                    </div>
+                  )}
+
+                  {/* Price — only show when not in active trial */}
+                  {accessStatus?.status !== 'trial' && (
+                    <div className="lobby-card-price">
+                      ${price.toLocaleString('es-AR')}/mes
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Create new business card */}
+            <button
+              className="lobby-card lobby-card-create card-hover"
+              onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
+            >
+              <div className="lobby-card-icon create-icon">
+                <Icon name="plus" size="2rem" />
+              </div>
+              <h3 className="lobby-card-name">Crear Negocio</h3>
+              <p className="lobby-card-role">Registrá tu gimnasio, estudio, club o restaurante</p>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── BLOCKED ORG MODAL ─── */}
+      {blockedOrg && (
+        <div className="lobby-blocked-overlay" onClick={() => setBlockedOrg(null)}>
+          <div className="lobby-blocked-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Close button */}
+            <button className="lobby-blocked-close" onClick={() => setBlockedOrg(null)}>
+              ✕
+            </button>
+
+            {/* Icon */}
+            <div className="lobby-blocked-icon" style={{ color: blockedOrg.accessStatus?.color }}>
+              {blockedOrg.accessStatus?.icon || '🔒'}
+            </div>
+
+            {/* Org name */}
+            <div className="lobby-blocked-org-badge">
+              {TYPE_IS_IMAGE[blockedOrg.type || 'GYM'] ? (
+                <img src={TYPE_ICONS[blockedOrg.type || 'GYM']} alt="" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+              ) : (
+                <span>{TYPE_ICONS[blockedOrg.type || 'GYM']}</span>
+              )}
+              <span>{blockedOrg.name}</span>
+            </div>
+
+            {/* Title & message */}
+            <h2 className="lobby-blocked-title">
+              {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.title || 'Acceso Suspendido'}
+            </h2>
+            <p className="lobby-blocked-message">
+              {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.message || 'Necesitás una suscripción activa para acceder a este sistema.'}
+            </p>
+
+            {/* Grace period bar (if past_due with sub) */}
+            {blockedOrg.accessStatus?.sub?.grace_period_ends_at && (
+              <div className="lobby-blocked-grace">
+                <div className="lobby-blocked-grace-header">
+                  <span>Período de gracia</span>
+                  <span style={{ color: '#ef4444' }}>Expirado</span>
+                </div>
+                <div className="lobby-blocked-grace-track">
+                  <div className="lobby-blocked-grace-fill" style={{ width: '100%' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Price info */}
+            <div className="lobby-blocked-price-info">
+              <span>Precio del sistema:</span>
+              <strong>${(CONFIG.PRICES_BY_TYPE[blockedOrg.type || 'GYM'] || CONFIG.SUBSCRIPTION_PRICE).toLocaleString('es-AR')}/mes</strong>
+            </div>
+
+            {/* Actions */}
+            <div className="lobby-blocked-actions">
+              <button className="btn btn-primary lobby-blocked-btn-main" onClick={handleReactivate}>
+                💳 Reactivar Suscripción
+              </button>
+
+              {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.showUpdateCard && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ width: '100%' }}
+                  onClick={handleUpdatePaymentMethod}
+                  disabled={updatingPayment}
+                >
+                  {updatingPayment ? (
+                    <><span className="spinner" /> Procesando...</>
+                  ) : (
+                    '🔄 Cambiar Método de Pago'
+                  )}
+                </button>
+              )}
+
+              <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => setBlockedOrg(null)}>
+                ← Volver al Lobby
+              </button>
+            </div>
+
+            {/* Data safety */}
+            <div className="lobby-blocked-safety">
+              <Icon name="lock" size="1em" /> Tus datos están seguros y no serán eliminados
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DELETE ORG CONFIRMATION MODAL ─── */}
+      {deleteTarget && (
+        <div className="lobby-blocked-overlay" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+          <div className="lobby-blocked-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <button className="lobby-blocked-close" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+              <Icon name="x" size="1em" />
+            </button>
+
+            <div className="lobby-blocked-icon" style={{ color: '#ef4444' }}>
+              <Icon name="alertTriangle" size="2rem" />
+            </div>
+
+            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Negocio</h2>
+            <p className="lobby-blocked-message">
+              Estás a punto de eliminar <strong>"{deleteTarget.name}"</strong> y <strong>todos sus datos</strong>: socios, pagos, accesos, equipo y suscripciones. Esta acción es <strong>irreversible</strong>.
+            </p>
+
+            <div style={{ margin: '1.25rem 0' }}>
+              <label className="form-label" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+                Escribí <strong style={{ color: '#ef4444' }}>{deleteTarget.name}</strong> para confirmar:
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder={deleteTarget.name}
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                style={{ marginTop: '0.5rem', borderColor: deleteConfirmName.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase() ? '#ef4444' : undefined }}
+                autoFocus
+              />
+            </div>
+
+            <div className="lobby-blocked-actions">
+              <button
+                className="btn lobby-blocked-btn-main"
+                style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                onClick={handleDeleteOrg}
+                disabled={deleting || deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()}
+              >
+                {deleting ? (
+                  <><span className="spinner" /> Eliminando...</>
+                ) : (
+                  <><Icon name="trash" size="1em" /> Eliminar Permanentemente</>
+                )}
+              </button>
+              <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

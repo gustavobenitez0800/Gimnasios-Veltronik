@@ -1,0 +1,54 @@
+/* ============================================
+   VELTRONIK V2 - CSS ENTRY POINT
+   ============================================
+   Modularized in Phase 5 of OOP refactoring.
+   Each @import maps to a logical module.
+   ============================================ */
+
+/* ─── Design Tokens & Themes ─── */
+@import './styles/variables.css';
+
+/* ─── Reset, Scrollbar, Typography ─── */
+@import './styles/base.css';
+
+/* ─── Buttons, Forms, Cards, Tables, Badges, Spinner ─── */
+@import './styles/components.css';
+
+/* ─── Auth (Login, Register, Forgot) ─── */
+@import './styles/auth.css';
+
+/* ─── Sidebar + App Layout ─── */
+@import './styles/layout.css';
+
+/* ─── Page Header, Empty State, Lobby ─── */
+@import './styles/pages.css';
+
+/* ─── Toast, Modal, Loading ─── */
+@import './styles/feedback.css';
+
+/* ─── Utility Classes ─── */
+@import './styles/utilities.css';
+
+/* ─── Dashboard ─── */
+@import './styles/dashboard.css';
+
+/* ─── Members / Payments Page ─── */
+@import './styles/members.css';
+
+/* ─── Responsive Breakpoints ─── */
+@import './styles/responsive.css';
+
+/* ─── Classes Page ─── */
+@import './styles/classes.css';
+
+/* ─── Access Control Page ─── */
+@import './styles/access.css';
+
+/* ─── Reports, Team, Retention, Settings ─── */
+@import './styles/settings.css';
+
+/* ─── Onboarding, Plans, Blocked, Force Update ─── */
+@import './styles/onboarding.css';
+
+/* ─── Restaurant Module ─── */
+@import './styles/restaurant.css';

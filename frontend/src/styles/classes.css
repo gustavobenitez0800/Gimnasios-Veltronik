@@ -1,0 +1,63 @@
+﻿/* ============================================
+   PHASE 3: CLASSES PAGE
+   ============================================ */
+
+.weekly-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.day-column { min-width: 0; overflow: hidden; }
+
+.day-header {
+  text-align: center;
+  padding: 0.75rem;
+  background: rgba(14, 165, 233, 0.1);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 0.5rem;
+}
+
+.day-header.today { background: var(--primary-500); color: white; }
+.day-header.today .day-date { color: rgba(255,255,255,0.8); }
+.day-name { font-weight: 600; font-size: var(--font-size-sm); }
+.day-date { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.day-classes { display: flex; flex-direction: column; gap: 0.5rem; min-height: 200px; }
+
+.class-card {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 0.75rem;
+  border-left: 3px solid var(--primary-500);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.class-card:hover { transform: translateX(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.class-time { font-size: var(--font-size-xs); color: var(--primary-400); font-weight: 600; margin-bottom: 0.25rem; }
+.class-name { font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 0.25rem; }
+.class-instructor { font-size: var(--font-size-xs); color: var(--text-muted); }
+.class-spots { display: flex; align-items: center; gap: 0.25rem; font-size: var(--font-size-xs); color: var(--text-muted); margin-top: 0.5rem; }
+.class-spots.available { color: var(--success-500); }
+.no-classes { text-align: center; padding: 2rem; color: var(--text-muted); font-size: var(--font-size-xs); }
+
+.class-color-picker { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.color-option {
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  border: 3px solid transparent; transition: all 0.2s;
+}
+.color-option:hover, .color-option.selected { border-color: white; transform: scale(1.1); }
+
+.calendar-nav { display: flex; align-items: center; gap: 1rem; }
+.current-week { font-size: var(--font-size-lg); font-weight: 600; }
+.view-toggle { display: flex; gap: 0.5rem; }
+
+@media (max-width: 1024px) {
+  .weekly-calendar { grid-template-columns: repeat(4, 1fr); }
+  .day-column:nth-child(n+5) { display: none; }
+}
+@media (max-width: 768px) {
+  .weekly-calendar { grid-template-columns: repeat(2, 1fr); }
+  .day-column:nth-child(n+3) { display: none; }
+}
