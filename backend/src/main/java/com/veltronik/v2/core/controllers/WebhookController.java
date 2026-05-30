@@ -45,28 +45,46 @@ public class WebhookController {
             @RequestHeader(value = "x-signature", required = false) String xSignature,
             @RequestHeader(value = "x-request-id", required = false) String xRequestId,
             @RequestParam(required = false) String topic,
-            @RequestParam(required = false) String id) {
+            @RequestParam(required = false) String id,
+            @RequestParam(name = "data.id", required = false) String dataIdParam) {
+
+        String extractedId = dataIdParam != null ? dataIdParam : id;
+
+        // Parsear el body como Map para procesar
+        Map<String, Object> payload = null;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            payload = objectMapper.readValue(rawBody, Map.class);
+            
+            // Si el ID no viene en la URL (como en el Simulador de MP), lo extraemos del body
+            if (extractedId == null) {
+                if (payload.containsKey("data") && payload.get("data") instanceof Map) {
+                    Object dataIdObj = ((Map<?, ?>) payload.get("data")).get("id");
+                    if (dataIdObj != null) extractedId = dataIdObj.toString();
+                } else if (payload.containsKey("id")) {
+                    extractedId = payload.get("id").toString();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error al parsear el body del webhook: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
 
         // Validar firma de MercadoPago (seguridad crítica)
-        if (xSignature != null && !isValidSignature(xSignature, xRequestId, id, rawBody)) {
+        if (xSignature != null && !isValidSignature(xSignature, xRequestId, extractedId, rawBody)) {
             log.warn("Webhook rechazado: firma inválida. x-request-id={}", xRequestId);
             return ResponseEntity.status(401).body("Firma inválida");
         }
 
-        log.info("Webhook recibido de Mercado Pago: topic={}, id={}", topic, id);
+        log.info("Webhook recibido de Mercado Pago: topic={}, id={}", topic, extractedId);
 
-        // Parsear el body como Map para procesar
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            Map<String, Object> payload = objectMapper.readValue(rawBody, Map.class);
+        if (payload != null && ("payment".equals(topic) || "payment".equals(payload.get("type")))) {
+            String paymentIdStr = extractedId;
 
-            if ("payment".equals(topic) || "payment".equals(payload.get("type"))) {
-                String paymentIdStr = id != null ? id : (String) ((Map<?, ?>) payload.get("data")).get("id");
-
-                if (paymentIdStr != null && paymentRepository.existsByMpPaymentId(paymentIdStr)) {
-                    log.info("Pago {} ya procesado anteriormente (Idempotencia). Ignorando.", paymentIdStr);
-                    return ResponseEntity.ok("OK");
-                }
+            if (paymentIdStr != null && paymentRepository.existsByMpPaymentId(paymentIdStr)) {
+                log.info("Pago {} ya procesado anteriormente (Idempotencia). Ignorando.", paymentIdStr);
+                return ResponseEntity.ok("OK");
+            }
 
                 log.info("Procesando nuevo pago de Mercado Pago: {}", paymentIdStr);
                 try {
