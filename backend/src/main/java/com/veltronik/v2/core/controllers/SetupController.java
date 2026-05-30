@@ -39,13 +39,12 @@ public class SetupController {
     @PostMapping("/tenant")
     @Transactional
     public ResponseEntity<?> createTenant(@RequestBody TenantDTO tenantDTO) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getName() == null) {
+        java.util.UUID userId = com.veltronik.v2.core.security.SecurityUtils.getCurrentUserId();
+        if (userId == null) {
             return ResponseEntity.status(401).body("No autorizado");
         }
 
-        String userEmail = auth.getName();
-        AppUser user = userRepository.findByEmail(userEmail).orElse(null);
+        AppUser user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             return ResponseEntity.status(404).body("Usuario no encontrado");
         }

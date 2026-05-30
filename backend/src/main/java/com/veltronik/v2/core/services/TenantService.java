@@ -60,15 +60,10 @@ public class TenantService extends BaseServiceImpl<Tenant, TenantDTO, UUID> {
     
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public java.util.List<TenantDTO> findMyTenants() {
-        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return java.util.Collections.emptyList();
+        java.util.UUID userId = com.veltronik.v2.core.security.SecurityUtils.getCurrentUserId();
+        if (userId == null) return java.util.Collections.emptyList();
         
-        Object principal = auth.getPrincipal();
-        if (!(principal instanceof com.veltronik.v2.core.entities.AppUser)) return java.util.Collections.emptyList();
-        
-        com.veltronik.v2.core.entities.AppUser user = (com.veltronik.v2.core.entities.AppUser) principal;
-        
-        java.util.List<com.veltronik.v2.core.entities.TenantMembership> memberships = membershipRepository.findByUserId(user.getId());
+        java.util.List<com.veltronik.v2.core.entities.TenantMembership> memberships = membershipRepository.findByUserId(userId);
         
         return memberships.stream().map(m -> {
             TenantDTO dto = tenantMapper.toDto(m.getTenant());

@@ -36,8 +36,10 @@ public class SubscriptionController {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new RuntimeException("Gimnasio no encontrado"));
 
-        String userEmail = SecurityContextHolder.getContext().getAuthentication().getName();
-
+        String userEmail = com.veltronik.v2.core.security.SecurityUtils.getCurrentUserEmail();
+        if (userEmail == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No se pudo obtener el email del usuario"));
+        }
         try {
             String initPoint = mercadoPagoService.createSubscriptionForTenant(tenant, userEmail);
             return ResponseEntity.ok(Map.of(
