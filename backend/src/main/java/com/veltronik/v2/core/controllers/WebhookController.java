@@ -48,6 +48,15 @@ public class WebhookController {
     @Value("${mercadopago.webhook.secret:}")
     private String webhookSecret;
 
+    /**
+     * Válvula de seguridad para el lanzamiento. Si por algún desajuste de formato la
+     * firma fallara, poniendo {@code mercadopago.webhook.enforce-signature=false} (env var)
+     * se procesan los eventos igual, sin esperar un redeploy. SEGURO POR DEFAULT (true);
+     * volver a true apenas se valide la firma en producción.
+     */
+    @Value("${mercadopago.webhook.enforce-signature:true}")
+    private boolean enforceSignature;
+
     @PostMapping
     public ResponseEntity<String> handleWebhook(
             @RequestBody String rawBody,
@@ -72,9 +81,14 @@ public class WebhookController {
 
         // 3) FIRMA: si hay secret configurado, es OBLIGATORIA y debe ser válida.
         if (webhookSecret != null && !webhookSecret.isBlank()) {
-            if (xSignature == null || !isValidSignature(xSignature, xRequestId, resourceId, rawBody)) {
-                log.warn("Webhook RECHAZADO: firma ausente o inválida. x-request-id={}", xRequestId);
-                return ResponseEntity.status(401).body("Firma inválida");
+            boolean validSignature = xSignature != null && isValidSignature(xSignature, xRequestId, resourceId, rawBody);
+            if (!validSignature) {
+                if (enforceSignature) {
+                    log.warn("Webhook RECHAZADO: firma ausente o inválida. x-request-id={}", xRequestId);
+                    return ResponseEntity.status(401).body("Firma inválida");
+                }
+                // Válvula de lanzamiento abierta: se procesa igual, dejando rastro para revisar.
+                log.warn("Firma inválida pero enforce-signature=false → se procesa igual. x-request-id={}", xRequestId);
             }
         }
 
