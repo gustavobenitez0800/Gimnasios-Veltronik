@@ -40,7 +40,7 @@ public class GymTeamService {
             Map<String, Object> map = new HashMap<>();
             map.put("user_id", user.getId());
             map.put("email", user.getEmail());
-            map.put("fullName", user.getFirstName() + " " + user.getLastName());
+            map.put("fullName", buildDisplayName(user));
             map.put("role", membership.getRole().name().toLowerCase());
             result.add(map);
         }
@@ -135,5 +135,24 @@ public class GymTeamService {
     public List<Map<String, Object>> getActivityLog(int limit) {
         // Mock activity log for now since V2 doesn't have an audit table yet
         return new ArrayList<>();
+    }
+
+    /**
+     * Nombre para mostrar, tolerante a nulos. Evita el literal "null null" cuando el
+     * AppUser fue creado/migrado solo con email (sin first/last name).
+     * Orden de preferencia: "Nombre Apellido" → parte local del email → "Usuario sin nombre".
+     */
+    private String buildDisplayName(AppUser user) {
+        String fn = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String ln = user.getLastName() != null ? user.getLastName().trim() : "";
+        String full = (fn + " " + ln).trim();
+        if (!full.isEmpty()) {
+            return full;
+        }
+        String email = user.getEmail();
+        if (email != null && email.contains("@")) {
+            return email.substring(0, email.indexOf('@'));
+        }
+        return "Usuario sin nombre";
     }
 }

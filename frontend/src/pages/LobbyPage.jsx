@@ -209,8 +209,12 @@ export default function LobbyPage() {
         const orgIds = orgsList.map(o => o.id);
 
         // Batch load subscriptions for all orgs using apiClient
-        const subPromises = orgsList.map(org => 
-          apiClient.get(`/tenants/${org.id}/subscription`)
+        const subPromises = orgsList.map(org =>
+          apiClient.get(`/tenants/${org.id}/subscription`, {
+            // X-Tenant-ID explícito = la org que se está consultando (no la del localStorage).
+            // Alinea el chequeo IDOR del backend Y el filtro de Hibernate sobre Subscription.
+            headers: { 'X-Tenant-ID': org.id }
+          })
             .then(res => res.data)
             .catch(() => null)
         );

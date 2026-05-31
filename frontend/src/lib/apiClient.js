@@ -19,9 +19,12 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${session.access_token}`;
     }
     
-    // Inyectar el Tenant seleccionado (Gimnasio)
+    // Inyectar el Tenant seleccionado (Gimnasio).
+    // Respeta un X-Tenant-ID seteado explícitamente por-request (ej: el Lobby, que
+    // consulta la suscripción de CADA org del usuario). Sin este "&& !...", el
+    // interceptor pisaría el header por-request con el del localStorage.
     const orgId = localStorage.getItem('current_org_id');
-    if (orgId) {
+    if (orgId && !config.headers['X-Tenant-ID']) {
       config.headers['X-Tenant-ID'] = orgId;
     }
     
