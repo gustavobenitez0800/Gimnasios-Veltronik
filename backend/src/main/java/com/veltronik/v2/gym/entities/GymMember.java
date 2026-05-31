@@ -43,6 +43,6 @@ public class GymMember extends TenantAwareEntity {
     @Column(columnDefinition = "text")
     private String notes;
 
-    @Column(name = "birth_date")
+    @Column(name = "birth_date", columnDefinition = "text")
     private String birthDate;
 }
