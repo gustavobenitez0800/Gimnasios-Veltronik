@@ -51,9 +51,10 @@ public class GymMember extends TenantAwareEntity {
     @Column(name = "emergency_contact")
     private String emergencyContact;
     
-    @Column(name = "emergency_phone")
+    @Column(name = "emergency_phone", length = 50)
     private String emergencyPhone;
     
+    @Column(length = 50)
     private String gender;
     
     @Column(columnDefinition = "text")

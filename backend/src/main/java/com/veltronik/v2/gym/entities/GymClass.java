@@ -30,8 +30,10 @@ public class GymClass extends TenantAwareEntity {
     @Column(nullable = false)
     private int capacity = 20;
 
+    @Column(length = 100)
     private String room;
 
+    @Column(length = 20)
     private String color;
 
     @Column(columnDefinition = "text")
