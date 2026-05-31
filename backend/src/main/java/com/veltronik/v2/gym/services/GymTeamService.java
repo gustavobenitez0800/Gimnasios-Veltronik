@@ -28,13 +28,15 @@ public class GymTeamService {
 
     public List<Map<String, Object>> getTeamMembers() {
         UUID tenantId = TenantContextHolder.getTenantId();
-        List<TenantMembership> memberships = membershipRepository.findByTenantId(tenantId);
+
+        // UNA sola query (JOIN FETCH): trae las membresías activas + su AppUser ya
+        // inicializado. No hace falta @Transactional ni hay riesgo de N+1, y el filtro
+        // de "activo" se resuelve en la BD.
+        List<TenantMembership> memberships = membershipRepository.findActiveByTenantIdWithUser(tenantId);
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (TenantMembership membership : memberships) {
-            if (!membership.isActive()) continue; // Skip inactive members
-            
-            AppUser user = membership.getUser();
+            AppUser user = membership.getUser(); // ya cargado por el JOIN FETCH (sin sesión abierta)
             Map<String, Object> map = new HashMap<>();
             map.put("user_id", user.getId());
             map.put("email", user.getEmail());
