@@ -1,7 +1,8 @@
 package com.veltronik.v2.gym.controllers;
 
-import com.veltronik.v2.core.controllers.BaseController;
+import com.veltronik.v2.gym.dto.GymMemberDTO;
 import com.veltronik.v2.gym.entities.GymMember;
+import com.veltronik.v2.gym.mappers.GymMemberMapper;
 import com.veltronik.v2.gym.services.GymMemberService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -9,33 +10,41 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * API REST de socios del gimnasio.
+ *
+ * Devuelve SIEMPRE {@link GymMemberDTO} (nunca la entidad JPA cruda). El frontend
+ * solo dibuja el contrato que define este DTO.
+ */
 @RestController
 @RequestMapping("/api/gym/members")
 public class GymMemberController {
 
     private final GymMemberService memberService;
+    private final GymMemberMapper memberMapper;
 
-    public GymMemberController(GymMemberService memberService) {
+    public GymMemberController(GymMemberService memberService, GymMemberMapper memberMapper) {
         this.memberService = memberService;
+        this.memberMapper = memberMapper;
     }
 
     @GetMapping
-    public ResponseEntity<List<GymMember>> getAllMembers() {
-        return ResponseEntity.ok(memberService.findAllForCurrentTenant());
+    public ResponseEntity<List<GymMemberDTO>> getAllMembers() {
+        return ResponseEntity.ok(memberMapper.toDtoList(memberService.findAllForCurrentTenant()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<GymMember> getMemberById(@PathVariable UUID id) {
-        return ResponseEntity.ok(memberService.findByIdAndVerifyOwnership(id));
+    public ResponseEntity<GymMemberDTO> getMemberById(@PathVariable UUID id) {
+        return ResponseEntity.ok(memberMapper.toDto(memberService.findByIdAndVerifyOwnership(id)));
     }
 
     @PostMapping
-    public ResponseEntity<GymMember> createMember(@RequestBody GymMember member) {
-        return ResponseEntity.ok(memberService.saveForCurrentTenant(member));
+    public ResponseEntity<GymMemberDTO> createMember(@RequestBody GymMember member) {
+        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(member)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<GymMember> updateMember(@PathVariable UUID id, @RequestBody GymMember updatedMember) {
+    public ResponseEntity<GymMemberDTO> updateMember(@PathVariable UUID id, @RequestBody GymMember updatedMember) {
         GymMember existingMember = memberService.findByIdAndVerifyOwnership(id);
         
         if (updatedMember.getFirstName() != null) existingMember.setFirstName(updatedMember.getFirstName());
@@ -58,7 +67,7 @@ public class GymMemberController {
         if (updatedMember.getObjectives() != null) existingMember.setObjectives(updatedMember.getObjectives());
         if (updatedMember.getPhotoUrl() != null) existingMember.setPhotoUrl(updatedMember.getPhotoUrl());
 
-        return ResponseEntity.ok(memberService.saveForCurrentTenant(existingMember));
+        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(existingMember)));
     }
 
     @DeleteMapping("/{id}")

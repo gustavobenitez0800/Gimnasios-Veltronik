@@ -37,12 +37,22 @@ apiClient.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // Token expirado o inválido: Forzar logout visual
       supabase.auth.signOut();
-      
+
       // Emitir un evento global para que AuthContext reaccione
       window.dispatchEvent(new Event('auth-unauthorized'));
     } else if (error.response && error.response.status === 402) {
       // Kill Switch Activado: Sucursal inactiva por falta de pago
       window.dispatchEvent(new Event('auth-payment-required'));
+    } else if (
+      error.response &&
+      error.response.status === 403 &&
+      error.response.data?.error === 'FORBIDDEN_TENANT'
+    ) {
+      // El negocio seleccionado ya no es accesible (contexto viejo en localStorage,
+      // o el usuario fue removido del equipo). Limpiamos y volvemos al Lobby.
+      localStorage.removeItem('current_org_id');
+      localStorage.removeItem('current_org_name');
+      window.dispatchEvent(new Event('auth-forbidden-tenant'));
     }
     
     // Extraer mensaje controlado de Java GlobalExceptionHandler

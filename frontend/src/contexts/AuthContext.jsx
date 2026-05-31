@@ -247,14 +247,23 @@ export function AuthProvider({ children }) {
 
     const handleUnauthorized = () => logout();
     const handlePaymentRequired = () => navigate(CONFIG.ROUTES.BLOCKED, { replace: true });
+    const handleForbiddenTenant = () => {
+      // El negocio seleccionado dejó de ser accesible: limpiar contexto y volver al Lobby.
+      setGym(null);
+      setSubscription(null);
+      setOrgName('');
+      navigate(CONFIG.ROUTES.LOBBY, { replace: true });
+    };
 
     window.addEventListener('auth-unauthorized', handleUnauthorized);
     window.addEventListener('auth-payment-required', handlePaymentRequired);
+    window.addEventListener('auth-forbidden-tenant', handleForbiddenTenant);
 
     return () => {
       authListener?.unsubscribe();
       window.removeEventListener('auth-unauthorized', handleUnauthorized);
       window.removeEventListener('auth-payment-required', handlePaymentRequired);
+      window.removeEventListener('auth-forbidden-tenant', handleForbiddenTenant);
     };
   }, [initAuth, navigate]);
 

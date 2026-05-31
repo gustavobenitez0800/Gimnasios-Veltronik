@@ -17,4 +17,11 @@ public interface TenantMembershipRepository extends JpaRepository<TenantMembersh
     Optional<TenantMembership> findByUserIdAndTenantId(UUID userId, UUID tenantId);
     List<TenantMembership> findByTenantIdAndActiveTrue(UUID tenantId);
     List<TenantMembership> findByTenantId(UUID tenantId);
+
+    /**
+     * Verifica de forma eficiente (sin hidratar la entidad) que el usuario
+     * tenga una membresía ACTIVA en el tenant. Usado por TenantContextFilter
+     * para autorizar el header X-Tenant-ID en cada request.
+     */
+    boolean existsByUserIdAndTenantIdAndActiveTrue(UUID userId, UUID tenantId);
 }

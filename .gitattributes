@@ -1,0 +1,29 @@
+# Normalización de fin de línea y protección de binarios.
+# Sin esto, core.autocrlf puede corromper archivos binarios (ej: maven-wrapper.jar)
+# al convertir LF<->CRLF, rompiendo el build.
+
+# Por defecto: que git decida y normalice a LF en el repo.
+* text=auto eol=lf
+
+# Binarios: NUNCA aplicar conversión de fin de línea.
+*.jar   binary
+*.class binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.exe   binary
+*.dll   binary
+
+# Scripts de Windows: mantener CRLF para que cmd.exe no falle.
+*.cmd text eol=crlf
+*.bat text eol=crlf

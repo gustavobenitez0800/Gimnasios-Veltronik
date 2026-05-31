@@ -26,9 +26,33 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     List<Tenant> findByActiveTrue();
 
     /**
-     * Busca tenants activos cuyo trial/suscripción ya expiró.
-     * Usado por el CronJob de Kill Switch — empuja el filtro a la BD (evita cargar todo a memoria).
+     * Busca tenants a desactivar por el Kill Switch (cron): trial vencido Y SIN una
+     * suscripción válida que les dé acceso.
+     *
+     * <p><b>Por qué el NOT EXISTS es crítico:</b> el trial ({@code trial_ends_at}) NO es
+     * la única fuente de "acceso pago". Un cliente que paga por Mercado Pago tiene su
+     * acceso en la tabla {@code subscriptions}. Sin este chequeo, el cron desactivaría
+     * a clientes que pagan religiosamente solo porque su trial original venció —
+     * exactamente lo que pasaría con los gimnasios más grandes (POPEYE, SEKUR).</p>
+     *
+     * <p>Se considera "suscripción válida" cuando: está {@code active}; o está
+     * {@code past_due} pero dentro del período de gracia; o está {@code canceled} pero
+     * el período pago en curso todavía no terminó. Ante la duda, NO se bloquea.</p>
      */
-    @Query("SELECT t FROM Tenant t WHERE t.active = true AND t.trialEndsAt IS NOT NULL AND t.trialEndsAt < :now")
+    @Query("""
+            SELECT t FROM Tenant t
+            WHERE t.active = true
+              AND t.trialEndsAt IS NOT NULL
+              AND t.trialEndsAt < :now
+              AND NOT EXISTS (
+                  SELECT 1 FROM Subscription s
+                  WHERE s.tenant = t
+                    AND (
+                         s.status = 'active'
+                      OR (s.status = 'past_due' AND s.gracePeriodEndsAt IS NOT NULL AND s.gracePeriodEndsAt > :now)
+                      OR (s.status = 'canceled' AND s.currentPeriodEnd IS NOT NULL AND s.currentPeriodEnd > :now)
+                    )
+              )
+            """)
     List<Tenant> findExpiredActiveTenants(@Param("now") LocalDateTime now);
 }
