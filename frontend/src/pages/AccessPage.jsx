@@ -116,10 +116,10 @@ export default function AccessPage() {
     inGym: checkedIn.length,
     totalToday: todayLogs.length,
     avgTime: todayLogs.length > 0 ? (() => {
-      const completed = todayLogs.filter(l => l.check_out_at);
+      const completed = todayLogs.filter(l => l.checkOutAt);
       if (completed.length === 0) return '-';
       const avg = completed.reduce((sum, l) => {
-        return sum + (new Date(l.check_out_at) - new Date(l.check_in_at));
+        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
       }, 0) / completed.length;
       return `${Math.round(avg / 60000)} min`;
     })() : '-',
@@ -207,7 +207,7 @@ export default function AccessPage() {
                 <div className="member-avatar">{getInitials(memberName)}</div>
                 <div className="member-info">
                   <div className="member-name">{memberName}</div>
-                  <div className="checkin-time">Entrada: {getRelativeTime(log.check_in_at)}</div>
+                  <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
                 </div>
                 <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
                   <Icon name="handWave" size="1em" /> Salida
@@ -236,9 +236,9 @@ export default function AccessPage() {
                 <tr key={log.id}>
                   <td><strong>{member?.fullName || 'Socio'}</strong></td>
                   <td>{member?.dni || '-'}</td>
-                  <td>{new Date(log.check_in_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</td>
-                  <td>{log.check_out_at ? new Date(log.check_out_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
-                  <td>{log.access_method === 'manual' ? '✋ Manual' : log.access_method === 'qr' ? '📱 QR' : log.access_method || '-'}</td>
+                  <td>{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td>{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
+                  <td>{(log.accessMethod || '').toLowerCase() === 'manual' ? '✋ Manual' : (log.accessMethod || '').toLowerCase() === 'qr' ? '📱 QR' : log.accessMethod || '-'}</td>
                 </tr>
               )})}
             </tbody>

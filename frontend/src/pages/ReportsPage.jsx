@@ -10,6 +10,14 @@ import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
+// El DTO de socios de V2 trae `active` (boolean) + membershipEnd, NO un campo `status`.
+// Derivamos el estado real para que los reportes no muestren estado vacío/erróneo.
+function deriveMemberStatus(m) {
+  if (m.active === false) return 'inactive';
+  if (m.membershipEnd && new Date(m.membershipEnd) < new Date()) return 'expired';
+  return 'active';
+}
+
 function getQuickDates(period) {
   const today = new Date();
   const formatLocal = (d) => {
@@ -132,7 +140,7 @@ function GymReportsPage() {
       }
       
       const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio Membresía', 'Fin Membresía'];
-      const rows = (members || []).map(m => [m.fullName, m.dni || '', m.phone || '', m.email || '', getStatusLabel(m.status), m.membershipStart || '', m.membershipEnd || '']);
+      const rows = (members || []).map(m => [m.fullName, m.dni || '', m.phone || '', m.email || '', getStatusLabel(deriveMemberStatus(m)), m.membershipStart || '', m.membershipEnd || '']);
       
       if (format === 'excel') {
         await downloadExcel(`socios_${dateFrom}.xlsx`, headers, rows);
@@ -164,15 +172,15 @@ function GymReportsPage() {
       const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
       const rows = (payments || []).map(p => [
-        p.member?.fullName || '', 
-        formatCurrency(p.amount || 0), 
-        p.paymentDate || '', 
-        getMethodLabel(p.paymentMethod), 
+        `${p.member?.firstName || ''} ${p.member?.lastName || ''}`.trim(),
+        formatCurrency(p.amount || 0),
+        p.paymentDate || '',
+        getMethodLabel(p.paymentMethod),
         p.status || ''
       ]);
-      
-      // Calcular total sumado (solo de pagos completados)
-      const totalSum = (payments || []).filter(p => p.status === 'paid').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+
+      // Calcular total sumado (solo de pagos completados). El backend manda 'PAID' (mayúscula).
+      const totalSum = (payments || []).filter(p => (p.status || '').toLowerCase() === 'paid').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
       
       // Agregar filas de total al final
       rows.push(['', '', '', '', '']); // Separador visual
@@ -201,7 +209,7 @@ function GymReportsPage() {
       }
       
       const headers = ['Socio', 'DNI', 'Entrada', 'Salida', 'Método'];
-      const rows = (logs || []).map(l => [l.member?.fullName || '', l.member?.dni || '', l.check_in_at || '', l.check_out_at || '', l.access_method || '']);
+      const rows = (logs || []).map(l => [l.member?.fullName || '', l.member?.dni || '', l.checkInAt || '', l.checkOutAt || '', l.accessMethod || '']);
       
       if (format === 'excel') {
         await downloadExcel(`accesos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
@@ -223,7 +231,7 @@ function GymReportsPage() {
 
       // Socios activos y total
       const members = await memberService.getAll();
-      const active = members.filter(m => m.status === 'active').length;
+      const active = members.filter(m => deriveMemberStatus(m) === 'active').length;
       const newMembers = members.filter(m => {
         if (!dateFrom || !dateTo || !m.membershipStart) return true;
         return m.membershipStart >= dateFrom && m.membershipStart <= dateTo;
