@@ -51,6 +51,12 @@ public class GymMemberController {
         if (updatedMember.getAttendanceDays() != null) existingMember.setAttendanceDays(updatedMember.getAttendanceDays());
         if (updatedMember.getNotes() != null) existingMember.setNotes(updatedMember.getNotes());
         if (updatedMember.getBirthDate() != null) existingMember.setBirthDate(updatedMember.getBirthDate());
+        if (updatedMember.getAddress() != null) existingMember.setAddress(updatedMember.getAddress());
+        if (updatedMember.getEmergencyContact() != null) existingMember.setEmergencyContact(updatedMember.getEmergencyContact());
+        if (updatedMember.getEmergencyPhone() != null) existingMember.setEmergencyPhone(updatedMember.getEmergencyPhone());
+        if (updatedMember.getGender() != null) existingMember.setGender(updatedMember.getGender());
+        if (updatedMember.getObjectives() != null) existingMember.setObjectives(updatedMember.getObjectives());
+        if (updatedMember.getPhotoUrl() != null) existingMember.setPhotoUrl(updatedMember.getPhotoUrl());
 
         return ResponseEntity.ok(memberService.saveForCurrentTenant(existingMember));
     }

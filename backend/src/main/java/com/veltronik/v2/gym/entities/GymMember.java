@@ -45,4 +45,23 @@ public class GymMember extends TenantAwareEntity {
 
     @Column(name = "birth_date", columnDefinition = "text")
     private String birthDate;
+
+    private String address;
+    
+    @Column(name = "emergency_contact")
+    private String emergencyContact;
+    
+    @Column(name = "emergency_phone")
+    private String emergencyPhone;
+    
+    private String gender;
+    
+    @Column(columnDefinition = "text")
+    private String objectives;
+    
+    @Column(name = "photo_url", length = 500)
+    private String photoUrl;
+    
+    @Column(name = "user_id")
+    private java.util.UUID userId;
 }
