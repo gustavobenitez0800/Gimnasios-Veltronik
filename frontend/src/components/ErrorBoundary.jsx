@@ -51,6 +51,25 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.inline) {
+        return (
+          <div className="card" style={{ padding: '3rem 2rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+            <div style={{ color: 'var(--error-500)', marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: 64, height: 64, background: 'rgba(239,68,68,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>
+                <Icon name="alertTriangle" />
+              </div>
+            </div>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Módulo no disponible</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
+              Ocurrió un error al intentar cargar esta sección. El resto de la plataforma sigue operando normalmente.
+            </p>
+            <button className="btn btn-primary" onClick={this.handleManualRetry}>
+              Intentar nuevamente
+            </button>
+          </div>
+        );
+      }
+
       return (
         <div className="auth-wrapper" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="auth-container" style={{ maxWidth: 460, textAlign: 'center' }}>
@@ -72,7 +91,7 @@ export default class ErrorBoundary extends Component {
                 borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '2rem', margin: '0 auto 1.5rem auto'
               }}>
-                {this.state.isNetworkError ? <Icon name="wifi-off" /> : '⚠️'}
+                {this.state.isNetworkError ? <Icon name="wifiOff" /> : '⚠️'}
               </div>
 
               <h1 className="auth-title" style={{ marginBottom: '0.75rem', fontSize: '1.5rem' }}>

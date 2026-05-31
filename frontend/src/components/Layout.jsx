@@ -9,6 +9,8 @@ import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
+import ErrorBoundary from './ErrorBoundary';
+
 /**
  * Main app layout with sidebar (for dashboard pages)
  * Includes payment warning banner for past_due subscriptions.
@@ -87,7 +89,9 @@ export function AppLayout() {
         )}
 
         <div className="page-content">
-          <Outlet />
+          <ErrorBoundary inline={true}>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

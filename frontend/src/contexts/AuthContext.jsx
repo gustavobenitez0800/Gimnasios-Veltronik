@@ -340,7 +340,9 @@ export function AuthProvider({ children }) {
     initCompleteRef.current = false;
     localStorage.removeItem('current_org_id');
     localStorage.removeItem('current_org_name');
-    navigate(CONFIG.ROUTES.LOGIN);
+    
+    // HARD REDIRECT para limpiar memoria RAM del navegador (Evita el "sistema loco" por caché retenido)
+    window.location.href = CONFIG.ROUTES.LOGIN || '/login';
   };
 
   const refreshAuth = async () => {
