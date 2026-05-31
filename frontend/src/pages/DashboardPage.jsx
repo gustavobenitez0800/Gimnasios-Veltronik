@@ -171,8 +171,8 @@ function GymDashboard({ gym }) {
             >
               {isFetching ? <span className="spinner" /> : <Icon name="refresh" />}
             </button>
-            <span className={`badge ${gym?.status === 'active' ? 'badge-success' : 'badge-warning'}`}>
-              {gym?.status === 'active' ? 'Activo' : gym?.status || '--'}
+            <span className={`badge ${(gym?.active ?? gym?.isActive) ? 'badge-success' : 'badge-warning'}`}>
+              {(gym?.active ?? gym?.isActive) ? 'Activo' : 'Inactivo'}
             </span>
           </div>
         }

@@ -15,25 +15,34 @@ export function useDashboardController(gym) {
       paymentService.getAll()
     ]);
 
-    // Mapear DTOs de Java (camelCase) a formato que InsightsService espera (snake_case)
-    const membersData = (rawMembers || []).map(m => ({
-      ...m,
-      fullName: `${m.firstName || ''} ${m.lastName || ''}`.trim(),
-      birthDate: m.birthDate,
-      membershipStart: m.membershipStart,
-      membershipEnd: m.membershipEnd,
-      attendanceDays: m.attendanceDays || [],
-      status: (m.status || 'active').toLowerCase(),
-    }));
+    // Mapear DTOs de Java (camelCase) al formato que InsightsService espera.
+    // El DTO trae `active` (boolean), NO `status` → derivamos el estado real
+    // (inactive / expired / active) desde active + membershipEnd.
+    const now = new Date();
+    const membersData = (rawMembers || []).map(m => {
+      let status = 'active';
+      if (m.active === false) status = 'inactive';
+      else if (m.membershipEnd && new Date(m.membershipEnd) < now) status = 'expired';
+      return {
+        ...m,
+        fullName: `${m.firstName || ''} ${m.lastName || ''}`.trim(),
+        birthDate: m.birthDate,
+        membershipStart: m.membershipStart,
+        membershipEnd: m.membershipEnd,
+        attendanceDays: m.attendanceDays || [],
+        status,
+      };
+    });
 
-    // Mapear pagos de Java (snake_case del DTO manual) - ya vienen en snake_case
+    // Pagos: el backend manda status en MAYÚSCULA ('PAID'); InsightsService compara
+    // contra 'paid' (minúscula) → normalizamos acá.
     const mappedPayments = (paymentsData || []).map(p => ({
       ...p,
-      // Asegurar compatibilidad (ya vienen en snake_case del backend)
       paymentDate: p.paymentDate,
       paymentMethod: p.paymentMethod,
       periodStart: p.periodStart,
       periodEnd: p.periodEnd,
+      status: (p.status || '').toLowerCase(),
     }));
     
     return { 
