@@ -44,6 +44,12 @@ apiClient.interceptors.response.use(
       // Kill Switch Activado: Sucursal inactiva por falta de pago
       window.dispatchEvent(new Event('auth-payment-required'));
     }
+    
+    // Extraer mensaje controlado de Java GlobalExceptionHandler
+    if (error.response && error.response.data && error.response.data.message) {
+      error.message = error.response.data.message;
+    }
+    
     return Promise.reject(error);
   }
 );
