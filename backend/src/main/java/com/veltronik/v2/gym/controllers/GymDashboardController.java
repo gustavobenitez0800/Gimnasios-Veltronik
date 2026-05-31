@@ -23,4 +23,9 @@ public class GymDashboardController {
     public ResponseEntity<Map<String, Object>> getDashboardStats() {
         return ResponseEntity.ok(dashboardService.getDashboardStats());
     }
+
+    @GetMapping("/retention")
+    public ResponseEntity<Map<String, Object>> getRetentionAnalytics() {
+        return ResponseEntity.ok(dashboardService.getRetentionAnalytics());
+    }
 }

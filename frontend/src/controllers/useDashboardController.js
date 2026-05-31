@@ -62,14 +62,14 @@ export function useDashboardController(gym) {
     }
   }, [invalidate]);
 
-  // Dashboard stats ahora vienen del backend en snake_case
+  // Dashboard stats ahora vienen del backend de Java (camelCase)
   const dashboardStats = useMemo(() => {
     if (stats) {
       return {
-        activeMembers: stats.active_members || 0,
-        expiredMembers: stats.expired_members || 0,
-        expiringMembers: stats.expiring_this_week || 0,
-        monthlyRevenue: parseFloat(stats.monthly_revenue || 0),
+        activeMembers: stats.activeMembers || 0,
+        expiredMembers: stats.expiredMembers || 0,
+        expiringMembers: stats.expiringMembers || 0,
+        monthlyRevenue: parseFloat(stats.monthlyRevenue || 0),
       };
     }
     return { activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
