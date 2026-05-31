@@ -13,19 +13,25 @@ export function useMemberController() {
   const [error, setError] = useState(null);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  // Mapear el DTO de Java al Modelo de React (para mantener compatibilidad de UI)
   const mapDTOToModel = (dto) => {
+    let attendance = [];
+    if (typeof dto.attendanceDays === 'string') {
+      try { attendance = JSON.parse(dto.attendanceDays); } catch (e) { attendance = []; }
+    } else if (Array.isArray(dto.attendanceDays)) {
+      attendance = dto.attendanceDays;
+    }
+
     return new Member({
       id: dto.id,
       fullName: `${dto.firstName || ''} ${dto.lastName || ''}`.trim(),
-      dni: dto.dni,
+      dni: dto.document || dto.dni,
       email: dto.email,
       phone: dto.phone,
       birthDate: dto.birthDate,
       status: dto.status?.toLowerCase() || 'active',
       membershipStart: dto.membershipStart || null,
       membershipEnd: dto.membershipEnd || null,
-      attendanceDays: dto.attendanceDays || [],
+      attendanceDays: attendance,
       notes: dto.notes || '',
     });
   };
@@ -39,13 +45,13 @@ export function useMemberController() {
     return {
       firstName: firstName,
       lastName: lastName,
-      dni: model.dni,
+      document: model.dni,
       email: model.email,
       phone: model.phone,
       birthDate: model.birthDate || null,
       membershipStart: model.membershipStart || null,
       membershipEnd: model.membershipEnd || null,
-      attendanceDays: model.attendanceDays || [],
+      attendanceDays: JSON.stringify(model.attendanceDays || []),
       notes: model.notes || '',
       status: model.status?.toUpperCase() || 'ACTIVE'
     };

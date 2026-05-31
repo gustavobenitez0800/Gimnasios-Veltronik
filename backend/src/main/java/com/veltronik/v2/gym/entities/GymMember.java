@@ -36,4 +36,7 @@ public class GymMember extends TenantAwareEntity {
     
     @Column(name = "membership_end")
     private LocalDateTime membershipEnd;
+
+    @Column(name = "attendance_days", columnDefinition = "text")
+    private String attendanceDays;
 }
