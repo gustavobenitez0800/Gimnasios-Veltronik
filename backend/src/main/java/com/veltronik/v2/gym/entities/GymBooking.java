@@ -16,12 +16,12 @@ import java.time.LocalDate;
 @Setter
 public class GymBooking extends TenantAwareEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "class_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private GymClass gymClass;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "member_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "payments"})
     private GymMember member;

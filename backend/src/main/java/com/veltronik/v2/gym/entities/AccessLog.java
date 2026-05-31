@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Table(name = "access_log")
 public class AccessLog extends TenantAwareEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "member_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private GymMember member;

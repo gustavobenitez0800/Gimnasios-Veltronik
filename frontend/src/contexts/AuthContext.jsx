@@ -338,6 +338,8 @@ export function AuthProvider({ children }) {
     setTrialDaysRemaining(0);
     trialWarningShownRef.current = false;
     initCompleteRef.current = false;
+    localStorage.removeItem('current_org_id');
+    localStorage.removeItem('current_org_name');
     navigate(CONFIG.ROUTES.LOGIN);
   };
 

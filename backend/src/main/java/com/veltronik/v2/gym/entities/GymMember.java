@@ -65,4 +65,14 @@ public class GymMember extends TenantAwareEntity {
     
     @Column(name = "user_id")
     private java.util.UUID userId;
+
+    @com.fasterxml.jackson.annotation.JsonGetter("fullName")
+    public String getFullName() {
+        return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "").trim();
+    }
+
+    @com.fasterxml.jackson.annotation.JsonGetter("dni")
+    public String getDni() {
+        return document;
+    }
 }
