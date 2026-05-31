@@ -149,8 +149,16 @@ function GymReportsPage() {
   const exportPayments = async (format) => {
     setExporting(e => ({ ...e, payments: format }));
     try {
-      // Fetch-on-demand using the optimized filter method
-      const payments = await paymentService.getByFilters(dateFrom, dateTo, '', '', '');
+      // Fetch-on-demand
+      let payments = await paymentService.getAll();
+      
+      if (dateFrom && dateTo) {
+        payments = (payments || []).filter(p => {
+          const d = p.paymentDate || (p.created_at ? p.created_at.split('T')[0] : null);
+          if (!d) return true;
+          return d >= dateFrom && d <= dateTo;
+        });
+      }
       
       const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
       const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);

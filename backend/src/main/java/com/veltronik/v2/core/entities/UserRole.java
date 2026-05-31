@@ -10,5 +10,6 @@ package com.veltronik.v2.core.entities;
 public enum UserRole {
     OWNER,
     ADMIN,
-    STAFF
+    STAFF,
+    RECEPTION
 }
