@@ -16,7 +16,7 @@ export function useMemberController() {
   const mapDTOToModel = (dto) => {
     let attendance = [];
     if (typeof dto.attendanceDays === 'string') {
-      try { attendance = JSON.parse(dto.attendanceDays); } catch (e) { attendance = []; }
+      try { attendance = JSON.parse(dto.attendanceDays); } catch { attendance = []; }
     } else if (Array.isArray(dto.attendanceDays)) {
       attendance = dto.attendanceDays;
     }
@@ -76,29 +76,13 @@ export function useMemberController() {
     setLoading(true);
     setError(null);
     try {
-      // Obtenemos todos desde la API Java (para gimnasios chicos a medianos es rapidísimo)
-      const dataDTOs = await memberService.getAllMembers();
-      
-      // Transformar DTOs a Modelos
-      let mappedMembers = dataDTOs.map(mapDTOToModel);
-      
-      // Filtro local en memoria
-      if (search && search.trim() !== '') {
-        const s = search.toLowerCase();
-        mappedMembers = mappedMembers.filter(m => 
-          (m.fullName && m.fullName.toLowerCase().includes(s)) ||
-          (m.dni && m.dni.includes(s)) ||
-          (m.email && m.email.toLowerCase().includes(s))
-        );
-      }
+      // Paginación + búsqueda en el BACKEND: solo trae la página pedida,
+      // no los cientos de socios de una (menos transferencia y memoria).
+      const pageData = await memberService.getMembersPaged(page, pageSize, search);
+      const mapped = (pageData.content || []).map(mapDTOToModel);
 
-      setTotalRecords(mappedMembers.length);
-
-      // Paginación local en memoria
-      const start = page * pageSize;
-      const paginated = mappedMembers.slice(start, start + pageSize);
-
-      setMembers(paginated);
+      setMembers(mapped);
+      setTotalRecords(pageData.totalElements || 0);
     } catch (err) {
       console.error("Error loading members:", err);
       setError(err.message || "Error al cargar los socios.");

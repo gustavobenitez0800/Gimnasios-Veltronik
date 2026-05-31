@@ -33,6 +33,21 @@ public class GymMemberController {
         return ResponseEntity.ok(memberMapper.toDtoList(memberService.findAllForCurrentTenant()));
     }
 
+    /**
+     * Lista paginada de socios (server-side). Evita traer los cientos de socios de una.
+     * Params: page (0-based), size, search (opcional, busca en nombre/dni/email).
+     */
+    @GetMapping("/paged")
+    public ResponseEntity<com.veltronik.v2.core.dto.PageResponse<GymMemberDTO>> getMembersPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String search) {
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                page, size, org.springframework.data.domain.Sort.by("firstName").ascending());
+        var result = memberService.findPageForCurrentTenant(search, pageable).map(memberMapper::toDto);
+        return ResponseEntity.ok(com.veltronik.v2.core.dto.PageResponse.of(result));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<GymMemberDTO> getMemberById(@PathVariable UUID id) {
         return ResponseEntity.ok(memberMapper.toDto(memberService.findByIdAndVerifyOwnership(id)));

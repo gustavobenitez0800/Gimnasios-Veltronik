@@ -15,6 +15,17 @@ class MemberService {
     return this.getAllMembers();
   }
 
+  /**
+   * Página de socios desde el backend (server-side). Devuelve
+   * { content, totalElements, totalPages, page, size }.
+   */
+  async getMembersPaged(page = 0, size = 50, search = '') {
+    const params = { page, size };
+    if (search && search.trim() !== '') params.search = search.trim();
+    const response = await apiClient.get('/gym/members/paged', { params });
+    return response.data;
+  }
+
   async getMemberById(id) {
     const response = await apiClient.get(`/gym/members/${id}`);
     return response.data;

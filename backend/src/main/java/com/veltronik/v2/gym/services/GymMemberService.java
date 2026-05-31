@@ -26,6 +26,17 @@ public class GymMemberService {
     public List<GymMember> findAllForCurrentTenant() {
         return repository.findByTenantId(TenantContextHolder.getTenantId());
     }
+
+    /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email). */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<GymMember> findPageForCurrentTenant(
+            String search, org.springframework.data.domain.Pageable pageable) {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        if (search != null && !search.isBlank()) {
+            return repository.searchByTenantId(tenantId, search.trim(), pageable);
+        }
+        return repository.findByTenantId(tenantId, pageable);
+    }
     
     public GymMember saveForCurrentTenant(GymMember member) {
         Tenant tenant = new Tenant();
