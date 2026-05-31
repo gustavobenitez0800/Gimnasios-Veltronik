@@ -1,6 +1,7 @@
 package com.veltronik.v2.gym.entities;
 
 import com.veltronik.v2.core.entities.TenantAwareEntity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
