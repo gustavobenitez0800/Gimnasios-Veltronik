@@ -21,16 +21,23 @@ export function useMemberController() {
       attendance = dto.attendanceDays;
     }
 
+    // Transformar el booleano active a un status visual
+    let statusStr = dto.active ? 'active' : 'inactive';
+    // Si la membresía está vencida, podemos forzar el status visual
+    if (dto.active && dto.membershipEnd && new Date(dto.membershipEnd) < new Date()) {
+      statusStr = 'expired';
+    }
+
     return new Member({
       id: dto.id,
       fullName: `${dto.firstName || ''} ${dto.lastName || ''}`.trim(),
       dni: dto.document || dto.dni,
       email: dto.email,
       phone: dto.phone,
-      birthDate: dto.birthDate,
-      status: dto.status?.toLowerCase() || 'active',
-      membershipStart: dto.membershipStart || null,
-      membershipEnd: dto.membershipEnd || null,
+      birthDate: dto.birthDate ? dto.birthDate.split('T')[0] : null,
+      status: statusStr,
+      membershipStart: dto.membershipStart ? dto.membershipStart.split('T')[0] : null,
+      membershipEnd: dto.membershipEnd ? dto.membershipEnd.split('T')[0] : null,
       attendanceDays: attendance,
       notes: dto.notes || '',
     });
@@ -42,18 +49,26 @@ export function useMemberController() {
     const firstName = parts[0] || '';
     const lastName = parts.slice(1).join(' ') || '';
 
+    // Convertir estado visual a booleano real de la DB
+    const statusStr = model.status?.toLowerCase() || 'active';
+    const isActive = statusStr === 'active';
+
+    // Formatear fechas para LocalDateTime de Java (agregar hora)
+    const memStart = model.membershipStart ? `${model.membershipStart}T00:00:00` : null;
+    const memEnd = model.membershipEnd ? `${model.membershipEnd}T23:59:59` : null;
+
     return {
       firstName: firstName,
       lastName: lastName,
       document: model.dni,
-      email: model.email,
+      email: model.email || '',
       phone: model.phone,
       birthDate: model.birthDate || null,
-      membershipStart: model.membershipStart || null,
-      membershipEnd: model.membershipEnd || null,
+      membershipStart: memStart,
+      membershipEnd: memEnd,
       attendanceDays: JSON.stringify(model.attendanceDays || []),
       notes: model.notes || '',
-      status: model.status?.toUpperCase() || 'ACTIVE'
+      active: isActive
     };
   };
 

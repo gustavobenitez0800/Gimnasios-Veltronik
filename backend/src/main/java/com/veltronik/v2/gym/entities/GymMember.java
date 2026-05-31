@@ -39,4 +39,10 @@ public class GymMember extends TenantAwareEntity {
 
     @Column(name = "attendance_days", columnDefinition = "text")
     private String attendanceDays;
+
+    @Column(columnDefinition = "text")
+    private String notes;
+
+    @Column(name = "birth_date")
+    private String birthDate;
 }

@@ -38,7 +38,6 @@ public class GymMemberController {
     public ResponseEntity<GymMember> updateMember(@PathVariable UUID id, @RequestBody GymMember updatedMember) {
         GymMember existingMember = memberService.findByIdAndVerifyOwnership(id);
         
-        // Update fields
         if (updatedMember.getFirstName() != null) existingMember.setFirstName(updatedMember.getFirstName());
         if (updatedMember.getLastName() != null) existingMember.setLastName(updatedMember.getLastName());
         if (updatedMember.getEmail() != null) existingMember.setEmail(updatedMember.getEmail());
@@ -48,6 +47,10 @@ public class GymMemberController {
         
         if (updatedMember.getMembershipStart() != null) existingMember.setMembershipStart(updatedMember.getMembershipStart());
         if (updatedMember.getMembershipEnd() != null) existingMember.setMembershipEnd(updatedMember.getMembershipEnd());
+        
+        if (updatedMember.getAttendanceDays() != null) existingMember.setAttendanceDays(updatedMember.getAttendanceDays());
+        if (updatedMember.getNotes() != null) existingMember.setNotes(updatedMember.getNotes());
+        if (updatedMember.getBirthDate() != null) existingMember.setBirthDate(updatedMember.getBirthDate());
 
         return ResponseEntity.ok(memberService.saveForCurrentTenant(existingMember));
     }
