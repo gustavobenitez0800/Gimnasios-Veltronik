@@ -41,4 +41,20 @@ public class GymPayment extends TenantAwareEntity {
 
     @Column(name = "period_end")
     private LocalDateTime periodEnd;
+
+    /**
+     * Acepta {@code member_id} (snake_case) que envía el frontend al crear un pago.
+     * Sin esto, Jackson no encontraba dónde mapearlo y el pago se guardaba SIN socio
+     * (la columna es nullable → quedaba huérfano en silencio). Crea una referencia mínima;
+     * {@code GymPaymentService.saveForCurrentTenant} la resuelve y verifica que el socio
+     * pertenezca al tenant. Write-only: no se serializa (el DTO de salida ya expone el socio).
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty("member_id")
+    public void setMemberId(java.util.UUID memberId) {
+        if (memberId != null) {
+            GymMember m = new GymMember();
+            m.setId(memberId);
+            this.member = m;
+        }
+    }
 }
