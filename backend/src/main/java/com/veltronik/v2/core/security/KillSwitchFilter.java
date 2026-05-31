@@ -77,12 +77,13 @@ public class KillSwitchFilter extends OncePerRequestFilter {
     }
 
     private boolean shouldNotFilter(String path) {
-        // Rutas públicas, Auth y Facturación quedan abiertas siempre para que puedan pagar
-        return path.startsWith("/api/auth") ||
+        // Rutas públicas, Auth, Facturación y monitoreo quedan abiertas siempre.
+        return path.startsWith("/actuator") ||          // Health/info: Railway lo chequea SIN contexto de tenant
+               path.startsWith("/api/auth") ||
                path.startsWith("/api/billing") ||
                path.startsWith("/api/webhooks") ||
                path.startsWith("/api/tenants") || // Permitir listar y crear tenants sin tener uno seleccionado
-               path.startsWith("/api/core/setup") || 
+               path.startsWith("/api/core/setup") ||
                path.startsWith("/api/core/profiles");
     }
 }

@@ -75,7 +75,10 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "X-Tenant-ID"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Tenant-ID"));
-        configuration.setAllowCredentials(true);
+        // Autenticación por Bearer token (no cookies) → NO necesitamos credenciales CORS.
+        // Mantenerlo en false evita reflejar cualquier origin con Access-Control-Allow-Credentials,
+        // y permite que la app Electron (Origin: null) siga funcionando sin abrir un hueco CSRF.
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
