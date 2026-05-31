@@ -97,6 +97,27 @@ export default function BlockedPage() {
         </button>
 
         <button 
+          onClick={() => {
+            window.location.href = '/dashboard';
+          }}
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)', 
+            color: '#fff', 
+            padding: '1rem', 
+            borderRadius: '12px', 
+            border: '1px solid rgba(255,255,255,0.2)',
+            cursor: 'pointer', 
+            width: '100%',
+            marginBottom: '1rem',
+            transition: 'background 0.2s'
+          }}
+          onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.15)'}
+          onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+        >
+          Ya pagué (Reintentar conexión)
+        </button>
+
+        <button 
           onClick={logout}
           style={{
             background: 'transparent', color: '#9ca3af', padding: '1rem', 
