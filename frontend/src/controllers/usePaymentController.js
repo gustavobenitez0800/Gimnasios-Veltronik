@@ -25,10 +25,9 @@ export function usePaymentController() {
       paymentDate: dto.paymentDate ? dto.paymentDate.split('T')[0] : null,
       paymentMethod: (dto.paymentMethod || 'CASH').toLowerCase(),
       status: (dto.status || 'PAID').toLowerCase(),
-      notes: dto.description || dto.notes || '',
-      // El backend no guarda periodStart/End, así que quedan nulos a menos que el frontend los intercepte de otro lado
-      periodStart: dto.periodStart || null,
-      periodEnd: dto.periodEnd || null
+      notes: dto.notes || '',
+      periodStart: dto.periodStart ? dto.periodStart.split('T')[0] : null,
+      periodEnd: dto.periodEnd ? dto.periodEnd.split('T')[0] : null
     };
   }, []);
 
@@ -36,12 +35,12 @@ export function usePaymentController() {
     return {
       member_id: model.member_id,
       amount: parseFloat(model.amount) || 0,
-      paymentDate: model.paymentDate,
+      paymentDate: model.paymentDate ? `${model.paymentDate}T00:00:00` : null,
       paymentMethod: (model.paymentMethod || 'cash').toUpperCase(),
       status: (model.status || 'paid').toUpperCase(),
-      description: model.notes || '',
-      periodStart: model.periodStart || null,
-      periodEnd: model.periodEnd || null
+      notes: model.notes || '',
+      periodStart: model.periodStart ? `${model.periodStart}T00:00:00` : null,
+      periodEnd: model.periodEnd ? `${model.periodEnd}T23:59:59` : null
     };
   }, []);
 
@@ -51,7 +50,7 @@ export function usePaymentController() {
     setError(null);
     try {
       // Por ahora trae todos, luego podemos agregar params a Java
-      const data = await paymentService.getAll();
+      const data = await paymentService.getAllPayments();
       const mappedData = data.map(mapPaymentDTOToModel);
       setPayments(mappedData);
     } catch (err) {
@@ -71,10 +70,10 @@ export function usePaymentController() {
       if (paymentData.id) {
         saved = await paymentService.update(paymentData.id, dto);
       } else {
-        saved = await paymentService.create(dto);
+        saved = await paymentService.createPayment(dto);
       }
       // Reload everything
-      const data = await paymentService.getAll();
+      const data = await paymentService.getAllPayments();
       const mappedData = data.map(mapPaymentDTOToModel);
       setPayments(mappedData);
       return saved;
@@ -91,7 +90,7 @@ export function usePaymentController() {
     setLoading(true);
     setError(null);
     try {
-      await paymentService.delete(id);
+      await paymentService.deletePayment(id);
       setPayments(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error("Error deleting payment:", err);

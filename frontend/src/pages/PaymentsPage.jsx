@@ -257,7 +257,7 @@ export default function PaymentsPage() {
       if (!modal.editingId && data.periodEnd && data.member_id && data.status === 'paid') {
         try {
           await memberService.update(data.member_id, {
-            membershipEnd: data.periodEnd,
+            membershipEnd: `${data.periodEnd}T23:59:59`,
             status: 'active',
           });
         } catch {}
@@ -294,7 +294,7 @@ export default function PaymentsPage() {
       if (payment.periodEnd && payment.member_id) {
         try {
           await memberService.update(payment.member_id, {
-            membershipEnd: payment.periodEnd,
+            membershipEnd: `${payment.periodEnd}T23:59:59`,
             status: 'active',
           });
         } catch {}

@@ -43,7 +43,10 @@ public class GymPaymentController {
         if (updatedPayment.getPaymentDate() != null) existingPayment.setPaymentDate(updatedPayment.getPaymentDate());
         if (updatedPayment.getPaymentMethod() != null) existingPayment.setPaymentMethod(updatedPayment.getPaymentMethod());
         if (updatedPayment.getStatus() != null) existingPayment.setStatus(updatedPayment.getStatus());
-        if (updatedPayment.getDescription() != null) existingPayment.setDescription(updatedPayment.getDescription());
+        
+        if (updatedPayment.getNotes() != null) existingPayment.setNotes(updatedPayment.getNotes());
+        if (updatedPayment.getPeriodStart() != null) existingPayment.setPeriodStart(updatedPayment.getPeriodStart());
+        if (updatedPayment.getPeriodEnd() != null) existingPayment.setPeriodEnd(updatedPayment.getPeriodEnd());
 
         return ResponseEntity.ok(paymentService.saveForCurrentTenant(existingPayment));
     }

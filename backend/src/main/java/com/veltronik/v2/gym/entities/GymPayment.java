@@ -32,5 +32,11 @@ public class GymPayment extends TenantAwareEntity {
     @Column(nullable = false, length = 20)
     private String status = "PAID";
 
-    private String description;
+    private String notes;
+
+    @Column(name = "period_start")
+    private LocalDateTime periodStart;
+
+    @Column(name = "period_end")
+    private LocalDateTime periodEnd;
 }
