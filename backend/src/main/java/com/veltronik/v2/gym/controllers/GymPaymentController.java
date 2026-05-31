@@ -38,6 +38,12 @@ public class GymPaymentController {
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.findByIdAndVerifyOwnership(id)));
     }
 
+    /** Historial de pagos de un socio (usado por el modal de MembersPage). */
+    @GetMapping("/member/{memberId}")
+    public ResponseEntity<List<GymPaymentDTO>> getPaymentsByMember(@PathVariable UUID memberId) {
+        return ResponseEntity.ok(paymentMapper.toDtoList(paymentService.findByMemberIdForCurrentTenant(memberId)));
+    }
+
     @PostMapping
     public ResponseEntity<GymPaymentDTO> createPayment(@RequestBody GymPayment payment) {
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(payment)));

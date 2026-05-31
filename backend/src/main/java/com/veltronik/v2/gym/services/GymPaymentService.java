@@ -29,6 +29,11 @@ public class GymPaymentService {
     public List<GymPayment> findAllForCurrentTenant() {
         return repository.findByTenantId(TenantContextHolder.getTenantId());
     }
+
+    /** Historial de pagos de un socio, acotado al tenant actual (aislamiento garantizado). */
+    public List<GymPayment> findByMemberIdForCurrentTenant(UUID memberId) {
+        return repository.findByTenantIdAndMemberId(TenantContextHolder.getTenantId(), memberId);
+    }
     
     public GymPayment saveForCurrentTenant(GymPayment payment) {
         Tenant tenant = new Tenant();

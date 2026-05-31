@@ -19,10 +19,9 @@ class AccessService {
   }
 
   async checkIn(memberId, accessMethod = 'manual', notes = null) {
-    const response = await apiClient.post('/gym/access/checkin', {
-      member_id: memberId,
-      access_method: accessMethod,
-      notes
+    const response = await apiClient.post('/gym/access/register', {
+      memberId: memberId,
+      method: accessMethod
     });
     return response.data;
   }
@@ -33,7 +32,7 @@ class AccessService {
   }
 
   async getCurrentlyCheckedIn() {
-    const response = await apiClient.get('/gym/access/current');
+    const response = await apiClient.get('/gym/access/active');
     return response.data;
   }
 }

@@ -1,0 +1,6 @@
+# Dependencias
+node_modules/
+
+# Credenciales de migración — NUNCA subir (usar variables de entorno locales)
+.env
+.env.*

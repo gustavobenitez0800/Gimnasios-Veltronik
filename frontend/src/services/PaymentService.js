@@ -6,6 +6,13 @@ class PaymentService {
     return response.data;
   }
 
+  async getByFilters(filters) {
+    // Si el backend no tiene endpoints de filtrado complejos, traemos todos y filtramos,
+    // o mandamos params. Por ahora, get(..., {params: filters})
+    const response = await apiClient.get('/gym/payments', { params: filters });
+    return response.data;
+  }
+
   async getByMemberId(memberId) {
     const response = await apiClient.get(`/gym/payments/member/${memberId}`);
     return response.data;

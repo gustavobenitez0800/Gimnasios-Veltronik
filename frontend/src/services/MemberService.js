@@ -11,6 +11,10 @@ class MemberService {
     return response.data;
   }
 
+  async getAll() {
+    return this.getAllMembers();
+  }
+
   async getMemberById(id) {
     const response = await apiClient.get(`/gym/members/${id}`);
     return response.data;

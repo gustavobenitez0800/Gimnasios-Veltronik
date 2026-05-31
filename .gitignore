@@ -1,0 +1,23 @@
+# ============================================
+# VELTRONIK V2 — .gitignore raíz
+# ============================================
+
+# Dependencias (nunca se versionan)
+node_modules/
+
+# Compilados sueltos de Java fuera de target/
+*.class
+
+# Artefactos de build de escritorio (Electron)
+release/
+release-builds/
+
+# Secretos — NUNCA subir credenciales al repositorio
+.env
+.env.*
+!.env.example
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.swp
