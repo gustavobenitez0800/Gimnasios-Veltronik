@@ -1,5 +1,8 @@
 -- V13__Init_Gym_Classes.sql
 
+DROP TABLE IF EXISTS class_booking CASCADE;
+DROP TABLE IF EXISTS gym_class CASCADE;
+
 -- Módulo de Clases del Gimnasio
 CREATE TABLE gym_class (
     id UUID PRIMARY KEY,
