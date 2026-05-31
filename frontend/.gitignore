@@ -15,6 +15,7 @@ dist-ssr
 # Build de Electron y lockfile espurio (el canónico es pnpm-lock.yaml)
 release
 release-builds
+dist_electron
 package-lock.json
 
 # Environment & Secrets - NUNCA subir al repositorio
