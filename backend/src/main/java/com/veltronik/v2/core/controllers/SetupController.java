@@ -36,6 +36,13 @@ public class SetupController {
     @Autowired
     private TenantMapper tenantMapper;
 
+    /** Días de prueba de la primera sucursal. Configurable (application.properties / env TRIAL_DAYS). */
+    @org.springframework.beans.factory.annotation.Value("${veltronik.billing.trial-days:14}")
+    private int trialDays;
+
+    /** Zona del negocio (Argentina): el trial se calcula en hora AR, no la del server. */
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
     @PostMapping("/tenant")
     @Transactional
     public ResponseEntity<?> createTenant(@RequestBody TenantDTO tenantDTO) {
@@ -56,13 +63,14 @@ public class SetupController {
         Tenant tenant = tenantMapper.toEntity(tenantDTO);
         tenant.setActive(true);
 
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         if (isFirstBranch) {
-            // Primera sucursal: 30 días de prueba
-            tenant.setTrialEndsAt(LocalDateTime.now().plusDays(30));
+            // Primera sucursal: período de prueba configurable (por defecto 14 días).
+            tenant.setTrialEndsAt(now.plusDays(trialDays));
         } else {
-            // Sucursal adicional: Vencido de inmediato (debe pagar para usar)
-            tenant.setTrialEndsAt(LocalDateTime.now().minusMinutes(1));
-            // Opcionalmente podemos poner setActive(false) o dejar que el Kill Switch lo ataje por el trialEndsAt
+            // Sucursal adicional: vencida de inmediato → debe pagar para usar.
+            // El Kill Switch la bloquea por trialEndsAt vencido hasta que haya suscripción válida.
+            tenant.setTrialEndsAt(now.minusMinutes(1));
         }
 
         Tenant savedTenant = tenantRepository.save(tenant);

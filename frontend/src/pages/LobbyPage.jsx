@@ -184,7 +184,7 @@ const BLOCK_MESSAGES = {
   },
   trial_expired: {
     title: 'Prueba Gratuita Finalizada',
-    message: 'Tu período de prueba de 30 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.',
+    message: 'Tu período de prueba de 14 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.',
     showUpdateCard: false,
   },
   no_subscription: {

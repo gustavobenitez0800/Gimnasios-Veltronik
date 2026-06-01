@@ -67,7 +67,7 @@ export default function RegisterPage() {
 
       {/* Title */}
       <h2 className="auth-title">Crear cuenta</h2>
-      <p className="auth-subtitle">Comenzá con 30 días gratis • Sin tarjeta de crédito</p>
+      <p className="auth-subtitle">Comenzá con 14 días gratis • Sin tarjeta de crédito</p>
 
       {/* Register Form */}
       <form className="auth-form" onSubmit={handleSubmit}>

@@ -53,7 +53,7 @@ export default function OnboardingPage() {
         localStorage.setItem('current_org_type', data.type || selectedType || 'GYM');
       }
 
-      showToast('¡Negocio creado! Tu prueba gratuita de 30 días ha comenzado.', 'success');
+      showToast('¡Negocio creado! Tu prueba gratuita de 14 días ha comenzado.', 'success');
       
       // Navigate to Lobby after a brief delay
       setTimeout(() => {
@@ -151,7 +151,7 @@ export default function OnboardingPage() {
                   borderRadius: '0.75rem', textAlign: 'center'
                 }}>
                   <p style={{ color: '#10b981', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Icon name="sparkles" size="1em" /> 30 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
+                    <Icon name="sparkles" size="1em" /> 14 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
                   </p>
                 </div>
                 <button type="submit" className="auth-submit" disabled={submitting}>
