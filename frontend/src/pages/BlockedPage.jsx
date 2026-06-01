@@ -8,10 +8,12 @@ import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../lib/apiClient';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
+import CONFIG from '../lib/config';
 
 export default function BlockedPage() {
   const { logout } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   const handleSubscribe = async () => {
@@ -97,10 +99,8 @@ export default function BlockedPage() {
           {loading ? 'Conectando con Mercado Pago...' : 'Actualizar mi suscripción a V2'}
         </button>
 
-        <button 
-          onClick={() => {
-            window.location.href = '/dashboard';
-          }}
+        <button
+          onClick={() => navigate(CONFIG.ROUTES.LOBBY)}
           style={{
             background: 'rgba(255, 255, 255, 0.1)', 
             color: '#fff', 
