@@ -266,6 +266,75 @@
   gap: 1.5rem;
 }
 
+/* ─── Indicador de actualizaciones (lobby) ─── */
+.lobby-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.update-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.update-indicator .icon { color: var(--text-muted); }
+
+.update-indicator-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.update-indicator-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.update-indicator-sub {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lista para instalar: realce sutil con el acento, sin estridencia */
+.update-indicator-ready {
+  background: color-mix(in srgb, var(--primary-500) 8%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--primary-500) 30%, transparent);
+}
+
+.update-indicator-ready .update-indicator-title { color: var(--primary-300); }
+
+.update-indicator-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--primary-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 20%, transparent);
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.update-indicator-error { border-color: color-mix(in srgb, var(--error-500) 30%, transparent); }
+.update-indicator-error .icon { color: var(--error-500); }
+
+/* Responsive: en pantallas chicas, ocultar el texto secundario del indicador "al día" */
+@media (max-width: 640px) {
+  .update-indicator-text { display: none; }
+}
+
 /* ─── Agrupación de sucursales (lobby) ─── */
 .lobby-group {
   margin-bottom: 2rem;

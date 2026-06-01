@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { gymService } from '../services';
 import { groupService } from '../services/GroupService';
+import UpdateIndicator from '../components/UpdateIndicator';
 import { getInitials } from '../lib/utils';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
@@ -490,9 +491,12 @@ export default function LobbyPage() {
               </div>
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={logout} title="Cerrar sesión">
-            <Icon name="logout" /> Salir
-          </button>
+          <div className="lobby-header-actions">
+            <UpdateIndicator />
+            <button className="btn btn-ghost" onClick={logout} title="Cerrar sesión">
+              <Icon name="logout" /> Salir
+            </button>
+          </div>
         </div>
 
         {/* Title */}

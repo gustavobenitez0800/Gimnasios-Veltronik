@@ -53,9 +53,10 @@ function initAutoUpdater(window) {
         }
     });
 
-    // IPC: Obtener estado del update
+    // IPC: Obtener estado consolidado del update (lo consume el indicador del lobby).
     ipcMain.handle('get-update-status', () => {
         return {
+            currentVersion: app.getVersion(),
             updateDownloaded,
             downloadedVersion
         };
@@ -97,12 +98,12 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
     log.info('Actualización disponible:', info.version);
 
-    // Notificación en español
+    // Notificación nativa (sin emojis — identidad corporativa Veltronik).
     try {
         const notification = new Notification({
-            title: '🔄 Actualización disponible',
-            body: `Se está descargando la versión ${info.version}...`,
-            silent: false
+            title: 'Veltronik — Actualización disponible',
+            body: `Descargando la versión ${info.version} en segundo plano...`,
+            silent: true
         });
         notification.show();
     } catch (e) {
@@ -145,29 +146,27 @@ autoUpdater.on('update-downloaded', (info) => {
     updateDownloaded = true;
     downloadedVersion = info.version;
 
-    // Notificación nativa de Windows (Silenciosa, no intrusiva)
+    // Notificación nativa (sin emojis — identidad corporativa Veltronik).
     try {
         const notification = new Notification({
-            title: '✅ Actualización lista',
-            body: `La versión ${info.version} se descargó. Se instalará automáticamente al cerrar el sistema.`,
-            silent: false
+            title: 'Veltronik — Actualización lista',
+            body: `La versión ${info.version} está lista para instalar.`,
+            silent: true
         });
         notification.show();
     } catch (e) {
         log.warn('No se pudo mostrar notificación:', e.message);
     }
 
-    // Enviar al renderer (por si en el futuro queremos mostrar un badge sutil)
+    // Enviar al renderer para mostrar el banner "Actualizar ahora" en el lobby.
+    // El usuario decide cuándo (1 clic) sin tener que cerrar la app manualmente.
+    // Si nunca actúa, autoInstallOnAppQuit=true lo aplica igual al cerrar (red de seguridad).
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('update-downloaded', {
             version: info.version,
             releaseNotes: info.releaseNotes
         });
     }
-
-    // NOTA: Eliminado el diálogo bloqueante y el reinicio forzado.
-    // Al estar autoInstallOnAppQuit = true, la actualización se aplicará 
-    // cuando el usuario cierre la ventana (al terminar su día).
 });
 
 module.exports = {
