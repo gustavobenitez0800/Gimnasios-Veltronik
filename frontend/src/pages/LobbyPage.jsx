@@ -42,14 +42,36 @@ function isTrialActive(org) {
  * Returns: { canAccess, status, label, icon, color, sub }
  */
 function computeOrgAccessStatus(org, sub) {
-  // 1. Active subscription → full access
+  // El DTO del backend manda camelCase (currentPeriodEnd, gracePeriodEndsAt).
+  // Toleramos snake_case por compatibilidad con datos viejos. Sin esto, los campos
+  // llegaban undefined y la lógica de período/gracia nunca evaluaba bien.
+  const periodEndRaw = sub?.currentPeriodEnd ?? sub?.current_period_end;
+  const graceEndRaw = sub?.gracePeriodEndsAt ?? sub?.grace_period_ends_at;
+  const periodEnd = periodEndRaw ? new Date(periodEndRaw) : null;
+  const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
+  const now = new Date();
+
+  // 1. Active subscription → acceso SOLO si el período no venció.
+  //    (status 'active' con currentPeriodEnd en el pasado = renovación no cobrada → vencido)
   if (sub?.status === 'active') {
+    if (!periodEnd || periodEnd > now) {
+      return {
+        canAccess: true,
+        status: 'active',
+        label: 'Activo',
+        icon: 'checkCircle',
+        color: '#22c55e',
+        sub,
+      };
+    }
+    // Período vencido pese a status 'active' → bloquear (esperando renovación/pago).
     return {
-      canAccess: true,
-      status: 'active',
-      label: 'Activo',
-      icon: 'checkCircle',
-      color: '#22c55e',
+      canAccess: false,
+      status: 'expired',
+      label: 'Pago vencido',
+      icon: 'creditCard',
+      color: '#ef4444',
+      blockReason: 'past_due',
       sub,
     };
   }
@@ -69,10 +91,9 @@ function computeOrgAccessStatus(org, sub) {
   }
 
   // 3. Past due with grace period → access with warning
-  if (sub?.status === 'past_due' && sub?.grace_period_ends_at) {
-    const graceEnd = new Date(sub.grace_period_ends_at);
-    if (new Date() < graceEnd) {
-      const graceDays = Math.max(0, Math.ceil((graceEnd - new Date()) / (1000 * 60 * 60 * 24)));
+  if (sub?.status === 'past_due' && graceEnd) {
+    if (now < graceEnd) {
+      const graceDays = Math.max(0, Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24)));
       return {
         canAccess: true,
         status: 'past_due_grace',
@@ -98,10 +119,10 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 5. Canceled → blocked (unless current_period_end is in the future)
+  // 5. Canceled → blocked (unless el período pago en curso no terminó)
   if (sub?.status === 'canceled') {
-    if (sub?.current_period_end && new Date() < new Date(sub.current_period_end)) {
-      const daysLeft = Math.max(0, Math.ceil((new Date(sub.current_period_end) - new Date()) / (1000 * 60 * 60 * 24)));
+    if (periodEnd && now < periodEnd) {
+      const daysLeft = Math.max(0, Math.ceil((periodEnd - now) / (1000 * 60 * 60 * 24)));
       return {
         canAccess: true,
         status: 'canceled_active',
@@ -513,8 +534,8 @@ export default function LobbyPage() {
               {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.message || 'Necesitás una suscripción activa para acceder a este sistema.'}
             </p>
 
-            {/* Grace period bar (if past_due with sub) */}
-            {blockedOrg.accessStatus?.sub?.grace_period_ends_at && (
+            {/* Grace period bar (if past_due with sub) — DTO camelCase + fallback snake */}
+            {(blockedOrg.accessStatus?.sub?.gracePeriodEndsAt ?? blockedOrg.accessStatus?.sub?.grace_period_ends_at) && (
               <div className="lobby-blocked-grace">
                 <div className="lobby-blocked-grace-header">
                   <span>Período de gracia</span>

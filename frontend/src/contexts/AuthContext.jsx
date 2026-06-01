@@ -74,19 +74,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Helper: does user have valid access (active trial OR active subscription)
+  // Nota: el DTO del backend manda camelCase (currentPeriodEnd, gracePeriodEndsAt);
+  // toleramos snake_case por compatibilidad. Y una sub 'active' solo da acceso si su
+  // período no venció (igual criterio que el KillSwitch del backend).
   const hasValidAccess = useCallback((gymData, sub) => {
-    // Active subscription always grants access
-    if (sub?.status === 'active') return true;
+    const now = new Date();
+    const periodEndRaw = sub?.currentPeriodEnd ?? sub?.current_period_end;
+    const graceEndRaw = sub?.gracePeriodEndsAt ?? sub?.grace_period_ends_at;
+    const periodEnd = periodEndRaw ? new Date(periodEndRaw) : null;
+    const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
+
+    // Active subscription grants access only if the period hasn't expired
+    if (sub?.status === 'active' && (!periodEnd || periodEnd > now)) return true;
     // Active trial grants access
-    if (gymData?.trialEndsAt && new Date() < new Date(gymData.trialEndsAt)) return true;
+    if (gymData?.trialEndsAt && now < new Date(gymData.trialEndsAt)) return true;
     // Past_due with grace period still grants access
-    if (sub?.status === 'past_due' && sub?.grace_period_ends_at) {
-      if (new Date() < new Date(sub.grace_period_ends_at)) return true;
-    }
+    if (sub?.status === 'past_due' && graceEnd && now < graceEnd) return true;
     // Canceled but current period hasn't ended
-    if (sub?.status === 'canceled' && sub?.current_period_end) {
-      if (new Date() < new Date(sub.current_period_end)) return true;
-    }
+    if (sub?.status === 'canceled' && periodEnd && now < periodEnd) return true;
     return false;
   }, []);
 

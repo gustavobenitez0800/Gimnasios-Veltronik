@@ -34,9 +34,9 @@ export function AppLayout() {
     if (!subscription) return null;
 
     if (subscription.status === 'past_due') {
-      const graceEnd = subscription.grace_period_ends_at
-        ? new Date(subscription.grace_period_ends_at)
-        : null;
+      // DTO en camelCase (gracePeriodEndsAt); snake_case por compatibilidad.
+      const graceRaw = subscription.gracePeriodEndsAt ?? subscription.grace_period_ends_at;
+      const graceEnd = graceRaw ? new Date(graceRaw) : null;
       const now = new Date();
       const daysLeft = graceEnd
         ? Math.max(0, Math.ceil((graceEnd - now) / (1000 * 60 * 60 * 24)))

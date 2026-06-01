@@ -39,6 +39,8 @@ public class SubscriptionBillingService {
     private static final int ACCESS_DAYS_PER_CYCLE = 30;
     /** Gracia extra tras el fin de período antes de bloquear (colchón ante demoras de webhook). */
     private static final int GRACE_DAYS = 3;
+    /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final TenantRepository tenantRepository;
     private final TenantPaymentRepository tenantPaymentRepository;
@@ -63,7 +65,7 @@ public class SubscriptionBillingService {
             return false;
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
 
         // 1) Registrar el cobro (historial del SaaS).
         TenantPayment payment = new TenantPayment();
@@ -118,10 +120,35 @@ public class SubscriptionBillingService {
                     mpPreapprovalId, tenantId);
             return;
         }
-        sub.setStatus(mapPreapprovalStatus(mpStatus));
+        String localStatus = mapPreapprovalStatus(mpStatus);
+        sub.setStatus(localStatus);
         if (mpPreapprovalId != null) {
             sub.setMpSubscriptionId(mpPreapprovalId);
         }
+
+        // CRÍTICO: si el preapproval quedó AUTORIZADO/activo, esto es un alta o reactivación
+        // efectiva → hay que EXTENDER el período y reactivar el tenant. Antes esto solo
+        // cambiaba el status string: la suscripción quedaba 'active' pero con
+        // currentPeriodEnd vencido y tenant.is_active sin tocar → el cliente pagaba y NO
+        // se reactivaba (el KillSwitch valida el período real, no solo el status).
+        if ("active".equals(localStatus)) {
+            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+            LocalDateTime base = (sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(now))
+                    ? sub.getCurrentPeriodEnd() : now;
+            LocalDateTime periodEnd = base.plusDays(ACCESS_DAYS_PER_CYCLE);
+            sub.setCurrentPeriodStart(now);
+            sub.setCurrentPeriodEnd(periodEnd);
+            sub.setGracePeriodEndsAt(periodEnd.plusDays(GRACE_DAYS));
+
+            Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
+            if (tenant != null) {
+                tenant.setTrialEndsAt(periodEnd);
+                tenant.setActive(true);
+                tenantRepository.save(tenant);
+            }
+            log.info("Preapproval AUTORIZADO: tenant {} reactivado, acceso hasta {}.", tenantId, periodEnd);
+        }
+
         subscriptionRepository.save(sub);
         log.info("Suscripción del tenant {} actualizada a estado '{}' (MP: '{}').",
                 tenantId, sub.getStatus(), mpStatus);
