@@ -46,6 +46,25 @@ class AuthService {
     window.dispatchEvent(new Event('auth-unauthorized'));
   }
 
+  /**
+   * Envía el email de recuperación de contraseña (Supabase Auth).
+   * El link del email lleva a /reset-password, donde el usuario define la nueva clave.
+   * redirectTo apunta al hash router de la app (sirve en web y en el dominio configurado).
+   */
+  async resetPassword(email) {
+    const redirectTo = `${window.location.origin}${window.location.pathname}#/reset-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    return true;
+  }
+
+  /** Define la nueva contraseña (usuario ya autenticado por el link de recuperación). */
+  async updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return true;
+  }
+
   async getCurrentUser() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');

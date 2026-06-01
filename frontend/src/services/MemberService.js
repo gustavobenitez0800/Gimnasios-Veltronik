@@ -52,25 +52,21 @@ class MemberService {
 
   /**
    * Búsqueda de socios para el modal de pagos y control de acceso.
-   * Devuelve resultados con campos en camelCase directamente.
+   * Filtra en el BACKEND (SQL, endpoint paginado) en vez de traer TODOS los socios
+   * y filtrar en el navegador — clave en recepción con cientos de socios.
+   * Devuelve un array con campos camelCase + fullName (contrato estable para la UI).
    */
   async searchForAccess(searchTerm) {
-    const allMembers = await this.getAllMembers();
-    
-    // Add fullName helper property for the UI search
-    const mapped = allMembers.map(m => ({
+    // Sin término o muy corto: primeros 20 (mismo comportamiento que antes).
+    const search = (searchTerm || '').trim();
+    const page = await this.getMembersPaged(0, 20, search.length >= 2 ? search : '');
+    const list = page?.content || [];
+    return list.map(m => ({
       ...m,
       fullName: `${m.firstName || ''} ${m.lastName || ''}`.trim(),
+      // Alias dni: el DTO expone document y dni; aseguramos que la UI siempre tenga dni.
+      dni: m.dni || m.document || '',
     }));
-
-    if (!searchTerm || searchTerm.trim().length < 2) return mapped.slice(0, 20);
-    
-    const term = searchTerm.toLowerCase();
-    return mapped.filter(m => {
-      return (m.fullName && m.fullName.toLowerCase().includes(term)) ||
-             (m.dni && m.dni.includes(term)) ||
-             (m.id && m.id === searchTerm);
-    });
   }
 }
 

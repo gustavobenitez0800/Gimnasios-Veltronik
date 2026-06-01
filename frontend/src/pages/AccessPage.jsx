@@ -168,15 +168,26 @@ export default function AccessPage() {
             <div className="search-results">
               {searchResults.map(member => {
                 const daysInfo = getDaysInfo(member.membershipEnd);
+                const isExpired = daysInfo.type === 'expired';
                 return (
-                  <div key={member.id} className="search-result-item" onClick={() => handleCheckIn(member)}>
+                  <div key={member.id} className="search-result-item">
                     <div className="member-avatar">{getInitials(member.fullName)}</div>
                     <div className="member-info">
                       <div className="member-name">{member.fullName}</div>
                       <div className="member-dni">DNI: {member.dni || '-'}</div>
+                      {/* Estado visible al instante (sin tener que registrar entrada) */}
+                      <span className={`member-access-status ${isExpired ? 'is-expired' : 'is-active'}`}>
+                        <Icon name={isExpired ? 'xCircle' : 'checkCircle'} size="0.85em" />
+                        {isExpired ? 'Vencido' : 'Activo'}
+                      </span>
                     </div>
-                    <div className={`days-countdown ${daysInfo.type === 'ok' ? 'days-ok' : daysInfo.type === 'warning' ? 'days-warning' : daysInfo.type === 'expired' || daysInfo.type === 'danger' ? 'days-danger' : 'days-none'}`}>
-                      {daysInfo.label}
+                    <div className="search-result-right">
+                      <div className={`days-countdown ${daysInfo.type === 'ok' ? 'days-ok' : daysInfo.type === 'warning' ? 'days-warning' : daysInfo.type === 'expired' || daysInfo.type === 'danger' ? 'days-danger' : 'days-none'}`}>
+                        {daysInfo.label}
+                      </div>
+                      <button className="btn btn-sm btn-primary" onClick={() => handleCheckIn(member)}>
+                        <Icon name="checkCircle" size="0.9em" /> Registrar entrada
+                      </button>
                     </div>
                   </div>
                 );

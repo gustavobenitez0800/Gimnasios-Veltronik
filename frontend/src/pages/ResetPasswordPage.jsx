@@ -20,10 +20,27 @@ export default function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
 
-  // Check for recovery token in hash
+  // Al llegar desde el link del email, Supabase crea una sesión de recuperación.
+  // Esperamos a que exista esa sesión (evento PASSWORD_RECOVERY o sesión activa).
   useEffect(() => {
-    // Stubbed until Java implements reset password
-    setSessionReady(true);
+    let mounted = true;
+    (async () => {
+      try {
+        const session = await authService.getSession().catch(() => null);
+        if (mounted && session) setSessionReady(true);
+      } catch { /* noop */ }
+    })();
+
+    const sub = authService.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (mounted) setSessionReady(true);
+      }
+    });
+
+    // Fallback: si en 4s no hubo sesión, dejamos intentar igual (Supabase a veces ya la aplicó).
+    const t = setTimeout(() => { if (mounted) setSessionReady(true); }, 4000);
+
+    return () => { mounted = false; clearTimeout(t); sub?.unsubscribe?.(); };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -34,11 +51,13 @@ export default function ResetPasswordPage() {
 
     setSubmitting(true);
     try {
-      showToast('Funcionalidad de recuperación en mantenimiento. Contacte a soporte.', 'warning');
+      await authService.updatePassword(password);
+      showToast('Tu contraseña se actualizó correctamente. Ya podés iniciar sesión.', 'success', 6000);
+      await authService.signOut().catch(() => {});
       navigate(CONFIG.ROUTES.LOGIN);
     } catch (error) {
       console.error('Reset error:', error);
-      showToast('Ocurrió un error', 'error');
+      showToast(errorService.getMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }

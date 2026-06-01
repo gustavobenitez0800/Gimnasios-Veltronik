@@ -40,18 +40,21 @@ export default function LoginPage() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      showToast('Por favor ingresa tu email primero', 'warning');
+      showToast('Ingresá tu email primero y volvé a tocar "¿Olvidaste tu contraseña?"', 'warning');
       return;
     }
     if (!email.includes('@') || !email.includes('.')) {
-      showToast('Por favor ingresa un email válido', 'error');
+      showToast('Ingresá un email válido', 'error');
       return;
     }
 
     try {
-      showToast('Funcionalidad de recuperación de contraseña en mantenimiento. Por favor, contacte a soporte.', 'warning', 5000);
+      await authService.resetPassword(email.trim());
+      // Por seguridad, el mensaje no revela si el email existe o no.
+      showToast(`Si ${email.trim()} está registrado, te enviamos un correo para restablecer tu contraseña. Revisá tu bandeja y el spam.`, 'success', 8000);
     } catch (error) {
       console.error('Reset password error:', error);
+      showToast(getAuthErrorMessage(error), 'error');
     }
   };
 

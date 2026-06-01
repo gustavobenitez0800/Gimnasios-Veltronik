@@ -61,8 +61,32 @@ class ErrorService {
    */
   getMessage(error) {
     if (!error) return 'Error desconocido';
-    const message = error.message || error.toString();
 
+    // 1) Errores HTTP del backend (axios): priorizar el status y el mensaje real del
+    //    GlobalExceptionHandler. ANTES, un 402/403/500 podía caer en "Error de conexión"
+    //    genérico y confundir (ej: el dueño veía "revisá tu internet" cuando en realidad
+    //    su pago estaba vencido).
+    const status = error.response?.status;
+    const backendMsg = error.response?.data?.message || error.response?.data?.error;
+    if (status) {
+      switch (status) {
+        case 401: return 'Tu sesión expiró. Iniciá sesión nuevamente.';
+        case 402: return backendMsg || 'Tu suscripción venció. Reactivala para seguir usando el sistema.';
+        case 403: return backendMsg || 'No tenés permiso para realizar esta acción.';
+        case 404: return backendMsg || 'No encontramos lo que buscás.';
+        case 409: return backendMsg || 'El registro ya existe o está en conflicto.';
+        case 422: return backendMsg || 'Los datos enviados no son válidos.';
+        case 500:
+        case 502:
+        case 503:
+          return backendMsg || 'El servidor tuvo un problema. Intentá de nuevo en unos minutos.';
+        default:
+          if (backendMsg) return backendMsg;
+      }
+    }
+
+    // 2) Errores sin respuesta HTTP (Supabase, red real, etc.): mapeo por texto.
+    const message = error.message || error.toString();
     for (const rule of this.errorMap) {
       if (rule.match(message)) {
         return typeof rule.message === 'function' ? rule.message(message) : rule.message;

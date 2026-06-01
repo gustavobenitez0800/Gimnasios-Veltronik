@@ -29,9 +29,9 @@
 .search-results { background: var(--bg-secondary); border-radius: var(--border-radius-md); max-height: 300px; overflow-y: auto; }
 .search-result-item {
   display: flex; align-items: center; gap: 1rem; padding: 1rem;
-  border-bottom: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s;
+  border-bottom: 1px solid var(--border-color); transition: background 0.2s;
 }
-.search-result-item:hover { background: rgba(14, 165, 233, 0.1); }
+.search-result-item:hover { background: color-mix(in srgb, var(--primary-500) 8%, transparent); }
 .search-result-item:last-child { border-bottom: none; }
 
 .member-avatar {
@@ -39,9 +39,20 @@
   background: var(--primary-500); display: flex; align-items: center; justify-content: center;
   color: white; font-weight: 600; font-size: var(--font-size-lg); flex-shrink: 0;
 }
-.member-info { flex: 1; }
+.member-info { flex: 1; min-width: 0; }
 .member-name { font-weight: 600; }
 .member-dni { font-size: var(--font-size-sm); color: var(--text-muted); }
+
+/* Estado del socio en la búsqueda de acceso (activo/vencido), visible al instante */
+.member-access-status {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  margin-top: 0.35rem; font-size: var(--font-size-xs); font-weight: 700;
+  padding: 0.15rem 0.55rem; border-radius: var(--border-radius-full);
+}
+.member-access-status.is-active { color: var(--success-500); background: color-mix(in srgb, var(--success-500) 12%, transparent); }
+.member-access-status.is-expired { color: var(--error-500); background: color-mix(in srgb, var(--error-500) 12%, transparent); }
+
+.search-result-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; flex-shrink: 0; }
 
 .people-count {
   display: flex; align-items: center; gap: 0.5rem;
