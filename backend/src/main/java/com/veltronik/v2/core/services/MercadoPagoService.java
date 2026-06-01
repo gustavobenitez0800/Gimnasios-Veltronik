@@ -49,13 +49,15 @@ public class MercadoPagoService {
                     .currencyId("ARS")
                     .build();
 
+            // NO se setea .status("authorized"): eso exige un card_token (tarjeta ya
+            // capturada) y MP devuelve 500 si se autoriza sin medio de pago. Generamos
+            // el link en estado pendiente; el cliente carga la tarjeta en el checkout de MP.
             PreapprovalCreateRequest request = PreapprovalCreateRequest.builder()
                     .reason("Suscripción Veltronik V2 - " + tenant.getName())
                     .externalReference(tenant.getId().toString())
                     .payerEmail(payerEmail)
                     .autoRecurring(autoRecurring)
                     .backUrl(frontendUrl + "/payment-callback")
-                    .status("authorized")
                     .build();
 
             Preapproval preapproval = client.create(request);
@@ -64,6 +66,12 @@ public class MercadoPagoService {
                     tenant.getName(), tenant.getId(), preapproval.getId());
             return preapproval.getInitPoint();
 
+        } catch (com.mercadopago.exceptions.MPApiException apiEx) {
+            // El detalle real de MP NO está en getMessage(), sino en la respuesta de la API.
+            String detail = apiEx.getApiResponse() != null ? apiEx.getApiResponse().getContent() : "(sin cuerpo)";
+            log.error("Mercado Pago RECHAZÓ la suscripción del Tenant '{}'. HTTP {} — Detalle: {}",
+                    tenant.getId(), apiEx.getStatusCode(), detail);
+            throw new RuntimeException("Mercado Pago rechazó la solicitud (HTTP " + apiEx.getStatusCode() + "): " + detail, apiEx);
         } catch (Exception e) {
             log.error("Error crítico al crear suscripción en Mercado Pago para Tenant '{}'", tenant.getId(), e);
             throw new RuntimeException("Fallo en la pasarela de pagos al generar suscripción.", e);

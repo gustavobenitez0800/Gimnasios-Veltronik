@@ -1,3 +1,124 @@
+/* ─── Plans / Suscripción (premium, tematizado claro+oscuro) ─── */
+.plans-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  overflow-y: auto;
+}
+
+.plans-page-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--primary-500) 12%, transparent) 0%, transparent 55%);
+}
+
+.plans-page-content {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+}
+
+.plans-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  transition: color var(--transition-fast);
+}
+.plans-back:hover { color: var(--primary-400); }
+
+.plans-hero { text-align: center; margin-bottom: 2rem; }
+.plans-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+.plans-hero-subtitle { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0; }
+
+.plans-card {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 2.5rem 2rem 2rem;
+  box-shadow: var(--shadow-xl);
+}
+
+.plans-card-badge {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary-500);
+  color: #fff;
+  padding: 0.35rem 1.1rem;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+.plans-card-head { text-align: center; margin-bottom: 1.5rem; }
+.plans-card-title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  margin-bottom: 0.5rem;
+}
+.plans-card-desc { color: var(--text-secondary); font-size: var(--font-size-sm); margin: 0 auto; max-width: 90%; }
+
+.plans-price-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.plans-price { display: flex; align-items: flex-start; justify-content: center; color: var(--text-primary); }
+.plans-price-currency { font-size: 1.5rem; color: var(--text-muted); margin-top: 0.6rem; margin-right: 0.15rem; }
+.plans-price-amount { font-family: var(--font-display); font-size: clamp(3rem, 9vw, 4.5rem); font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
+.plans-price-period { color: var(--text-muted); margin-top: 0.5rem; font-size: var(--font-size-sm); }
+
+.plans-features { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.plans-feature {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+.plans-feature:last-child { border-bottom: none; }
+.plans-feature-check { color: var(--success-500); display: inline-flex; flex-shrink: 0; }
+
+.plans-cta { width: 100%; margin-bottom: 1.25rem; }
+
+.plans-secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
 /* ─── Page Header (Sticky Glassmorphism) ─── */
 .page-header {
   display: flex;

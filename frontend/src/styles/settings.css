@@ -33,8 +33,9 @@
   color: var(--text-muted); font-size: 0.85rem; font-weight: 500;
   border-radius: 10px; cursor: pointer; transition: all 0.2s; font-family: inherit;
 }
-.team-tab.active { background: var(--primary-500); color: white; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3); }
-.team-tab:hover:not(.active) { color: white; background: rgba(255,255,255,0.06); }
+.team-tab.active { background: var(--primary-500); color: #fff; box-shadow: var(--shadow-sm); }
+/* hover de tab NO activo: usar tokens de tema (antes color:white sobre fondo claro = invisible en modo claro) */
+.team-tab:hover:not(.active) { color: var(--text-primary); background: var(--bg-tertiary); }
 
 .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
 
@@ -54,11 +55,12 @@
 
 .member-actions { display: flex; gap: 0.5rem; }
 .member-actions button {
-  background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);
+  background: var(--bg-tertiary); border: 1px solid var(--border-color);
   color: var(--text-muted); padding: 6px 10px; border-radius: 8px;
   cursor: pointer; font-size: 0.75rem; transition: all 0.2s;
 }
-.member-actions button:hover { color: white; border-color: var(--primary-500); }
+/* hover: texto con el acento (no white, que se perdía sobre fondo claro) */
+.member-actions button:hover { color: var(--primary-400); border-color: var(--primary-500); background: var(--bg-elevated); }
 .member-actions .btn-remove:hover { color: var(--error-500); border-color: var(--error-500); }
 
 @media (max-width: 600px) {

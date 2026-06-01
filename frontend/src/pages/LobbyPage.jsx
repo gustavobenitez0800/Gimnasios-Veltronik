@@ -146,8 +146,26 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 6. Trial expired, no subscription → blocked
-  if (org.trialEndsAt && new Date(org.trialEndsAt) < new Date()) {
+  // ¿El cliente YA fue cliente pago alguna vez? Si tiene una suscripción registrada
+  // (cualquier estado), no está en "prueba": es una reactivación. El mensaje debe ser
+  // premium, no de trial. (Distingue al cliente que pagó del que nunca pagó.)
+  const everSubscribed = !!sub;
+
+  // 6. Vencido tras haber pagado → bloqueo PREMIUM de reactivación (no "prueba").
+  if (everSubscribed) {
+    return {
+      canAccess: false,
+      status: 'expired',
+      label: 'Pago vencido',
+      icon: 'creditCard',
+      color: '#ef4444',
+      blockReason: 'expired',
+      sub,
+    };
+  }
+
+  // 7. Trial expirado y NUNCA pagó → mensaje de prueba finalizada.
+  if (org.trialEndsAt && new Date(org.trialEndsAt) < now) {
     return {
       canAccess: false,
       status: 'trial_expired',
@@ -159,7 +177,7 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 7. No trial, no subscription → blocked
+  // 8. Sin trial ni suscripción → bloqueado.
   return {
     canAccess: false,
     status: 'no_subscription',
@@ -174,6 +192,11 @@ function computeOrgAccessStatus(org, sub) {
 // ─── Block reason messages ───
 
 const BLOCK_MESSAGES = {
+  expired: {
+    title: 'Renová tu suscripción',
+    message: 'Tu período mensual finalizó. Reactivá tu suscripción para seguir gestionando tu negocio sin interrupciones. Tu información permanece intacta.',
+    showUpdateCard: false,
+  },
   past_due: {
     title: 'Pago Rechazado',
     message: 'No pudimos procesar tu pago mensual. Actualizá tu método de pago para recuperar el acceso.',
