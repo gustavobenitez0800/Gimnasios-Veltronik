@@ -26,11 +26,26 @@ public class AccessLogService {
         this.memberService = memberService;
     }
 
+    /** Zona del negocio (Argentina): "hoy" y los rangos se calculan en hora AR, no UTC. */
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
     public List<AccessLog> getTodayAccesses() {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(LocalTime.MAX);
         return accessLogRepository.findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(
                 TenantContextHolder.getTenantId(), startOfDay, endOfDay);
+    }
+
+    /**
+     * Accesos del tenant en un rango de fechas [start, end] (día calendario AR).
+     * start → 00:00:00, end → 23:59:59 (fin de día inclusivo). Usado por Reportes.
+     */
+    public List<AccessLog> getAccessesByDateRange(LocalDate start, LocalDate end) {
+        LocalDateTime from = start.atStartOfDay();
+        LocalDateTime to = end.atTime(LocalTime.MAX);
+        return accessLogRepository.findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(
+                TenantContextHolder.getTenantId(), from, to);
     }
 
     public List<AccessLog> getActiveAccesses() {

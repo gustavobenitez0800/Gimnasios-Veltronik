@@ -48,7 +48,7 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
                   SELECT 1 FROM Subscription s
                   WHERE s.tenant = t
                     AND (
-                         s.status = 'active'
+                         (s.status = 'active' AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > :now))
                       OR (s.status = 'past_due' AND s.gracePeriodEndsAt IS NOT NULL AND s.gracePeriodEndsAt > :now)
                       OR (s.status = 'canceled' AND s.currentPeriodEnd IS NOT NULL AND s.currentPeriodEnd > :now)
                     )

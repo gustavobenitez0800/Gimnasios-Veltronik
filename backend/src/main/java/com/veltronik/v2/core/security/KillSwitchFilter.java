@@ -1,6 +1,8 @@
 package com.veltronik.v2.core.security;
 
+import com.veltronik.v2.core.entities.Subscription;
 import com.veltronik.v2.core.entities.Tenant;
+import com.veltronik.v2.core.repositories.SubscriptionRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -12,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 /**
@@ -23,8 +26,14 @@ import java.util.UUID;
 @Component
 public class KillSwitchFilter extends OncePerRequestFilter {
 
+    /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
+
     @Autowired
     private TenantRepository tenantRepository;
+
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
 
     @Override
     protected void doFilterInternal(@org.springframework.lang.NonNull HttpServletRequest request, 
@@ -55,35 +64,68 @@ public class KillSwitchFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 4. LÓGICA DEL KILL SWITCH
-        boolean isTrialActive = tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(LocalDateTime.now());
-        
-        // Si no está activo a nivel maestro (baja manual), bloqueamos de inmediato
+        // 4. LÓGICA DEL KILL SWITCH (validación en TIEMPO REAL — no depende del cron diario)
+        //
+        // Antes esto solo miraba tenant.isActive() y delegaba el vencimiento al cron de
+        // las 00:05. Problema: entre el vencimiento y el cron (hasta ~24h), o si el cron
+        // no marcaba bien (subs 'active' con período vencido), el tenant seguía entrando.
+        // Ahora evaluamos el acceso real en cada request.
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+
+        // 4a. Baja manual a nivel maestro → bloqueo inmediato.
         if (!tenant.isActive()) {
-            response.setStatus(402);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"PAYMENT_REQUIRED\", \"message\": \"Sistema bloqueado. Por favor regularice su situación.\"}");
+            blockPaymentRequired(response);
             return;
         }
 
-        // Si NO está en prueba, verificamos que tenga un pago reciente válido.
-        // Como implementamos reconciliación de MP, si el webhook marcó isActive = false, caerá arriba.
-        // Si necesitamos lógica estricta de tiempo (ej. pasó un mes sin pago):
-        // En una implementación robusta, el BillingService (cron) pone tenant.setActive(false)
-        // si expira el tiempo. Por lo tanto, con chequear isActive y isTrialActive es suficiente.
-        
-        // Si pasó los controles, continúa la ejecución normal
-        filterChain.doFilter(request, response);
+        // 4b. Acceso válido = trial vigente O suscripción válida (período no vencido).
+        boolean trialActive = tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(now);
+        if (trialActive || hasValidSubscription(tenantId, now)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // 4c. Activo a nivel maestro pero sin trial ni suscripción vigente → venció. Bloqueo.
+        blockPaymentRequired(response);
+    }
+
+    /**
+     * ¿El tenant tiene una suscripción que le da acceso AHORA? Replica exactamente el
+     * criterio del cron ({@code TenantRepository.findExpiredActiveTenants}) para que las
+     * dos capas de defensa nunca se contradigan:
+     *  - active: solo si el período no venció (currentPeriodEnd > now, o null si recién creada);
+     *  - past_due: dentro del período de gracia;
+     *  - canceled: el período pago en curso aún no terminó.
+     */
+    private boolean hasValidSubscription(UUID tenantId, LocalDateTime now) {
+        Subscription s = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null);
+        if (s == null || s.getStatus() == null) return false;
+        return switch (s.getStatus()) {
+            case "active" -> s.getCurrentPeriodEnd() == null || s.getCurrentPeriodEnd().isAfter(now);
+            case "past_due" -> s.getGracePeriodEndsAt() != null && s.getGracePeriodEndsAt().isAfter(now);
+            case "canceled" -> s.getCurrentPeriodEnd() != null && s.getCurrentPeriodEnd().isAfter(now);
+            default -> false;
+        };
+    }
+
+    private void blockPaymentRequired(HttpServletResponse response) throws IOException {
+        response.setStatus(402);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\": \"PAYMENT_REQUIRED\", \"message\": \"Sistema bloqueado. Por favor regularice su situación.\"}");
     }
 
     private boolean shouldNotFilter(String path) {
         // Rutas públicas, Auth, Facturación y monitoreo quedan abiertas siempre.
+        // CRÍTICO: las rutas de pago/suscripción DEBEN quedar abiertas, si no un tenant
+        // vencido (bloqueado con 402) no podría generar el link de pago para regularizar
+        // → quedaría en deadlock (bloqueado y sin forma de desbloquearse).
         return path.startsWith("/actuator") ||          // Health/info: Railway lo chequea SIN contexto de tenant
                path.startsWith("/api/auth") ||
                path.startsWith("/api/billing") ||
                path.startsWith("/api/webhooks") ||
                path.startsWith("/api/tenants") || // Permitir listar y crear tenants sin tener uno seleccionado
                path.startsWith("/api/core/setup") ||
+               path.startsWith("/api/core/subscriptions") || // checkout/suscripción: el moroso debe poder pagar
                path.startsWith("/api/core/profiles");
     }
 }
