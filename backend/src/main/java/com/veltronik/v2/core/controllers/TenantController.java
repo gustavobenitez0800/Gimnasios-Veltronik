@@ -48,6 +48,21 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.findMyTenants());
     }
 
+    /**
+     * Rol del usuario en un negocio. Lo consume AuthContext.loadRoleForOrg al cambiar de
+     * org. Faltaba en el backend → daba 500 (el front caía a un fallback, pero ensuciaba
+     * la consola y podía dar un rol incorrecto). Requiere ser miembro del negocio.
+     * Respuesta: {"role": "owner|admin|staff|reception"} en minúscula (lo que espera el front).
+     */
+    @GetMapping("/{id}/members/{userId}/role")
+    public ResponseEntity<java.util.Map<String, String>> getMemberRole(@PathVariable UUID id,
+                                                                       @PathVariable UUID userId) {
+        requireMembership(id); // el solicitante debe pertenecer al negocio
+        return membershipRepository.findByUserIdAndTenantId(userId, id)
+                .map(m -> ResponseEntity.ok(java.util.Map.of("role", m.getRole().name().toLowerCase())))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El usuario no es miembro de este negocio"));
+    }
+
     /** Devuelve un negocio. Requiere ser miembro activo de ese negocio. */
     @GetMapping("/{id}")
     public ResponseEntity<TenantDTO> getById(@PathVariable UUID id) {
