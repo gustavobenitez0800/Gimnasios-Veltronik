@@ -39,9 +39,14 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:8080/actuator/health || exit 1
 
 # Arranque optimizado para contenedores (JVM con memoria ajustada)
+# user.timezone: la app representa fechas en hora de Argentina (las columnas son
+# 'timestamp without time zone'). Sin esto, el contenedor corre en UTC y el límite
+# de día/mes se desplaza hasta 3 h (ingresos, vencimientos y accesos nocturnos).
+# Respaldo de TimeZone.setDefault() en el main; ambos apuntan a la misma zona IANA.
 ENTRYPOINT ["java", \
   "-XX:+UseG1GC", \
   "-XX:MaxRAMPercentage=75.0", \
+  "-Duser.timezone=America/Argentina/Buenos_Aires", \
   "-Djava.security.egd=file:/dev/./urandom", \
   "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:prod}", \
   "-jar", "app.jar"]

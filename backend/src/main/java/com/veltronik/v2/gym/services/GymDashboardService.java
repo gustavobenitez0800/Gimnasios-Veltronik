@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -16,6 +17,19 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class GymDashboardService {
+
+    /**
+     * Zona horaria del negocio (Argentina). Los timestamps se guardan SIN zona
+     * ({@code timestamp without time zone}), representando la hora de pared de Argentina
+     * (los pagos quedan a las 00:00 del día calendario AR).
+     *
+     * <p>Calcular el "mes actual" o el "ahora" con la zona del servidor (Railway corre
+     * en UTC) corría el límite hasta 3 horas: en la franja 21:00–23:59 AR del último día
+     * del mes, UTC ya marcaba el mes siguiente y "Ingresos del Mes" daba $0. Anclando los
+     * cálculos a esta zona, la comparación es naive-AR vs naive-AR: exacta. Se usa el id
+     * IANA (no un offset fijo {@code -03:00}) para ser robusto ante cualquier regla de DST.</p>
+     */
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final GymMemberRepository memberRepository;
     private final GymPaymentRepository paymentRepository;
@@ -25,11 +39,12 @@ public class GymDashboardService {
         
         long totalMembers = memberRepository.countByTenantId(tenantId);
         long activeMembers = memberRepository.countByTenantIdAndIsActiveTrue(tenantId);
-        
-        LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
+
+        // "Mes actual" y "ahora" en hora de Argentina (no la del servidor UTC).
+        LocalDateTime startOfMonth = YearMonth.now(BUSINESS_ZONE).atDay(1).atStartOfDay();
         BigDecimal monthlyRevenue = paymentRepository.sumAmountByTenantIdAndDateAfter(tenantId, startOfMonth);
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime in7Days = now.plusDays(7);
         long expiringMembers = memberRepository.findByTenantIdAndMembershipEndBetween(tenantId, now, in7Days).size();
         long expiredMembers = memberRepository.findByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, now).size();
@@ -53,8 +68,8 @@ public class GymDashboardService {
         long inactiveMembers = totalMembers - activeMembers;
         
         double retentionRate = totalMembers > 0 ? ((double) activeMembers / totalMembers) * 100.0 : 0.0;
-        
-        LocalDateTime now = LocalDateTime.now();
+
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime in7Days = now.plusDays(7);
         
         // Expiring soon: Memberships ending between now and next 7 days
