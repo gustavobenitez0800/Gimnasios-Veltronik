@@ -2,6 +2,7 @@ package com.veltronik.v2.core.controllers;
 
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.repositories.TenantRepository;
+import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.core.services.BillingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ public class BillingController {
         }
 
         try {
-            String link = billingService.createSubscriptionLink(tenant);
+            String link = billingService.createSubscriptionLink(tenant, SecurityUtils.getCurrentUserEmail());
             return ResponseEntity.ok(Map.of("init_point", link));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating subscription: " + e.getMessage());
@@ -51,7 +52,7 @@ public class BillingController {
         Tenant tenant = currentTenant();
         if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
         try {
-            String link = billingService.createSubscriptionLink(tenant);
+            String link = billingService.createSubscriptionLink(tenant, SecurityUtils.getCurrentUserEmail());
             return ResponseEntity.ok(Map.of("data", Map.of("init_point", link)));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo generar el link de pago: " + e.getMessage()));

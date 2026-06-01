@@ -39,8 +39,9 @@ public class BillingService {
     private final SubscriptionBillingService subscriptionBillingService;
 
     @Transactional
-    public String createSubscriptionLink(Tenant tenant) throws Exception {
-        log.info("Generando link de suscripción para Tenant '{}' ({})", tenant.getName(), tenant.getId());
+    public String createSubscriptionLink(Tenant tenant, String payerEmail) throws Exception {
+        log.info("Generando link de suscripción para Tenant '{}' ({}), pagador: {}",
+                tenant.getName(), tenant.getId(), payerEmail);
 
         PreapprovalClient client = new PreapprovalClient();
 
@@ -56,12 +57,21 @@ public class BillingService {
                 .autoRecurring(autoRecurring)
                 .backUrl(frontendUrl + "/payment-callback")
                 .externalReference(tenant.getId().toString())
+                .payerEmail(payerEmail)
                 .build();
 
-        Preapproval preapproval = client.create(request);
-        log.info("Link de suscripción creado para Tenant '{}': {}", tenant.getName(), preapproval.getId());
-
-        return preapproval.getInitPoint();
+        try {
+            Preapproval preapproval = client.create(request);
+            log.info("Link de suscripción creado para Tenant '{}': {}", tenant.getName(), preapproval.getId());
+            return preapproval.getInitPoint();
+        } catch (com.mercadopago.exceptions.MPApiException apiEx) {
+            // El detalle real de MP NO está en getMessage(), sino en la respuesta de la API.
+            // Sin esto, el error queda como un genérico inútil y no se puede diagnosticar.
+            String detail = apiEx.getApiResponse() != null ? apiEx.getApiResponse().getContent() : "(sin cuerpo)";
+            log.error("Mercado Pago RECHAZÓ la suscripción del Tenant '{}'. HTTP {} — Detalle: {}",
+                    tenant.getName(), apiEx.getStatusCode(), detail);
+            throw new RuntimeException("Mercado Pago rechazó la solicitud (HTTP " + apiEx.getStatusCode() + "): " + detail, apiEx);
+        }
     }
 
     /**
