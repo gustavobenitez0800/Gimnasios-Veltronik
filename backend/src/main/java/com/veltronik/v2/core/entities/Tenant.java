@@ -62,4 +62,13 @@ public class Tenant extends BaseEntity {
     /** Estado general del negocio en la plataforma. */
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    /**
+     * Grupo al que el dueño asignó esta sucursal (opcional). Null = "Sin grupo".
+     * LAZY: no se carga salvo que se pida explícitamente, para no penalizar las
+     * consultas que no necesitan el grupo.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private TenantGroup group;
 }

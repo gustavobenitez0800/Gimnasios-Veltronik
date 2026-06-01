@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { gymService } from '../services';
+import { groupService } from '../services/GroupService';
 import { getInitials } from '../lib/utils';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
@@ -205,6 +206,7 @@ export default function LobbyPage() {
 
   const [orgs, setOrgs] = useState([]);
   const [orgStatuses, setOrgStatuses] = useState({});
+  const [groups, setGroups] = useState([]); // Grupos de sucursales del dueño
   const [loading, setLoading] = useState(true);
   const [blockedOrg, setBlockedOrg] = useState(null); // For blocked modal
   const [updatingPayment, setUpdatingPayment] = useState(false);
@@ -224,6 +226,11 @@ export default function LobbyPage() {
       const uniqueOrgs = Array.from(new Map((data || []).map(org => [org.id, org])).values());
       const orgsList = uniqueOrgs;
       setOrgs(orgsList);
+
+      // Grupos del dueño (para organizar el lobby). Best-effort: si falla, lobby plano.
+      try {
+        setGroups(await groupService.getMyGroups() || []);
+      } catch { setGroups([]); }
 
       // Batch load subscriptions for all orgs
       if (orgsList.length > 0) {
@@ -371,6 +378,95 @@ export default function LobbyPage() {
     }
   };
 
+  // ─── Render de una card de negocio (extraído para poder agrupar) ───
+  const renderOrgCard = (org) => {
+    const orgType = org.type || 'GYM';
+    const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
+    const accessStatus = orgStatuses[org.id];
+    const isBlocked = accessStatus && !accessStatus.canAccess;
+
+    return (
+      <button
+        key={org.id}
+        className={`lobby-card card-hover ${isBlocked ? 'lobby-card-blocked' : ''}`}
+        onClick={() => handleSelectOrg(org)}
+      >
+        {/* Delete button (owner only) */}
+        {org.role === 'owner' && (
+          <button
+            className="lobby-card-delete"
+            title="Eliminar negocio"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteTarget(org);
+              setDeleteConfirmName('');
+            }}
+          >
+            <Icon name="trash" size="0.9em" />
+          </button>
+        )}
+
+        {/* Blocked overlay */}
+        {isBlocked && (
+          <div className="lobby-card-blocked-overlay">
+            <span className="lobby-card-lock"><Icon name="lock" size="1.2em" /></span>
+          </div>
+        )}
+
+        <div className="lobby-card-icon" style={{ background: TYPE_IS_IMAGE[orgType] ? 'transparent' : '' }}>
+          {TYPE_IS_IMAGE[orgType] ? (
+            <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
+          ) : (
+            <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || <Icon name="building" size="1em" />}</span>
+          )}
+        </div>
+        <h3 className="lobby-card-name">{org.name}</h3>
+        <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
+          {TYPE_LABELS[orgType] || orgType}
+        </span>
+        <p className="lobby-card-role">
+          {{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción' }[org.role] || org.role}
+        </p>
+
+        {/* Status indicator */}
+        {accessStatus && (
+          <div
+            className="lobby-card-status"
+            style={{
+              background: `${accessStatus.color}18`,
+              color: accessStatus.color,
+              borderColor: `${accessStatus.color}30`,
+            }}
+          >
+            <Icon name={accessStatus.icon} size="0.95em" />
+            <span>{accessStatus.label}</span>
+          </div>
+        )}
+
+        {/* Price — only show when not in active trial */}
+        {accessStatus?.status !== 'trial' && (
+          <div className="lobby-card-price">
+            ${price.toLocaleString('es-AR')}/mes
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // Agrupa las orgs por groupId. Las sin grupo van a una sección "Sin grupo".
+  // Si no hay grupos definidos, todo cae en una sola sección sin encabezado
+  // → el lobby se ve EXACTAMENTE como antes (comportamiento por defecto seguro).
+  const orgsByGroup = (() => {
+    const map = new Map(); // groupId|null → [orgs]
+    for (const org of orgs) {
+      const key = org.groupId || null;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(org);
+    }
+    return map;
+  })();
+  const hasGroups = groups.length > 0;
+
   // ─── Render ───
   return (
     <div className="lobby-wrapper">
@@ -410,82 +506,48 @@ export default function LobbyPage() {
           <div style={{ textAlign: 'center', padding: '3rem' }}>
             <span className="spinner" /> Cargando negocios...
           </div>
-        ) : (
-          <div className="lobby-grid">
-            {/* Organization Cards */}
-            {orgs.map((org) => {
-              const orgType = org.type || 'GYM';
-              const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
-              const accessStatus = orgStatuses[org.id];
-              const isBlocked = accessStatus && !accessStatus.canAccess;
-
+        ) : hasGroups ? (
+          /* Vista AGRUPADA: una sección por grupo + "Sin grupo" + crear */
+          <>
+            {groups.map((g) => {
+              const groupOrgs = orgsByGroup.get(g.id) || [];
+              if (groupOrgs.length === 0) return null;
               return (
-                <button
-                  key={org.id}
-                  className={`lobby-card card-hover ${isBlocked ? 'lobby-card-blocked' : ''}`}
-                  onClick={() => handleSelectOrg(org)}
-                >
-                  {/* Delete button (owner only) */}
-                  {org.role === 'owner' && (
-                    <button
-                      className="lobby-card-delete"
-                      title="Eliminar negocio"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(org);
-                        setDeleteConfirmName('');
-                      }}
-                    >
-                      <Icon name="trash" size="0.9em" />
-                    </button>
-                  )}
-
-                  {/* Blocked overlay */}
-                  {isBlocked && (
-                    <div className="lobby-card-blocked-overlay">
-                      <span className="lobby-card-lock"><Icon name="lock" size="1.2em" /></span>
-                    </div>
-                  )}
-
-                  <div className="lobby-card-icon" style={{ background: TYPE_IS_IMAGE[orgType] ? 'transparent' : '' }}>
-                    {TYPE_IS_IMAGE[orgType] ? (
-                      <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
-                    ) : (
-                      <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || <Icon name="building" size="1em" />}</span>
-                    )}
+                <div key={g.id} className="lobby-group">
+                  <h2 className="lobby-group-title" style={g.color ? { borderColor: g.color } : undefined}>
+                    {g.name} <span className="lobby-group-count">{groupOrgs.length}</span>
+                  </h2>
+                  <div className="lobby-grid">
+                    {groupOrgs.map(renderOrgCard)}
                   </div>
-                  <h3 className="lobby-card-name">{org.name}</h3>
-                  <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
-                    {TYPE_LABELS[orgType] || orgType}
-                  </span>
-                  <p className="lobby-card-role">
-                    {{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción' }[org.role] || org.role}
-                  </p>
-
-                  {/* Status indicator */}
-                  {accessStatus && (
-                    <div
-                      className="lobby-card-status"
-                      style={{
-                        background: `${accessStatus.color}18`,
-                        color: accessStatus.color,
-                        borderColor: `${accessStatus.color}30`,
-                      }}
-                    >
-                      <Icon name={accessStatus.icon} size="0.95em" />
-                      <span>{accessStatus.label}</span>
-                    </div>
-                  )}
-
-                  {/* Price — only show when not in active trial */}
-                  {accessStatus?.status !== 'trial' && (
-                    <div className="lobby-card-price">
-                      ${price.toLocaleString('es-AR')}/mes
-                    </div>
-                  )}
-                </button>
+                </div>
               );
             })}
+            {(orgsByGroup.get(null) || []).length > 0 && (
+              <div className="lobby-group">
+                <h2 className="lobby-group-title">Sin grupo <span className="lobby-group-count">{(orgsByGroup.get(null) || []).length}</span></h2>
+                <div className="lobby-grid">
+                  {(orgsByGroup.get(null) || []).map(renderOrgCard)}
+                </div>
+              </div>
+            )}
+            <div className="lobby-grid">
+              <button
+                className="lobby-card lobby-card-create card-hover"
+                onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
+              >
+                <div className="lobby-card-icon create-icon">
+                  <Icon name="plus" size="2rem" />
+                </div>
+                <h3 className="lobby-card-name">Crear Negocio</h3>
+                <p className="lobby-card-role">Registrá tu gimnasio, estudio, club o restaurante</p>
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Vista PLANA (sin grupos definidos): idéntica al comportamiento anterior */
+          <div className="lobby-grid">
+            {orgs.map(renderOrgCard)}
 
             {/* Create new business card */}
             <button

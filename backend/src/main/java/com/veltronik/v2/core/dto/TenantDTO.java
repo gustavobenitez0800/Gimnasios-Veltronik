@@ -38,4 +38,7 @@ public class TenantDTO {
     // Propiedades adicionales para compatibilidad con el frontend
     private String role;
     private String type;
+
+    /** Grupo al que pertenece la sucursal (null = "Sin grupo"). Para agrupar en el lobby. */
+    private UUID groupId;
 }

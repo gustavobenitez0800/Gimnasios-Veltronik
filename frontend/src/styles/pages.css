@@ -266,6 +266,32 @@
   gap: 1.5rem;
 }
 
+/* ─── Agrupación de sucursales (lobby) ─── */
+.lobby-group {
+  margin-bottom: 2rem;
+}
+
+.lobby-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--primary-500); /* el color del grupo puede sobreescribirlo inline */
+  color: var(--text-primary);
+}
+
+.lobby-group-count {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius-full);
+  padding: 0.1rem 0.5rem;
+}
+
 .lobby-card {
   /* Premium Glassmorphism 3.0 */
   background: rgba(255, 255, 255, 0.03);
