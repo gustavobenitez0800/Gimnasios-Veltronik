@@ -363,9 +363,14 @@ export function AuthProvider({ children }) {
     initCompleteRef.current = false;
     localStorage.removeItem('current_org_id');
     localStorage.removeItem('current_org_name');
-    
-    // HARD REDIRECT para limpiar memoria RAM del navegador (Evita el "sistema loco" por caché retenido)
-    window.location.href = CONFIG.ROUTES.LOGIN || '/login';
+
+    // HARD REDIRECT para limpiar el estado en memoria (evita caché retenido tras logout).
+    // OJO Electron: la app usa HashRouter y se sirve por file://. Un `location.href='/'`
+    // apunta a la RAÍZ DEL DISCO (no al index.html) → pantalla en blanco. Hay que
+    // recargar el index.html ACTUAL (location.pathname) y mandar el hash al login.
+    const loginHash = `#${CONFIG.ROUTES.LOGIN || '/'}`;
+    window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
+    window.location.reload();
   };
 
   const refreshAuth = async () => {
