@@ -149,7 +149,7 @@ export default function SettingsPage() {
 
     setUpdatingPayment(true);
     try {
-      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+      const { ok, data: result } = await apiCall('/update-payment-method', {
         gym_id: gymId,
         payer_email: email,
       });
@@ -185,7 +185,7 @@ export default function SettingsPage() {
 
     setVerifyingSubscription(true);
     try {
-      const { ok, data: result } = await apiCall('/api/verify-subscription', {
+      const { ok, data: result } = await apiCall('/verify-subscription', {
         gym_id: gymId,
       });
 
@@ -220,7 +220,7 @@ export default function SettingsPage() {
         return;
       }
 
-      const { ok, data: result } = await apiCall('/api/cancel-subscription', {
+      const { ok, data: result } = await apiCall('/cancel-subscription', {
         gym_id: gymId,
       });
 

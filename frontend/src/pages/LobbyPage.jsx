@@ -302,7 +302,7 @@ export default function LobbyPage() {
 
     setUpdatingPayment(true);
     try {
-      const { ok, data: result } = await apiCall('/api/update-payment-method', {
+      const { ok, data: result } = await apiCall('/update-payment-method', {
         gym_id: gymId,
         payer_email: payerEmail,
       });

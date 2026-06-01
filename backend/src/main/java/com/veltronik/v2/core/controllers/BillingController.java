@@ -41,5 +41,52 @@ public class BillingController {
         }
     }
 
+    /**
+     * Cambiar método de pago: genera un nuevo link de suscripción de MP. El frontend
+     * (Ajustes / muro de bloqueo) redirige al init_point. Tenant tomado del contexto
+     * de seguridad (no del body — Cero Error). Respuesta: {data:{init_point}}.
+     */
+    @PostMapping("/update-payment-method")
+    public ResponseEntity<?> updatePaymentMethod() {
+        Tenant tenant = currentTenant();
+        if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
+        try {
+            String link = billingService.createSubscriptionLink(tenant);
+            return ResponseEntity.ok(Map.of("data", Map.of("init_point", link)));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo generar el link de pago: " + e.getMessage()));
+        }
+    }
 
+    /** Verifica/sincroniza el estado de la suscripción contra MP. Respuesta: {changed, message}. */
+    @PostMapping("/verify-subscription")
+    public ResponseEntity<?> verifySubscription() {
+        Tenant tenant = currentTenant();
+        if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
+        try {
+            return ResponseEntity.ok(billingService.verifySubscription(tenant));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo verificar con Mercado Pago: " + e.getMessage()));
+        }
+    }
+
+    /** Cancela la suscripción en MP. El acceso sigue hasta el fin del período pagado. */
+    @PostMapping("/cancel-subscription")
+    public ResponseEntity<?> cancelSubscription() {
+        Tenant tenant = currentTenant();
+        if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
+        try {
+            billingService.cancelSubscription(tenant);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo cancelar la suscripción: " + e.getMessage()));
+        }
+    }
+
+    /** Tenant del contexto de seguridad (seteado por el JwtFilter), nunca del body. */
+    private Tenant currentTenant() {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        if (tenantId == null) return null;
+        return tenantRepository.findById(tenantId).orElse(null);
+    }
 }
