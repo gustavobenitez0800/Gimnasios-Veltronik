@@ -314,19 +314,19 @@ export default function MembersPage() {
                             style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
                             onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
                             title="Cobrar cuota"
-                          >💰</button>
+                          ><Icon name="dollarSign" size="1em" /></button>
                           {member.phone && (
                             <button
                               className="action-btn-quick action-btn-whatsapp"
                               onClick={() => openWhatsApp(member)}
                               title="WhatsApp"
-                            >💬</button>
+                            ><Icon name="messageCircle" size="1em" /></button>
                           )}
                           <button
                             className="action-btn-quick action-btn-history"
                             onClick={() => openPaymentsHistory(member)}
                             title="Historial de pagos"
-                          >💳</button>
+                          ><Icon name="creditCard" size="1em" /></button>
                           <button
                             className="action-btn-quick action-btn-payment"
                             onClick={() => modal.open(member, MEMBER_MAP_FN)}
@@ -429,7 +429,7 @@ export default function MembersPage() {
       <Modal
         isOpen={paymentsModal}
         onClose={() => setPaymentsModal(false)}
-        title="💳 Historial de Pagos"
+        title="Historial de Pagos"
         actions={
           <button className="btn btn-secondary" onClick={() => setPaymentsModal(false)}>Cerrar</button>
         }
@@ -463,7 +463,7 @@ export default function MembersPage() {
         open={deleteDialog.isOpen}
         title={`Eliminar ${memberLabel}`}
         message={`¿Estás seguro de eliminar a "${deleteDialog.itemName}"? Esta acción no se puede deshacer.`}
-        icon="🗑️"
+        icon="trash"
         confirmText="Eliminar"
         confirmClass="btn-danger"
         onConfirm={handleDelete}

@@ -91,7 +91,7 @@ export default class ErrorBoundary extends Component {
                 borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '2rem', margin: '0 auto 1.5rem auto'
               }}>
-                {this.state.isNetworkError ? <Icon name="wifiOff" /> : '⚠️'}
+                {this.state.isNetworkError ? <Icon name="wifiOff" /> : <Icon name="alertTriangle" />}
               </div>
 
               <h1 className="auth-title" style={{ marginBottom: '0.75rem', fontSize: '1.5rem' }}>

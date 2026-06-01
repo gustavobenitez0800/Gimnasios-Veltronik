@@ -93,9 +93,12 @@ export default function SettingsPage() {
 
       const planNameMap = { GYM: 'Veltronik Pro', RESTO: 'Veltronik Restaurante', KIOSK: 'Veltronik Kiosco', OTHER: 'Veltronik Business' };
 
+      // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
+      // de visualización desde la fuente real para no depender de un campo inexistente.
+      const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
         plan: planNameMap[orgType] || 'Veltronik Pro',
-        status: gymData.status || 'active',
+        status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
         payerEmail,
@@ -191,14 +194,14 @@ export default function SettingsPage() {
       }
 
       if (result.changed) {
-        showToast(`✅ Estado sincronizado: ${result.message}`, 'success');
+        showToast(`Estado sincronizado: ${result.message}`, 'success');
         // Refresh all data
         if (refreshAuth) {
           try { await refreshAuth(); } catch { /* ignore */ }
         }
         await loadSettings();
       } else {
-        showToast('✅ Suscripción ya sincronizada correctamente', 'success');
+        showToast('Suscripción ya sincronizada correctamente', 'success');
       }
     } catch (error) {
       showToast(error.message || 'Error al verificar suscripción', 'error');
@@ -444,15 +447,15 @@ export default function SettingsPage() {
           </p>
           <div className="theme-options">
             <div className={`theme-option ${preference === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
-              <div className="theme-option-icon sun">☀️</div>
-              <span className="theme-option-text" style={{ color: '#92400e' }}>Claro</span>
+              <div className="theme-option-icon sun"><Icon name="sun" size="1.5rem" /></div>
+              <span className="theme-option-text">Claro</span>
             </div>
             <div className={`theme-option ${preference === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>
-              <div className="theme-option-icon moon">🌙</div>
-              <span className="theme-option-text" style={{ color: '#e0e7ff' }}>Oscuro</span>
+              <div className="theme-option-icon moon"><Icon name="moon" size="1.5rem" /></div>
+              <span className="theme-option-text">Oscuro</span>
             </div>
             <div className={`theme-option ${preference === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')}>
-              <div className="theme-option-icon system">🖥️</div>
+              <div className="theme-option-icon system"><Icon name="monitor" size="1.5rem" /></div>
               <span className="theme-option-text">Sistema</span>
             </div>
           </div>
@@ -487,12 +490,12 @@ export default function SettingsPage() {
       {/* Confirm Dialogs */}
       <ConfirmDialog open={confirmCancel} title="Cancelar Suscripción"
         message="¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual. Tu suscripción en Mercado Pago también será cancelada."
-        icon="⚠️" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
+        icon="alertTriangle" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
         onConfirm={handleCancelSubscription} onCancel={() => setConfirmCancel(false)} />
 
       <ConfirmDialog open={confirmLogout} title="Cerrar Sesión"
         message="¿Estás seguro de cerrar tu sesión?"
-        icon="🚪" confirmText="Cerrar Sesión" confirmClass="btn-danger"
+        icon="logout" confirmText="Cerrar Sesión" confirmClass="btn-danger"
         onConfirm={handleLogout} onCancel={() => setConfirmLogout(false)} />
     </div>
   );

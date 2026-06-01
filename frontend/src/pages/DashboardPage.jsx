@@ -237,7 +237,7 @@ function GymDashboard({ gym }) {
           <div className="insights-panel">
             {insights.length === 0 ? (
               <div className="insight-item info">
-                <span className="insight-icon">💤</span>
+                <span className="insight-icon"><Icon name="moon2" size="1.1em" /></span>
                 <div className="insight-content">
                   <div className="insight-title">Sin novedades</div>
                   <div className="insight-message">Todo está en orden por ahora</div>
@@ -246,7 +246,7 @@ function GymDashboard({ gym }) {
             ) : (
               insights.map((insight, i) => (
                 <div key={i} className={`insight-item ${insight.type}`}>
-                  <span className="insight-icon">{insight.icon}</span>
+                  <span className="insight-icon"><Icon name={insight.icon} size="1.1em" /></span>
                   <div className="insight-content">
                     <div className="insight-title">{insight.title}</div>
                     <div className="insight-message">{insight.message}</div>
@@ -265,18 +265,19 @@ function GymDashboard({ gym }) {
           <div className="alerts-panel">
             {alerts.length === 0 ? (
               <div className="alert-item success-alert">
-                <span className="alert-icon">✅</span>
+                <span className="alert-icon" style={{ color: 'var(--success-500)' }}><Icon name="checkCircle" size="1.1em" /></span>
                 <span className="alert-text">¡Excelente! No hay vencimientos próximos</span>
               </div>
             ) : (
-              alerts.slice(0, 8).map((alert, i) => (
-                <div key={i} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
-                  <span className="alert-icon">
-                    {alert.type === 'expired' ? '🔴' : alert.type === 'urgent' ? '🟠' : '🟡'}
-                  </span>
-                  <span className="alert-text">{alert.message}</span>
-                </div>
-              ))
+              alerts.slice(0, 8).map((alert, i) => {
+                const dotColor = alert.type === 'expired' ? 'var(--error-500)' : alert.type === 'urgent' ? 'var(--warning-500)' : 'var(--info-500)';
+                return (
+                  <div key={i} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
+                    <span className="alert-dot" style={{ background: dotColor, boxShadow: `0 0 0 3px color-mix(in srgb, ${dotColor} 18%, transparent)` }} />
+                    <span className="alert-text">{alert.message}</span>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

@@ -9,17 +9,18 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
+import Icon from '../components/Icon';
 
 // ============================================
 // PAYMENT CALLBACK — Netflix-level checkout flow
 // ============================================
 
 const STEPS = {
-  loading:  { icon: '🔄', title: 'Verificando pago', color: '#3b82f6' },
-  success:  { icon: '✅', title: '¡Pago Exitoso!', color: '#10b981' },
-  pending:  { icon: '⏳', title: 'Pago en Proceso', color: '#f59e0b' },
-  error:    { icon: '❌', title: 'Pago Rechazado', color: '#ef4444' },
-  activating: { icon: '⚡', title: 'Activando tu cuenta', color: '#8b5cf6' },
+  loading:  { icon: 'refresh',     title: 'Verificando pago', color: '#3b82f6' },
+  success:  { icon: 'checkCircle', title: '¡Pago Exitoso!', color: '#10b981' },
+  pending:  { icon: 'clock',       title: 'Pago en Proceso', color: '#f59e0b' },
+  error:    { icon: 'xCircle',     title: 'Pago Rechazado', color: '#ef4444' },
+  activating: { icon: 'zap',       title: 'Activando tu cuenta', color: '#8b5cf6' },
 };
 
 export function PaymentCallbackPage() {
@@ -162,9 +163,9 @@ export function PaymentCallbackPage() {
 
       <div className="payment-callback-card">
         {/* Icon with animation */}
-        <div className="payment-callback-icon" style={{ '--step-color': step.color }}>
-          <span className={`callback-icon-emoji ${status === 'loading' || status === 'activating' ? 'spinning' : 'bounce-in'}`}>
-            {step.icon}
+        <div className="payment-callback-icon" style={{ '--step-color': step.color, color: step.color }}>
+          <span className={`callback-icon-svg ${status === 'loading' || status === 'activating' ? 'spinning' : 'bounce-in'}`}>
+            <Icon name={step.icon} size="2.75rem" />
           </span>
         </div>
 
@@ -208,7 +209,7 @@ export function PaymentCallbackPage() {
               <>
                 <button className="btn btn-primary" style={{ width: '100%' }}
                   onClick={() => navigate(CONFIG.ROUTES.PLANS)}>
-                  🔄 Intentar con otra tarjeta
+                  <Icon name="rotateCw" size="1.1em" /> Intentar con otra tarjeta
                 </button>
                 <button className="btn btn-ghost" style={{ width: '100%' }}
                   onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
@@ -218,7 +219,7 @@ export function PaymentCallbackPage() {
             ) : status === 'success' ? (
               <button className="btn btn-primary" style={{ width: '100%' }}
                 onClick={() => navigate(CONFIG.ROUTES.LOBBY, { replace: true })}>
-                🚀 Continuar
+                Continuar <Icon name="arrowRight" size="1.1em" />
               </button>
             ) : (
               <button className="btn btn-primary" style={{ width: '100%' }}
@@ -231,7 +232,7 @@ export function PaymentCallbackPage() {
 
         {/* Security badge */}
         <div className="payment-callback-secure">
-          🔒 Transacción segura procesada por Mercado Pago
+          <Icon name="lock" size="0.9em" /> Transacción segura procesada por Mercado Pago
         </div>
       </div>
     </div>
@@ -245,7 +246,9 @@ export function MemberPortalPage() {
   return (
     <div className="auth-card">
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👤</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem', color: 'var(--primary-400)' }}>
+          <Icon name="user" size="3rem" />
+        </div>
         <h2 className="auth-title">Portal de Socios</h2>
         <p className="auth-subtitle">Esta función estará disponible próximamente</p>
       </div>

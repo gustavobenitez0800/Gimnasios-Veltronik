@@ -23,9 +23,6 @@ files:
 
 # Incluir dependencias de producción automáticamente
 asar: true
-asarUnpack:
-  - "node_modules/electron-updater/**/*"
-  - "node_modules/electron-log/**/*"
 
 # Archivos extra a copiar
 extraResources:
@@ -34,7 +31,7 @@ extraResources:
 
 # Directorio de salida (instaladores)
 directories:
-  output: release
+  output: dist_electron
   buildResources: build
 
 # Auto-updates via GitHub Releases

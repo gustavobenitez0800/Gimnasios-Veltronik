@@ -147,65 +147,24 @@
   overflow: hidden;
 }
 
-/* ─── Liquid Glass Background ─── */
+/* ─── Background técnico sobrio (reemplaza el "liquid glass" con orbes) ─── */
+/* Malla de puntos sutil + un realce lineal tenue desde arriba. Estático, neutro,
+   estética de herramienta seria. La estructura JSX (.liquid-orb) se conserva pero
+   se vuelve invisible para no tocar el componente. */
 .liquid-bg {
   position: absolute;
   inset: 0;
   overflow: hidden;
   z-index: 0;
-  background: radial-gradient(circle at 50% 50%, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  background: var(--bg-primary);
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    radial-gradient(130% 70% at 50% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 55%);
+  background-size: 24px 24px, 100% 100%;
 }
 
-.liquid-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: liquidFloat 20s infinite alternate ease-in-out;
-  pointer-events: none;
-}
-
-.liquid-orb-1 {
-  width: 60vw;
-  height: 60vw;
-  max-width: 800px;
-  max-height: 800px;
-  background: radial-gradient(circle, var(--primary-600) 0%, transparent 70%);
-  top: -10%;
-  left: -10%;
-  animation-duration: 25s;
-}
-
-.liquid-orb-2 {
-  width: 50vw;
-  height: 50vw;
-  max-width: 700px;
-  max-height: 700px;
-  background: radial-gradient(circle, var(--accent-600) 0%, transparent 70%);
-  bottom: -20%;
-  right: -10%;
-  animation-duration: 22s;
-  animation-delay: -5s;
-}
-
-.liquid-orb-3 {
-  width: 40vw;
-  height: 40vw;
-  max-width: 600px;
-  max-height: 600px;
-  background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
-  top: 40%;
-  left: 30%;
-  animation-duration: 18s;
-  animation-delay: -10s;
-}
-
-@keyframes liquidFloat {
-  0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(5%, -5%) scale(1.1); }
-  66% { transform: translate(-3%, 4%) scale(0.9); }
-  100% { transform: translate(0, 0) scale(1); }
-}
+/* Orbes desactivados: el nuevo lenguaje no usa blobs flotantes. */
+.liquid-orb { display: none; }
 
 .lobby-wrapper::before {
   display: none; /* Removed old before element */
@@ -358,9 +317,9 @@
 .lobby-card-icon {
   width: 72px;
   height: 72px;
-  border-radius: var(--border-radius-xl);
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.02));
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1); /* Rim light */
+  border-radius: var(--border-radius-lg);
+  background: color-mix(in srgb, var(--primary-500) 10%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06); /* Rim light */
   display: flex;
   align-items: center;
   justify-content: center;

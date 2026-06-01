@@ -184,14 +184,28 @@ export function AuthProvider({ children }) {
 
       const currentUser = await authService.getCurrentUser().catch(() => null);
       if (currentUser) {
-        // Map Supabase user to our expected format
+        // Map Supabase user to our expected format.
+        // El nombre real vive en user_metadata.full_name (el signup manda un único
+        // "fullName"); first_name/last_name casi siempre vienen vacíos. Por eso
+        // priorizamos full_name y recién después el split o el prefijo del email.
+        const meta = currentUser.user_metadata || {};
+        const emailPrefix = currentUser.email ? currentUser.email.split('@')[0] : '';
+        const fullName = (
+          meta.full_name ||
+          meta.name ||
+          `${meta.first_name || ''} ${meta.last_name || ''}`.trim() ||
+          emailPrefix
+        ).trim();
         setUser({
           id: currentUser.id,
           email: currentUser.email,
-          firstName: currentUser.user_metadata?.first_name || '',
-          lastName: currentUser.user_metadata?.last_name || '',
-          fullName: `${currentUser.user_metadata?.first_name || ''} ${currentUser.user_metadata?.last_name || ''}`.trim()
+          firstName: meta.first_name || '',
+          lastName: meta.last_name || '',
+          fullName,
         });
+        // Sidebar / Settings / Lobby leen `profile?.fullName`; sin poblar `profile`
+        // queda siempre en "Usuario" aunque el nombre exista en la sesión.
+        setProfile({ fullName, email: currentUser.email });
       }
 
       // Intentar cargar el contexto de la org seleccionada
@@ -306,8 +320,8 @@ export function AuthProvider({ children }) {
     if (user && gym && isTrialActive && trialDaysRemaining <= 7 && needsOrg && !trialWarningShownRef.current) {
       trialWarningShownRef.current = true;
       const msg = trialDaysRemaining <= 1
-        ? '⚠️ Tu período de prueba termina hoy. Suscribite para seguir usando Veltronik.'
-        : `⚠️ Tu período de prueba vence en ${trialDaysRemaining} días. Suscribite para no perder acceso.`;
+        ? 'Tu período de prueba termina hoy. Suscribite para seguir usando Veltronik.'
+        : `Tu período de prueba vence en ${trialDaysRemaining} días. Suscribite para no perder acceso.`;
       showToast(msg, 'warning', 10000);
     }
   }, [user, loading, location.pathname, gym, subscription, isTrialActive, trialDaysRemaining, hasValidAccess, navigate, showToast]);

@@ -571,43 +571,18 @@
   padding: 2rem;
 }
 
+/* Fondo sobrio (sin orbes flotantes): malla de puntos + realce lineal tenue. */
 .payment-callback-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    radial-gradient(130% 70% at 50% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 55%);
+  background-size: 24px 24px, 100% 100%;
 }
 
-.payment-callback-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.3;
-  animation: orbFloat 8s ease-in-out infinite;
-}
-
-.orb-1 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 70%);
-  top: -10%;
-  right: -10%;
-}
-
-.orb-2 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%);
-  bottom: -10%;
-  left: -5%;
-  animation-delay: -4s;
-}
-
-@keyframes orbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(20px, -20px) scale(1.05); }
-  50% { transform: translate(-10px, 10px) scale(0.95); }
-  75% { transform: translate(15px, 15px) scale(1.02); }
-}
+.payment-callback-orb { display: none; }
 
 .payment-callback-card {
   position: relative;
@@ -631,19 +606,30 @@
 
 .payment-callback-icon {
   margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
 }
 
-.callback-icon-emoji {
-  display: inline-block;
-  font-size: 4.5rem;
-  line-height: 1;
+/* Contenedor circular con halo tintado al color del paso (premium, no exagerado) */
+.callback-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  color: var(--step-color, var(--primary-500));
+  background: color-mix(in srgb, var(--step-color, var(--primary-500)) 12%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--step-color, var(--primary-500)) 25%, transparent),
+    0 0 32px color-mix(in srgb, var(--step-color, var(--primary-500)) 22%, transparent);
 }
 
-.callback-icon-emoji.spinning {
+.callback-icon-svg.spinning {
   animation: spin 1.5s linear infinite;
 }
 
-.callback-icon-emoji.bounce-in {
+.callback-icon-svg.bounce-in {
   animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -750,8 +736,9 @@
   .payment-callback-card {
     padding: 2rem 1.5rem;
   }
-  .callback-icon-emoji {
-    font-size: 3.5rem;
+  .callback-icon-svg {
+    width: 80px;
+    height: 80px;
   }
 }
 

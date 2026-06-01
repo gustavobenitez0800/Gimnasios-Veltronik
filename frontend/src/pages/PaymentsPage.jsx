@@ -570,7 +570,7 @@ export default function PaymentsPage() {
         open={deleteDialog.isOpen}
         title="Eliminar Pago"
         message="¿Estás seguro de eliminar este pago? Esta acción no se puede deshacer."
-        icon="🗑️"
+        icon="trash"
         confirmText="Eliminar"
         confirmClass="btn-danger"
         onConfirm={handleDelete}

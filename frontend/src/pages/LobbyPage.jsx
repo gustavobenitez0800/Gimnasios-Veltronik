@@ -48,7 +48,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: true,
       status: 'active',
       label: 'Activo',
-      icon: '✅',
+      icon: 'checkCircle',
       color: '#22c55e',
       sub,
     };
@@ -61,7 +61,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: true,
       status: 'trial',
       label: `${trialDays} días de prueba`,
-      icon: <Icon name="sparkles" size="1em" />,
+      icon: 'sparkles',
       color: trialDays <= 7 ? '#f59e0b' : '#22c55e',
       sub,
       trialDays,
@@ -77,7 +77,7 @@ function computeOrgAccessStatus(org, sub) {
         canAccess: true,
         status: 'past_due_grace',
         label: `Pago rechazado (${graceDays}d gracia)`,
-        icon: '⚠️',
+        icon: 'alertTriangle',
         color: '#f59e0b',
         sub,
         graceDays,
@@ -91,7 +91,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: false,
       status: 'past_due',
       label: 'Pago rechazado',
-      icon: '💳',
+      icon: 'creditCard',
       color: '#ef4444',
       blockReason: 'past_due',
       sub,
@@ -106,7 +106,7 @@ function computeOrgAccessStatus(org, sub) {
         canAccess: true,
         status: 'canceled_active',
         label: `Cancelada (${daysLeft}d rest.)`,
-        icon: '⚠️',
+        icon: 'alertTriangle',
         color: '#f59e0b',
         sub,
       };
@@ -116,7 +116,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: false,
       status: 'canceled',
       label: 'Suscripción cancelada',
-      icon: '🚫',
+      icon: 'xCircle',
       color: '#64748b',
       blockReason: 'canceled',
       sub,
@@ -129,7 +129,7 @@ function computeOrgAccessStatus(org, sub) {
       canAccess: false,
       status: 'trial_expired',
       label: 'Prueba finalizada',
-      icon: '⏰',
+      icon: 'clock',
       color: '#3b82f6',
       blockReason: 'trial_expired',
       sub,
@@ -141,7 +141,7 @@ function computeOrgAccessStatus(org, sub) {
     canAccess: false,
     status: 'no_subscription',
     label: 'Sin suscripción',
-    icon: '🔒',
+    icon: 'lock',
     color: '#ef4444',
     blockReason: 'no_subscription',
     sub,
@@ -430,7 +430,7 @@ export default function LobbyPage() {
                     {TYPE_IS_IMAGE[orgType] ? (
                       <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
                     ) : (
-                      <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || '📱'}</span>
+                      <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || <Icon name="building" size="1em" />}</span>
                     )}
                   </div>
                   <h3 className="lobby-card-name">{org.name}</h3>
@@ -451,7 +451,7 @@ export default function LobbyPage() {
                         borderColor: `${accessStatus.color}30`,
                       }}
                     >
-                      <span>{accessStatus.icon}</span>
+                      <Icon name={accessStatus.icon} size="0.95em" />
                       <span>{accessStatus.label}</span>
                     </div>
                   )}
@@ -492,7 +492,7 @@ export default function LobbyPage() {
 
             {/* Icon */}
             <div className="lobby-blocked-icon" style={{ color: blockedOrg.accessStatus?.color }}>
-              {blockedOrg.accessStatus?.icon || '🔒'}
+              <Icon name={blockedOrg.accessStatus?.icon || 'lock'} size="1em" />
             </div>
 
             {/* Org name */}
@@ -535,7 +535,7 @@ export default function LobbyPage() {
             {/* Actions */}
             <div className="lobby-blocked-actions">
               <button className="btn btn-primary lobby-blocked-btn-main" onClick={handleReactivate}>
-                💳 Reactivar Suscripción
+                <Icon name="creditCard" size="1.1em" /> Reactivar Suscripción
               </button>
 
               {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.showUpdateCard && (
@@ -548,13 +548,13 @@ export default function LobbyPage() {
                   {updatingPayment ? (
                     <><span className="spinner" /> Procesando...</>
                   ) : (
-                    '🔄 Cambiar Método de Pago'
+                    <><Icon name="rotateCw" size="1.1em" /> Cambiar Método de Pago</>
                   )}
                 </button>
               )}
 
               <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => setBlockedOrg(null)}>
-                ← Volver al Lobby
+                <Icon name="chevronLeft" size="1.1em" /> Volver al Lobby
               </button>
             </div>
 

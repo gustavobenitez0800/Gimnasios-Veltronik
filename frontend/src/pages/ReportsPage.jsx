@@ -270,10 +270,10 @@ function GymReportsPage() {
   };
 
   const reports = [
-    { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: '👥', color: 'primary', action: exportMembers },
-    { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: '💰', color: 'success', action: exportPayments },
-    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: '🚪', color: 'accent', action: exportAccess },
-    { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: '📊', color: 'warning', action: exportSummary },
+    { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: 'users', color: 'primary', action: exportMembers },
+    { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: 'dollarSign', color: 'success', action: exportPayments },
+    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: 'doorOpen', color: 'accent', action: exportAccess },
+    { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: 'chart', color: 'warning', action: exportSummary },
   ];
 
   return (
@@ -306,8 +306,8 @@ function GymReportsPage() {
       <div className="reports-grid">
         {reports.map(r => (
           <div key={r.key} className="report-card">
-            <div className={`report-icon stat-icon-${r.color}`} style={{ width: 56, height: 56, borderRadius: 12, fontSize: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-              {r.icon}
+            <div className={`report-icon stat-icon-${r.color}`} style={{ width: 56, height: 56, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+              <Icon name={r.icon} size="1.5rem" />
             </div>
             <div className="report-title">{r.title}</div>
             <div className="report-description">{r.desc}</div>
@@ -325,7 +325,7 @@ function GymReportsPage() {
 
       {/* Export History */}
       <div className="card mt-3" style={{ padding: '1.25rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>📁 Exportaciones Recientes</h3>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Icon name="folder" size="1em" /> Exportaciones Recientes</h3>
         {exportHistory.length === 0 ? (
           <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Los archivos exportados aparecerán aquí</div>
         ) : (
@@ -335,7 +335,7 @@ function GymReportsPage() {
                 <span className="payment-amount">{exp.type} ({exp.format})</span>
                 <span className="payment-date">{exp.date}</span>
               </div>
-              <span className="badge badge-success">✓</span>
+              <span className="badge badge-success" style={{ padding: '0.35rem 0.5rem' }}><Icon name="check" size="0.9em" /></span>
             </div>
           ))
         )}

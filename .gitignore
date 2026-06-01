@@ -21,3 +21,6 @@ release-builds/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Tooling local (preview server, etc.)
+.claude/

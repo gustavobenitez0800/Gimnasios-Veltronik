@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../lib/apiClient';
 import { useToast } from '../contexts/ToastContext';
+import Icon from '../components/Icon';
 
 export default function BlockedPage() {
   const { logout } = useAuth();
@@ -49,7 +50,7 @@ export default function BlockedPage() {
         maxWidth: '550px',
         boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
       }}>
-        <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🚀</div>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center', color: 'var(--primary-400)' }}><Icon name="rocket" size="3.25rem" /></div>
         
         <h1 style={{ 
           fontSize: '2rem', 

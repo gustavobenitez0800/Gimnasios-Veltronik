@@ -11,6 +11,7 @@
 // como en versiones Portable (muestra link de descarga).
 
 import { useState, useEffect, useCallback } from 'react';
+import Icon from './Icon';
 
 const GITHUB_OWNER = 'gustavobenitez0800';
 const GITHUB_REPO = 'Gimnasios-Veltronik';
@@ -252,7 +253,7 @@ export default function ForceUpdateOverlay() {
                             className="btn btn-primary btn-lg force-update-btn-main"
                             onClick={handleRestart}
                         >
-                            🔄 Reiniciar e Instalar Ahora
+                            <Icon name="rotateCw" size="1.1em" /> Reiniciar e Instalar Ahora
                         </button>
                     ) : autoUpdateInProgress ? (
                         <button className="btn btn-primary btn-lg force-update-btn-main" disabled>
@@ -265,14 +266,14 @@ export default function ForceUpdateOverlay() {
                                     className="btn btn-primary btn-lg force-update-btn-main"
                                     onClick={handleForceRestart}
                                 >
-                                    🔄 Verificar Actualización
+                                    <Icon name="rotateCw" size="1.1em" /> Verificar Actualización
                                 </button>
                             )}
                             <button
                                 className="btn btn-secondary btn-lg force-update-btn-download"
                                 onClick={handleDownload}
                             >
-                                📥 Descargar Instalador
+                                <Icon name="download" size="1.1em" /> Descargar Instalador
                                 {downloadSize && <span className="force-update-size">({formatBytes(downloadSize)})</span>}
                             </button>
                         </>

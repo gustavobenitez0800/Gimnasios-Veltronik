@@ -238,7 +238,13 @@ export default function AccessPage() {
                   <td>{member?.dni || '-'}</td>
                   <td>{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                   <td>{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
-                  <td>{(log.accessMethod || '').toLowerCase() === 'manual' ? '✋ Manual' : (log.accessMethod || '').toLowerCase() === 'qr' ? '📱 QR' : log.accessMethod || '-'}</td>
+                  <td>
+                    {(log.accessMethod || '').toLowerCase() === 'manual' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
+                    ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="qrCode" size="0.9em" /> QR</span>
+                    ) : (log.accessMethod || '-')}
+                  </td>
                 </tr>
               )})}
             </tbody>

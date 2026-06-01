@@ -41,6 +41,8 @@
 .toast-icon {
   font-size: 1.1rem;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .toast-success .toast-icon { color: var(--success-500); }

@@ -176,9 +176,9 @@ export default function ClassesPage() {
           </div>
           <div className="view-toggle">
             <button className={`btn btn-sm ${view === 'calendar' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setView('calendar')}>📅 Calendario</button>
+              onClick={() => setView('calendar')}><Icon name="calendar" size="1em" /> Calendario</button>
             <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setView('list')}>📋 Lista</button>
+              onClick={() => setView('list')}><Icon name="list" size="1em" /> Lista</button>
           </div>
         </div>
       </div>
@@ -208,7 +208,7 @@ export default function ClassesPage() {
                         <div className="class-time">{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</div>
                         <div className="class-name">{cls.name}</div>
                         <div className="class-instructor">{cls.instructor || 'Sin instructor'}</div>
-                        <div className="class-spots available">👥 {cls.capacity || 20} cupos</div>
+                        <div className="class-spots available"><Icon name="users" size="0.9em" /> {cls.capacity || 20} cupos</div>
                       </div>
                     )) : <div className="no-classes">Sin clases</div>}
                   </div>
@@ -351,10 +351,10 @@ export default function ClassesPage() {
               <span style={{ width: 14, height: 14, borderRadius: '50%', background: selectedClass.color, display: 'inline-block', marginRight: 8 }} />
               {selectedClass.name}
             </h2>
-            <div style={{ marginBottom: '1rem' }}>
-              <p className="text-muted mb-1">📅 {getDayName(selectedClass.day_of_week)} · {formatTime(selectedClass.start_time)} - {formatTime(selectedClass.end_time)}</p>
-              <p className="text-muted mb-1">👤 {selectedClass.instructor || 'Sin instructor'}</p>
-              <p className="text-muted">👥 {selectedClass.capacity || 20} cupos · {selectedClass.room || 'Sin sala'}</p>
+            <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="calendar" size="1em" /> {getDayName(selectedClass.day_of_week)} · {formatTime(selectedClass.start_time)} - {formatTime(selectedClass.end_time)}</p>
+              <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="user" size="1em" /> {selectedClass.instructor || 'Sin instructor'}</p>
+              <p className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="users" size="1em" /> {selectedClass.capacity || 20} cupos · {selectedClass.room || 'Sin sala'}</p>
             </div>
             <h3 style={{ fontSize: 'var(--font-size-sm)', marginBottom: '0.5rem' }}>Reservas</h3>
             {bookingsLoading ? (
@@ -383,7 +383,7 @@ export default function ClassesPage() {
       )}
 
       <ConfirmDialog open={!!deleteId} title="Eliminar Clase" message="¿Estás seguro de eliminar esta clase?"
-        icon="🗑️" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
+        icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { useToast } from '../contexts/ToastContext';
 import { authService, errorService } from '../services';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import Icon from '../components/Icon';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -77,7 +78,7 @@ export default function ResetPasswordPage() {
                   onChange={e => setPassword(e.target.value)} required minLength={6} autoComplete="new-password" />
                 <button type="button" className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? '🙈' : '👁️'}
+                  <Icon name={showPassword ? 'eyeOff' : 'eye'} size="1.1em" />
                 </button>
               </div>
             </div>

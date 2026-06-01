@@ -98,13 +98,13 @@ export default function TeamPage() {
   const isAdmin = currentRole === 'admin';
   const canManageTeam = isOwner || isAdmin;
 
-  const getActivityEmoji = (action) => {
-    if (action?.includes('create') || action?.includes('invite')) return '➕';
-    if (action?.includes('update') || action?.includes('role')) return '✏️';
-    if (action?.includes('delete') || action?.includes('remove')) return '🗑️';
-    if (action?.includes('checkin') || action?.includes('access')) return '🚪';
-    if (action?.includes('payment')) return '💳';
-    return '📋';
+  const getActivityIcon = (action) => {
+    if (action?.includes('create') || action?.includes('invite')) return 'plus';
+    if (action?.includes('update') || action?.includes('role')) return 'edit';
+    if (action?.includes('delete') || action?.includes('remove')) return 'trash';
+    if (action?.includes('checkin') || action?.includes('access')) return 'doorOpen';
+    if (action?.includes('payment')) return 'creditCard';
+    return 'fileText';
   };
 
   return (
@@ -150,7 +150,7 @@ export default function TeamPage() {
             <div className="dashboard-loading"><span className="spinner" /> Cargando equipo...</div>
           ) : teamMembers.length === 0 ? (
             <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '1rem', opacity: 0.3 }}>👥</div>
+              <div style={{ marginBottom: '1rem', opacity: 0.35, color: 'var(--text-muted)', display: 'flex', justifyContent: 'center' }}><Icon name="users" size="2.25rem" /></div>
               <h3>No hay miembros en el equipo</h3>
               <p className="text-muted">Invitá a tu primer empleado usando el formulario de arriba</p>
             </div>
@@ -175,8 +175,8 @@ export default function TeamPage() {
                       <span className={`role-badge role-${m.role}`}>{ROLE_LABELS[m.role] || m.role}</span>
                       {isOwner && !isMe && m.role !== 'owner' ? (
                         <div className="member-actions">
-                          <button onClick={() => openRoleModal(m)} title="Cambiar rol">✏️ Rol</button>
-                          <button className="btn-remove" onClick={() => setDeleteTarget(m)} title="Eliminar">🗑️</button>
+                          <button onClick={() => openRoleModal(m)} title="Cambiar rol"><Icon name="edit" size="0.9em" /> Rol</button>
+                          <button className="btn-remove" onClick={() => setDeleteTarget(m)} title="Eliminar"><Icon name="trash" size="0.9em" /></button>
                         </div>
                       ) : m.role === 'owner' ? (
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Icon name="crown" size="1em" /> Dueño</span>
@@ -197,13 +197,13 @@ export default function TeamPage() {
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
             {activityLog.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '3rem' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem', opacity: 0.3 }}>🕐</div>
+                <div style={{ marginBottom: '0.5rem', opacity: 0.35, display: 'flex', justifyContent: 'center' }}><Icon name="clock" size="2rem" /></div>
                 Sin actividad reciente
               </div>
             ) : activityLog.map((log, i) => (
               <div key={i} className="activity-item" style={{ display: 'flex', gap: '0.75rem', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-color)' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', fontSize: '0.8rem' }}>
-                  {getActivityEmoji(log.action)}
+                <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', color: 'var(--primary-400)' }}>
+                  <Icon name={getActivityIcon(log.action)} size="1em" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.82rem' }}>
@@ -246,7 +246,7 @@ export default function TeamPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog open={!!deleteTarget} title="Eliminar del Equipo"
         message={`¿Eliminar a "${deleteTarget?.fullName || deleteTarget?.email}" del equipo?`}
-        icon="🗑️" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleRemove} onCancel={() => setDeleteTarget(null)} />
+        icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleRemove} onCancel={() => setDeleteTarget(null)} />
     </div>
   );
 }

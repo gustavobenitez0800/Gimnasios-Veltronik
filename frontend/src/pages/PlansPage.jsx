@@ -8,6 +8,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 import apiClient from '../lib/apiClient';
+import Icon from '../components/Icon';
 
 const FEATURES_BY_TYPE = {
   GYM: [
@@ -73,8 +74,8 @@ export default function PlansPage() {
       
       <div className="premium-plans-content">
         <div className="plans-hero text-center" style={{ paddingTop: '2rem' }}>
-          <h1 className="plans-hero-title" style={{ fontSize: '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            🚀 Activá tu {TYPE_LABELS[orgType] || 'negocio'}
+          <h1 className="plans-hero-title" style={{ fontSize: '2.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}>
+            <Icon name="rocket" size="2rem" /> Activá tu {TYPE_LABELS[orgType] || 'negocio'}
           </h1>
           <p className="plans-hero-subtitle" style={{ color: '#9ca3af', marginBottom: '2rem' }}>
             Suscripción mensual para acceso completo al sistema

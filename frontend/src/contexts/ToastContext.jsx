@@ -3,6 +3,7 @@
 // ============================================
 
 import { createContext, useContext, useState, useCallback } from 'react';
+import Icon from '../components/Icon';
 
 const ToastContext = createContext(null);
 
@@ -40,12 +41,12 @@ export function ToastProvider({ children }) {
   );
 }
 
-// Toast Icons
+// Toast Icons (SVG del sistema, consistente con el resto de la plataforma)
 const TOAST_ICONS = {
-  success: '✓',
-  error: '✕',
-  warning: '⚠',
-  info: 'ℹ',
+  success: 'checkCircle',
+  error: 'xCircle',
+  warning: 'alertTriangle',
+  info: 'info',
 };
 
 function ToastContainer({ toasts, onRemove }) {
@@ -55,7 +56,7 @@ function ToastContainer({ toasts, onRemove }) {
     <div className="toast-container">
       {toasts.map((toast) => (
         <div key={toast.id} className={`toast toast-${toast.type} toast-show`}>
-          <span className="toast-icon">{TOAST_ICONS[toast.type] || TOAST_ICONS.info}</span>
+          <span className="toast-icon"><Icon name={TOAST_ICONS[toast.type] || TOAST_ICONS.info} size="1.1em" /></span>
           <span className="toast-message">{toast.message}</span>
           <button className="toast-close" onClick={() => onRemove(toast.id)}>
             ×

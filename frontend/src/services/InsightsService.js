@@ -133,7 +133,7 @@ export default class InsightsService {
 
     if (expiringThisWeek > 0) {
       insights.push({
-        icon: '⏰',
+        icon: 'clock',
         type: 'warning',
         title: 'Membresías por vencer',
         message: `${expiringThisWeek} socio${expiringThisWeek > 1 ? 's' : ''} con membresía próxima a vencer esta semana`,
@@ -146,7 +146,7 @@ export default class InsightsService {
 
     if (members.length > 0) {
       insights.push({
-        icon: '📊',
+        icon: 'chart',
         type: 'info',
         title: 'Tasa de actividad',
         message: `${activeRate}% de tus socios están activos (${activeCount} de ${members.length})`,
@@ -173,7 +173,7 @@ export default class InsightsService {
       const isUp = monthlyIncome >= lastMonthIncome;
 
       insights.push({
-        icon: isUp ? '📈' : '📉',
+        icon: isUp ? 'trendingUp' : 'trendingDown',
         type: isUp ? 'success' : 'warning',
         title: 'Comparativa mensual',
         message: `Ingresos ${isUp ? 'subieron' : 'bajaron'} ${Math.abs(change)}% vs mes anterior`,
@@ -189,7 +189,7 @@ export default class InsightsService {
 
     if (todayBirthdays.length > 0) {
       insights.push({
-        icon: '🎂',
+        icon: 'cake',
         type: 'celebration',
         title: '¡Cumpleaños hoy!',
         message: todayBirthdays.map((m) => m.fullName).join(', '),
