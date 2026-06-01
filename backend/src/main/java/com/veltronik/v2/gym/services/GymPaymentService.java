@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,6 +31,19 @@ public class GymPaymentService {
 
     public List<GymPayment> findAllForCurrentTenant() {
         return repository.findByTenantId(TenantContextHolder.getTenantId());
+    }
+
+    /**
+     * Pagos del tenant en un rango de fechas (ambos opcionales). Las fechas llegan como
+     * día calendario ({@link LocalDate}) desde el frontend; acá se expanden a
+     * {@link LocalDateTime}: {@code from} → 00:00:00 de ese día, {@code to} → 23:59:59
+     * (fin de día inclusivo, así no se recorta el último día). Si ambos son null,
+     * equivale a "todos" (mismo resultado que findAllForCurrentTenant).
+     */
+    public List<GymPayment> findForCurrentTenantByDateRange(LocalDate from, LocalDate to) {
+        LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : null;
+        LocalDateTime toDt = (to != null) ? to.atTime(LocalTime.MAX) : null;
+        return repository.findByTenantIdAndDateRange(TenantContextHolder.getTenantId(), fromDt, toDt);
     }
 
     /** Historial de pagos de un socio, acotado al tenant actual (aislamiento garantizado). */

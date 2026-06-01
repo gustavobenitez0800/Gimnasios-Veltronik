@@ -49,9 +49,21 @@ export function usePaymentController() {
     setLoading(true);
     setError(null);
     try {
-      // Por ahora trae todos, luego podemos agregar params a Java
-      const data = await paymentService.getAllPayments();
-      const mappedData = data.map(mapPaymentDTOToModel);
+      // El rango de fecha lo filtra el BACKEND (params from/to). search/method/status
+      // se aplican sobre el resultado (filtros livianos de UI sobre el set ya acotado).
+      const data = await paymentService.getAllPayments(dateFrom, dateTo);
+      let mappedData = data.map(mapPaymentDTOToModel);
+
+      const q = (search || '').trim().toLowerCase();
+      if (q) {
+        mappedData = mappedData.filter(p =>
+          (p.member?.fullName || '').toLowerCase().includes(q) ||
+          (p.member?.dni || '').toLowerCase().includes(q)
+        );
+      }
+      if (method) mappedData = mappedData.filter(p => p.paymentMethod === method);
+      if (status) mappedData = mappedData.filter(p => p.status === status);
+
       setPayments(mappedData);
     } catch (err) {
       console.error("Error loading payments:", err);

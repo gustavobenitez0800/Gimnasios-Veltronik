@@ -4,9 +4,11 @@ import com.veltronik.v2.gym.dto.GymPaymentDTO;
 import com.veltronik.v2.gym.entities.GymPayment;
 import com.veltronik.v2.gym.mappers.GymPaymentMapper;
 import com.veltronik.v2.gym.services.GymPaymentService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,9 +30,20 @@ public class GymPaymentController {
         this.paymentMapper = paymentMapper;
     }
 
+    /**
+     * Lista de pagos del tenant. Acepta filtro de rango de fecha OPCIONAL:
+     *  - sin params  → todos (compatibilidad con consumidores existentes).
+     *  - {@code ?from=YYYY-MM-DD&to=YYYY-MM-DD} → filtra por paymentDate (inclusive).
+     * El filtrado se hace en la BD (el frontend solo dibuja el resultado).
+     */
     @GetMapping
-    public ResponseEntity<List<GymPaymentDTO>> getAllPayments() {
-        return ResponseEntity.ok(paymentMapper.toDtoList(paymentService.findAllForCurrentTenant()));
+    public ResponseEntity<List<GymPaymentDTO>> getAllPayments(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        List<GymPaymentDTO> result = (from == null && to == null)
+                ? paymentMapper.toDtoList(paymentService.findAllForCurrentTenant())
+                : paymentMapper.toDtoList(paymentService.findForCurrentTenantByDateRange(from, to));
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")

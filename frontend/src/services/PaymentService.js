@@ -18,8 +18,13 @@ class PaymentService {
     return response.data;
   }
 
-  async getAllPayments() {
-    const response = await apiClient.get('/gym/payments');
+  async getAllPayments(dateFrom, dateTo) {
+    // El filtrado por fecha lo hace el BACKEND (params opcionales from/to).
+    // Sin fechas, el endpoint devuelve todos (compatibilidad).
+    const params = {};
+    if (dateFrom) params.from = dateFrom;
+    if (dateTo) params.to = dateTo;
+    const response = await apiClient.get('/gym/payments', { params });
     return response.data;
   }
 
