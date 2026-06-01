@@ -30,6 +30,7 @@ node etl_cutover.mjs           # DRY-RUN: revisá el reporte (debe correr sin er
 node etl_cutover.mjs --commit  # APLICA de verdad
 ```
 - [ ] El reporte debe mostrar `nuevos_en_V2 = 0` salvo algún rezagado, y `tenant_membership = 5` (corrige roles a OWNER).
+- [ ] **Esperado (medido en pre-flight 2026-05-31, dry-run REAL exit 0):** `nuevos_en_V2 = 0` en TODAS las tablas de negocio (tenant=26, auth.users=4, auth.identities=5, gym_members=512, gym_payments=924, subscriptions=2 → todas 0 nuevos). Lo único distinto de 0 es `tenant_membership = 5` (corrección de rol owner→OWNER, idempotente). Si ves `nuevos_en_V2 > 0` en gym_members/gym_payments → hubo movimiento en V1 desde el pre-flight; revisá antes del `--commit`.
 
 ### C. Smoke-test del backend (OBLIGATORIO — es la red de seguridad)
 Probar en la **app web** (Vercel) o local apuntando a Railway, logueando como un dueño real:
@@ -55,10 +56,19 @@ Probar en la **app web** (Vercel) o local apuntando a Railway, logueando como un
 ### F. Monitoreo post-publicación
 - [ ] Mirar logs de Railway: logins entrando, sin errores 500.
 - [ ] **SEKUR y POPEYE se re-suscriben** (una vez) desde el sistema, bajo la cuenta de MP de V2.
-- [ ] Al primer cobro, mirar el log del webhook:
-      - Si dice `Webhook RECHAZADO: firma inválida` → setear `MP_ENFORCE_SIGNATURE=false`
-        en Railway (lo destraba al instante) y avisame para ajustar el formato de la firma.
-      - Si activa el acceso solo → 🎉.
+- [ ] **El primer cobro es nuestra ÚNICA observación de cómo MP notifica en esta cuenta.
+      Anotá cuál de estos 4 casos ocurre en el log del webhook** (define el fix de renovaciones):
+      - `Cobro {id} aplicado al Tenant ...` → 🎉 cobro aplicado, acceso extendido 30 días.
+      - `Webhook RECHAZADO: firma inválida` → setear `MP_ENFORCE_SIGNATURE=false` en Railway
+        (destraba al instante) y avisame para ajustar el formato de la firma.
+      - `Pago {id} sin external_reference de tenant válido` → MP manda `payment` pero SIN
+        external_reference → no se aplica solo. Plan B manual + requiere fix.
+      - `Evento subscription_authorized_payment ... recibido` SIN un `Cobro ... aplicado` después
+        → MP notifica la suscripción por ese evento (hoy IGNORADO): la RENOVACIÓN no se aplica sola.
+        ⚠️ El SDK MP 2.9.2 NO tiene cliente de authorized_payment → el fix va por HTTP directo a
+        `GET /authorized_payments/{id}`, escrito contra el evento REAL observado acá, en ventana
+        tranquila ANTES de la 1ª renovación (~30 días). NO bloquea el corte: colchón GRACE_DAYS(3)
+        + acceso por `trial_ends_at` + Plan B manual.
 - [ ] Plan B si una suscripción no se activa sola: habilitar el tenant a mano (como ya hiciste con POPEYE).
 
 ### G. Apagar V1
