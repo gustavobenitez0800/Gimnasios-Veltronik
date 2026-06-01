@@ -1,0 +1,50 @@
+name: Release Electron (Windows)
+
+# Publica un Release de GitHub con el instalador de Veltronik cuando se empuja
+# un tag de versión (vX.Y.Z). El electron-updater de los clientes consulta estos
+# Releases para auto-actualizarse — la RAMA no importa, solo el Release publicado.
+#
+# Por qué en la nube: el runner windows-latest es limpio (admin, sin Windows Defender
+# bloqueando app.asar, symlinks de winCodeSign permitidos). Resuelve de raíz el fallo
+# de empaquetado local. Releases futuros = un `git push` del tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}   # permite dispararlo a mano desde la pestaña Actions
+
+permissions:
+  contents: write          # necesario para que electron-builder cree el Release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps (npm ci)
+        run: npm ci
+
+      - name: Build web (vite)
+        run: npm run build
+
+      - name: Build & publish Electron (Windows)
+        env:
+          # Token integrado del runner: permite publicar el Release sin PAT manual.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sin firma de código (coincide con verifyUpdateCodeSignature: false del yml).
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win --publish always

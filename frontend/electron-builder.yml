@@ -29,7 +29,9 @@ extraResources:
   - from: "assets/"
     to: "assets/"
 
-# Directorio de salida (instaladores)
+# Directorio de salida (instaladores). Relativo: el build de producción corre en
+# GitHub Actions (runner Windows limpio), donde no existe el lock de Defender/OneDrive
+# que rompía el empaquetado local. dist_electron está en .gitignore.
 directories:
   output: dist_electron
   buildResources: build
