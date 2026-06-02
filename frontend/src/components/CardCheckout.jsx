@@ -51,14 +51,24 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
             },
             // El Brick tokeniza la tarjeta y nos da el token + email. Lo mandamos al backend,
             // que crea la suscripción autorizada (cobro directo, sin redirección).
-            onSubmit: async ({ formData }) => {
+            // El cardPayment brick pasa el cardFormData DIRECTO (no { formData }).
+            onSubmit: async (cardFormData) => {
               if (cancelled) return;
+              // Defensivo: soporta tanto el dato directo como envuelto en { formData }.
+              const data = (cardFormData && cardFormData.formData) ? cardFormData.formData : cardFormData;
+              const cardToken = data && data.token;
+              const payerEmail = data && data.payer ? data.payer.email : undefined;
+              if (!cardToken) {
+                setStatus('ready');
+                setMessage('No se pudo leer la tarjeta. Probá de nuevo.');
+                throw new Error('card token ausente');
+              }
               setStatus('submitting');
               setMessage('');
               try {
                 await subscriptionService.subscribeWithCard({
-                  card_token: formData.token,
-                  payer_email: formData.payer?.email,
+                  card_token: cardToken,
+                  payer_email: payerEmail,
                 });
                 propsRef.current.onSuccess?.();
               } catch (e) {
