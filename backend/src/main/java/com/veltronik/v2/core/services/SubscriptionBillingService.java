@@ -77,10 +77,13 @@ public class SubscriptionBillingService {
         payment.setPaymentDate(now);
         tenantPaymentRepository.save(payment);
 
-        // 2) Extender el acceso: desde el vencimiento vigente si aún no expiró, o desde hoy.
-        LocalDateTime base = (tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(now))
-                ? tenant.getTrialEndsAt() : now;
-        LocalDateTime periodEnd = base.plusDays(ACCESS_DAYS_PER_CYCLE);
+        // 2) Acceso = al menos 30 días desde HOY, sin apilar sobre un período ya vigente igual
+        //    o mayor. Así el 1er cobro (~1h) de un alta recién activada NO duplica el período
+        //    (la activación ya otorgó 30d); las renovaciones SÍ extienden (al vencer, el período
+        //    corriente ≈ hoy → hoy+30d).
+        LocalDateTime candidate = now.plusDays(ACCESS_DAYS_PER_CYCLE);
+        LocalDateTime periodEnd = (tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(candidate))
+                ? tenant.getTrialEndsAt() : candidate;
         tenant.setTrialEndsAt(periodEnd);
         tenant.setActive(true);
         tenantRepository.save(tenant);
@@ -133,9 +136,12 @@ public class SubscriptionBillingService {
         // se reactivaba (el KillSwitch valida el período real, no solo el status).
         if ("active".equals(localStatus)) {
             LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-            LocalDateTime base = (sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(now))
-                    ? sub.getCurrentPeriodEnd() : now;
-            LocalDateTime periodEnd = base.plusDays(ACCESS_DAYS_PER_CYCLE);
+            // Activación idempotente: ~30 días desde HOY, sin apilar si ya hay un período igual
+            // o mayor. Antes extendía desde el fin corriente → con el doble disparo (llamada
+            // explícita de subscribeWithCard + webhook subscription_preapproval) daba +60d.
+            LocalDateTime candidate = now.plusDays(ACCESS_DAYS_PER_CYCLE);
+            LocalDateTime periodEnd = (sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(candidate))
+                    ? sub.getCurrentPeriodEnd() : candidate;
             sub.setCurrentPeriodStart(now);
             sub.setCurrentPeriodEnd(periodEnd);
             sub.setGracePeriodEndsAt(periodEnd.plusDays(GRACE_DAYS));

@@ -12,6 +12,7 @@ import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
+import CardCheckout from '../components/CardCheckout';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [verifyingSubscription, setVerifyingSubscription] = useState(false);
+  const [showCardForm, setShowCardForm] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -173,6 +175,14 @@ export default function SettingsPage() {
     } finally {
       setUpdatingPayment(false);
     }
+  };
+
+  // Tarjeta nueva cargada OK (Brick) → cerrar el form y recargar estado.
+  const handleCardSuccess = async () => {
+    showToast('Tarjeta actualizada y suscripción activa', 'success');
+    setShowCardForm(false);
+    if (refreshAuth) { try { await refreshAuth(); } catch { /* ignore */ } }
+    await loadSettings();
   };
 
   // Verify subscription status with MercadoPago
@@ -363,15 +373,10 @@ export default function SettingsPage() {
               <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <button
                   className="btn btn-secondary"
-                  onClick={handleUpdatePaymentMethod}
-                  disabled={updatingPayment}
+                  onClick={() => setShowCardForm(v => !v)}
                   style={{ flex: '1', minWidth: '200px' }}
                 >
-                  {updatingPayment ? (
-                    <><span className="spinner" /> Procesando...</>
-                  ) : (
-                    <><Icon name="rotateCw" size="1em" /> Cambiar Tarjeta / Método de Pago</>
-                  )}
+                  <Icon name="creditCard" size="1em" /> {showCardForm ? 'Cerrar' : 'Cambiar Tarjeta / Método de Pago'}
                 </button>
                 <button
                   className="btn btn-ghost"
@@ -392,6 +397,19 @@ export default function SettingsPage() {
                 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
                 Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
               </p>
+            )}
+
+            {/* Formulario de tarjeta (Brick MP): cambiar método de pago sin redirección ni link */}
+            {showCardForm && (
+              <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-md)' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '0.75rem' }}>
+                  Ingresá la tarjeta nueva. El cobro mensual seguirá siendo {subscriptionInfo.amount}.
+                </p>
+                <CardCheckout
+                  amount={CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE || 80000}
+                  onSuccess={handleCardSuccess}
+                />
+              </div>
             )}
 
             {/* Billing History */}
