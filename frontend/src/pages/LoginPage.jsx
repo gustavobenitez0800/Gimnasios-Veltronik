@@ -50,8 +50,9 @@ export default function LoginPage() {
 
     try {
       await authService.resetPassword(email.trim());
-      // Por seguridad, el mensaje no revela si el email existe o no.
-      showToast(`Si ${email.trim()} está registrado, te enviamos un correo para restablecer tu contraseña. Revisá tu bandeja y el spam.`, 'success', 8000);
+      // Tono confiado, pero el mensaje es idéntico exista o no la cuenta: por seguridad NO
+      // revelamos si el email está registrado (evita que alguien enumere usuarios probando emails).
+      showToast(`Te enviamos un correo a ${email.trim()} para restablecer tu contraseña. Revisá tu bandeja de entrada y el spam.`, 'success', 8000);
     } catch (error) {
       console.error('Reset password error:', error);
       showToast(getAuthErrorMessage(error), 'error');

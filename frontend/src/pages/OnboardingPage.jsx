@@ -13,10 +13,10 @@ import Icon from '../components/Icon';
 import gymLogo from '../assets/VeltronikGym.png';
 import restoLogo from '../assets/VeltronikRestaurante.png';
 
+// Veltronik hoy ofrece UN solo sistema real: Gimnasio. No listamos rubros que el backend
+// no soporta — antes "Club Deportivo" mandaba CLUB y el backend (solo acepta GYM) lo rechazaba.
 const BUSINESS_TYPES = [
   { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: gymLogo, isImage: true, gradient: 'transparent', enabled: true },
-  { id: 'CLUB', label: 'Club Deportivo', desc: 'Socios plenos y disciplinas', icon: <Icon name="target" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', enabled: true },
-  { id: 'OTHER', label: 'Salones / Otros', desc: 'Próximamente...', icon: <Icon name="building" size="1.5em" />, isImage: false, gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', enabled: false },
 ];
 
 export default function OnboardingPage() {
@@ -25,7 +25,7 @@ export default function OnboardingPage() {
   const { user, refreshAuth } = useAuth();
 
   const [step, setStep] = useState(1);
-  const [selectedType, setSelectedType] = useState(null);
+  const [selectedType, setSelectedType] = useState('GYM'); // único tipo real → preseleccionado
   const [form, setForm] = useState({ name: '', address: '', phone: '', email: user?.email || '' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,9 +36,14 @@ export default function OnboardingPage() {
 
     setSubmitting(true);
     try {
+      const businessType = selectedType || 'GYM';
+      // Mandamos businessType (enum) Y type (string): el backend arma el tipo desde `type`,
+      // así que sin esto el negocio se crearía con tipo nulo. Con ambos campos funciona
+      // sin importar cuál lea el backend.
       const response = await apiClient.post('/core/setup/tenant', {
         name: form.name.trim(),
-        businessType: selectedType || 'GYM',
+        businessType,
+        type: businessType,
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
@@ -46,11 +51,13 @@ export default function OnboardingPage() {
 
       const data = response.data;
 
-      if (data) {
-        localStorage.setItem('current_org_id', data.id);
+      // El backend responde { tenant_id, ... }. Guardamos contexto optimista; el Lobby
+      // recarga la lista real al volver, así que esto es solo para ir más rápido.
+      if (data?.tenant_id) {
+        localStorage.setItem('current_org_id', data.tenant_id);
         localStorage.setItem('current_org_role', 'owner');
-        localStorage.setItem('current_org_name', data.name || form.name);
-        localStorage.setItem('current_org_type', data.type || selectedType || 'GYM');
+        localStorage.setItem('current_org_name', form.name.trim());
+        localStorage.setItem('current_org_type', businessType);
       }
 
       showToast('¡Negocio creado! Tu prueba gratuita de 14 días ha comenzado.', 'success');

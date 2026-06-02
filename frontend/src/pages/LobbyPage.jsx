@@ -21,10 +21,11 @@ import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
-const TYPE_LABELS = { GYM: 'Gimnasio', CLUB: 'Club Deportivo', OTHER: 'Negocio' };
-const TYPE_ICONS = { GYM: gymLogoSrc, CLUB: <Icon name="target" size="1em" />, OTHER: <Icon name="building" size="1em" /> };
-const TYPE_IS_IMAGE = { GYM: true, CLUB: false, OTHER: false };
-const TYPE_BADGES = { GYM: 'badge-success', CLUB: 'badge-success', OTHER: 'badge-neutral' };
+// Solo existe el sistema Gimnasio. Los mapas conservan fallback por si llegara un tipo inesperado.
+const TYPE_LABELS = { GYM: 'Gimnasio' };
+const TYPE_ICONS = { GYM: gymLogoSrc };
+const TYPE_IS_IMAGE = { GYM: true };
+const TYPE_BADGES = { GYM: 'badge-success' };
 
 // ─── Helpers ───
 
@@ -567,7 +568,7 @@ export default function LobbyPage() {
                   <Icon name="plus" size="2rem" />
                 </div>
                 <h3 className="lobby-card-name">Crear Negocio</h3>
-                <p className="lobby-card-role">Registrá tu gimnasio, estudio, club o restaurante</p>
+                <p className="lobby-card-role">Registrá un nuevo gimnasio</p>
               </button>
             </div>
           </>
@@ -585,7 +586,7 @@ export default function LobbyPage() {
                 <Icon name="plus" size="2rem" />
               </div>
               <h3 className="lobby-card-name">Crear Negocio</h3>
-              <p className="lobby-card-role">Registrá tu gimnasio, estudio, club o restaurante</p>
+              <p className="lobby-card-role">Registrá un nuevo gimnasio</p>
             </button>
           </div>
         )}

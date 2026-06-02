@@ -618,7 +618,7 @@
 .lobby-card-delete {
   position: absolute;
   top: 0.6rem;
-  right: 0.6rem;
+  left: 0.6rem; /* arriba-IZQUIERDA: el candado de bloqueo va arriba-derecha, así no se pisan */
   z-index: 5;
   width: 28px;
   height: 28px;
