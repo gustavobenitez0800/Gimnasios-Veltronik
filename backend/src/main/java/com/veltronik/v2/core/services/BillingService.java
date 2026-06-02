@@ -37,6 +37,7 @@ public class BillingService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionBillingService subscriptionBillingService;
+    private final MercadoPagoService mercadoPagoService;
 
     @Transactional
     public String createSubscriptionLink(Tenant tenant, String payerEmail) throws Exception {
@@ -72,6 +73,41 @@ public class BillingService {
                     tenant.getName(), apiEx.getStatusCode(), detail);
             throw new RuntimeException("Mercado Pago rechazó la solicitud (HTTP " + apiEx.getStatusCode() + "): " + detail, apiEx);
         }
+    }
+
+    /**
+     * Cobro "poné la tarjeta y listo": crea la suscripción cobrando una tarjeta tokenizada
+     * (sin redirección ni login de MP), reactiva el acceso y guarda el email del pagador.
+     *
+     * <p>No es {@code @Transactional} a propósito: la llamada de red a MP se hace FUERA de
+     * transacción; la escritura local se delega a {@code updatePreapprovalStatus} (que abre su
+     * propia transacción corta).</p>
+     */
+    public Map<String, Object> subscribeWithCard(Tenant tenant, String payerEmail, String cardToken) {
+        // 1) Crear la suscripción cobrando la tarjeta tokenizada (red, fuera de transacción).
+        MercadoPagoService.CardSubscriptionResult pre = mercadoPagoService.createCardSubscription(tenant, payerEmail, cardToken);
+        String status = pre.status() != null ? pre.status() : "authorized";
+
+        // 2) Asegurar la fila de suscripción local + guardar el email del pagador. Un tenant
+        //    nuevo puede no tener fila; sin ella, updatePreapprovalStatus no haría nada.
+        Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId())
+                .orElseGet(() -> {
+                    Subscription s = new Subscription();
+                    s.setTenant(tenant);
+                    s.setStatus("pending");
+                    return s;
+                });
+        sub.setMpPayerEmail(payerEmail);
+        sub.setMpSubscriptionId(pre.preapprovalId());
+        subscriptionRepository.save(sub);
+
+        // 3) Activar/reactivar reutilizando la lógica ya probada del flujo de link:
+        //    authorized → active, +30d, reactiva el tenant. El 1er cobro real (~1h) llega por webhook.
+        subscriptionBillingService.updatePreapprovalStatus(tenant.getId(), pre.preapprovalId(), status);
+
+        log.info("Suscripción con tarjeta OK para Tenant '{}': preapproval={}, status={}",
+                tenant.getName(), pre.preapprovalId(), status);
+        return Map.of("ok", true, "status", status);
     }
 
     /**

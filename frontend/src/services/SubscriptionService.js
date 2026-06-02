@@ -28,6 +28,16 @@ class SubscriptionService {
     await apiClient.delete(`/gym/subscriptions/${id}`);
     return true;
   }
+
+  /**
+   * Cobro "poné la tarjeta y listo": manda el token de la tarjeta (ya tokenizada por el
+   * Card Payment Brick de MP) + el email, y el backend crea la suscripción autorizada.
+   * @param {{card_token: string, payer_email: string}} payload
+   */
+  async subscribeWithCard(payload) {
+    const response = await apiClient.post('/billing/subscribe-card', payload);
+    return response.data;
+  }
 }
 
 export const subscriptionService = new SubscriptionService();

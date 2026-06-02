@@ -93,6 +93,67 @@ public class MercadoPagoService {
     }
 
     /**
+     * Crea una suscripción cobrando una TARJETA TOKENIZADA, SIN redirección ni login de MP.
+     *
+     * <p>El cliente carga la tarjeta en el Card Payment Brick (front), MP la tokeniza del lado
+     * del cliente (nunca vemos el número) y acá creamos el preapproval con
+     * {@code card_token_id} + {@code status="authorized"}: MP valida la tarjeta y arma el cobro
+     * mensual automático. Resuelve el "Tu e-mail no coincide": ya no hay login de MP, la tarjeta
+     * se cobra directo. El 1er cobro real ocurre ~1h después (llega por webhook).</p>
+     */
+    public CardSubscriptionResult createCardSubscription(Tenant tenant, String payerEmail, String cardToken) {
+        // Por HTTP directo: el SDK 2.9.2 NO expone card_token_id en PreapprovalCreateRequest
+        // (verificado: el builder no tiene .cardTokenId()). Mismo patrón que getAuthorizedPayment().
+        try {
+            java.util.Map<String, Object> autoRecurring = new java.util.LinkedHashMap<>();
+            autoRecurring.put("frequency", 1);
+            autoRecurring.put("frequency_type", "months");
+            autoRecurring.put("transaction_amount", subscriptionPrice);
+            autoRecurring.put("currency_id", "ARS");
+
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("reason", "Suscripción Veltronik V2 - " + tenant.getName());
+            payload.put("external_reference", tenant.getId().toString());
+            payload.put("payer_email", payerEmail);
+            payload.put("card_token_id", cardToken);   // tarjeta ya tokenizada por el Brick
+            payload.put("status", "authorized");        // cobro directo, sin checkout/redirección
+            payload.put("auto_recurring", autoRecurring);
+            payload.put("back_url", frontendUrl + "/payment-callback");
+
+            String json = MAPPER.writeValueAsString(payload);
+
+            HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(MP_API + "/preapproval"))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(20))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+                log.error("Mercado Pago RECHAZÓ el cobro con tarjeta del Tenant '{}'. HTTP {} — Detalle: {}",
+                        tenant.getId(), resp.statusCode(), resp.body());
+                throw new RuntimeException("Mercado Pago rechazó el pago (HTTP " + resp.statusCode() + "): " + resp.body());
+            }
+
+            JsonNode node = MAPPER.readTree(resp.body());
+            String id = text(node, "id");
+            String status = text(node, "status");
+            log.info("Suscripción con tarjeta creada para Tenant '{}' ({}): preapprovalId={}, status={}",
+                    tenant.getName(), tenant.getId(), id, status);
+            return new CardSubscriptionResult(id, status);
+
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            log.error("Error crítico al cobrar con tarjeta para Tenant '{}'", tenant.getId(), e);
+            throw new RuntimeException("Fallo al procesar el pago con tarjeta.", e);
+        }
+    }
+
+    /**
      * Consulta un "authorized payment" (un cobro recurrente de suscripción) por HTTP directo.
      *
      * <p>El SDK de Mercado Pago 2.9.2 NO expone cliente para este recurso, por eso se llama a
@@ -149,4 +210,7 @@ public class MercadoPagoService {
     /** Datos mínimos de un cobro recurrente (authorized_payment) que necesita el webhook. */
     public record AuthorizedPaymentInfo(
             String preapprovalId, String paymentId, String paymentStatus, BigDecimal amount, String rawJson) {}
+
+    /** Resultado mínimo de crear una suscripción con tarjeta (preapproval). */
+    public record CardSubscriptionResult(String preapprovalId, String status) {}
 }

@@ -9,6 +9,9 @@ if (!import.meta.env.VITE_SUPABASE_URL) {
 if (!import.meta.env.VITE_API_BASE_URL) {
   console.error('[Veltronik] FATAL: VITE_API_BASE_URL no está definida. Configurar en .env');
 }
+if (!import.meta.env.VITE_MP_PUBLIC_KEY) {
+  console.warn('[Veltronik] VITE_MP_PUBLIC_KEY no está definida — el cobro con tarjeta (Brick) no funcionará hasta configurarla en .env / GitHub Secrets. El link de MP sigue como respaldo.');
+}
 
 const CONFIG = {
   // Supabase (VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY deben estar en .env)
@@ -17,6 +20,9 @@ const CONFIG = {
 
   // Backend Java API URL (VITE_API_BASE_URL debe estar en .env)
   API_URL: import.meta.env.VITE_API_BASE_URL,
+
+  // Mercado Pago public key — para el Card Payment Brick. Es PÚBLICA (segura de embeber).
+  MP_PUBLIC_KEY: import.meta.env.VITE_MP_PUBLIC_KEY,
 
   // Debug mode
   DEBUG: import.meta.env.DEV,

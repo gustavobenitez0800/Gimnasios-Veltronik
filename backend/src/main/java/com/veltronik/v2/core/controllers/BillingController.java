@@ -86,6 +86,31 @@ public class BillingController {
         }
     }
 
+    /**
+     * Cobro con TARJETA TOKENIZADA (Card Payment Brick). El front manda el {@code card_token}
+     * (MP tokenizó la tarjeta del lado del cliente) y el {@code payer_email}; acá se crea la
+     * suscripción autorizada SIN redirección ni login de MP. Tenant del contexto, nunca del body.
+     * Va bajo /api/billing a propósito: el KillSwitch deja pasar esa ruta aun con el tenant bloqueado.
+     */
+    @PostMapping("/billing/subscribe-card")
+    public ResponseEntity<?> subscribeWithCard(@RequestBody Map<String, String> body) {
+        Tenant tenant = currentTenant();
+        if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
+
+        String cardToken = body.get("card_token");
+        if (cardToken == null || cardToken.isBlank())
+            return ResponseEntity.badRequest().body(Map.of("error", "Falta el token de la tarjeta."));
+
+        String payerEmail = body.get("payer_email");
+        if (payerEmail == null || payerEmail.isBlank()) payerEmail = SecurityUtils.getCurrentUserEmail();
+
+        try {
+            return ResponseEntity.ok(billingService.subscribeWithCard(tenant, payerEmail, cardToken));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo procesar el pago: " + e.getMessage()));
+        }
+    }
+
     /** Tenant del contexto de seguridad (seteado por el JwtFilter), nunca del body. */
     private Tenant currentTenant() {
         UUID tenantId = TenantContextHolder.getTenantId();

@@ -34,6 +34,7 @@
     "deploy-api": "vercel --prod"
   },
   "dependencies": {
+    "@mercadopago/sdk-js": "^0.0.3",
     "@supabase/supabase-js": "^2.106.2",
     "@tanstack/react-query": "^5.100.14",
     "axios": "^1.16.1",
