@@ -3,10 +3,9 @@
  * VELTRONIK - AUTO-UPDATER (AGGRESSIVE)
  * ============================================
  * 
- * Sistema de actualizaciones automáticas AGRESIVO.
- * - Verifica cada 30 minutos
- * - Fuerza reinicio tras descargar si el usuario no actúa
- * - Muestra diálogo nativo bloqueante cuando hay update descargado
+ * Actualizaciones automáticas SILENCIOSAS (estilo Discord/Steam).
+ * - Verifica cada 30 minutos y descarga en segundo plano (barra de progreso en la app)
+ * - Instala en SILENCIO, sin el asistente NSIS: al reiniciar o al cerrar la app
  * Usa GitHub Releases como servidor de updates.
  */
 
@@ -49,7 +48,8 @@ function initAutoUpdater(window) {
     // IPC: Forzar reinicio desde el renderer
     ipcMain.handle('force-update-restart', () => {
         if (updateDownloaded) {
-            autoUpdater.quitAndInstall(false, true);
+            // isSilent=true → instala sin el asistente NSIS; isForceRunAfter=true → reabre la app.
+            autoUpdater.quitAndInstall(true, true);
         }
     });
 
@@ -84,7 +84,8 @@ async function checkForUpdates() {
  * Reiniciar e instalar la actualización
  */
 function quitAndInstall() {
-    autoUpdater.quitAndInstall(false, true);
+    // Silencioso: sin asistente NSIS (oneClick), reabre la app al terminar.
+    autoUpdater.quitAndInstall(true, true);
 }
 
 // ============================================

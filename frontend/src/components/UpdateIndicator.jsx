@@ -95,14 +95,16 @@ export default function UpdateIndicator() {
     );
   }
 
-  // ─── Estado: descargando → progreso ───
+  // ─── Estado: descargando → barra de progreso (estilo Discord/Steam, sin tocar nada) ───
   if (state === STATE.DOWNLOADING) {
     return (
       <div className="update-indicator" role="status">
-        <span className="spinner" />
-        <div className="update-indicator-text">
-          <span className="update-indicator-title">Descargando actualización</span>
+        <div className="update-indicator-text" style={{ width: '100%' }}>
+          <span className="update-indicator-title">Actualizando Veltronik…</span>
           <span className="update-indicator-sub">Versión {newVersion} · {progress}%</span>
+          <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: 'rgba(148,163,184,0.25)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: 'var(--primary-500, #3b82f6)', borderRadius: 999, transition: 'width .2s ease' }} />
+          </div>
         </div>
       </div>
     );

@@ -62,16 +62,15 @@ win:
 
   artifactName: "Veltronik-Setup-${version}.${ext}"
 
-# Configuración del Instalador (Wizard)
+# Instalador SILENCIOSO estilo Discord/Steam: sin asistente, sin pedir nada.
+# El auto-update se aplica solo (el updater llama quitAndInstall en modo silencioso).
 nsis:
-  oneClick: false  # Falso = Instalador tipo asistente (Next -> Next)
-  perMachine: false # true pediría admin siempre, false permite instalar por usuario (mejor para evitar UAC excesivo)
-  allowToChangeInstallationDirectory: true
+  oneClick: true              # instala directo, sin wizard Next->Next ni elegir carpeta
+  perMachine: false           # por-usuario (AppData), sin UAC/admin
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "Veltronik"
-  displayLanguageSelector: true
-  license: "LICENSE.txt" # Requiere crear este archivo
+  runAfterFinish: true        # abre Veltronik al terminar de instalar/actualizar
 
 # ============================================
 # MACOS
