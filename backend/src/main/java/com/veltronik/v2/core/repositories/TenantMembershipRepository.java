@@ -28,6 +28,13 @@ public interface TenantMembershipRepository extends JpaRepository<TenantMembersh
     boolean existsByUserIdAndTenantIdAndActiveTrue(UUID userId, UUID tenantId);
 
     /**
+     * Trae la membresía ACTIVA del usuario en el tenant (incluye el {@code role}). La usa
+     * TenantContextFilter para, en una sola consulta, autorizar el X-Tenant-ID e inyectar el
+     * rol como authority de Spring para el control de acceso por método ({@code @PreAuthorize}).
+     */
+    Optional<TenantMembership> findByUserIdAndTenantIdAndActiveTrue(UUID userId, UUID tenantId);
+
+    /**
      * Trae las membresías ACTIVAS de un tenant junto con su {@link com.veltronik.v2.core.entities.AppUser}
      * en UNA sola consulta SQL mediante {@code JOIN FETCH}.
      *

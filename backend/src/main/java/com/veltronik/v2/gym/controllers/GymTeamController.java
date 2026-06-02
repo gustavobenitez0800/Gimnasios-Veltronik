@@ -2,6 +2,7 @@ package com.veltronik.v2.gym.controllers;
 
 import com.veltronik.v2.gym.services.GymTeamService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/gym/team")
+@PreAuthorize("hasAnyRole('OWNER','ADMIN')") // gestión de equipo y roles: solo dueño/admin
 public class GymTeamController {
 
     private final GymTeamService teamService;

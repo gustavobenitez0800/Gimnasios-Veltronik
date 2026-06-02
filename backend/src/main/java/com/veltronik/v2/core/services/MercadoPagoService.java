@@ -5,12 +5,19 @@ import com.mercadopago.client.preapproval.PreapprovalCreateRequest;
 import com.mercadopago.client.preapproval.PreApprovalAutoRecurringCreateRequest;
 import com.mercadopago.resources.preapproval.Preapproval;
 import com.veltronik.v2.core.entities.Tenant;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 /**
  * Servicio de integración con Mercado Pago para crear links de suscripción.
@@ -31,6 +38,13 @@ public class MercadoPagoService {
 
     @Value("${cors.frontend-url:https://veltronik.com}")
     private String frontendUrl;
+
+    /** Token de MP. Lo usa la llamada HTTP a authorized_payments (recurso que el SDK no expone). */
+    @Value("${mercadopago.access.token:}")
+    private String accessToken;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String MP_API = "https://api.mercadopago.com";
 
     /**
      * Crea un enlace de suscripción (Preapproval) mensual para la sucursal.
@@ -77,4 +91,62 @@ public class MercadoPagoService {
             throw new RuntimeException("Fallo en la pasarela de pagos al generar suscripción.", e);
         }
     }
+
+    /**
+     * Consulta un "authorized payment" (un cobro recurrente de suscripción) por HTTP directo.
+     *
+     * <p>El SDK de Mercado Pago 2.9.2 NO expone cliente para este recurso, por eso se llama a
+     * la API REST a mano. Se usa para procesar las RENOVACIONES mensuales: el evento
+     * {@code subscription_authorized_payment} trae el id de este recurso. De acá salen el
+     * {@code preapproval_id} (para resolver el tenant) y el pago real (id, estado, monto).</p>
+     *
+     * @return los datos del cobro, o {@code null} si no se pudo obtener (se loguea el detalle).
+     */
+    public AuthorizedPaymentInfo getAuthorizedPayment(String authorizedPaymentId) {
+        if (accessToken == null || accessToken.isBlank()) {
+            log.error("MP access token no configurado: imposible consultar authorized_payment {}.", authorizedPaymentId);
+            return null;
+        }
+        try {
+            HttpClient http = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(MP_API + "/authorized_payments/" + authorizedPaymentId))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.error("MP /authorized_payments/{} devolvió HTTP {} — body: {}",
+                        authorizedPaymentId, resp.statusCode(), resp.body());
+                return null;
+            }
+            JsonNode node = MAPPER.readTree(resp.body());
+            JsonNode paymentNode = node.get("payment");
+
+            String preapprovalId = text(node, "preapproval_id");
+            String paymentId = paymentNode != null ? text(paymentNode, "id") : text(node, "payment_id");
+            String paymentStatus = paymentNode != null ? text(paymentNode, "status") : text(node, "status");
+
+            JsonNode amtNode = (paymentNode != null && paymentNode.get("transaction_amount") != null)
+                    ? paymentNode.get("transaction_amount") : node.get("transaction_amount");
+            BigDecimal amount = (amtNode != null && amtNode.isNumber()) ? amtNode.decimalValue() : null;
+
+            return new AuthorizedPaymentInfo(preapprovalId, paymentId, paymentStatus, amount, resp.body());
+        } catch (Exception e) {
+            log.error("Error consultando authorized_payment {} en MP: {}", authorizedPaymentId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private static String text(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        return (v != null && !v.isNull()) ? v.asText() : null;
+    }
+
+    /** Datos mínimos de un cobro recurrente (authorized_payment) que necesita el webhook. */
+    public record AuthorizedPaymentInfo(
+            String preapprovalId, String paymentId, String paymentStatus, BigDecimal amount, String rawJson) {}
 }

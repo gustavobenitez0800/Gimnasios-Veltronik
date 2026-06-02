@@ -6,6 +6,7 @@ import com.veltronik.v2.gym.mappers.GymPaymentMapper;
 import com.veltronik.v2.gym.services.GymPaymentService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -37,6 +38,7 @@ public class GymPaymentController {
      * El filtrado se hace en la BD (el frontend solo dibuja el resultado).
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // listado/reporte de ingresos: solo dueño/admin
     public ResponseEntity<List<GymPaymentDTO>> getAllPayments(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -47,6 +49,7 @@ public class GymPaymentController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // detalle de un pago: solo dueño/admin
     public ResponseEntity<GymPaymentDTO> getPaymentById(@PathVariable UUID id) {
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.findByIdAndVerifyOwnership(id)));
     }

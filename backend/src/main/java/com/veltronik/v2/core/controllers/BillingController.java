@@ -7,6 +7,7 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.core.services.BillingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
+@PreAuthorize("hasAnyRole('OWNER','ADMIN')") // gestión de la suscripción del SaaS: dueño/admin (no STAFF/RECEPTION)
 public class BillingController {
 
     @Autowired

@@ -5,6 +5,7 @@ import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preapproval.PreapprovalClient;
 import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preapproval.Preapproval;
+import com.veltronik.v2.core.services.MercadoPagoService;
 import com.veltronik.v2.core.services.SubscriptionBillingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +31,12 @@ import java.util.UUID;
  * que abre una transacción corta. Así no se mantiene una conexión de BD abierta durante
  * la llamada remota.</p>
  *
- * <p><b>Eventos:</b> se manejan {@code payment} (alta y renovación; cada cobro es un payment)
- * y {@code subscription_preapproval} (cambios de estado de la suscripción). El cobro
- * recurrente emite además un evento {@code payment}, por lo que el período se mantiene
- * al día por esa vía. La idempotencia (por mpPaymentId) la garantiza el service.</p>
+ * <p><b>Eventos:</b> {@code payment} (alta / cobros que traen external_reference),
+ * {@code subscription_preapproval} (cambios de estado de la suscripción: alta, pausa,
+ * cancelación, reactivación) y {@code subscription_authorized_payment} (la RENOVACIÓN
+ * mensual). El cobro recurrente NO trae el external_reference en el {@code payment}, por
+ * eso la renovación se resuelve por el authorized_payment → preapproval → external_reference.
+ * La idempotencia (por mpPaymentId del pago real) la garantiza el service.</p>
  */
 @RestController
 @RequestMapping("/api/webhooks/mercadopago")
@@ -44,6 +47,7 @@ public class WebhookController {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final SubscriptionBillingService billingService;
+    private final MercadoPagoService mercadoPagoService;
 
     @Value("${mercadopago.webhook.secret:}")
     private String webhookSecret;
@@ -105,9 +109,7 @@ public class WebhookController {
             switch (eventType == null ? "" : eventType) {
                 case "payment" -> processPayment(resourceId);
                 case "subscription_preapproval" -> processPreapproval(resourceId);
-                case "subscription_authorized_payment" ->
-                        // El cobro recurrente emite también un evento 'payment'; se procesa ahí.
-                        log.info("Evento subscription_authorized_payment {} recibido (cubierto vía 'payment').", resourceId);
+                case "subscription_authorized_payment" -> processAuthorizedPayment(resourceId);
                 default -> log.info("Tipo de evento '{}' no manejado. Ignorado.", eventType);
             }
         } catch (Exception e) {
@@ -150,6 +152,52 @@ public class WebhookController {
             return;
         }
         billingService.updatePreapprovalStatus(tenantId, preapprovalId, pre.getStatus());
+    }
+
+    /**
+     * Procesa la RENOVACIÓN mensual de una suscripción. MP emite {@code subscription_authorized_payment}
+     * en cada cobro recurrente; el recurso authorized_payment (consultado por HTTP, el SDK no lo expone)
+     * trae el preapproval y el pago real.
+     *
+     * <p>El tenant se resuelve por el {@code external_reference} del PREAPPROVAL (la fuente de verdad
+     * que seteamos al crear la suscripción), NO por el del payment, que en cobros recurrentes viene
+     * vacío. La idempotencia la da el id del pago real. Si algo falla acá, el cliente NO queda
+     * bloqueado de inmediato (colchón: GRACE_DAYS + trial_ends_at) y queda el Plan B manual
+     * {@code scripts/reactivar_tenant.mjs}. Se loguea el payload real para validar el contrato MP
+     * contra la 1ª renovación en vivo.</p>
+     */
+    private void processAuthorizedPayment(String authorizedPaymentId) throws Exception {
+        MercadoPagoService.AuthorizedPaymentInfo info = mercadoPagoService.getAuthorizedPayment(authorizedPaymentId);
+        if (info == null) {
+            log.warn("authorized_payment {} no se pudo obtener de MP. RENOVACIÓN no aplicada (Plan B manual).", authorizedPaymentId);
+            return;
+        }
+        log.info("authorized_payment {} → preapprovalId={}, paymentId={}, paymentStatus={}, amount={}",
+                authorizedPaymentId, info.preapprovalId(), info.paymentId(), info.paymentStatus(), info.amount());
+
+        if (!"approved".equalsIgnoreCase(info.paymentStatus())) {
+            log.info("Renovación {} con pago en estado '{}' (no approved). No se aplica acceso.",
+                    authorizedPaymentId, info.paymentStatus());
+            return;
+        }
+        if (info.preapprovalId() == null || info.preapprovalId().isBlank()) {
+            log.warn("authorized_payment {} sin preapproval_id. Imposible resolver tenant (Plan B manual).", authorizedPaymentId);
+            return;
+        }
+
+        Preapproval pre = new PreapprovalClient().get(info.preapprovalId());
+        UUID tenantId = parseTenant(pre.getExternalReference());
+        if (tenantId == null) {
+            log.warn("Preapproval {} (de authorized_payment {}) sin external_reference de tenant válido (Plan B manual).",
+                    info.preapprovalId(), authorizedPaymentId);
+            return;
+        }
+
+        // Idempotente por el id del pago REAL (no el del authorized_payment) → nunca doble-cuenta.
+        String mpPaymentId = info.paymentId() != null ? info.paymentId() : authorizedPaymentId;
+        billingService.applyApprovedPayment(tenantId, mpPaymentId, info.amount(), info.preapprovalId());
+        log.info("RENOVACIÓN aplicada: tenant {} (authorized_payment {}, payment {}).",
+                tenantId, authorizedPaymentId, mpPaymentId);
     }
 
     // ─────────────────────────── helpers ───────────────────────────

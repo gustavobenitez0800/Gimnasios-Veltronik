@@ -1,15 +1,23 @@
 package com.veltronik.v2.core.security;
 
+import com.veltronik.v2.core.entities.TenantMembership;
+import com.veltronik.v2.core.entities.UserRole;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.NonNull;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.UUID;
 
 /**
@@ -58,14 +66,20 @@ public class TenantContextFilter extends OncePerRequestFilter {
 
                 // El usuario debe estar autenticado y ser miembro ACTIVO del tenant solicitado.
                 final UUID userId = SecurityUtils.getCurrentUserId();
-                if (userId == null ||
-                        !membershipRepository.existsByUserIdAndTenantIdAndActiveTrue(userId, tenantId)) {
+                final TenantMembership membership = (userId == null) ? null
+                        : membershipRepository.findByUserIdAndTenantIdAndActiveTrue(userId, tenantId).orElse(null);
+                if (membership == null) {
                     writeError(response, HttpServletResponse.SC_FORBIDDEN,
                             "FORBIDDEN_TENANT", "No tiene acceso a este negocio.");
                     return;
                 }
 
                 TenantContextHolder.setTenantId(tenantId);
+                // Inyecta el rol (de tenant_membership) como authority de Spring para que el
+                // control de acceso por método (@PreAuthorize) pueda bloquear endpoints sensibles
+                // (reportes, billing, equipo) a STAFF/RECEPTION. El rol es POR tenant, por eso se
+                // resuelve acá —con el tenant ya validado— y no en el JWT de Supabase.
+                injectRoleAuthority(membership.getRole());
             }
 
             filterChain.doFilter(request, response);
@@ -74,6 +88,23 @@ public class TenantContextFilter extends OncePerRequestFilter {
             // EXTREMADAMENTE IMPORTANTE: limpiar el ThreadLocal pase lo que pase.
             TenantContextHolder.clear();
         }
+    }
+
+    /**
+     * Agrega {@code ROLE_<rol>} a las authorities del usuario para esta request, de modo que
+     * {@code hasRole(...)} / {@code hasAnyRole(...)} en {@code @PreAuthorize} funcione. Falla
+     * cerrado: si no se pudiera inyectar, el usuario queda sin rol y los endpoints protegidos
+     * lo rechazan (403) — nunca al revés.
+     */
+    private void injectRoleAuthority(UserRole role) {
+        if (role == null) return;
+        Authentication current = SecurityContextHolder.getContext().getAuthentication();
+        if (!(current instanceof JwtAuthenticationToken jwtAuth)) return;
+        ArrayList<GrantedAuthority> authorities = new ArrayList<>(jwtAuth.getAuthorities());
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        JwtAuthenticationToken updated =
+                new JwtAuthenticationToken(jwtAuth.getToken(), authorities, jwtAuth.getName());
+        SecurityContextHolder.getContext().setAuthentication(updated);
     }
 
     private void writeError(HttpServletResponse response, int status, String error, String message)
