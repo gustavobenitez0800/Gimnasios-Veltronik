@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 import apiClient from '../lib/apiClient';
 import Icon from '../components/Icon';
+import CardCheckout from '../components/CardCheckout';
 
 const FEATURES_BY_TYPE = {
   GYM: [
@@ -59,6 +60,12 @@ export default function PlansPage() {
     }
   };
 
+  // Pago con tarjeta OK (Brick) → el backend ya reactivó. Volvemos al Lobby (re-chequea acceso).
+  const handleSuccess = () => {
+    showToast('¡Pago confirmado! Activando tu cuenta…', 'success');
+    setTimeout(() => navigate(CONFIG.ROUTES.LOBBY), 1500);
+  };
+
   return (
     <div className="plans-page">
       {/* Realce de fondo sutil (un solo gradiente tenue, sin orbes) */}
@@ -104,14 +111,17 @@ export default function PlansPage() {
             ))}
           </ul>
 
-          {/* CTA */}
-          <button className="btn btn-primary btn-lg plans-cta" disabled={subscribing} onClick={handleSubscribe}>
-            {subscribing ? <><span className="spinner" /> Procesando...</> : 'Suscribirme ahora'}
+          {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
+          <CardCheckout amount={price} onSuccess={handleSuccess} />
+
+          {/* Respaldo: link clásico de Mercado Pago */}
+          <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
+            {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
           </button>
 
           <div className="plans-secure">
             <Icon name="lock" size="0.9em" />
-            <span>Suscripción mensual segura procesada por Mercado Pago</span>
+            <span>Pago seguro procesado por Mercado Pago</span>
           </div>
         </div>
       </div>
