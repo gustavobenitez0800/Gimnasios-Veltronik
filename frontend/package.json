@@ -66,5 +66,6 @@
   },
   "build": {
     "extends": "electron-builder.yml"
-  }
+  },
+  "packageManager": "pnpm@9.15.4"
 }
