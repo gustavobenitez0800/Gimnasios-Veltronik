@@ -1,32 +1,79 @@
 // ============================================
-// VELTRONIK - CARD CHECKOUT (Mercado Pago Card Payment Brick)
+// VELTRONIK - CARD CHECKOUT (flujo de pago riguroso, UX por estados)
 // ============================================
-// Cobro "poné la tarjeta y listo": el Brick de MP tokeniza la tarjeta del lado del
-// cliente (nunca exponemos el número — el PCI lo cubre MP) y el backend crea la
-// suscripción autorizada. SIN login de Mercado Pago ni email que tenga que coincidir.
+// El cliente carga la tarjeta (Card Payment Brick de MP, que la tokeniza). El backend
+// crea la suscripción pero NO activa: el acceso se otorga SOLO cuando el cobro entra.
+// Este componente refleja el ESTADO REAL del backend, paso a paso (tipo Netflix):
+//   validando tarjeta → procesando el cobro → confirmado / rechazado (con motivo).
 
 import { useEffect, useRef, useState } from 'react';
 import { loadMercadoPago } from '@mercadopago/sdk-js';
 import CONFIG from '../lib/config';
 import { subscriptionService } from '../services/SubscriptionService';
+import { mpRejectionMessage } from '../lib/mpStatusDetail';
 
 const CONTAINER_ID = 'cardPaymentBrick_container';
+const POLL_INTERVAL_MS = 3000;
+const POLL_MAX = 40; // ~2 min
+
+// Estados (espejo del backend)
+const S = {
+  LOADING: 'loading', READY: 'ready', SUBMITTING: 'submitting',
+  PROCESSING: 'processing', SUCCESS: 'success', REJECTED: 'rejected',
+  TIMEOUT: 'timeout', ERROR: 'error',
+};
 
 export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuccess, onError }) {
-  const [status, setStatus] = useState('loading'); // loading | ready | submitting | error
+  const [status, setStatus] = useState(S.LOADING);
   const [message, setMessage] = useState('');
-
-  // Refs para leer siempre los props frescos sin re-montar el Brick.
+  const [attempt, setAttempt] = useState(0); // re-monta el Brick al reintentar
   const propsRef = useRef({ amount, onSuccess, onError });
   propsRef.current = { amount, onSuccess, onError };
+  const pollRef = useRef(null);
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
+  // Polling del estado REAL del cobro en el backend.
+  const startPolling = () => {
+    setStatus(S.PROCESSING);
+    let tries = 0;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      tries++;
+      try {
+        const { state, detail } = await subscriptionService.getBillingStatus();
+        if (state === 'active') {
+          clearInterval(pollRef.current);
+          setStatus(S.SUCCESS);
+          setTimeout(() => propsRef.current.onSuccess?.(), 1200);
+          return;
+        }
+        if (state === 'rejected') {
+          clearInterval(pollRef.current);
+          setStatus(S.REJECTED);
+          setMessage(mpRejectionMessage(detail));
+          propsRef.current.onError?.(new Error(detail || 'rejected'));
+          return;
+        }
+        // processing / none → seguimos esperando el cobro
+      } catch { /* reintenta el próximo tick */ }
+      if (tries >= POLL_MAX) {
+        clearInterval(pollRef.current);
+        if (statusRef.current === S.PROCESSING) setStatus(S.TIMEOUT);
+      }
+    }, POLL_INTERVAL_MS);
+  };
+
+  // Montaje del Brick (se re-monta cuando cambia `attempt`).
   useEffect(() => {
     let controller = null;
     let cancelled = false;
+    setStatus(S.LOADING);
+    setMessage('');
 
     if (!CONFIG.MP_PUBLIC_KEY) {
-      setStatus('error');
-      setMessage('Falta configurar Mercado Pago (clave pública). Usá el método alternativo de pago.');
+      setStatus(S.ERROR);
+      setMessage('Falta configurar Mercado Pago. Usá el método de pago alternativo.');
       return;
     }
 
@@ -39,44 +86,36 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
           initialization: { amount: propsRef.current.amount },
           customization: {
             visual: { style: { theme: 'dark' } },
-            // Suscripción = 1 cuota fija mensual (no mostrar selector de cuotas).
             paymentMethods: { minInstallments: 1, maxInstallments: 1 },
           },
           callbacks: {
-            onReady: () => { if (!cancelled) setStatus('ready'); },
+            onReady: () => { if (!cancelled) setStatus(S.READY); },
             onError: (err) => {
               console.error('[CardCheckout] brick error:', err);
-              if (!cancelled) { setStatus('error'); setMessage('No se pudo cargar el formulario de pago.'); }
+              if (!cancelled) { setStatus(S.ERROR); setMessage('No se pudo cargar el formulario de pago.'); }
               propsRef.current.onError?.(err);
             },
-            // El Brick tokeniza la tarjeta y nos da el token + email. Lo mandamos al backend,
-            // que crea la suscripción autorizada (cobro directo, sin redirección).
-            // El cardPayment brick pasa el cardFormData DIRECTO (no { formData }).
             onSubmit: async (cardFormData) => {
-              if (cancelled) return;
-              // Defensivo: soporta tanto el dato directo como envuelto en { formData }.
               const data = (cardFormData && cardFormData.formData) ? cardFormData.formData : cardFormData;
               const cardToken = data && data.token;
               const payerEmail = data && data.payer ? data.payer.email : undefined;
               if (!cardToken) {
-                setStatus('ready');
+                setStatus(S.READY);
                 setMessage('No se pudo leer la tarjeta. Probá de nuevo.');
                 throw new Error('card token ausente');
               }
-              setStatus('submitting');
+              setStatus(S.SUBMITTING);
               setMessage('');
               try {
-                await subscriptionService.subscribeWithCard({
-                  card_token: cardToken,
-                  payer_email: payerEmail,
-                });
-                propsRef.current.onSuccess?.();
+                // Crea la suscripción (NO activa). Arranca el polling del cobro real.
+                await subscriptionService.subscribeWithCard({ card_token: cardToken, payer_email: payerEmail });
+                startPolling();
               } catch (e) {
                 console.error('[CardCheckout] subscribe error:', e);
-                setStatus('ready');
-                setMessage(e?.response?.data?.error || e?.message || 'No se pudo procesar el pago. Probá de nuevo.');
+                setStatus(S.READY);
+                setMessage(e?.response?.data?.error || e?.message || 'No se pudo iniciar el pago. Probá de nuevo.');
                 propsRef.current.onError?.(e);
-                throw e; // informa al Brick que el submit falló
+                throw e;
               }
             },
           },
@@ -84,40 +123,118 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
         if (cancelled && controller?.unmount) controller.unmount();
       } catch (e) {
         console.error('[CardCheckout] init error:', e);
-        if (!cancelled) { setStatus('error'); setMessage('No se pudo inicializar Mercado Pago.'); }
+        if (!cancelled) { setStatus(S.ERROR); setMessage('No se pudo inicializar Mercado Pago.'); }
       }
     })();
 
     return () => {
       cancelled = true;
       try { controller?.unmount?.(); } catch { /* noop */ }
+      if (pollRef.current) clearInterval(pollRef.current);
     };
-    // Monta una sola vez; los props frescos se leen vía propsRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
+
+  const retry = () => { setMessage(''); setAttempt((a) => a + 1); };
+
+  const showBrick = status === S.LOADING || status === S.READY;
 
   return (
     <div className="card-checkout">
-      {status === 'loading' && (
+      {/* Stepper: visible cuando hay un cobro en curso o resuelto */}
+      {!showBrick && status !== S.ERROR && <PaymentStepper status={status} />}
+
+      {status === S.LOADING && (
         <div style={{ color: '#9ca3af', padding: '1rem', textAlign: 'center' }}>
-          <span className="spinner" /> Cargando formulario de pago seguro…
+          <span className="spinner" /> Cargando pago seguro…
         </div>
       )}
 
-      {/* El Brick monta acá. Debe existir SIEMPRE en el DOM antes de create(). */}
-      <div id={CONTAINER_ID} />
+      {/* Contenedor del Brick: SIEMPRE en el DOM; se oculta cuando ya hay un cobro en curso. */}
+      <div id={CONTAINER_ID} style={{ display: showBrick ? 'block' : 'none' }} />
 
-      {status === 'submitting' && (
-        <div style={{ color: '#9ca3af', padding: '0.75rem', textAlign: 'center' }}>
-          Procesando pago…
+      {/* Mensajes en la fase de carga de tarjeta (token/subscribe error) */}
+      {(status === S.READY || status === S.SUBMITTING) && message && (
+        <div style={{ color: '#fca5a5', marginTop: '0.75rem', fontSize: '0.9rem', textAlign: 'center' }}>{message}</div>
+      )}
+
+      {/* Resultado: confirmado */}
+      {status === S.SUCCESS && (
+        <div style={panelOk}>
+          <strong>✅ ¡Pago confirmado!</strong>
+          <p style={pMuted}>Activando tu cuenta…</p>
         </div>
       )}
 
-      {message && (
-        <div style={{ color: '#fca5a5', marginTop: '0.75rem', fontSize: '0.9rem', textAlign: 'center' }}>
-          {message}
+      {/* Resultado: rechazado (con motivo real de MP) */}
+      {status === S.REJECTED && (
+        <div style={panelErr}>
+          <strong>El cobro fue rechazado</strong>
+          <p style={pMuted}>{message}</p>
+          <button className="btn btn-primary" onClick={retry} style={{ marginTop: '0.5rem' }}>Probar con otra tarjeta</button>
         </div>
+      )}
+
+      {/* Resultado: el cobro tarda (MP async) */}
+      {status === S.TIMEOUT && (
+        <div style={panelWarn}>
+          <strong>Tu pago se está confirmando…</strong>
+          <p style={pMuted}>
+            Mercado Pago está procesando el cobro (puede tardar unos minutos). Cuando se confirme,
+            tu cuenta se activa sola — podés cerrar y volver en un rato.
+          </p>
+          <button className="btn btn-secondary" onClick={startPolling} style={{ marginTop: '0.5rem' }}>Volver a verificar</button>
+        </div>
+      )}
+
+      {status === S.ERROR && message && (
+        <div style={panelErr}><p style={pMuted}>{message}</p></div>
       )}
     </div>
   );
 }
+
+// ─── Stepper de 3 etapas que refleja el estado real ───
+function PaymentStepper({ status }) {
+  const steps = ['Tarjeta validada', 'Procesando cobro', 'Cuenta activada'];
+  // Estado de cada paso: done | active | fail | pending
+  const stateOf = (i) => {
+    if (status === 'submitting') return i === 0 ? 'active' : 'pending';
+    if (status === 'processing') return i === 0 ? 'done' : i === 1 ? 'active' : 'pending';
+    if (status === 'success') return 'done';
+    if (status === 'rejected') return i === 0 ? 'done' : i === 1 ? 'fail' : 'pending';
+    if (status === 'timeout') return i === 0 ? 'done' : i === 1 ? 'active' : 'pending';
+    return 'pending';
+  };
+  const colors = { done: '#22c55e', active: 'var(--primary-500, #3b82f6)', fail: '#ef4444', pending: 'rgba(148,163,184,0.4)' };
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, margin: '0.5rem 0 1.25rem' }}>
+      {steps.map((label, i) => {
+        const st = stateOf(i);
+        const c = colors[st];
+        return (
+          <div key={label} style={{ flex: 1, textAlign: 'center', position: 'relative' }}>
+            {i < steps.length - 1 && (
+              <div style={{ position: 'absolute', top: 13, left: '50%', width: '100%', height: 2, background: 'rgba(148,163,184,0.25)' }} />
+            )}
+            <div style={{
+              position: 'relative', width: 28, height: 28, borderRadius: '50%', margin: '0 auto',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700,
+              color: st === 'pending' ? '#94a3b8' : '#fff', background: st === 'pending' ? 'transparent' : c,
+              border: `2px solid ${c}`,
+            }}>
+              {st === 'done' ? '✓' : st === 'fail' ? '✕' : st === 'active' ? <span className="spinner" style={{ width: 12, height: 12 }} /> : i + 1}
+            </div>
+            <div style={{ marginTop: 6, fontSize: '0.72rem', color: st === 'pending' ? '#94a3b8' : '#e5e7eb' }}>{label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const pMuted = { color: '#9ca3af', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5 };
+const panelBase = { marginTop: '1rem', padding: '1rem', borderRadius: 12, textAlign: 'center' };
+const panelOk = { ...panelBase, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' };
+const panelErr = { ...panelBase, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' };
+const panelWarn = { ...panelBase, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fde68a' };

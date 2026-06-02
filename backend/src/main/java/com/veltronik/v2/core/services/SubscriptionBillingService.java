@@ -99,6 +99,8 @@ public class SubscriptionBillingService {
         sub.setCurrentPeriodStart(now);
         sub.setCurrentPeriodEnd(periodEnd);
         sub.setGracePeriodEndsAt(periodEnd.plusDays(GRACE_DAYS));
+        sub.setLastChargeStatus("approved");
+        sub.setLastChargeAt(now);
         if (mpPreapprovalId != null) {
             sub.setMpSubscriptionId(mpPreapprovalId);
         }
@@ -129,35 +131,35 @@ public class SubscriptionBillingService {
             sub.setMpSubscriptionId(mpPreapprovalId);
         }
 
-        // CRÍTICO: si el preapproval quedó AUTORIZADO/activo, esto es un alta o reactivación
-        // efectiva → hay que EXTENDER el período y reactivar el tenant. Antes esto solo
-        // cambiaba el status string: la suscripción quedaba 'active' pero con
-        // currentPeriodEnd vencido y tenant.is_active sin tocar → el cliente pagaba y NO
-        // se reactivaba (el KillSwitch valida el período real, no solo el status).
-        if ("active".equals(localStatus)) {
-            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-            // Activación idempotente: ~30 días desde HOY, sin apilar si ya hay un período igual
-            // o mayor. Antes extendía desde el fin corriente → con el doble disparo (llamada
-            // explícita de subscribeWithCard + webhook subscription_preapproval) daba +60d.
-            LocalDateTime candidate = now.plusDays(ACCESS_DAYS_PER_CYCLE);
-            LocalDateTime periodEnd = (sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(candidate))
-                    ? sub.getCurrentPeriodEnd() : candidate;
-            sub.setCurrentPeriodStart(now);
-            sub.setCurrentPeriodEnd(periodEnd);
-            sub.setGracePeriodEndsAt(periodEnd.plusDays(GRACE_DAYS));
-
-            Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
-            if (tenant != null) {
-                tenant.setTrialEndsAt(periodEnd);
-                tenant.setActive(true);
-                tenantRepository.save(tenant);
-            }
-            log.info("Preapproval AUTORIZADO: tenant {} reactivado, acceso hasta {}.", tenantId, periodEnd);
-        }
+        // POLÍTICA RIGUROSA (corporativa): el estado del preapproval (authorized / paused /
+        // cancelled) NO otorga acceso por sí mismo. El acceso real (período + is_active) lo da
+        // EXCLUSIVAMENTE un cobro APROBADO vía applyApprovedPayment. Acá solo reflejamos el
+        // estado de la suscripción; el KillSwitch decide el acceso por el período vigente.
 
         subscriptionRepository.save(sub);
         log.info("Suscripción del tenant {} actualizada a estado '{}' (MP: '{}').",
                 tenantId, sub.getStatus(), mpStatus);
+    }
+
+    /**
+     * Registra un cobro RECHAZADO: guarda el motivo (status_detail de MP) para que el frontend
+     * lo muestre, y NO otorga acceso (el tenant queda sin período vigente → bloqueado).
+     */
+    @Transactional
+    public void recordRejectedCharge(UUID tenantId, String mpPreapprovalId, String statusDetail) {
+        Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null);
+        if (sub == null) {
+            log.info("Cobro rechazado (preapproval {}) sin suscripción local para tenant {}.", mpPreapprovalId, tenantId);
+            return;
+        }
+        sub.setLastChargeStatus("rejected");
+        sub.setLastChargeDetail(statusDetail != null ? statusDetail : "rejected");
+        sub.setLastChargeAt(LocalDateTime.now(BUSINESS_ZONE));
+        if (mpPreapprovalId != null) {
+            sub.setMpSubscriptionId(mpPreapprovalId);
+        }
+        subscriptionRepository.save(sub);
+        log.warn("Cobro RECHAZADO para tenant {} (motivo MP: {}). NO se otorga acceso.", tenantId, statusDetail);
     }
 
     /** Traduce el estado del preapproval de MP al vocabulario interno de subscriptions. */

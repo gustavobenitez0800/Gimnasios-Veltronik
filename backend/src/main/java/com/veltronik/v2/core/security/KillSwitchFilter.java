@@ -101,7 +101,7 @@ public class KillSwitchFilter extends OncePerRequestFilter {
         Subscription s = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null);
         if (s == null || s.getStatus() == null) return false;
         return switch (s.getStatus()) {
-            case "active" -> s.getCurrentPeriodEnd() == null || s.getCurrentPeriodEnd().isAfter(now);
+            case "active" -> s.getCurrentPeriodEnd() != null && s.getCurrentPeriodEnd().isAfter(now);
             case "past_due" -> s.getGracePeriodEndsAt() != null && s.getGracePeriodEndsAt().isAfter(now);
             case "canceled" -> s.getCurrentPeriodEnd() != null && s.getCurrentPeriodEnd().isAfter(now);
             default -> false;

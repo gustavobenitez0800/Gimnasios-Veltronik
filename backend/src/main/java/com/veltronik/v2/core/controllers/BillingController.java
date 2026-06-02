@@ -111,6 +111,17 @@ public class BillingController {
         }
     }
 
+    /**
+     * Estado de facturación del tenant en curso (lo pollea la UX de pago para mostrar cada paso).
+     * Bajo /api/billing → el KillSwitch lo deja pasar aun con el tenant bloqueado.
+     */
+    @GetMapping("/billing/status")
+    public ResponseEntity<?> billingStatus() {
+        Tenant tenant = currentTenant();
+        if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
+        return ResponseEntity.ok(billingService.getBillingStatus(tenant));
+    }
+
     /** Tenant del contexto de seguridad (seteado por el JwtFilter), nunca del body. */
     private Tenant currentTenant() {
         UUID tenantId = TenantContextHolder.getTenantId();

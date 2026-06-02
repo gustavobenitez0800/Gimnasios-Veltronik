@@ -190,12 +190,13 @@ public class MercadoPagoService {
             String preapprovalId = text(node, "preapproval_id");
             String paymentId = paymentNode != null ? text(paymentNode, "id") : text(node, "payment_id");
             String paymentStatus = paymentNode != null ? text(paymentNode, "status") : text(node, "status");
+            String paymentStatusDetail = paymentNode != null ? text(paymentNode, "status_detail") : text(node, "status_detail");
 
             JsonNode amtNode = (paymentNode != null && paymentNode.get("transaction_amount") != null)
                     ? paymentNode.get("transaction_amount") : node.get("transaction_amount");
             BigDecimal amount = (amtNode != null && amtNode.isNumber()) ? amtNode.decimalValue() : null;
 
-            return new AuthorizedPaymentInfo(preapprovalId, paymentId, paymentStatus, amount, resp.body());
+            return new AuthorizedPaymentInfo(preapprovalId, paymentId, paymentStatus, paymentStatusDetail, amount, resp.body());
         } catch (Exception e) {
             log.error("Error consultando authorized_payment {} en MP: {}", authorizedPaymentId, e.getMessage(), e);
             return null;
@@ -209,7 +210,8 @@ public class MercadoPagoService {
 
     /** Datos mínimos de un cobro recurrente (authorized_payment) que necesita el webhook. */
     public record AuthorizedPaymentInfo(
-            String preapprovalId, String paymentId, String paymentStatus, BigDecimal amount, String rawJson) {}
+            String preapprovalId, String paymentId, String paymentStatus, String paymentStatusDetail,
+            BigDecimal amount, String rawJson) {}
 
     /** Resultado mínimo de crear una suscripción con tarjeta (preapproval). */
     public record CardSubscriptionResult(String preapprovalId, String status) {}

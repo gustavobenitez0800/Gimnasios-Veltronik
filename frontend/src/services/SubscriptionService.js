@@ -38,6 +38,15 @@ class SubscriptionService {
     const response = await apiClient.post('/billing/subscribe-card', payload);
     return response.data;
   }
+
+  /**
+   * Estado de facturación del tenant en curso (para el polling de la UX de pago).
+   * @returns {{state:'processing'|'active'|'rejected'|'none', detail:string|null, periodEnd:string|null, payerEmail:string|null}}
+   */
+  async getBillingStatus() {
+    const response = await apiClient.get('/billing/status');
+    return response.data;
+  }
 }
 
 export const subscriptionService = new SubscriptionService();

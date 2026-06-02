@@ -84,30 +84,56 @@ public class BillingService {
      * propia transacción corta).</p>
      */
     public Map<String, Object> subscribeWithCard(Tenant tenant, String payerEmail, String cardToken) {
-        // 1) Crear la suscripción cobrando la tarjeta tokenizada (red, fuera de transacción).
+        // 1) Crear la suscripción en MP con la tarjeta tokenizada. NO otorga acceso todavía.
         MercadoPagoService.CardSubscriptionResult pre = mercadoPagoService.createCardSubscription(tenant, payerEmail, cardToken);
-        String status = pre.status() != null ? pre.status() : "authorized";
 
-        // 2) Asegurar la fila de suscripción local + guardar el email del pagador. Un tenant
-        //    nuevo puede no tener fila; sin ella, updatePreapprovalStatus no haría nada.
+        // 2) Persistir la suscripción local como PENDING_PAYMENT (esperando el primer cobro).
+        //    SIN período ni is_active: el acceso lo otorga EXCLUSIVAMENTE el cobro aprobado (webhook).
         Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId())
                 .orElseGet(() -> {
                     Subscription s = new Subscription();
                     s.setTenant(tenant);
-                    s.setStatus("pending");
                     return s;
                 });
+        sub.setStatus("pending_payment");
         sub.setMpPayerEmail(payerEmail);
         sub.setMpSubscriptionId(pre.preapprovalId());
+        sub.setLastChargeStatus(null);   // arranca un ciclo de cobro nuevo
+        sub.setLastChargeDetail(null);
         subscriptionRepository.save(sub);
 
-        // 3) Activar/reactivar reutilizando la lógica ya probada del flujo de link:
-        //    authorized → active, +30d, reactiva el tenant. El 1er cobro real (~1h) llega por webhook.
-        subscriptionBillingService.updatePreapprovalStatus(tenant.getId(), pre.preapprovalId(), status);
+        log.info("Suscripción con tarjeta creada (PENDING_PAYMENT) Tenant '{}': preapproval={}, statusMP={}. Espera cobro.",
+                tenant.getName(), pre.preapprovalId(), pre.status());
+        return Map.of("ok", true, "state", "processing");
+    }
 
-        log.info("Suscripción con tarjeta OK para Tenant '{}': preapproval={}, status={}",
-                tenant.getName(), pre.preapprovalId(), status);
-        return Map.of("ok", true, "status", status);
+    /**
+     * Estado de facturación del tenant para el polling del frontend (UX por estados).
+     * state: processing (esperando el cobro) · active (cobro OK, acceso vigente) ·
+     *        rejected (último cobro rechazado, con motivo) · none (sin suscripción).
+     */
+    public Map<String, Object> getBillingStatus(Tenant tenant) {
+        Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId()).orElse(null);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires"));
+
+        String state;
+        if (sub == null) {
+            state = "none";
+        } else if ("active".equals(sub.getStatus())
+                && sub.getCurrentPeriodEnd() != null && sub.getCurrentPeriodEnd().isAfter(now)) {
+            state = "active";
+        } else if ("rejected".equalsIgnoreCase(sub.getLastChargeStatus())) {
+            state = "rejected";
+        } else {
+            state = "processing";
+        }
+
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("state", state);
+        result.put("detail", sub != null ? sub.getLastChargeDetail() : null);
+        result.put("periodEnd", sub != null && sub.getCurrentPeriodEnd() != null ? sub.getCurrentPeriodEnd().toString() : null);
+        result.put("payerEmail", sub != null ? sub.getMpPayerEmail() : null);
+        return result;
     }
 
     /**

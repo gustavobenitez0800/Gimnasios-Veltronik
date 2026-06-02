@@ -169,35 +169,37 @@ public class WebhookController {
     private void processAuthorizedPayment(String authorizedPaymentId) throws Exception {
         MercadoPagoService.AuthorizedPaymentInfo info = mercadoPagoService.getAuthorizedPayment(authorizedPaymentId);
         if (info == null) {
-            log.warn("authorized_payment {} no se pudo obtener de MP. RENOVACIÓN no aplicada (Plan B manual).", authorizedPaymentId);
+            log.warn("authorized_payment {} no se pudo obtener de MP (Plan B manual).", authorizedPaymentId);
             return;
         }
-        log.info("authorized_payment {} → preapprovalId={}, paymentId={}, paymentStatus={}, amount={}",
-                authorizedPaymentId, info.preapprovalId(), info.paymentId(), info.paymentStatus(), info.amount());
+        log.info("authorized_payment {} → preapprovalId={}, paymentId={}, status={}, detail={}, amount={}",
+                authorizedPaymentId, info.preapprovalId(), info.paymentId(), info.paymentStatus(), info.paymentStatusDetail(), info.amount());
 
-        if (!"approved".equalsIgnoreCase(info.paymentStatus())) {
-            log.info("Renovación {} con pago en estado '{}' (no approved). No se aplica acceso.",
-                    authorizedPaymentId, info.paymentStatus());
-            return;
-        }
+        // Resolvemos el tenant SIEMPRE (sirve tanto para aplicar el cobro como para registrar el rechazo).
         if (info.preapprovalId() == null || info.preapprovalId().isBlank()) {
-            log.warn("authorized_payment {} sin preapproval_id. Imposible resolver tenant (Plan B manual).", authorizedPaymentId);
+            log.warn("authorized_payment {} sin preapproval_id. Imposible resolver tenant.", authorizedPaymentId);
             return;
         }
-
         Preapproval pre = new PreapprovalClient().get(info.preapprovalId());
         UUID tenantId = parseTenant(pre.getExternalReference());
         if (tenantId == null) {
-            log.warn("Preapproval {} (de authorized_payment {}) sin external_reference de tenant válido (Plan B manual).",
+            log.warn("Preapproval {} (de authorized_payment {}) sin external_reference de tenant válido.",
                     info.preapprovalId(), authorizedPaymentId);
             return;
         }
 
-        // Idempotente por el id del pago REAL (no el del authorized_payment) → nunca doble-cuenta.
-        String mpPaymentId = info.paymentId() != null ? info.paymentId() : authorizedPaymentId;
-        billingService.applyApprovedPayment(tenantId, mpPaymentId, info.amount(), info.preapprovalId());
-        log.info("RENOVACIÓN aplicada: tenant {} (authorized_payment {}, payment {}).",
-                tenantId, authorizedPaymentId, mpPaymentId);
+        if ("approved".equalsIgnoreCase(info.paymentStatus())) {
+            // Cobro APROBADO → ÚNICO punto que otorga acceso. Idempotente por el id del pago real.
+            String mpPaymentId = info.paymentId() != null ? info.paymentId() : authorizedPaymentId;
+            billingService.applyApprovedPayment(tenantId, mpPaymentId, info.amount(), info.preapprovalId());
+            log.info("COBRO APROBADO aplicado: tenant {} (authorized_payment {}, payment {}).",
+                    tenantId, authorizedPaymentId, mpPaymentId);
+        } else {
+            // Cobro RECHAZADO → registrar el motivo para la UX, NO otorgar acceso.
+            billingService.recordRejectedCharge(tenantId, info.preapprovalId(), info.paymentStatusDetail());
+            log.info("COBRO RECHAZADO: tenant {} (status={}, detail={}).",
+                    tenantId, info.paymentStatus(), info.paymentStatusDetail());
+        }
     }
 
     // ─────────────────────────── helpers ───────────────────────────

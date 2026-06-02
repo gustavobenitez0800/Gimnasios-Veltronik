@@ -28,7 +28,17 @@ public class Subscription extends TenantAwareEntity {
 
     @Column(name = "mp_payer_email")
     private String mpPayerEmail;
-    
+
     @Column(name = "mp_subscription_id")
     private String mpSubscriptionId;
+
+    // === Resultado del último cobro (flujo riguroso: acceso solo con cobro APROBADO) ===
+    @Column(name = "last_charge_status", length = 20)
+    private String lastChargeStatus; // approved | rejected
+
+    @Column(name = "last_charge_detail", length = 255)
+    private String lastChargeDetail; // status_detail de MP (motivo del rechazo)
+
+    @Column(name = "last_charge_at")
+    private LocalDateTime lastChargeAt;
 }
