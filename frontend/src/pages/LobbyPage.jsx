@@ -54,10 +54,11 @@ function computeOrgAccessStatus(org, sub) {
   const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
   const now = new Date();
 
-  // 1. Active subscription → acceso SOLO si el período no venció.
-  //    (status 'active' con currentPeriodEnd en el pasado = renovación no cobrada → vencido)
+  // 1. Active subscription → acceso SOLO si hay un período PAGO vigente (currentPeriodEnd futuro).
+  //    Rigor tipo Netflix: 'active' SIN período real NO da acceso. Antes un período nulo
+  //    (`!periodEnd`) habilitaba el sistema sin un cobro confirmado — agujero cerrado.
   if (sub?.status === 'active') {
-    if (!periodEnd || periodEnd > now) {
+    if (periodEnd && periodEnd > now) {
       return {
         canAccess: true,
         status: 'active',
