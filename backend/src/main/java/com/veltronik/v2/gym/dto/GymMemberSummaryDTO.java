@@ -17,4 +17,16 @@ public class GymMemberSummaryDTO {
     private String firstName;
     private String lastName;
     private String document;
+
+    /** Nombre para mostrar, calculado en el backend (lo consume el front de Acceso/Pagos). */
+    public String getFullName() {
+        String fn = firstName != null ? firstName : "";
+        String ln = lastName != null ? lastName : "";
+        return (fn + " " + ln).trim();
+    }
+
+    /** Alias legacy de {@code document} (DNI) que consume el frontend. */
+    public String getDni() {
+        return document;
+    }
 }

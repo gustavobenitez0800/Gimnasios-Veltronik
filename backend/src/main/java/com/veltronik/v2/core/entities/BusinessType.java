@@ -8,8 +8,5 @@ package com.veltronik.v2.core.entities;
  * módulo correspondiente en un paquete separado.
  */
 public enum BusinessType {
-    GYM,
-    SALON,
-    RESTO,
-    GENERIC
+    GYM
 }

@@ -66,12 +66,15 @@ public class GymMember extends TenantAwareEntity {
     @Column(name = "user_id")
     private java.util.UUID userId;
 
-    @com.fasterxml.jackson.annotation.JsonGetter("fullName")
+    // Helpers de display. Antes tenían @JsonGetter (cuando la entidad se serializaba cruda como
+    // member anidado en AccessLog/GymPayment). Ahora esos endpoints usan DTOs, así que ya no se
+    // serializa esta entidad; se conservan los métodos por si algún servicio los usa.
     public String getFullName() {
-        return (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "").trim();
+        String fn = firstName != null ? firstName : "";
+        String ln = lastName != null ? lastName : "";
+        return (fn + " " + ln).trim();
     }
 
-    @com.fasterxml.jackson.annotation.JsonGetter("dni")
     public String getDni() {
         return document;
     }
