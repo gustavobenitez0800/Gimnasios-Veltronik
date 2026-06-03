@@ -1,6 +1,7 @@
 package com.veltronik.v2.gym.controllers;
 
 import com.veltronik.v2.gym.dto.GymPaymentDTO;
+import com.veltronik.v2.gym.dto.GymPaymentInputDTO;
 import com.veltronik.v2.gym.entities.GymPayment;
 import com.veltronik.v2.gym.mappers.GymPaymentMapper;
 import com.veltronik.v2.gym.services.GymPaymentService;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,7 +19,8 @@ import java.util.UUID;
  * API REST de pagos del gimnasio.
  *
  * Devuelve SIEMPRE {@link GymPaymentDTO} (nunca la entidad JPA cruda), con el socio
- * resuelto en el backend. El frontend solo dibuja el contrato que define este DTO.
+ * resuelto en el backend. La ENTRADA usa {@link GymPaymentInputDTO} (no la entidad cruda)
+ * para cerrar el mass-assignment. El frontend solo dibuja el contrato que define el DTO.
  */
 @RestController
 @RequestMapping("/api/gym/payments")
@@ -61,23 +64,32 @@ public class GymPaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<GymPaymentDTO> createPayment(@RequestBody GymPayment payment) {
+    public ResponseEntity<GymPaymentDTO> createPayment(@RequestBody GymPaymentInputDTO input) {
+        GymPayment payment = new GymPayment();
+        // setMemberId arma la referencia mínima (id); el service la resuelve y verifica el tenant.
+        if (input.getMemberId() != null) payment.setMemberId(input.getMemberId());
+        if (input.getAmount() != null) payment.setAmount(input.getAmount());
+        payment.setPaymentDate(input.getPaymentDate() != null ? input.getPaymentDate() : LocalDateTime.now());
+        if (input.getPaymentMethod() != null) payment.setPaymentMethod(input.getPaymentMethod());
+        if (input.getStatus() != null) payment.setStatus(input.getStatus());
+        if (input.getNotes() != null) payment.setNotes(input.getNotes());
+        if (input.getPeriodStart() != null) payment.setPeriodStart(input.getPeriodStart());
+        if (input.getPeriodEnd() != null) payment.setPeriodEnd(input.getPeriodEnd());
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(payment)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<GymPaymentDTO> updatePayment(@PathVariable UUID id, @RequestBody GymPayment updatedPayment) {
+    public ResponseEntity<GymPaymentDTO> updatePayment(@PathVariable UUID id, @RequestBody GymPaymentInputDTO input) {
         GymPayment existingPayment = paymentService.findByIdAndVerifyOwnership(id);
 
-        // Update fields
-        if (updatedPayment.getAmount() != null) existingPayment.setAmount(updatedPayment.getAmount());
-        if (updatedPayment.getPaymentDate() != null) existingPayment.setPaymentDate(updatedPayment.getPaymentDate());
-        if (updatedPayment.getPaymentMethod() != null) existingPayment.setPaymentMethod(updatedPayment.getPaymentMethod());
-        if (updatedPayment.getStatus() != null) existingPayment.setStatus(updatedPayment.getStatus());
-
-        if (updatedPayment.getNotes() != null) existingPayment.setNotes(updatedPayment.getNotes());
-        if (updatedPayment.getPeriodStart() != null) existingPayment.setPeriodStart(updatedPayment.getPeriodStart());
-        if (updatedPayment.getPeriodEnd() != null) existingPayment.setPeriodEnd(updatedPayment.getPeriodEnd());
+        // Parche parcial. El socio NO se reasigna en un update (igual que el comportamiento previo).
+        if (input.getAmount() != null) existingPayment.setAmount(input.getAmount());
+        if (input.getPaymentDate() != null) existingPayment.setPaymentDate(input.getPaymentDate());
+        if (input.getPaymentMethod() != null) existingPayment.setPaymentMethod(input.getPaymentMethod());
+        if (input.getStatus() != null) existingPayment.setStatus(input.getStatus());
+        if (input.getNotes() != null) existingPayment.setNotes(input.getNotes());
+        if (input.getPeriodStart() != null) existingPayment.setPeriodStart(input.getPeriodStart());
+        if (input.getPeriodEnd() != null) existingPayment.setPeriodEnd(input.getPeriodEnd());
 
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(existingPayment)));
     }

@@ -22,7 +22,7 @@ public interface TenantMapper {
     TenantDTO toDto(Tenant entity);
 
     /** Convierte un DTO recibido del frontend a una entidad Tenant. */
-    @org.mapstruct.Mapping(target = "businessType", source = "type")
+    @org.mapstruct.Mapping(target = "businessType", source = "businessType")
     Tenant toEntity(TenantDTO dto);
 
     /** Actualiza una entidad existente con los datos del DTO (para PUT). */
