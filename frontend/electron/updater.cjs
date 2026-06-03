@@ -10,8 +10,23 @@
  */
 
 const { autoUpdater } = require('electron-updater');
-const { ipcMain, Notification, dialog, app } = require('electron');
+const { ipcMain, Notification, dialog, app, nativeImage } = require('electron');
 const log = require('electron-log');
+const path = require('path');
+
+// Logo de Veltronik para las notificaciones nativas (aparece a la izquierda del texto).
+// Se carga con nativeImage (bytes en memoria) y NO como ruta: el toast nativo de Windows
+// no puede leer un archivo que vive dentro del app.asar; el NativeImage sí resuelve.
+function loadVeltronikIcon() {
+    // 1) Adentro del asar (dev y prod): nativeImage sabe leer dentro del asar.
+    let img = nativeImage.createFromPath(path.join(__dirname, '../assets/LogoPrincipalVeltronik.png'));
+    // 2) Fallback a la copia real en resources/assets (extraResources del builder) por si fallara.
+    if ((!img || img.isEmpty()) && process.resourcesPath) {
+        img = nativeImage.createFromPath(path.join(process.resourcesPath, 'assets', 'LogoPrincipalVeltronik.png'));
+    }
+    return img;
+}
+const VELTRONIK_ICON = loadVeltronikIcon();
 
 // Configurar logging
 log.transports.file.level = 'info';
@@ -104,6 +119,7 @@ autoUpdater.on('update-available', (info) => {
         const notification = new Notification({
             title: 'Veltronik — Actualización disponible',
             body: `Descargando la versión ${info.version} en segundo plano...`,
+            icon: VELTRONIK_ICON,
             silent: true
         });
         notification.show();
@@ -152,6 +168,7 @@ autoUpdater.on('update-downloaded', (info) => {
         const notification = new Notification({
             title: 'Veltronik — Actualización lista',
             body: `La versión ${info.version} está lista para instalar.`,
+            icon: VELTRONIK_ICON,
             silent: true
         });
         notification.show();
