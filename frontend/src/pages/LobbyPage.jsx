@@ -304,6 +304,33 @@ export default function LobbyPage() {
 
   useEffect(() => { loadOrgs(); }, [loadOrgs]);
 
+  // Auto-refresh al volver a la app (ej: tras pagar en Mercado Pago): re-chequea el estado de
+  // cobro para que un pago recién acreditado desbloquee SOLO, sin que el cliente tenga que
+  // cerrar y reabrir la app (era el síntoma: pagaba, se acreditaba en el backend, pero la
+  // pantalla seguía mostrando "Pago Rechazado").
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) loadOrgs(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadOrgs]);
+
+  // Si el negocio que estaba bloqueado pasó a tener acceso (se acreditó el pago), cerrar el muro.
+  useEffect(() => {
+    if (blockedOrg && orgStatuses[blockedOrg.id]?.canAccess) setBlockedOrg(null);
+  }, [orgStatuses, blockedOrg]);
+
+  // Mientras el muro de pago está abierto, re-chequear cada 8s: si el pago se acredita
+  // (webhook) mientras el cliente espera, el muro se cierra solo (efecto de arriba).
+  useEffect(() => {
+    if (!blockedOrg) return;
+    const t = setInterval(() => { if (!document.hidden) loadOrgs(); }, 8000);
+    return () => clearInterval(t);
+  }, [blockedOrg, loadOrgs]);
+
   // ─── Handle org selection ───
   const handleSelectOrg = async (org) => {
     const orgType = org.type || 'GYM';
