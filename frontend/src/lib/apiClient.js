@@ -13,12 +13,19 @@ import { supabase } from './supabase';
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
   async (config) => {
-    // Obtener sesión activa de Supabase
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      config.headers.Authorization = `Bearer ${session.access_token}`;
+    // Obtener sesión activa de Supabase. Envuelto en try/catch: getSession() puede fallar o
+    // colgarse por contención del lock de Supabase; si se propagara, rompería la request (y
+    // podría disparar el ErrorBoundary). Ante fallo seguimos SIN token → el backend responde
+    // 401 → lo maneja el interceptor de respuesta (logout limpio), sin crashear la UI.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+      }
+    } catch (e) {
+      console.warn('apiClient: no se pudo obtener la sesión de Supabase:', e?.message);
     }
-    
+
     // Inyectar el Tenant seleccionado (Gimnasio).
     // Respeta un X-Tenant-ID seteado explícitamente por-request (ej: el Lobby, que
     // consulta la suscripción de CADA org del usuario). Sin este "&& !...", el
