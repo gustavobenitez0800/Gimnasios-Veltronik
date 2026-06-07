@@ -2,7 +2,7 @@
 // VELTRONIK - LAYOUT COMPONENTS
 // ============================================
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
@@ -100,10 +100,50 @@ export function AppLayout() {
 
 /**
  * Auth layout (login, register, etc.)
+ * Aurora mouse-tracking: un orbe sigue al cursor con interpolación suave.
  */
 export function AuthLayout() {
+  const orbRef = useRef(null);
+  const mouse  = useRef({ x: 0.5, y: 0.5 });   // posición target (0-1)
+  const smooth = useRef({ x: 0.5, y: 0.5 });   // posición interpolada
+
+  useEffect(() => {
+    let rafId;
+
+    const handleMove = (e) => {
+      mouse.current.x = e.clientX / window.innerWidth;
+      mouse.current.y = e.clientY / window.innerHeight;
+    };
+
+    const tick = () => {
+      // Lerp factor: cuanto más bajo, más suave y lento sigue
+      const ease = 0.04;
+      smooth.current.x += (mouse.current.x - smooth.current.x) * ease;
+      smooth.current.y += (mouse.current.y - smooth.current.y) * ease;
+
+      if (orbRef.current) {
+        const ox = smooth.current.x * 100;
+        const oy = smooth.current.y * 100;
+        orbRef.current.style.left = `${ox}%`;
+        orbRef.current.style.top  = `${oy}%`;
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      cancelAnimationFrame(rafId);
+    };
+  }, []);
+
   return (
     <div className="auth-wrapper">
+      {/* Orbe que sigue al mouse */}
+      <div ref={orbRef} className="aurora-mouse-orb" />
       <div className="auth-container">
         <Outlet />
       </div>

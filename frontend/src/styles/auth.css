@@ -1,5 +1,5 @@
-﻿/* ============================================
-   AUTH PAGES
+/* ============================================
+   AUTH PAGES — Aurora Glassmorphism
    ============================================ */
 
 .auth-wrapper {
@@ -7,30 +7,56 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary);
   padding: 2rem;
   position: relative;
   overflow: hidden;
+  background: #0a0e1a;
 }
 
-/* Fondo técnico sobrio: malla de puntos sutil + un único realce lineal tenue
-   desde arriba. Estático, sin orbes flotantes (estética de herramienta seria). */
-.auth-wrapper::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 22px 22px;
-  pointer-events: none;
-}
-
+/* ---- Aurora Borealis: 3 orbes animados ---- */
+.auth-wrapper::before,
 .auth-wrapper::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(120% 80% at 50% -10%, rgba(59, 130, 246, 0.10) 0%, transparent 55%);
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.6;
   pointer-events: none;
+  will-change: transform;
+}
+
+/* Orbe azul — se mueve en diagonal lenta */
+.auth-wrapper::before {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, transparent 70%);
+  top: -10%;
+  left: -10%;
+  animation: auroraOrb1 12s ease-in-out infinite alternate;
+}
+
+/* Orbe violeta — se mueve en dirección opuesta */
+.auth-wrapper::after {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.45) 0%, transparent 70%);
+  bottom: -10%;
+  right: -10%;
+  animation: auroraOrb2 14s ease-in-out infinite alternate;
+}
+
+@keyframes auroraOrb1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(25vw, 15vh) scale(1.15); }
+  66%  { transform: translate(10vw, 35vh) scale(0.9); }
+  100% { transform: translate(30vw, 10vh) scale(1.1); }
+}
+
+@keyframes auroraOrb2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-20vw, -20vh) scale(1.2); }
+  66%  { transform: translate(-35vw, -5vh) scale(0.85); }
+  100% { transform: translate(-15vw, -25vh) scale(1.05); }
 }
 
 .auth-container {
@@ -40,19 +66,90 @@
   z-index: 1;
 }
 
+/* Orbe interactivo — sigue al mouse con lerp (posición vía JS) */
+.aurora-mouse-orb {
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.45) 0%, rgba(59, 130, 246, 0.2) 40%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.65;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+  /* Arranca centrado antes de que el mouse se mueva */
+  left: 50%;
+  top: 50%;
+}
+
+/* Malla de puntos sutil sobre la aurora */
+.auth-wrapper .auth-container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+
+/* ---- Glass Card ---- */
 .auth-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
   padding: 2.5rem;
-  box-shadow: var(--shadow-xl);
-  animation: authCardIn 0.45s var(--transition-slow) both;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 80px -20px rgba(59, 130, 246, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+  animation: authCardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Reflejo especular superior (destello horizontal) */
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 10%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 90%
+  );
+  pointer-events: none;
+}
+
+/* Reflejo especular izquierdo (destello vertical) */
+.auth-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5),
+    transparent 60%,
+    rgba(255, 255, 255, 0.15)
+  );
+  pointer-events: none;
 }
 
 @keyframes authCardIn {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.98);
+    transform: translateY(24px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -70,7 +167,7 @@
   height: 56px;
   object-fit: contain;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
 .auth-logo-text {
@@ -103,6 +200,24 @@
 
 .auth-form { width: 100%; }
 
+/* Inputs translúcidos que se integran con el vidrio */
+.auth-card .form-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  transition: all 0.25s ease;
+}
+
+.auth-card .form-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-card .form-input:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 .auth-forgot {
   text-align: right;
   margin-bottom: 1.5rem;
@@ -113,6 +228,11 @@
 .auth-forgot .link-button {
   font-size: var(--font-size-sm);
   color: var(--primary-400);
+  transition: color 0.2s ease;
+}
+
+.auth-forgot .link-button:hover {
+  color: var(--primary-300);
 }
 
 .auth-submit {
@@ -122,13 +242,17 @@
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.01em;
-  background: var(--primary-500);
+  background: rgba(59, 130, 246, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: white;
-  border: none;
+  border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: var(--btn-radius);
   cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  transition: all 0.25s ease;
+  box-shadow:
+    0 4px 16px rgba(59, 130, 246, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,12 +260,15 @@
 }
 
 .auth-submit:hover:not(:disabled) {
-  background: var(--primary-600);
+  background: rgba(59, 130, 246, 0.85);
   transform: translateY(-1px);
+  box-shadow:
+    0 6px 24px rgba(59, 130, 246, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .auth-submit:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
@@ -160,7 +287,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .auth-social { margin-bottom: 1.5rem; }
@@ -172,15 +299,15 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--border-radius-md);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.25s ease;
 }
 
 .btn-google svg {
@@ -189,8 +316,8 @@
 }
 
 .btn-google:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-1px);
 }
 
@@ -204,4 +331,9 @@
 .auth-links a {
   color: var(--primary-400);
   font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.auth-links a:hover {
+  color: var(--primary-300);
 }
