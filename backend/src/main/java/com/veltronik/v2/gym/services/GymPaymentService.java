@@ -41,8 +41,14 @@ public class GymPaymentService {
      * equivale a "todos" (mismo resultado que findAllForCurrentTenant).
      */
     public List<GymPayment> findForCurrentTenantByDateRange(LocalDate from, LocalDate to) {
-        LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : null;
-        LocalDateTime toDt = (to != null) ? to.atTime(LocalTime.MAX) : null;
+        // Sin fechas → todos (sin filtro). Con fechas → bordes CONCRETOS, nunca null: el patrón
+        // ':param IS NULL OR ...' rompía con JDBC exception (400) en Hibernate 6 + PostgreSQL,
+        // dejando Pagos/Reportes en blanco. Con centinelas el query queda un >= AND <= limpio.
+        if (from == null && to == null) {
+            return findAllForCurrentTenant();
+        }
+        LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime toDt = (to != null) ? to.atTime(LocalTime.MAX) : LocalDateTime.of(2999, 12, 31, 23, 59, 59);
         return repository.findByTenantIdAndDateRange(TenantContextHolder.getTenantId(), fromDt, toDt);
     }
 
