@@ -1,10 +1,7 @@
 import { useState, useCallback } from 'react';
 import { paymentService } from '../services/PaymentService';
-import { useAuth } from '../contexts/AuthContext';
 
 export function usePaymentController() {
-  const { gym: currentGym } = useAuth();
-  
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -45,7 +42,11 @@ export function usePaymentController() {
   }, []);
 
   const loadPayments = useCallback(async (dateFrom, dateTo, search, method, status) => {
-    if (!currentGym?.id) return;
+    // Usamos el org del localStorage (se setea al instante al elegir el negocio), NO el gym del
+    // contexto (que carga async). Sin esto, la página quedaba vacía si se abría antes de que el
+    // contexto terminara de cargar — la causa de "no muestra datos hasta que registrás un pago".
+    // El apiClient inyecta el X-Tenant-ID igual, así que la query queda acotada al negocio.
+    if (!localStorage.getItem('current_org_id')) return;
     setLoading(true);
     setError(null);
     try {
@@ -71,8 +72,11 @@ export function usePaymentController() {
     } finally {
       setLoading(false);
     }
-  }, [currentGym, mapPaymentDTOToModel]);
+  }, [mapPaymentDTOToModel]);
 
+  // Guarda (alta o edición) y devuelve el pago. NO recarga acá: la página llama a loadPayments
+  // con el filtro de fecha ACTIVO, para que la lista quede consistente con lo que el usuario ve
+  // (antes recargaba SIN filtro → "aparecían todos" solo tras registrar un pago).
   const savePayment = async (paymentData) => {
     setLoading(true);
     setError(null);
@@ -84,10 +88,6 @@ export function usePaymentController() {
       } else {
         saved = await paymentService.createPayment(dto);
       }
-      // Reload everything
-      const data = await paymentService.getAllPayments();
-      const mappedData = data.map(mapPaymentDTOToModel);
-      setPayments(mappedData);
       return saved;
     } catch (err) {
       console.error("Error saving payment:", err);

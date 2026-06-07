@@ -14,42 +14,57 @@ import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
+// Fecha local YYYY-MM-DD SIN pasar por UTC. `toISOString()` corre el día en husos al oeste
+// (AR es -03): de tarde devolvía el día SIGUIENTE → descuadraba el filtro de fechas y la
+// fecha de los pagos nuevos. Esto usa los componentes locales y queda exacto.
+function toLocalDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Suma 1 mes a una fecha 'YYYY-MM-DD' (mediodía para evitar saltos por DST), devuelve local.
+function addOneMonth(dateStr) {
+  const d = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
+  d.setMonth(d.getMonth() + 1);
+  return toLocalDate(d);
+}
+
 function getQuickDates(period) {
   const today = new Date();
   let from, to;
   switch (period) {
-    case 'today': from = to = today.toISOString().split('T')[0]; break;
+    case 'today': from = to = toLocalDate(today); break;
     case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
-      from = ws.toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0];
+      from = toLocalDate(ws);
+      to = toLocalDate(today);
       break;
     }
     case 'month':
-      from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0]; break;
+      from = toLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
+      to = toLocalDate(today); break;
     case 'year':
-      from = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
-      to = today.toISOString().split('T')[0]; break;
+      from = toLocalDate(new Date(today.getFullYear(), 0, 1));
+      to = toLocalDate(today); break;
     default: break;
   }
   return { from, to };
 }
 
 function getInitialForm() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setMonth(next.getMonth() + 1);
+  const today = toLocalDate(new Date());
   return {
     member_id: '',
     amount: '',
-    paymentDate: now.toISOString().split('T')[0],
+    paymentDate: today,
     paymentMethod: 'cash',
     status: 'paid',
     notes: '',
-    periodStart: now.toISOString().split('T')[0],
-    periodEnd: next.toISOString().split('T')[0],
+    periodStart: today,
+    periodEnd: addOneMonth(today),
   };
 }
 
@@ -159,23 +174,12 @@ export default function PaymentsPage() {
         const member = results.find(m => m.id === memberId);
         if (member) {
           setSelectedMember(member);
-          const now = new Date();
-          const next = new Date(now);
-          next.setMonth(next.getMonth() + 1);
-
+          const startStr = (member?.membershipEnd || toLocalDate(new Date())).split('T')[0];
           const preFilledForm = {
             ...getInitialForm(),
             member_id: memberId,
-            periodStart: member?.membershipEnd || now.toISOString().split('T')[0],
-            periodEnd: (() => {
-              if (member?.membershipEnd) {
-                const start = new Date(member.membershipEnd + 'T12:00:00');
-                const end = new Date(start);
-                end.setMonth(end.getMonth() + 1);
-                return end.toISOString().split('T')[0];
-              }
-              return next.toISOString().split('T')[0];
-            })(),
+            periodStart: startStr,
+            periodEnd: addOneMonth(startStr),
           };
           modal.open({ id: null }, () => preFilledForm);
         }
@@ -193,18 +197,12 @@ export default function PaymentsPage() {
       const updated = { ...prev, [field]: value };
 
       if (field === 'periodStart' && value) {
-        const start = new Date(value + 'T12:00:00');
-        const end = new Date(start);
-        end.setMonth(end.getMonth() + 1);
-        updated.periodEnd = end.toISOString().split('T')[0];
+        updated.periodEnd = addOneMonth(value);
       }
 
       if (field === 'paymentDate' && value && !prev.periodStart) {
         updated.periodStart = value;
-        const start = new Date(value + 'T12:00:00');
-        const end = new Date(start);
-        end.setMonth(end.getMonth() + 1);
-        updated.periodEnd = end.toISOString().split('T')[0];
+        updated.periodEnd = addOneMonth(value);
       }
 
       return updated;
@@ -264,6 +262,8 @@ export default function PaymentsPage() {
       }
 
       modal.close();
+      // Recarga con el filtro de fecha ACTIVO → la lista queda consistente con lo que se ve.
+      loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     } finally {
@@ -299,6 +299,7 @@ export default function PaymentsPage() {
           });
         } catch {}
       }
+      loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     }
