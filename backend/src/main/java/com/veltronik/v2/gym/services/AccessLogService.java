@@ -5,8 +5,10 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.AccessLog;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.repositories.AccessLogRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -83,10 +85,10 @@ public class AccessLogService {
     @Transactional
     public AccessLog checkOut(UUID accessLogId) {
         AccessLog log = accessLogRepository.findById(accessLogId)
-                .orElseThrow(() -> new RuntimeException("Registro de acceso no encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registro de acceso no encontrado"));
                 
         if (!log.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
-            throw new RuntimeException("Acceso denegado");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado");
         }
         
         if (log.getCheckOutAt() == null) {
