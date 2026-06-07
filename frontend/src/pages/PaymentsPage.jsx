@@ -170,19 +170,28 @@ export default function PaymentsPage() {
     const memberId = searchParams.get('member_id');
 
     if (memberId) {
-      memberService.searchForAccess(memberId).then(results => {
-        const member = results.find(m => m.id === memberId);
-        if (member) {
-          setSelectedMember(member);
-          const startStr = (member?.membershipEnd || toLocalDate(new Date())).split('T')[0];
-          const preFilledForm = {
-            ...getInitialForm(),
-            member_id: memberId,
-            periodStart: startStr,
-            periodEnd: addOneMonth(startStr),
-          };
-          modal.open({ id: null }, () => preFilledForm);
-        }
+      // Traemos el socio por ID directo. (Antes se usaba searchForAccess(memberId), que busca
+      // por nombre/DNI/email: un UUID nunca matchea → el socio NO quedaba preseleccionado.)
+      memberService.getMemberById(memberId).then(member => {
+        if (!member) return;
+        const normalized = {
+          ...member,
+          fullName: member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim(),
+          dni: member.dni || member.document || '',
+        };
+        setSelectedMember(normalized);
+        const startStr = (member.membershipEnd || toLocalDate(new Date())).split('T')[0];
+        const preFilledForm = {
+          ...getInitialForm(),
+          member_id: memberId,
+          periodStart: startStr,
+          periodEnd: addOneMonth(startStr),
+        };
+        modal.open({ id: null }, () => preFilledForm);
+      }).catch(err => {
+        console.error('No se pudo cargar el socio para el pago:', err);
+        showToast('No se pudo cargar el socio seleccionado', 'error');
+        modal.open();
       });
     } else {
       setSelectedMember(null);
@@ -438,8 +447,7 @@ export default function PaymentsPage() {
                     <td data-label="Acciones">
                       <div className="table-actions">
                         {payment.status === 'pending' && (
-                          <button className="action-btn-quick"
-                            style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}
+                          <button className="action-btn-quick action-btn-success"
                             onClick={() => handleMarkPaid(payment)} title="Marcar como pagado">
                             <Icon name="check" />
                           </button>
@@ -448,8 +456,7 @@ export default function PaymentsPage() {
                           onClick={() => openEditModal(payment)} title="Editar">
                           <Icon name="edit" />
                         </button>
-                        <button className="action-btn-quick"
-                          style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+                        <button className="action-btn-quick action-btn-delete"
                           onClick={() => deleteDialog.open(payment.id)} title="Eliminar">
                           <Icon name="trash" />
                         </button>

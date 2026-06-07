@@ -2,12 +2,12 @@
 // VELTRONIK V2 - MEMBERS PAGE (Refactored)
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
-import { formatDate, formatCurrency } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useQueryCache } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
@@ -17,6 +17,9 @@ import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
 const PAGE_SIZE = 25;
+// Cuando se filtra por estado traemos el set completo (suficiente para PyMEs) para evaluar
+// el estado sobre TODOS los socios, no solo la página actual del backend.
+const LARGE_SIZE = 1000;
 
 const INITIAL_FORM = {
   fullName: '',
@@ -49,7 +52,6 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'active', label: 'Activos' },
   { value: 'inactive', label: 'Inactivos' },
   { value: 'expired', label: 'Vencidos' },
-  { value: 'suspended', label: 'Suspendidos' },
 ];
 
 export default function MembersPage() {
@@ -75,15 +77,36 @@ export default function MembersPage() {
     deleteMember
   } = useMemberController();
 
-  // Local derived state for filtering
-  const [members, setMembers] = useState([]);
-
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
 
+  // Aplica el filtro de estado sobre el set cargado (la página del backend, o el set completo
+  // cuando hay filtro). "expired" se calcula por fecha de vencimiento en el cliente.
+  const filteredMembers = useMemo(() => {
+    if (!statusFilter) return controllerMembers;
+    const today = new Date();
+    return controllerMembers.filter((m) => {
+      if (statusFilter === 'expired') {
+        return m.membershipEnd && new Date(m.membershipEnd) < today;
+      }
+      return m.status === statusFilter;
+    });
+  }, [controllerMembers, statusFilter]);
+
+  // Total para paginar: con filtro, el del set filtrado; sin filtro, el total del backend.
+  const viewTotal = statusFilter ? filteredMembers.length : totalRecords;
+
   // Pagination
-  const pagination = usePagination(totalRecords, PAGE_SIZE);
+  const pagination = usePagination(viewTotal, PAGE_SIZE);
   const { search, handleSearchInput } = useDebouncedSearch(300, pagination.reset);
+
+  // Filas a mostrar: con filtro paginamos en el cliente (ya tenemos todo el set); sin filtro,
+  // la página ya viene acotada del backend.
+  const pagedMembers = useMemo(() => {
+    if (!statusFilter) return filteredMembers;
+    const start = pagination.page * PAGE_SIZE;
+    return filteredMembers.slice(start, start + PAGE_SIZE);
+  }, [filteredMembers, statusFilter, pagination.page]);
 
   // Modal
   const modal = useModal(INITIAL_FORM);
@@ -98,24 +121,14 @@ export default function MembersPage() {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   // ─── FETCH MEMBERS VIA CONTROLLER ───
+  // Con filtro de estado pedimos el set completo (page 0, tamaño grande) y paginamos en el
+  // cliente; sin filtro, paginación normal del backend. Al fijar la página en 0 cuando hay
+  // filtro, cambiar de página en el cliente NO dispara una recarga.
+  const fetchPage = statusFilter ? 0 : pagination.page;
+  const fetchSize = statusFilter ? LARGE_SIZE : PAGE_SIZE;
   useEffect(() => {
-    loadMembers(pagination.page, PAGE_SIZE, search);
-  }, [pagination.page, search, loadMembers]);
-
-  // Procesar resultado al cambiar datos o filtro local
-  useEffect(() => {
-    let filtered = controllerMembers;
-    if (statusFilter) {
-      const today = new Date();
-      filtered = filtered.filter((m) => {
-        if (statusFilter === 'expired') {
-          return m.membershipEnd && new Date(m.membershipEnd) < today;
-        }
-        return m.status === statusFilter;
-      });
-    }
-    setMembers(filtered);
-  }, [controllerMembers, statusFilter]);
+    loadMembers(fetchPage, fetchSize, search);
+  }, [fetchPage, fetchSize, search, loadMembers]);
 
   // Auto-open modal if ?action=new
   useEffect(() => {
@@ -141,8 +154,9 @@ export default function MembersPage() {
       }
       
       await saveMember(data);
-      // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador
-      loadMembers(pagination.page, PAGE_SIZE, search);
+      // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador.
+      // Usa la página/tamaño EFECTIVOS para no romper la vista cuando hay filtro de estado.
+      loadMembers(fetchPage, fetchSize, search);
       
       showToast(`${memberLabel} guardado exitosamente`, 'success');
       modal.close();
@@ -172,7 +186,17 @@ export default function MembersPage() {
     setPaymentsLoading(true);
     try {
       const payments = await paymentService.getByMemberId(member.id);
-      setMemberPayments(payments || []);
+      // El backend no garantiza orden y manda status/method en MAYÚSCULAS (PAID/CASH...).
+      // Normalizamos a minúsculas (para que el Badge y getMethodLabel resuelvan bien) y
+      // ordenamos del más reciente al más antiguo.
+      const normalized = (payments || [])
+        .map((p) => ({
+          ...p,
+          status: (p.status || '').toLowerCase(),
+          paymentMethod: (p.paymentMethod || '').toLowerCase(),
+        }))
+        .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
+      setMemberPayments(normalized);
     } catch {
       setMemberPayments([]);
     } finally {
@@ -182,12 +206,12 @@ export default function MembersPage() {
 
   // ─── CSV EXPORT ───
   const exportCSV = () => {
-    if (members.length === 0) {
+    if (filteredMembers.length === 0) {
       showToast('No hay datos para exportar', 'warning');
       return;
     }
     const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio', 'Vencimiento', 'Días de Asistencia'];
-    const rows = members.map((m) => {
+    const rows = filteredMembers.map((m) => {
       const days = Array.isArray(m.attendanceDays) ? m.attendanceDays.map(d => DAY_NAMES[d]).join(', ') : '';
       return [
         m.fullName, m.dni || '', m.phone || '', m.email || '',
@@ -233,7 +257,7 @@ export default function MembersPage() {
     <div className="members-page">
       <PageHeader
         title={membersLabel}
-        subtitle={isFetching && members.length > 0 ? "Actualizando datos..." : `${totalRecords} ${membersLabelLower} registrados`}
+        subtitle={isFetching && pagedMembers.length > 0 ? "Actualizando datos..." : `${totalRecords} ${membersLabelLower} registrados`}
         icon="users"
         actions={
           <div className="flex gap-1">
@@ -279,20 +303,20 @@ export default function MembersPage() {
               </tr>
             </thead>
             <tbody>
-              {isFetching && members.length === 0 ? (
+              {isFetching && pagedMembers.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
-              ) : members.length === 0 ? (
+              ) : pagedMembers.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
                     No se encontraron {membersLabelLower}
                   </td>
                 </tr>
               ) : (
-                members.map((member) => {
+                pagedMembers.map((member) => {
                   const daysInfo = getDaysInfo(member.membershipEnd);
                   return (
                     <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
@@ -310,8 +334,7 @@ export default function MembersPage() {
                       <td data-label="Acciones">
                         <div className="table-actions">
                           <button
-                            className="action-btn-quick"
-                            style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}
+                            className="action-btn-quick action-btn-charge"
                             onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
                             title="Cobrar cuota"
                           ><Icon name="dollarSign" size="1em" /></button>
@@ -334,8 +357,7 @@ export default function MembersPage() {
                           ><Icon name="edit" /></button>
                           {canDelete && (
                             <button
-                              className="action-btn-quick"
-                              style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+                              className="action-btn-quick action-btn-delete"
                               onClick={() => deleteDialog.open(member.id, member.fullName)}
                               title="Eliminar"
                             ><Icon name="trash" /></button>
@@ -351,7 +373,7 @@ export default function MembersPage() {
         </div>
 
         {/* Pagination */}
-        <Pagination {...pagination} totalCount={totalRecords} />
+        <Pagination {...pagination} totalCount={viewTotal} />
       </div>
 
       {/* ─── MEMBER MODAL ─── */}
@@ -449,7 +471,10 @@ export default function MembersPage() {
               <div key={p.id} className="payment-history-item">
                 <div className="payment-info">
                   <span className="payment-amount">{formatCurrency(p.amount)}</span>
-                  <span className="payment-date">{formatDate(p.paymentDate)}</span>
+                  <span className="payment-date">
+                    {formatDate(p.paymentDate)}
+                    {p.paymentMethod ? ` · ${getMethodLabel(p.paymentMethod)}` : ''}
+                  </span>
                 </div>
                 <Badge status={p.status} />
               </div>

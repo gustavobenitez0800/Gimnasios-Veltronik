@@ -4,11 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 
 export function useClassController() {
   const { gym: currentGym } = useAuth();
-  
+
   const [classes, setClasses] = useState([]);
-  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const loadClasses = useCallback(async () => {
@@ -62,29 +60,12 @@ export function useClassController() {
     }
   };
 
-  const loadBookingsForClass = async (classId, date) => {
-    setBookingsLoading(true);
-    try {
-      const data = await classService.getBookingsForClass(classId, date);
-      setBookings(data);
-      return data;
-    } catch (err) {
-      console.error("Error loading bookings:", err);
-      throw err;
-    } finally {
-      setBookingsLoading(false);
-    }
-  };
-
   return {
     classes,
-    bookings,
     loading,
-    bookingsLoading,
     error,
     loadClasses,
     saveClass,
     deleteClass,
-    loadBookingsForClass,
   };
 }

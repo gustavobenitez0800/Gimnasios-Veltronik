@@ -33,13 +33,10 @@ export default function ClassesPage() {
   // Controller
   const {
     classes,
-    bookings,
     loading: isFetching,
-    bookingsLoading,
     loadClasses,
     saveClass,
     deleteClass,
-    loadBookingsForClass,
   } = useClassController();
 
   const [view, setView] = useState('calendar');
@@ -101,10 +98,9 @@ export default function ClassesPage() {
     setModalOpen(true);
   };
 
-  const openDetail = async (cls, date) => {
+  const openDetail = (cls) => {
     setSelectedClass(cls);
     setDetailModal(true);
-    await loadBookingsForClass(cls.id, date);
   };
 
   const handleSave = async (e) => {
@@ -163,7 +159,7 @@ export default function ClassesPage() {
 
   return (
     <div className="classes-page">
-      <PageHeader title="Clases y Actividades" subtitle="Gestión de horarios y reservas" icon="calendar"
+      <PageHeader title="Clases y Actividades" subtitle="Gestión de horarios y clases" icon="calendar"
         actions={<button className="btn btn-primary" onClick={openNew}><Icon name="plus" /> Nueva Clase</button>} />
 
       {/* Calendar Navigation */}
@@ -204,7 +200,7 @@ export default function ClassesPage() {
                     {dayClasses.length > 0 ? dayClasses.map(cls => (
                       <div key={cls.id} className="class-card"
                         style={{ borderLeftColor: cls.color || '#0EA5E9' }}
-                        onClick={() => openDetail(cls, date.toISOString().split('T')[0])}>
+                        onClick={() => openDetail(cls)}>
                         <div className="class-time">{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</div>
                         <div className="class-name">{cls.name}</div>
                         <div className="class-instructor">{cls.instructor || 'Sin instructor'}</div>
@@ -241,9 +237,9 @@ export default function ClassesPage() {
                     <td><span className={`badge ${cls.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
                       {cls.status === 'active' ? 'Activa' : 'Inactiva'}</span></td>
                     <td><div className="table-actions">
-                      <button className="action-btn-quick action-btn-payment" onClick={() => openEdit(cls)}><Icon name="edit" /></button>
-                      <button className="action-btn-quick" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
-                        onClick={() => setDeleteId(cls.id)}><Icon name="trash" /></button>
+                      <button className="action-btn-quick action-btn-payment" onClick={() => openEdit(cls)} title="Editar"><Icon name="edit" /></button>
+                      <button className="action-btn-quick action-btn-delete"
+                        onClick={() => setDeleteId(cls.id)} title="Eliminar"><Icon name="trash" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -356,22 +352,8 @@ export default function ClassesPage() {
               <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="user" size="1em" /> {selectedClass.instructor || 'Sin instructor'}</p>
               <p className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="users" size="1em" /> {selectedClass.capacity || 20} cupos · {selectedClass.room || 'Sin sala'}</p>
             </div>
-            <h3 style={{ fontSize: 'var(--font-size-sm)', marginBottom: '0.5rem' }}>Reservas</h3>
-            {bookingsLoading ? (
-              <div className="text-center text-muted" style={{ padding: '1rem' }}><span className="spinner" /> Cargando...</div>
-            ) : bookings.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '1rem' }}>Sin reservas para este día</div>
-            ) : (
-              <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                {bookings.map(b => (
-                  <div key={b.id} className="payment-history-item">
-                    <span>{b.member?.fullName || 'Socio'}</span>
-                    <span className={`badge ${b.status === 'attended' ? 'badge-success' : b.status === 'cancelled' ? 'badge-error' : 'badge-neutral'}`}>
-                      {b.status === 'attended' ? 'Asistió' : b.status === 'cancelled' ? 'Cancelada' : 'Reservada'}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            {selectedClass.description && (
+              <p className="text-muted" style={{ marginTop: 0, marginBottom: '1rem' }}>{selectedClass.description}</p>
             )}
             <div className="modal-actions" style={{ marginTop: '1rem' }}>
               <button className="btn btn-secondary" onClick={() => setDetailModal(false)}>Cerrar</button>
