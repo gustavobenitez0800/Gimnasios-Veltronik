@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -85,11 +86,13 @@ public class SetupController {
         membership.setActive(true);
         membershipRepository.save(membership);
 
-        return ResponseEntity.ok(Map.of(
-            "message", "Negocio creado exitosamente",
-            "is_first_branch", isFirstBranch,
-            "tenant_id", savedTenant.getId(),
-            "trial_ends_at", savedTenant.getTrialEndsAt()
-        ));
+        // OJO: Map.of NO admite valores null y lanza NPE → 400 + rollback. La sucursal
+        // adicional tiene trialEndsAt = null, así que usamos un HashMap (sí admite null).
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "Negocio creado exitosamente");
+        body.put("is_first_branch", isFirstBranch);
+        body.put("tenant_id", savedTenant.getId());
+        body.put("trial_ends_at", savedTenant.getTrialEndsAt()); // null en sucursal adicional
+        return ResponseEntity.ok(body);
     }
 }
