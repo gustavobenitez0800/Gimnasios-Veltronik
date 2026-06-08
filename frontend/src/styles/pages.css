@@ -522,7 +522,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* centra el contenido (sin el logo, evita hueco al estirarse la grilla) */
   gap: 1rem;
   color: var(--text-primary);
   width: 100%;

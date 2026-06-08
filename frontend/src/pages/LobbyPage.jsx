@@ -498,6 +498,11 @@ export default function LobbyPage() {
           </div>
         )}
 
+        {/* Ícono identificador del rubro (gimnasio). FUTURO: reemplazar este Icon por un
+            Lordicon animado (<lord-icon>) cuando se integre la librería. */}
+        <div className="lobby-card-icon">
+          <Icon name="dumbbell" size="2rem" />
+        </div>
         <h3 className="lobby-card-name">{org.name}</h3>
         <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
           {TYPE_LABELS[orgType] || orgType}
