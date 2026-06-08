@@ -133,7 +133,7 @@ function GymReportsPage() {
       
       if (dateFrom && dateTo) {
         members = (members || []).filter(m => {
-          const d = m.membershipStart || (m.created_at ? m.created_at.split('T')[0] : null);
+          const d = m.membershipStart || (m.createdAt ? m.createdAt.split('T')[0] : null);
           if (!d) return true; // keep members with no date
           return d >= dateFrom && d <= dateTo;
         });
@@ -163,12 +163,14 @@ function GymReportsPage() {
       const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
       const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
+      // El backend manda method/status en MAYÚSCULA (CASH/PAID). Normalizamos para mostrar.
+      const STATUS_ES = { paid: 'Pagado', pending: 'Pendiente' };
       const rows = (payments || []).map(p => [
         `${p.member?.firstName || ''} ${p.member?.lastName || ''}`.trim(),
         formatCurrency(p.amount || 0),
         p.paymentDate || '',
-        getMethodLabel(p.paymentMethod),
-        p.status || ''
+        getMethodLabel((p.paymentMethod || '').toLowerCase()),
+        STATUS_ES[(p.status || '').toLowerCase()] || p.status || ''
       ]);
 
       // Calcular total sumado (solo de pagos completados). El backend manda 'PAID' (mayúscula).

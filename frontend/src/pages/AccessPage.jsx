@@ -10,8 +10,6 @@ import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import { useAuth } from '../contexts/AuthContext';
-import gymLogoSrc from '../assets/VeltronikGym.png';
-import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 
 export default function AccessPage() {
   const { gym } = useAuth();
@@ -211,7 +209,7 @@ export default function AccessPage() {
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
             ) : checkedIn.map(log => {
-              const member = Array.isArray(log.member) ? log.member[0] : log.member;
+              const member = log.member;
               const memberName = member?.fullName || 'Socio';
               return (
               <div key={log.id} className="checked-in-item">
@@ -242,7 +240,7 @@ export default function AccessPage() {
               {todayLogs.length === 0 ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
               ) : todayLogs.slice(0, 30).map(log => {
-                const member = Array.isArray(log.member) ? log.member[0] : log.member;
+                const member = log.member;
                 return (
                 <tr key={log.id}>
                   <td><strong>{member?.fullName || 'Socio'}</strong></td>
