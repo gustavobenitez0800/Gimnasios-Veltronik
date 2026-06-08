@@ -498,13 +498,6 @@ export default function LobbyPage() {
           </div>
         )}
 
-        <div className="lobby-card-icon" style={{ background: TYPE_IS_IMAGE[orgType] ? 'transparent' : '' }}>
-          {TYPE_IS_IMAGE[orgType] ? (
-            <img src={TYPE_ICONS[orgType]} alt={TYPE_LABELS[orgType]} style={{ width: '90%', height: '90%', objectFit: 'contain' }} />
-          ) : (
-            <span style={{ fontSize: '2rem' }}>{TYPE_ICONS[orgType] || <Icon name="building" size="1em" />}</span>
-          )}
-        </div>
         <h3 className="lobby-card-name">{org.name}</h3>
         <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
           {TYPE_LABELS[orgType] || orgType}
