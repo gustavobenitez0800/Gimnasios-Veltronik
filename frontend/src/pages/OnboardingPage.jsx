@@ -11,13 +11,12 @@ import { gymService } from '../services';
 import CONFIG from '../lib/config';
 
 import Icon from '../components/Icon';
-import gymLogo from '../assets/VeltronikGym.png';
-import restoLogo from '../assets/VeltronikRestaurante.png';
 
 // Veltronik hoy ofrece UN solo sistema real: Gimnasio. No listamos rubros que el backend
 // no soporta — antes "Club Deportivo" mandaba CLUB y el backend (solo acepta GYM) lo rechazaba.
+// FUTURO: el `icon` puede pasar a un Lordicon animado por rubro.
 const BUSINESS_TYPES = [
-  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: gymLogo, isImage: true, gradient: 'transparent', enabled: true },
+  { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: <Icon name="dumbbell" />, isImage: false, gradient: 'color-mix(in srgb, var(--primary-500) 14%, transparent)', enabled: true },
 ];
 
 export default function OnboardingPage() {
@@ -122,7 +121,7 @@ export default function OnboardingPage() {
                     onClick={() => t.enabled && setSelectedType(t.id)}>
                     {!t.enabled && <span className="coming-soon-badge">Próximamente</span>}
                     {selectedType === t.id && <div className="type-check"><Icon name="check" size="1em" /></div>}
-                    <div className="type-icon" style={{ background: t.gradient }}>
+                    <div className="type-icon" style={{ background: t.gradient, color: 'var(--primary-400)' }}>
                       {t.isImage ? <img src={t.icon} alt={t.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : t.icon}
                     </div>
                     <h4>{t.label}</h4>
