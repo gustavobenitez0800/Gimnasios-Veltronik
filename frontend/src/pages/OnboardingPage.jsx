@@ -101,7 +101,7 @@ export default function OnboardingPage() {
   return (
     <div className="auth-wrapper">
       <div className="auth-container">
-        <div className="auth-card" style={{ maxWidth: 560 }}>
+        <div className="auth-card onboarding-card" style={{ maxWidth: 560 }}>
           {/* Progress */}
           <div className="onboarding-progress">
             <div className={`progress-step ${step >= 1 ? (step > 1 ? 'completed' : 'active') : ''}`} />

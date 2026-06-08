@@ -2,6 +2,23 @@
    PHASE 4: ONBOARDING PAGE
    ============================================ */
 
+/* El onboarding NO usa la "caja" glassmorphism del login: el contenido va directo
+   sobre el fondo aurora, dejando el glass solo en las tarjetas de tipo (.type-card).
+   Solo afecta al onboarding (clase modificadora) — el login conserva su glass card. */
+.auth-card.onboarding-card {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
+}
+.auth-card.onboarding-card::before,
+.auth-card.onboarding-card::after {
+  content: none;
+}
+
 .onboarding-progress { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem; }
 .progress-step {
   width: 40px; height: 4px; border-radius: 2px;
