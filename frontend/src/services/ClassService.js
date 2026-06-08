@@ -28,7 +28,8 @@ function fromApi(c) {
     room: c.room || '',
     color: c.color || '#0EA5E9',
     description: c.description || '',
-    status: c.isActive === false ? 'inactive' : 'active',
+    // El backend serializa el booleano como JSON "active" (Jackson). El estado se deriva de ahí.
+    status: c.active === false ? 'inactive' : 'active',
   };
 }
 
@@ -49,7 +50,7 @@ function toApi(c) {
     room: c.room ?? null,
     color: c.color ?? null,
     description: c.description ?? null,
-    isActive: c.status ? c.status === 'active' : true,
+    active: c.status ? c.status === 'active' : true,
   };
 }
 
