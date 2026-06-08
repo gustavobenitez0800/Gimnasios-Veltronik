@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../lib/apiClient';
+import { gymService } from '../services';
 import CONFIG from '../lib/config';
 
 import Icon from '../components/Icon';
@@ -28,6 +29,22 @@ export default function OnboardingPage() {
   const [selectedType, setSelectedType] = useState('GYM'); // único tipo real → preseleccionado
   const [form, setForm] = useState({ name: '', address: '', phone: '', email: user?.email || '' });
   const [submitting, setSubmitting] = useState(false);
+
+  // ¿Es la PRIMERA sucursal del usuario? Solo la 1ª incluye prueba gratis; las adicionales
+  // se activan pagando. Lo consultamos para no prometer un trial que no aplica (2ª en adelante).
+  const [isFirstBranch, setIsFirstBranch] = useState(true);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const gyms = await gymService.getUserGyms();
+        if (active) setIsFirstBranch((gyms || []).length === 0);
+      } catch { /* ante la duda asumimos primera (muestra el trial) */ }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const monthlyPrice = (CONFIG.PRICES_BY_TYPE?.GYM || CONFIG.SUBSCRIPTION_PRICE || 80000).toLocaleString('es-AR');
 
 
   const handleSubmit = async (e) => {
@@ -60,8 +77,15 @@ export default function OnboardingPage() {
         localStorage.setItem('current_org_type', businessType);
       }
 
-      showToast('¡Negocio creado! Tu prueba gratuita de 14 días ha comenzado.', 'success');
-      
+      // El backend confirma si fue la primera sucursal (autoritativo). Solo la 1ª arranca trial.
+      const createdFirst = data?.is_first_branch ?? isFirstBranch;
+      showToast(
+        createdFirst
+          ? '¡Negocio creado! Tu prueba gratuita de 14 días ha comenzado.'
+          : '¡Sucursal creada! Activá tu suscripción para empezar a usarla.',
+        'success'
+      );
+
       // Navigate to Lobby after a brief delay
       setTimeout(() => {
         navigate(CONFIG.ROUTES.LOBBY);
@@ -152,17 +176,33 @@ export default function OnboardingPage() {
                   <input type="email" className="form-input" placeholder="contacto@tunegocio.com"
                     value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
                 </div>
-                <div style={{
-                  padding: '1rem', marginBottom: '1rem',
-                  background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
-                  borderRadius: '0.75rem', textAlign: 'center'
-                }}>
-                  <p style={{ color: '#10b981', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Icon name="sparkles" size="1em" /> 14 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
-                  </p>
-                </div>
+                {isFirstBranch ? (
+                  <div style={{
+                    padding: '1rem', marginBottom: '1rem',
+                    background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '0.75rem', textAlign: 'center'
+                  }}>
+                    <p style={{ color: '#10b981', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <Icon name="sparkles" size="1em" /> 14 días de prueba GRATIS • Sin tarjeta de crédito • Cancelá cuando quieras
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '1rem', marginBottom: '1rem',
+                    background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)',
+                    borderRadius: '0.75rem', textAlign: 'center'
+                  }}>
+                    <p style={{ color: '#f59e0b', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <Icon name="creditCard" size="1em" /> Sucursal adicional • Se activa al pagar • ${monthlyPrice}/mes por sucursal
+                    </p>
+                  </div>
+                )}
                 <button type="submit" className="auth-submit" disabled={submitting}>
-                  {submitting ? <><span className="spinner" /> Creando negocio...</> : <><Icon name="rocket" size="1em" /> Comenzar mi prueba gratis</>}
+                  {submitting
+                    ? <><span className="spinner" /> {isFirstBranch ? 'Creando negocio...' : 'Creando sucursal...'}</>
+                    : (isFirstBranch
+                        ? <><Icon name="rocket" size="1em" /> Comenzar mi prueba gratis</>
+                        : <><Icon name="rocket" size="1em" /> Crear sucursal</>)}
                 </button>
               </form>
               <p className="auth-links" style={{ marginTop: '1.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

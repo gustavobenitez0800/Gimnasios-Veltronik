@@ -41,6 +41,19 @@ function isTrialActive(org) {
 }
 
 /**
+ * ¿Esta sucursal NUNCA tuvo un período de prueba real? Las sucursales adicionales (2ª en
+ * adelante) no incluyen trial: el backend deja `trialEndsAt` en null (sucursales nuevas) o
+ * vencido al instante de crearse (≈ createdAt, sucursales legacy). Una 1ª sucursal real tiene
+ * `trialEndsAt` MUY posterior a su creación. Sirve para no mostrarle "prueba finalizada" a una
+ * sucursal que jamás tuvo prueba.
+ */
+function neverHadRealTrial(org) {
+  if (!org.trialEndsAt) return true;
+  if (!org.createdAt) return false; // sin createdAt no podemos inferir → asumimos trial real
+  return new Date(org.trialEndsAt) <= new Date(org.createdAt);
+}
+
+/**
  * Determine the access status for an organization.
  * Returns: { canAccess, status, label, icon, color, sub }
  */
@@ -166,7 +179,21 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 7. Trial expirado y NUNCA pagó → mensaje de prueba finalizada.
+  // 7. Sucursal adicional que nunca tuvo prueba real y nunca pagó → ACTIVACIÓN (no "prueba").
+  //    Las sucursales 2ª+ no incluyen trial: deben activarse pagando.
+  if (neverHadRealTrial(org)) {
+    return {
+      canAccess: false,
+      status: 'needs_activation',
+      label: 'Requiere activación',
+      icon: 'creditCard',
+      color: '#f59e0b',
+      blockReason: 'additional_branch',
+      sub,
+    };
+  }
+
+  // 8. Trial real expirado y NUNCA pagó → mensaje de prueba finalizada.
   if (org.trialEndsAt && new Date(org.trialEndsAt) < now) {
     return {
       canAccess: false,
@@ -179,7 +206,7 @@ function computeOrgAccessStatus(org, sub) {
     };
   }
 
-  // 8. Sin trial ni suscripción → bloqueado.
+  // 9. Sin trial ni suscripción → bloqueado.
   return {
     canAccess: false,
     status: 'no_subscription',
@@ -212,6 +239,11 @@ const BLOCK_MESSAGES = {
   trial_expired: {
     title: 'Prueba Gratuita Finalizada',
     message: 'Tu período de prueba de 14 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.',
+    showUpdateCard: false,
+  },
+  additional_branch: {
+    title: 'Activá esta sucursal',
+    message: 'Las sucursales adicionales no incluyen período de prueba. Activá tu suscripción para empezar a usar esta sucursal — se cobra el mismo precio mensual por cada una.',
     showUpdateCard: false,
   },
   no_subscription: {
@@ -674,7 +706,7 @@ export default function LobbyPage() {
             {/* Actions */}
             <div className="lobby-blocked-actions">
               <button className="btn btn-primary lobby-blocked-btn-main" onClick={handleReactivate}>
-                <Icon name="creditCard" size="1.1em" /> Reactivar Suscripción
+                <Icon name="creditCard" size="1.1em" /> {blockedOrg.accessStatus?.blockReason === 'additional_branch' ? 'Activar Suscripción' : 'Reactivar Suscripción'}
               </button>
 
               {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.showUpdateCard && (

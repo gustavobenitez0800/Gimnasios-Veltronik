@@ -68,9 +68,11 @@ public class SetupController {
             // Primera sucursal: período de prueba configurable (por defecto 14 días).
             tenant.setTrialEndsAt(now.plusDays(trialDays));
         } else {
-            // Sucursal adicional: vencida de inmediato → debe pagar para usar.
-            // El Kill Switch la bloquea por trialEndsAt vencido hasta que haya suscripción válida.
-            tenant.setTrialEndsAt(now.minusMinutes(1));
+            // Sucursal adicional: NO tiene período de prueba → trialEndsAt = null.
+            // El Kill Switch la bloquea (sin trial ni suscripción) hasta que se active con un
+            // pago. Antes se ponía now-1min, pero el lobby lo leía como "prueba finalizada"
+            // (engañoso: la sucursal adicional NUNCA tuvo prueba).
+            tenant.setTrialEndsAt(null);
         }
 
         Tenant savedTenant = tenantRepository.save(tenant);
