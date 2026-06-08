@@ -49,11 +49,32 @@
 
 .plans-card {
   position: relative;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
+  /* Mismo lenguaje glass que el login: vidrio translúcido + blur + halo del acento +
+     reflejo especular. Usa los tokens de card (se adapta a claro/oscuro y a cada vertical).
+     Sin overflow:hidden a propósito → el badge "Veltronik Premium" sobresale arriba. */
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
+  border: var(--card-border);
+  border-radius: var(--border-radius-xl);
   padding: 2.5rem 2rem 2rem;
-  box-shadow: var(--shadow-xl);
+  box-shadow:
+    var(--card-shadow-base),
+    0 0 80px -20px color-mix(in srgb, var(--primary-500) 18%, transparent),
+    inset 0 1px 0 var(--card-highlight);
+}
+
+/* Reflejo especular superior (como el login), insetado para respetar el radio sin
+   recortar el badge (no usamos overflow:hidden). */
+.plans-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
 }
 
 .plans-card-badge {
@@ -81,7 +102,9 @@
 .plans-card-desc { color: var(--text-secondary); font-size: var(--font-size-sm); margin: 0 auto; max-width: 90%; }
 
 .plans-price-box {
-  background: var(--bg-tertiary);
+  /* Panel translúcido sutil (no un bloque opaco) para que se integre con el glass.
+     color-mix con el texto → se adapta a claro/oscuro. */
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   padding: 1.5rem;
