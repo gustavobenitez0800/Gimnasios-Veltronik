@@ -15,6 +15,9 @@ import java.util.UUID;
 public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     List<GymMember> findByTenantId(UUID tenantId);
     long countByTenantId(UUID tenantId);
+
+    /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */
+    List<GymMember> findTop25ByTenantIdOrderByCreatedAtDesc(UUID tenantId);
     long countByTenantIdAndIsActiveTrue(UUID tenantId);
 
     // ── Paginación server-side ──

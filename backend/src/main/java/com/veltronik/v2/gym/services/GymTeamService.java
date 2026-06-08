@@ -8,9 +8,16 @@ import com.veltronik.v2.core.repositories.AppUserRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.security.TenantContextHolder;
+import com.veltronik.v2.gym.entities.AccessLog;
+import com.veltronik.v2.gym.entities.GymMember;
+import com.veltronik.v2.gym.entities.GymPayment;
+import com.veltronik.v2.gym.repositories.AccessLogRepository;
+import com.veltronik.v2.gym.repositories.GymMemberRepository;
+import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -19,11 +26,19 @@ public class GymTeamService {
     private final TenantMembershipRepository membershipRepository;
     private final AppUserRepository userRepository;
     private final TenantRepository tenantRepository;
+    private final AccessLogRepository accessLogRepository;
+    private final GymPaymentRepository paymentRepository;
+    private final GymMemberRepository memberRepository;
 
-    public GymTeamService(TenantMembershipRepository membershipRepository, AppUserRepository userRepository, TenantRepository tenantRepository) {
+    public GymTeamService(TenantMembershipRepository membershipRepository, AppUserRepository userRepository,
+                          TenantRepository tenantRepository, AccessLogRepository accessLogRepository,
+                          GymPaymentRepository paymentRepository, GymMemberRepository memberRepository) {
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
+        this.accessLogRepository = accessLogRepository;
+        this.paymentRepository = paymentRepository;
+        this.memberRepository = memberRepository;
     }
 
     public List<Map<String, Object>> getTeamMembers() {
@@ -132,9 +147,60 @@ public class GymTeamService {
         membershipRepository.save(membership);
     }
 
+    /**
+     * Feed de actividad reciente del negocio. V2 no tiene una tabla de auditoría dedicada, así
+     * que lo componemos a partir de los datos reales que YA se generan: accesos (check-ins),
+     * pagos y altas de socios. Se mezclan y ordenan por fecha descendente.
+     */
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getActivityLog(int limit) {
-        // Mock activity log for now since V2 doesn't have an audit table yet
-        return new ArrayList<>();
+        UUID tenantId = TenantContextHolder.getTenantId();
+        List<Map<String, Object>> items = new ArrayList<>();
+
+        // Accesos / check-ins
+        for (AccessLog a : accessLogRepository.findTop25ByTenantIdOrderByCheckInAtDesc(tenantId)) {
+            items.add(activityItem("access", memberName(a.getMember()), "registró un ingreso", "Acceso", a.getCheckInAt()));
+        }
+        // Pagos (la query ya viene ordenada desc con el socio cargado)
+        paymentRepository.findByTenantId(tenantId).stream().limit(25).forEach(p ->
+            items.add(activityItem("payment", memberName(p.getMember()), "registró un pago", "Pago", p.getPaymentDate()))
+        );
+        // Altas de socios
+        for (GymMember m : memberRepository.findTop25ByTenantIdOrderByCreatedAtDesc(tenantId)) {
+            items.add(activityItem("member", memberName(m), "se registró como socio", "Socio", m.getCreatedAt()));
+        }
+
+        // Ordenar por fecha descendente (nulos al final)
+        items.sort((x, y) -> {
+            LocalDateTime tx = (LocalDateTime) x.get("created_at");
+            LocalDateTime ty = (LocalDateTime) y.get("created_at");
+            if (tx == null && ty == null) return 0;
+            if (tx == null) return 1;
+            if (ty == null) return -1;
+            return ty.compareTo(tx);
+        });
+
+        int max = Math.max(0, Math.min(limit, items.size()));
+        return new ArrayList<>(items.subList(0, max));
+    }
+
+    private Map<String, Object> activityItem(String type, String userName, String action, String entityType, LocalDateTime ts) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", type);
+        map.put("user_name", userName);
+        map.put("action", action);
+        map.put("entity_type", entityType);
+        map.put("created_at", ts);
+        return map;
+    }
+
+    /** Nombre del socio para el feed; "Mostrador" si el pago no tiene socio (venta suelta). */
+    private String memberName(GymMember m) {
+        if (m == null) return "Mostrador";
+        String fn = m.getFirstName() != null ? m.getFirstName().trim() : "";
+        String ln = m.getLastName() != null ? m.getLastName().trim() : "";
+        String full = (fn + " " + ln).trim();
+        return full.isEmpty() ? "Socio" : full;
     }
 
     /**

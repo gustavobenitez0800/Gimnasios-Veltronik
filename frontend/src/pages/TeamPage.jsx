@@ -25,6 +25,7 @@ export default function TeamPage() {
     teamMembers,
     activityLog,
     loading: isFetching,
+    activityLoading,
     loadTeam,
     loadActivity,
     inviteMember: controllerInvite,
@@ -98,13 +99,13 @@ export default function TeamPage() {
   const isAdmin = currentRole === 'admin';
   const canManageTeam = isOwner || isAdmin;
 
-  const getActivityIcon = (action) => {
-    if (action?.includes('create') || action?.includes('invite')) return 'plus';
-    if (action?.includes('update') || action?.includes('role')) return 'edit';
-    if (action?.includes('delete') || action?.includes('remove')) return 'trash';
-    if (action?.includes('checkin') || action?.includes('access')) return 'doorOpen';
-    if (action?.includes('payment')) return 'creditCard';
-    return 'fileText';
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'access': return 'doorOpen';
+      case 'payment': return 'creditCard';
+      case 'member': return 'plus';
+      default: return 'fileText';
+    }
   };
 
   return (
@@ -195,7 +196,11 @@ export default function TeamPage() {
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Historial de Actividad</h3>
           </div>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-            {activityLog.length === 0 ? (
+            {activityLoading ? (
+              <div className="text-center text-muted" style={{ padding: '3rem' }}>
+                <span className="spinner" /> Cargando actividad...
+              </div>
+            ) : activityLog.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '3rem' }}>
                 <div style={{ marginBottom: '0.5rem', opacity: 0.35, display: 'flex', justifyContent: 'center' }}><Icon name="clock" size="2rem" /></div>
                 Sin actividad reciente
@@ -203,11 +208,12 @@ export default function TeamPage() {
             ) : activityLog.map((log, i) => (
               <div key={i} className="activity-item" style={{ display: 'flex', gap: '0.75rem', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-color)' }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', color: 'var(--primary-400)' }}>
-                  <Icon name={getActivityIcon(log.action)} size="1em" />
+                  <Icon name={getActivityIcon(log.type)} size="1em" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.82rem' }}>
-                    <strong>{log.user_name || 'Usuario'}</strong> — {log.action} en {log.entity_type}
+                    <strong>{log.user_name || 'Usuario'}</strong> {log.action}
+                    {log.entity_type && <span style={{ color: 'var(--text-muted)' }}> · {log.entity_type}</span>}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
                     {getRelativeTime(log.created_at)}
