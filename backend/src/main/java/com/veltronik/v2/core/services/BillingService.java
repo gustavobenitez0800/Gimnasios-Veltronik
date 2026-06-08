@@ -61,6 +61,10 @@ public class BillingService {
                 .payerEmail(payerEmail)
                 .build();
 
+        // Anti-duplicado: cancelar cualquier suscripción previa del tenant ANTES de crear la nueva,
+        // para no dejar varios preapprovals activos cobrando en paralelo.
+        mercadoPagoService.cancelActivePreapprovals(tenant.getId(), null);
+
         try {
             Preapproval preapproval = client.create(request);
             log.info("Link de suscripción creado para Tenant '{}': {}", tenant.getName(), preapproval.getId());
@@ -156,6 +160,11 @@ public class BillingService {
 
         // Sincroniza el estado local con MP (mapea authorized→active, etc.).
         subscriptionBillingService.updatePreapprovalStatus(tenant.getId(), sub.getMpSubscriptionId(), mpStatus);
+
+        // Reconciliación anti-duplicado: cancela en MP cualquier OTRA suscripción viva del tenant,
+        // conservando la de registro. Así, tocar "Verificar Estado con MP" limpia los clientes que
+        // ya hubieran quedado con preapprovals duplicados (cobros repetidos) de antes del fix.
+        mercadoPagoService.cancelActivePreapprovals(tenant.getId(), sub.getMpSubscriptionId());
 
         Subscription refreshed = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId()).orElse(sub);
         boolean changed = !java.util.Objects.equals(prevLocalStatus, refreshed.getStatus());

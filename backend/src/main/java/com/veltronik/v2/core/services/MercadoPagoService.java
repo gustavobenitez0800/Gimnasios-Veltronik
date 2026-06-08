@@ -18,6 +18,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * Servicio de integración con Mercado Pago para crear links de suscripción.
@@ -53,6 +54,8 @@ public class MercadoPagoService {
      */
     public String createSubscriptionForTenant(Tenant tenant, String payerEmail) {
         try {
+            // Anti-duplicado: cancelar suscripciones previas del tenant antes de crear la nueva.
+            cancelActivePreapprovals(tenant.getId(), null);
             PreapprovalClient client = new PreapprovalClient();
 
             // Configuración de cobro automático mensual
@@ -102,6 +105,9 @@ public class MercadoPagoService {
      * se cobra directo. El 1er cobro real ocurre ~1h después (llega por webhook).</p>
      */
     public CardSubscriptionResult createCardSubscription(Tenant tenant, String payerEmail, String cardToken) {
+        // Anti-duplicado: dar de baja en MP cualquier suscripción previa del tenant ANTES de crear
+        // la nueva (cada cobro/cambio de tarjeta dejaba un preapproval extra cobrando en paralelo).
+        cancelActivePreapprovals(tenant.getId(), null);
         // Por HTTP directo: el SDK 2.9.2 NO expone card_token_id en PreapprovalCreateRequest
         // (verificado: el builder no tiene .cardTokenId()). Mismo patrón que getAuthorizedPayment().
         try {
@@ -200,6 +206,86 @@ public class MercadoPagoService {
         } catch (Exception e) {
             log.error("Error consultando authorized_payment {} en MP: {}", authorizedPaymentId, e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * Cancela en Mercado Pago TODAS las suscripciones (preapprovals) vivas del tenant, EXCEPTO
+     * {@code exceptId} (si se pasa).
+     *
+     * <p><b>Por qué existe (bug crítico de cobros duplicados):</b> cada alta, cambio de tarjeta o
+     * reactivación creaba un preapproval NUEVO sin dar de baja el anterior. El registro local solo
+     * guarda el último id, así que los viejos quedaban ACTIVOS en MP cobrando en paralelo → el
+     * cliente recibía varios cobros mensuales. Llamando a esto ANTES de crear uno nuevo (exceptId
+     * null) o al verificar (exceptId = el de registro), garantizamos UNA sola suscripción activa
+     * por tenant.</p>
+     *
+     * <p>Best-effort: si la búsqueda o un cancel fallan, se loguea y se continúa (no debe impedir
+     * que el cobro nuevo se cree).</p>
+     *
+     * @param exceptId preapproval a CONSERVAR (null = cancelar todos; usar antes de crear uno nuevo).
+     */
+    public void cancelActivePreapprovals(UUID tenantId, String exceptId) {
+        if (accessToken == null || accessToken.isBlank()) {
+            log.error("MP access token no configurado: no se pueden cancelar preapprovals previos del tenant {}.", tenantId);
+            return;
+        }
+        try {
+            HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+            HttpRequest searchReq = HttpRequest.newBuilder()
+                    .uri(URI.create(MP_API + "/preapproval/search?external_reference=" + tenantId))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .timeout(Duration.ofSeconds(15))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = http.send(searchReq, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.error("MP /preapproval/search (tenant {}) HTTP {} — body: {}", tenantId, resp.statusCode(), resp.body());
+                return;
+            }
+            JsonNode results = MAPPER.readTree(resp.body()).get("results");
+            if (results == null || !results.isArray()) return;
+
+            int cancelled = 0;
+            for (JsonNode pre : results) {
+                String id = text(pre, "id");
+                String status = text(pre, "status");
+                if (id == null || id.equals(exceptId)) continue;
+                // Solo las que siguen vivas (las ya canceladas/finalizadas se ignoran).
+                if ("authorized".equalsIgnoreCase(status) || "pending".equalsIgnoreCase(status)) {
+                    if (cancelPreapproval(http, id)) {
+                        cancelled++;
+                        log.warn("Preapproval previo {} (tenant {}, estado {}) CANCELADO en MP para evitar cobros duplicados.",
+                                id, tenantId, status);
+                    }
+                }
+            }
+            if (cancelled > 0) {
+                log.warn("Tenant {}: {} preapproval(s) previo(s) cancelado(s){}.",
+                        tenantId, cancelled, exceptId != null ? " (se conserva " + exceptId + ")" : "");
+            }
+        } catch (Exception e) {
+            log.error("Error cancelando preapprovals previos del tenant {}: {}", tenantId, e.getMessage(), e);
+        }
+    }
+
+    /** PUT status=cancelled sobre un preapproval. Devuelve true si MP lo aceptó. */
+    private boolean cancelPreapproval(HttpClient http, String preapprovalId) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(MP_API + "/preapproval/" + preapprovalId))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(15))
+                    .method("PUT", HttpRequest.BodyPublishers.ofString("{\"status\":\"cancelled\"}"))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) return true;
+            log.error("No se pudo cancelar preapproval {}: HTTP {} — {}", preapprovalId, resp.statusCode(), resp.body());
+            return false;
+        } catch (Exception e) {
+            log.error("Error cancelando preapproval {}: {}", preapprovalId, e.getMessage());
+            return false;
         }
     }
 
