@@ -1,10 +1,12 @@
 package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.security.TenantContextHolder;
+import com.veltronik.v2.gym.mappers.GymMemberMapper;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,6 +35,7 @@ public class GymDashboardService {
 
     private final GymMemberRepository memberRepository;
     private final GymPaymentRepository paymentRepository;
+    private final GymMemberMapper memberMapper;
 
     public Map<String, Object> getDashboardStats() {
         UUID tenantId = TenantContextHolder.getTenantId();
@@ -60,6 +63,7 @@ public class GymDashboardService {
         return stats;
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> getRetentionAnalytics() {
         UUID tenantId = TenantContextHolder.getTenantId();
         
@@ -83,9 +87,12 @@ public class GymDashboardService {
         analytics.put("active_members", activeMembers);
         analytics.put("inactive_members", inactiveMembers);
         analytics.put("retention_rate", Math.round(retentionRate));
-        analytics.put("expiring_soon", expiringSoon);
-        analytics.put("at_risk", atRisk);
-        
+        // DTO (no la entidad cruda): el front lee fullName/membershipEnd/phone. Con la entidad
+        // cruda llegaban firstName/lastName (NO fullName) → los socios salían sin nombre, y se
+        // exponia la entidad JPA (con su tenant lazy → riesgo de 500). Mandamiento #5.
+        analytics.put("expiring_soon", memberMapper.toDtoList(expiringSoon));
+        analytics.put("at_risk", memberMapper.toDtoList(atRisk));
+
         return analytics;
     }
 }
