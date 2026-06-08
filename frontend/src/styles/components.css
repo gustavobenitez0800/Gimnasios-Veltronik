@@ -189,11 +189,23 @@
   border-radius: var(--card-radius);
   padding: 1.5rem;
   transition: all var(--transition-normal);
-  box-shadow: var(--card-shadow-base);
+  /* Sombra de elevación + borde especular superior (glass), vía box-shadow para no
+     necesitar overflow:hidden (no recorta tablas/menús dentro de la card). */
+  box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--card-highlight);
 }
 
-[data-theme="dark"] .card {
-  box-shadow: var(--card-shadow-base), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+/* ── Utilidad de superficie glass reutilizable ──
+   El lenguaje glassmorphism del sistema, tokenizado por tema y vertical. Aplicá
+   `glass-surface` a cualquier panel/módulo nuevo (incluido un sistema futuro) para
+   el look premium consistente, sin volver a escribir el efecto. */
+.glass-surface {
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--card-highlight);
+  position: relative;
 }
 
 .card-hover:hover {
@@ -216,12 +228,11 @@
 /* ─── Tables ─── */
 .table-container {
   overflow-x: auto;
-  background: var(--card-bg);
-  backdrop-filter: var(--card-backdrop);
-  -webkit-backdrop-filter: var(--card-backdrop);
+  /* Va siempre dentro de una .card glass → transparente para NO apilar dos capas de
+     blur (mantiene el contraste/legibilidad del texto de las tablas). */
+  background: transparent;
   border-radius: var(--table-radius);
   border: var(--card-border);
-  box-shadow: var(--card-shadow-base);
 }
 
 /* Smart List (Floating Rows) */
