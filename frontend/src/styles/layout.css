@@ -238,6 +238,21 @@
   width: 100%;
 }
 
+/* Transición suave al cambiar de sección (fade + leve subida). Rápida (180ms) para que
+   se sienta fluido, no lento. Respeta prefers-reduced-motion. */
+.route-transition {
+  animation: routeFadeIn 0.18s ease-out;
+}
+
+@keyframes routeFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-transition { animation: none; }
+}
+
 /* ============================================
    RADICAL VERTICAL OVERRIDES (Layout & Sidebar)
    ============================================ */

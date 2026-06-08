@@ -3,7 +3,7 @@
 // ============================================
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { loading, subscription, gym } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Apply vertical theme
   useEffect(() => {
@@ -90,7 +91,10 @@ export function AppLayout() {
 
         <div className="page-content">
           <ErrorBoundary inline={true}>
-            <Outlet />
+            {/* key por ruta: re-dispara el fade-in suave al cambiar de sección */}
+            <div className="route-transition" key={location.pathname}>
+              <Outlet />
+            </div>
           </ErrorBoundary>
         </div>
       </main>
