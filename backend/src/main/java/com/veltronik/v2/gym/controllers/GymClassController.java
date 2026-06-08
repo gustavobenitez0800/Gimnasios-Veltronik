@@ -5,6 +5,7 @@ import com.veltronik.v2.gym.dto.GymClassInputDTO;
 import com.veltronik.v2.gym.entities.GymClass;
 import com.veltronik.v2.gym.mappers.GymClassMapper;
 import com.veltronik.v2.gym.services.GymClassService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,14 +47,14 @@ public class GymClassController {
     }
 
     @PostMapping
-    public ResponseEntity<GymClassDTO> createClass(@RequestBody GymClassInputDTO input) {
+    public ResponseEntity<GymClassDTO> createClass(@Valid @RequestBody GymClassInputDTO input) {
         GymClass gymClass = new GymClass();
         applyEditableFields(gymClass, input);
         return ResponseEntity.ok(classMapper.toDto(classService.saveForCurrentTenant(gymClass)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<GymClassDTO> updateClass(@PathVariable UUID id, @RequestBody GymClassInputDTO input) {
+    public ResponseEntity<GymClassDTO> updateClass(@PathVariable UUID id, @Valid @RequestBody GymClassInputDTO input) {
         GymClass existingClass = classService.findByIdAndVerifyOwnership(id);
         applyEditableFields(existingClass, input);
         return ResponseEntity.ok(classMapper.toDto(classService.saveForCurrentTenant(existingClass)));

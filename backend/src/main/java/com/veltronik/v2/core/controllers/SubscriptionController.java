@@ -6,8 +6,9 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.core.services.MercadoPagoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,7 +35,7 @@ public class SubscriptionController {
         }
 
         Tenant tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new RuntimeException("Gimnasio no encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gimnasio no encontrado"));
 
         String userEmail = com.veltronik.v2.core.security.SecurityUtils.getCurrentUserEmail();
         if (userEmail == null) {

@@ -4,8 +4,10 @@ import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.GymClass;
 import com.veltronik.v2.gym.repositories.GymClassRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,10 +31,10 @@ public class GymClassService {
 
     public GymClass findByIdAndVerifyOwnership(UUID id) {
         GymClass gymClass = classRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Clase no encontrada"));
-        
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Clase no encontrada"));
+
         if (!gymClass.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
-            throw new RuntimeException("Acceso denegado a esta clase");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado a esta clase");
         }
         return gymClass;
     }
@@ -44,7 +46,7 @@ public class GymClassService {
             tenant.setId(TenantContextHolder.getTenantId());
             gymClass.setTenant(tenant);
         } else if (!gymClass.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
-             throw new RuntimeException("Acceso denegado");
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado");
         }
         return classRepository.save(gymClass);
     }

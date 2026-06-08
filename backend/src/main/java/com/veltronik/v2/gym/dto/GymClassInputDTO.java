@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
@@ -12,10 +13,14 @@ import lombok.Data;
  */
 @Data
 public class GymClassInputDTO {
+    @NotBlank(message = "El nombre de la clase es obligatorio")
     private String name;
     private String instructor;
+    @NotBlank(message = "El día de la semana es obligatorio")
     private String dayOfWeek;
+    @NotBlank(message = "La hora de inicio es obligatoria")
     private String startTime;
+    @NotBlank(message = "La hora de fin es obligatoria")
     private String endTime;
     private Integer capacity;
     private String room;

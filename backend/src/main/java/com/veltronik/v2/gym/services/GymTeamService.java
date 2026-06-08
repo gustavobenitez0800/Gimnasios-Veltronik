@@ -7,7 +7,10 @@ import com.veltronik.v2.core.entities.UserRole;
 import com.veltronik.v2.core.repositories.AppUserRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
+import com.veltronik.v2.core.exceptions.BusinessException;
 import com.veltronik.v2.core.security.TenantContextHolder;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import com.veltronik.v2.gym.entities.AccessLog;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.entities.GymPayment;
@@ -65,16 +68,17 @@ public class GymTeamService {
     @Transactional
     public Map<String, Object> inviteMember(String email, String roleStr) {
         UUID tenantId = TenantContextHolder.getTenantId();
-        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow(() -> new RuntimeException("Tenant no encontrado"));
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant no encontrado"));
 
         AppUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("El empleado debe tener una cuenta registrada en Veltronik."));
+                .orElseThrow(() -> new BusinessException("El empleado debe tener una cuenta registrada en Veltronik."));
 
         UserRole role;
         try {
             role = UserRole.valueOf(roleStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Rol no válido");
+            throw new BusinessException("Rol no válido");
         }
 
         Optional<TenantMembership> existingOpt = membershipRepository.findByUserIdAndTenantId(user.getId(), tenantId);
@@ -83,7 +87,7 @@ public class GymTeamService {
         if (existingOpt.isPresent()) {
             membership = existingOpt.get();
             if (membership.isActive()) {
-                throw new RuntimeException("El usuario ya pertenece a este equipo.");
+                throw new BusinessException("El usuario ya pertenece a este equipo.");
             }
             // Re-activate
             membership.setActive(true);
@@ -110,17 +114,17 @@ public class GymTeamService {
     public Map<String, Object> updateRole(UUID userId, String newRoleStr) {
         UUID tenantId = TenantContextHolder.getTenantId();
         TenantMembership membership = membershipRepository.findByUserIdAndTenantId(userId, tenantId)
-                .orElseThrow(() -> new RuntimeException("Miembro no encontrado en este equipo"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro no encontrado en este equipo"));
 
         UserRole role;
         try {
             role = UserRole.valueOf(newRoleStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Rol no válido");
+            throw new BusinessException("Rol no válido");
         }
 
         if (membership.getRole() == UserRole.OWNER) {
-            throw new RuntimeException("No se puede cambiar el rol del dueño principal.");
+            throw new BusinessException("No se puede cambiar el rol del dueño principal.");
         }
 
         membership.setRole(role);
@@ -135,10 +139,10 @@ public class GymTeamService {
     public void removeMember(UUID userId) {
         UUID tenantId = TenantContextHolder.getTenantId();
         TenantMembership membership = membershipRepository.findByUserIdAndTenantId(userId, tenantId)
-                .orElseThrow(() -> new RuntimeException("Miembro no encontrado en este equipo"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro no encontrado en este equipo"));
 
         if (membership.getRole() == UserRole.OWNER) {
-            throw new RuntimeException("No se puede eliminar al dueño principal.");
+            throw new BusinessException("No se puede eliminar al dueño principal.");
         }
 
         // Logical delete or physical delete.

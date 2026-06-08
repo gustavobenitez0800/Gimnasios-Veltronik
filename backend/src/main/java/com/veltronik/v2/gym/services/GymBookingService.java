@@ -5,9 +5,12 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.GymBooking;
 import com.veltronik.v2.gym.entities.GymClass;
 import com.veltronik.v2.gym.entities.GymMember;
+import com.veltronik.v2.core.exceptions.BusinessException;
 import com.veltronik.v2.gym.repositories.GymBookingRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -39,7 +42,7 @@ public class GymBookingService {
                 TenantContextHolder.getTenantId(), classId, date, "CONFIRMED");
 
         if (currentBookings >= gymClass.getCapacity()) {
-            throw new RuntimeException("La clase está llena para esta fecha.");
+            throw new BusinessException("La clase está llena para esta fecha.");
         }
 
         Tenant tenant = new Tenant();
@@ -58,10 +61,10 @@ public class GymBookingService {
     @Transactional
     public void deleteBooking(UUID bookingId) {
         GymBooking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Reserva no encontrada"));
-        
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reserva no encontrada"));
+
         if (!booking.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
-            throw new RuntimeException("Acceso denegado");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado");
         }
         
         bookingRepository.delete(booking);
