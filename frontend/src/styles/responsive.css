@@ -1,125 +1,581 @@
 /* ============================================
-   RESPONSIVE
+   SISTEMA ADAPTATIVO VELTRONIK
+   ============================================
+   Diseñado para funcionar en CUALQUIER dispositivo:
+   teléfonos (incl. notch/isla dinámica), tablets,
+   notebooks, monitores ultrawide y modo apaisado.
+
+   Capas (de lo general a lo específico):
+     0. Fundaciones (todos los tamaños)
+     1. Dispositivos táctiles (hover: none)
+     2. Escritorio ultrawide (≥1680px)
+     3. Tablet — riel de íconos (769–1080px)
+     4. Mobile (≤768px)
+     5. Teléfonos chicos (≤480px)
+     6. Apaisado de poca altura (teléfono horizontal)
+     7. Accesibilidad de movimiento
+
+   IMPORTANTE: este archivo se importa ÚLTIMO en
+   index.css — sus reglas ganan la cascada.
    ============================================ */
 
+/* ────────────────────────────────────────────
+   0. FUNDACIONES (todos los tamaños)
+   ──────────────────────────────────────────── */
+
+html {
+  /* iOS Safari agranda tipografías en landscape si no se fija */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Evita el delay de 300ms y el zoom por double-tap en controles */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Alturas dinámicas: 100dvh sigue a la barra del navegador móvil
+   (100vh clásico deja un hueco o tapa contenido al ocultarse la barra) */
+.app-layout { min-height: 100vh; min-height: 100dvh; }
+.main-content { min-height: 100vh; min-height: 100dvh; }
+.auth-wrapper { min-height: 100vh; min-height: 100dvh; }
+.lobby-wrapper { min-height: 100vh; min-height: 100dvh; }
+.plans-page { min-height: 100vh; min-height: 100dvh; }
+
+/* Contenido centrado en monitores anchos (antes quedaba pegado a la izquierda) */
+.page-content {
+  margin-inline: auto;
+}
+
+/* El scroll del drawer/listas no "rebota" hacia el body */
+.sidebar-nav, .table-container, .alerts-panel, .checked-in-list, .payment-history-list {
+  overscroll-behavior: contain;
+}
+
+/* Scroll horizontal de tablas con inercia nativa en iOS */
+.table-container {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ────────────────────────────────────────────
+   1. DISPOSITIVOS TÁCTILES (sin mouse)
+   Lo que depende de :hover NO EXISTE en touch.
+   ──────────────────────────────────────────── */
+
+@media (hover: none), (pointer: coarse) {
+
+  /* CRÍTICO: las acciones de fila aparecían recién al hacer hover →
+     en un teléfono eran INVISIBLES. En touch van siempre visibles. */
+  .table .row-actions {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Objetivos táctiles cómodos (apuntando a ≥44px reales) */
+  .action-btn-quick { width: 40px; height: 40px; font-size: 1rem; }
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 38px; }
+  .btn-icon { padding: 0.75rem; }
+  .page-btn { min-width: 40px; height: 40px; }
+  .day-option { width: 46px; height: 46px; }
+  .password-toggle { padding: 0.6rem; }
+  .lobby-card-delete { width: 36px; height: 36px; }
+  .chip-remove { width: 32px; height: 32px; }
+  .sidebar-logout { padding: 0.75rem; }
+  .sidebar-theme-toggle { padding: 0.7rem; }
+  .toast-close { padding: 0.4rem; }
+
+  /* El orbe que sigue al mouse no tiene sentido sin mouse (y quema GPU) */
+  .aurora-mouse-orb { display: none; }
+
+  /* Hovers con transform se disparan con el tap y quedan "pegados" */
+  .card-hover:hover,
+  .lobby-card:hover,
+  .stat-card:hover,
+  .table tbody tr:hover,
+  .insight-item:hover,
+  .day-option:hover {
+    transform: none;
+  }
+}
+
+/* ────────────────────────────────────────────
+   2. ESCRITORIO ULTRAWIDE (≥1680px)
+   ──────────────────────────────────────────── */
+
+@media (min-width: 1680px) {
+  .page-content {
+    max-width: 1520px;
+    padding: 2.5rem 3rem;
+  }
+
+  .lobby-container { max-width: 1040px; }
+}
+
+/* ────────────────────────────────────────────
+   3. TABLET — RIEL DE ÍCONOS (769–1080px)
+   El sidebar completo (270px) se comía un cuarto
+   de la pantalla. En tablet se vuelve un riel
+   compacto de íconos con tooltip nativo (title).
+   ──────────────────────────────────────────── */
+
+@media (min-width: 769px) and (max-width: 1080px) {
+
+  .sidebar {
+    width: var(--sidebar-collapsed);
+  }
+
+  .main-content {
+    margin-left: var(--sidebar-collapsed);
+  }
+
+  /* Header: solo el logo, columna centrada */
+  .sidebar-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1rem 0.5rem;
+  }
+  .sidebar-logo { justify-content: center; }
+  .sidebar-logo > div { display: none !important; } /* texto "Veltronik" + subtítulo */
+
+  /* Navegación: íconos centrados, sin etiquetas */
+  .sidebar-nav { padding: 0.75rem 0.5rem; }
+  .nav-item {
+    justify-content: center;
+    padding: 0.8rem 0;
+    gap: 0;
+  }
+  .nav-item-label { display: none; }
+  .nav-item-icon { width: 1.35rem; height: 1.35rem; }
+
+  /* Los títulos de sección se vuelven separadores sutiles */
+  .nav-section-title {
+    font-size: 0;
+    padding: 0;
+    margin: 0.25rem 0.75rem 0.75rem;
+    border-top: 1px solid var(--border-color);
+  }
+  .nav-section:first-child .nav-section-title { border-top: none; margin-top: 0; }
+
+  /* Footer: avatar arriba, logout abajo */
+  .sidebar-footer { padding: 0.75rem 0.5rem; }
+  .sidebar-user { flex-direction: column; gap: 0.5rem; }
+  .sidebar-user-info { display: none; }
+
+  .page-content { padding: 1.75rem; }
+
+  /* Verticales con sidebar especial vuelven al riel estándar */
+  [data-vertical="salon"] .sidebar { left: 0; top: 0; bottom: 0; height: 100vh; border-radius: 0; }
+  [data-vertical="salon"] .main-content { margin-left: var(--sidebar-collapsed); }
+  [data-vertical="resto"] .main-content { margin-right: var(--sidebar-collapsed); margin-left: 0; }
+}
+
+/* ────────────────────────────────────────────
+   4. MOBILE (≤768px)
+   ──────────────────────────────────────────── */
+
 @media (max-width: 768px) {
+
   :root {
     --font-size-4xl: 1.875rem;
     --font-size-3xl: 1.5rem;
     --font-size-2xl: 1.25rem;
   }
 
+  /* ── Sidebar como drawer ── */
   .sidebar {
     transform: translateX(-100%);
+    width: min(82vw, 310px);
+    box-shadow: none;
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .sidebar.sidebar-open {
     transform: translateX(0);
+    box-shadow: 24px 0 60px rgba(0, 0, 0, 0.35);
   }
 
-  .sidebar-overlay {
-    display: block;
-  }
+  .sidebar-overlay { display: block; }
 
-  .main-content {
-    margin-left: 0;
-  }
+  .main-content { margin-left: 0; }
 
+  /* ── Header móvil: vidrio fijo arriba, respeta el notch ── */
   .mobile-header {
     display: flex;
+    padding: 0.75rem 1rem;
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+    backdrop-filter: blur(18px) saturate(1.3);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
   }
 
+  /* ── Contenido ── */
   .page-content {
-    padding: 1.25rem;
+    padding: 1rem;
+    padding-left: calc(1rem + env(safe-area-inset-left));
+    padding-right: calc(1rem + env(safe-area-inset-right));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
   }
 
+  /* El page-header deja de ser sticky: el header móvil ya es fijo y
+     dos barras pegadas se comían media pantalla */
   .page-header {
+    position: static;
     flex-direction: column;
-    gap: 1rem;
+    align-items: stretch;
+    gap: 0.85rem;
+    padding: 0.5rem 0 1rem;
+    margin-bottom: 1.25rem;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .page-header-actions {
     width: 100%;
-    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
-  .auth-card {
-    padding: 1.75rem;
+  /* Botones de cabecera a lo ancho: cómodos para el pulgar */
+  .page-header-actions .btn { flex: 1 1 auto; }
+
+  /* ── Grids del dashboard ── */
+  .stats-grid,
+  .stats-grid-2,
+  .stats-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
   }
 
-  .lobby-header {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
-  }
+  .stat-card { padding: 1rem; gap: 0.75rem; }
+  .stat-icon { width: 40px; height: 40px; font-size: 1.05rem; }
 
-  .lobby-user {
-    flex-direction: column;
-  }
-
-  .lobby-user-info {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .lobby-grid {
+  .dashboard-grid,
+  .dashboard-grid-3 {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
-  .dashboard-grid, .dashboard-grid-3, .dashboard-stats, .stats-grid {
-    grid-template-columns: 1fr !important;
-  }
+  .chart-container { height: 220px; }
+  .quick-actions { grid-template-columns: repeat(2, 1fr); }
 
-  .chart-container {
-    height: 200px;
-  }
+  /* ── TABLAS → TARJETAS APILADAS ──
+     Las tablas con celdas data-label (Socios, Pagos) se transforman en
+     tarjetas: cada fila es una card con pares "ETIQUETA — valor".
+     Las tablas sin data-label conservan scroll horizontal con inercia.
+     (:has() — en navegadores viejos degradan a scroll, nunca se rompen) */
 
-  .modal-actions {
-    flex-direction: column;
-  }
-
-  .modal-actions .btn {
-    max-width: none;
-  }
-
-  .toast-container {
-    left: 1rem;
-    right: 1rem;
-    max-width: none;
-  }
-
-  /* Reset vertical layout overrides for mobile */
-  [data-vertical="salon"] .sidebar {
-    left: 0;
-    top: 0;
-    bottom: 0;
-    height: 100vh;
-    border-radius: 0;
+  .table-container:has(td[data-label]) {
+    overflow: visible;
     border: none;
   }
 
-  [data-vertical="salon"] .main-content {
-    margin-left: 0;
-  }
+  .table:has(td[data-label]) { display: block; }
+  .table:has(td[data-label]) thead { display: none; }
 
-  [data-vertical="resto"] .app-layout {
+  .table:has(td[data-label]) tbody {
+    display: flex;
     flex-direction: column;
+    gap: 0.85rem;
   }
 
-  [data-vertical="resto"] .sidebar {
-    left: 0;
-    right: auto;
-    border-left: none;
+  .table:has(td[data-label]) tbody tr {
+    display: block;
+    padding: 0.45rem 0.2rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
   }
 
-  [data-vertical="resto"] .main-content {
-    margin-right: 0;
+  .table:has(td[data-label]) td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    white-space: normal;
+    padding: 0.5rem 1rem;
+    text-align: right;
   }
+
+  /* La etiqueta de columna viaja a cada celda */
+  .table:has(td[data-label]) td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* La primera celda (nombre) actúa de título de la tarjeta */
+  .table:has(td[data-label]) td:first-child {
+    font-size: var(--font-size-base);
+    padding-top: 0.75rem;
+  }
+
+  /* Acciones: fila propia, centradas, separadas con guiones */
+  .table:has(td[data-label]) td[data-label="Acciones"] {
+    justify-content: center;
+    border-top: 1px dashed var(--border-color);
+    margin-top: 0.35rem;
+    padding-top: 0.8rem;
+    padding-bottom: 0.65rem;
+  }
+  .table:has(td[data-label]) td[data-label="Acciones"]::before { display: none; }
+
+  /* Estados de carga / vacío (celdas sin data-label dentro de una tabla con cards) */
+  .table:has(td[data-label]) td:not([data-label]) {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* El hover-lift de filas no aplica al formato tarjeta */
+  .table:has(td[data-label]) tbody tr:hover { transform: none; }
+
+  /* ── Filtros y paginación ── */
+  .table-header { padding: 0.85rem 1rem; }
+
+  .table-filters { width: 100%; }
+
+  /* El buscador ocupa todo el ancho (pisa el max-width inline del componente) */
+  .table-filters .form-input {
+    max-width: 100% !important;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .table-filters .form-select { flex: 1 1 auto; }
+
+  .pagination-container {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* ── Modales → BOTTOM SHEETS ──
+     Patrón nativo de apps: la hoja sube desde abajo, con asa para
+     arrastrar la vista, scroll interno y botones a lo ancho. */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-container {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 1.5rem 1.25rem;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    animation: sheetUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Asa visual de la hoja */
+  .modal-container::before {
+    content: '';
+    display: block;
+    width: 44px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--border-color-hover);
+    margin: 0 auto 1.1rem;
+  }
+
+  .member-modal, .payments-modal {
+    max-width: 100%;
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .modal-actions { flex-direction: column; }
+  .modal-actions .btn { max-width: none; width: 100%; }
+
+  /* El muro de pago del lobby también es bottom sheet */
+  .lobby-blocked-overlay { align-items: flex-end; padding: 0; }
+  .lobby-blocked-modal {
+    max-width: 100%;
+    border-radius: 28px 28px 0 0;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 2rem 1.5rem;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+
+  /* ── Toasts: ancho completo arriba, bajo el notch ── */
+  .toast-container {
+    left: 0.85rem;
+    right: 0.85rem;
+    top: calc(0.85rem + env(safe-area-inset-top));
+    max-width: none;
+  }
+
+  /* ── Auth (login / registro) ── */
+  .auth-wrapper {
+    padding: 1.25rem;
+    padding-top: calc(1.25rem + env(safe-area-inset-top));
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  }
+
+  .auth-card { padding: 1.75rem 1.5rem; }
+
+  /* Orbes de la aurora más chicos: mismo clima visual, mucha menos GPU */
+  .auth-wrapper::before { width: 340px; height: 340px; filter: blur(60px); }
+  .auth-wrapper::after { width: 300px; height: 300px; filter: blur(60px); }
+
+  /* ── Lobby ── */
+  .lobby-wrapper {
+    padding: 1.25rem;
+    padding-top: calc(1.25rem + env(safe-area-inset-top));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+
+  .lobby-header {
+    margin-bottom: 2rem;
+    padding: 0.75rem 0;
+    gap: 0.75rem;
+  }
+
+  .lobby-user { gap: 0.85rem; }
+  .lobby-user-info { gap: 0.75rem; }
+  .lobby-logo { display: none; } /* el avatar ya identifica; el logo duplicaba */
+  .lobby-avatar { width: 42px; height: 42px; }
+  .lobby-user-name { font-size: var(--font-size-base); }
+  .lobby-user-email { font-size: var(--font-size-xs); }
+
+  .lobby-title {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+  }
+  .lobby-subtitle { font-size: var(--font-size-base); }
+  .lobby-title-section { margin-bottom: 1.5rem; }
+
+  .lobby-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .lobby-card {
+    padding: 2rem 1.5rem;
+    border-radius: 24px;
+  }
+
+  /* ── Calendario de clases: 2 columnas legibles ── */
+  .weekly-calendar { gap: 0.6rem; }
+  .day-classes { min-height: 120px; }
+
+  /* ── Acceso: lista de presentes con altura propia ── */
+  .checked-in-list { max-height: 320px; }
+
+  /* ── Verticales con layout especial vuelven al estándar en mobile ── */
+  [data-vertical="salon"] .sidebar {
+    left: 0; top: 0; bottom: 0;
+    height: 100vh; height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+  [data-vertical="salon"] .main-content { margin-left: 0; }
+  [data-vertical="resto"] .app-layout { flex-direction: column; }
+  [data-vertical="resto"] .sidebar { left: 0; right: auto; border-left: none; }
+  [data-vertical="resto"] .main-content { margin-right: 0; }
 }
 
+@keyframes sheetUp {
+  from { opacity: 0.6; transform: translateY(40%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Entre 481 y 768: el lobby aprovecha el ancho con 2 columnas */
+@media (min-width: 540px) and (max-width: 768px) {
+  .lobby-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ────────────────────────────────────────────
+   5. TELÉFONOS CHICOS (≤480px)
+   ──────────────────────────────────────────── */
+
 @media (max-width: 480px) {
+
+  .page-content { padding: 0.85rem; padding-bottom: calc(2rem + env(safe-area-inset-bottom)); }
+
+  /* Stat cards en columna: número grande arriba del label, estilo bento */
+  .stat-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.9rem;
+  }
+  .stat-icon { width: 36px; height: 36px; }
+
   .auth-card {
-    padding: 1.25rem;
+    padding: 1.5rem 1.25rem;
     border-radius: var(--border-radius-lg);
   }
+
+  .auth-logo-img { width: 48px; height: 48px; }
+
+  /* Calendario de clases: 1 columna scrolleable */
+  .weekly-calendar { grid-template-columns: 1fr; }
+  .day-classes { min-height: auto; }
+
+  /* Tarjetas del equipo y ajustes ya colapsan vía sus propios media queries */
+
+  .lobby-card { padding: 1.75rem 1.25rem; }
+  .lobby-card-icon { width: 60px; height: 60px; }
+
+  .empty-state { padding: 3rem 1.25rem; }
+  .empty-state-icon { width: 64px; height: 64px; }
+
+  .plans-card { padding: 2rem 1.25rem 1.5rem; }
+
+  /* Selector de días: que entren los 7 en una fila si se puede */
+  .days-selector { gap: 0.4rem; }
+}
+
+/* ────────────────────────────────────────────
+   6. APAISADO DE POCA ALTURA (teléfono horizontal)
+   ──────────────────────────────────────────── */
+
+@media (max-height: 540px) and (max-width: 950px) {
+
+  /* El login debe poder scrollear (overflow:hidden lo recortaba). Altura FIJA al
+     viewport: el wrapper es el scroller y nunca asoma el body por debajo. */
+  .auth-wrapper {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 1rem;
+  }
+  .auth-card { margin: 0.5rem auto; }
+  .auth-logo { margin-bottom: 1rem; }
+
+  /* Modales centrados de nuevo (una hoja desde abajo no entra) */
+  .modal-overlay { align-items: center; padding: 0.75rem; }
+  .modal-container {
+    border-radius: var(--card-radius);
+    max-height: calc(100dvh - 1.5rem);
+  }
+  .modal-container::before { display: none; }
+
+  .lobby-blocked-overlay { align-items: center; padding: 0.75rem; }
+  .lobby-blocked-modal { border-radius: 24px; max-height: calc(100dvh - 1.5rem); }
+}
+
+/* ────────────────────────────────────────────
+   7. ACCESIBILIDAD DE MOVIMIENTO
+   ──────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-container { animation: none; }
+  .auth-wrapper::before,
+  .auth-wrapper::after { animation: none; }
+  .stats-grid > *, .dashboard-grid > *, .dashboard-grid-3 > * { animation: none; }
 }

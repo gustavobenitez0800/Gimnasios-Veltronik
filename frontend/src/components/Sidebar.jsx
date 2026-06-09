@@ -219,9 +219,11 @@ export default function Sidebar({ isOpen, onClose }) {
                     `nav-item ${isActive ? 'active' : ''}`
                   }
                   onClick={onClose}
+                  title={item.label}
                 >
                   <Icon name={item.icon} className="nav-item-icon" />
-                  {item.label}
+                  {/* span con clase: permite ocultar el texto en el riel compacto de tablet */}
+                  <span className="nav-item-label">{item.label}</span>
                 </NavLink>
               ))}
             </div>
