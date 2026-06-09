@@ -40,16 +40,25 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Una página puede disparar varias requests en paralelo; si el token venció, TODAS
+// vuelven 401 a la vez. Sin este guard se emitían N eventos 'auth-unauthorized' → N
+// logouts encadenados (cada uno con su redirect+reload) → crash al cerrar sesión.
+// No se resetea: el logout termina en una recarga completa de la app.
+let unauthorizedHandled = false;
+
 // Interceptor de RESPONSE: Manejar errores globales (ej: 401 Unauthorized, 402 Payment Required)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Token expirado o inválido: Forzar logout visual
-      supabase.auth.signOut();
+      if (!unauthorizedHandled) {
+        unauthorizedHandled = true;
+        // Token expirado o inválido: Forzar logout visual
+        supabase.auth.signOut();
 
-      // Emitir un evento global para que AuthContext reaccione
-      window.dispatchEvent(new Event('auth-unauthorized'));
+        // Emitir un evento global para que AuthContext reaccione (UNA sola vez)
+        window.dispatchEvent(new Event('auth-unauthorized'));
+      }
     } else if (error.response && error.response.status === 402) {
       // Kill Switch Activado: Sucursal inactiva por falta de pago
       window.dispatchEvent(new Event('auth-payment-required'));

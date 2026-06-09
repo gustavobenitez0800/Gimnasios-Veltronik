@@ -1,34 +1,12 @@
 import apiClient from '../lib/apiClient';
 
 /**
- * Servicio para gestionar Suscripciones usando la API Java.
+ * Servicio de la suscripción del SaaS (cobro con tarjeta + estado de facturación).
+ *
+ * NOTA: el CRUD genérico que vivía acá (/gym/subscriptions) apuntaba a endpoints que
+ * NO existen en el backend y no tenía consumidores — era código muerto y se eliminó.
  */
 class SubscriptionService {
-  async getAllSubscriptions() {
-    const response = await apiClient.get('/gym/subscriptions');
-    return response.data;
-  }
-
-  async getSubscriptionById(id) {
-    const response = await apiClient.get(`/gym/subscriptions/${id}`);
-    return response.data;
-  }
-
-  async createSubscription(subscriptionData) {
-    const response = await apiClient.post('/gym/subscriptions', subscriptionData);
-    return response.data;
-  }
-
-  async updateSubscription(id, subscriptionData) {
-    const response = await apiClient.put(`/gym/subscriptions/${id}`, subscriptionData);
-    return response.data;
-  }
-
-  async deleteSubscription(id) {
-    await apiClient.delete(`/gym/subscriptions/${id}`);
-    return true;
-  }
-
   /**
    * Cobro "poné la tarjeta y listo": manda el token de la tarjeta (ya tokenizada por el
    * Card Payment Brick de MP) + el email, y el backend crea la suscripción autorizada.

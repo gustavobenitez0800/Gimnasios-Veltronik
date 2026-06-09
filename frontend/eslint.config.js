@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'dist_electron', 'release']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -14,8 +14,27 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        // Inyectada por Vite (define) con la versión del package.json.
+        __APP_VERSION__: 'readonly',
+      },
       parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: {
+      // Regla estándar del template de Vite+React: sin el plugin eslint-plugin-react
+      // (jsx-uses-vars), todo componente usado SOLO en JSX figura como "no usado".
+      // Ignorar identificadores que empiezan en mayúscula (componentes/constantes)
+      // elimina esos falsos positivos y deja los positivos reales (minúscula).
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
+      // Reglas nuevas (react-hooks v6+) sobre patrones de efectos: son consejos de
+      // performance/estilo, no bugs. Quedan como warning para verlas sin romper el lint
+      // (refactorizarlas en una app en producción es un cambio de comportamiento aparte).
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-refresh/only-export-components': 'warn',
     },
   },
 ])

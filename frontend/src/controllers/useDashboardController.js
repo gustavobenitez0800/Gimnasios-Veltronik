@@ -6,9 +6,16 @@ import { paymentService } from '../services/PaymentService';
 import { insightsService } from '../services';
 
 export function useDashboardController(gym) {
+  // El id del negocio sale del contexto O del localStorage (que el Lobby setea ANTES de
+  // navegar; `gym` se hidrata en background y llega DESPUÉS). Antes, al entrar desde el
+  // Lobby este hook corría con gym=null → cacheaba un dashboard VACÍO bajo la key null,
+  // y al llegar `gym` cambiaba la key y refetcheaba todo → "carga sin datos, vuelve a
+  // cargar y recién ahí muestra datos". Con el fallback, el fetch real arranca al instante.
+  const orgId = gym?.id || localStorage.getItem('current_org_id');
+
   const fetchDashboardData = useCallback(async () => {
-    if (!gym?.id) return { dashStats: null, membersData: [], paymentsData: [] };
-    
+    if (!orgId) return { dashStats: null, membersData: [], paymentsData: [] };
+
     const [dashStats, rawMembers, paymentsData] = await Promise.all([
       dashboardStatsService.getDashboardStats(),
       memberService.getAllMembers(),
@@ -50,10 +57,10 @@ export function useDashboardController(gym) {
       membersData, 
       paymentsData: mappedPayments 
     };
-  }, [gym?.id]);
+  }, [orgId]);
 
   const { data, loading, isFetching, invalidate } = useQueryCache(
-    ['gym_dashboard', gym?.id], 
+    ['gym_dashboard', orgId],
     fetchDashboardData,
     { staleTime: 3 * 60 * 1000 }
   );

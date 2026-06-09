@@ -41,9 +41,12 @@ class AuthService {
   }
 
   async signOut() {
+    // OJO: acá NO se dispara 'auth-unauthorized'. Ese evento significa "el backend
+    // rechazó el token" y su handler en AuthContext es logout() → dispararlo desde
+    // el propio signOut creaba un bucle logout → signOut → evento → logout... que
+    // encadenaba recargas y crasheaba al cerrar sesión para cambiar de cuenta.
     this.clearPlatformState();
     await supabase.auth.signOut();
-    window.dispatchEvent(new Event('auth-unauthorized'));
   }
 
   /**

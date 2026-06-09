@@ -10,6 +10,7 @@ import { gymService, errorService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
+import apiClient from '../lib/apiClient';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
@@ -38,7 +39,6 @@ export default function SettingsPage() {
   // Action states
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [updatingPayment, setUpdatingPayment] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [verifyingSubscription, setVerifyingSubscription] = useState(false);
   const [showCardForm, setShowCardForm] = useState(false);
@@ -67,7 +67,7 @@ export default function SettingsPage() {
       try {
         const tenantId = authGym?.id || localStorage.getItem('current_org_id');
         if (tenantId) {
-          const subRes = await import('../lib/apiClient').then(m => m.default.get(`/tenants/${tenantId}/subscription`));
+          const subRes = await apiClient.get(`/tenants/${tenantId}/subscription`);
           if (subRes.status === 200 && subRes.data) {
             hasSubscription = true;
           }
@@ -139,43 +139,9 @@ export default function SettingsPage() {
     }
   };
 
-  // Update payment method — generates new MP checkout link
-  const handleUpdatePaymentMethod = async () => {
-    const gymId = authGym?.id;
-    const email = subscriptionInfo.payerEmail || user?.email || profile?.email;
-
-    if (!gymId || !email) {
-      showToast('No se encontraron los datos necesarios', 'error');
-      return;
-    }
-
-    setUpdatingPayment(true);
-    try {
-      const { ok, data: result } = await apiCall('/update-payment-method', {
-        gym_id: gymId,
-        payer_email: email,
-      });
-
-      if (!ok) {
-        throw new Error(result.error || 'Error al actualizar método de pago');
-      }
-
-      const checkoutUrl = CONFIG.DEBUG
-        ? (result.data?.sandbox_init_point || result.data?.init_point)
-        : (result.data?.init_point || result.data?.sandbox_init_point);
-
-      if (checkoutUrl) {
-        showToast('Redirigiendo a Mercado Pago para actualizar tu tarjeta...', 'info');
-        setTimeout(() => { window.location.href = checkoutUrl; }, 1000);
-      } else {
-        throw new Error('No se obtuvo URL de checkout');
-      }
-    } catch (error) {
-      showToast(error.message || 'Error al actualizar método de pago', 'error');
-    } finally {
-      setUpdatingPayment(false);
-    }
-  };
+  // NOTA: el flujo viejo de "cambiar método de pago" (redirección al link de MP vía
+  // /update-payment-method) fue reemplazado por el Card Payment Brick embebido
+  // (showCardForm + <CardCheckout/>), que cobra sin redirección. Se eliminó el handler muerto.
 
   // Tarjeta nueva cargada OK (Brick) → cerrar el form y recargar estado.
   const handleCardSuccess = async () => {

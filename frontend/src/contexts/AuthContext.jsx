@@ -48,6 +48,15 @@ export function AuthProvider({ children }) {
   const [orgName, setOrgName] = useState(localStorage.getItem('current_org_name') || '');
   // Track if initial auth has completed to prevent premature redirects
   const initCompleteRef = useRef(false);
+  // Guard reentrante del logout: el evento 'auth-unauthorized' y el botón Salir pueden
+  // dispararlo en cascada; solo el primero debe ejecutar la salida (evita el crash
+  // de múltiples signOut + redirects encadenados al cambiar de cuenta).
+  const loggingOutRef = useRef(false);
+  // Dedupe de initAuth: el signIn dispara SIGNED_IN (cuyo listener llama initAuth) y
+  // login() también la llama → dos cargas idénticas en paralelo pisándose el estado.
+  const initAuthPromiseRef = useRef(null);
+  // Último negocio cuyo contexto se cargó: la caché solo se limpia al CAMBIAR de negocio.
+  const lastLoadedOrgRef = useRef(localStorage.getItem('current_org_id'));
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -143,8 +152,13 @@ export function AuthProvider({ children }) {
   const refreshOrgContext = useCallback(async (orgId) => {
     if (!orgId) return;
 
-    // Clear all cached data when switching orgs to prevent cross-org data leaks
-    clearQueryCache();
+    // Limpiar la caché SOLO al cambiar de negocio (previene fugas cross-org). Antes se
+    // limpiaba siempre: al re-entrar al MISMO negocio tiraba los datos recién cargados
+    // y obligaba a cada módulo a refetchear de cero (parte de la lentitud percibida).
+    if (lastLoadedOrgRef.current !== orgId) {
+      clearQueryCache();
+    }
+    lastLoadedOrgRef.current = orgId;
 
     // Load gym data, subscription, and role in parallel
     const currentUserId = user?.id;
@@ -178,7 +192,7 @@ export function AuthProvider({ children }) {
   }, [user, loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg, loadRoleForOrg]);
 
   // Initialize auth state from Supabase
-  const initAuth = useCallback(async () => {
+  const doInitAuth = async () => {
     try {
       const session = await authService.getSession().catch(() => null);
       if (!session) {
@@ -238,6 +252,16 @@ export function AuthProvider({ children }) {
       setLoading(false);
       initCompleteRef.current = true;
     }
+  };
+
+  const initAuth = useCallback(async () => {
+    // Si ya hay una carga en curso, reusarla: evita la doble corrida (listener SIGNED_IN
+    // + llamada directa de login/register) que duplicaba requests y pisaba estados.
+    if (initAuthPromiseRef.current) return initAuthPromiseRef.current;
+    const run = doInitAuth();
+    initAuthPromiseRef.current = run.finally(() => { initAuthPromiseRef.current = null; });
+    return initAuthPromiseRef.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
 
   useEffect(() => {
@@ -248,6 +272,7 @@ export function AuthProvider({ children }) {
       async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           clearQueryCache();
+          lastLoadedOrgRef.current = null;
           setUser(null);
           setProfile(null);
           setGym(null);
@@ -352,12 +377,18 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
+    // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
+    // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
     try {
       await authService.signOut();
     } catch {
       // Force redirect anyway
     }
     clearQueryCache();
+    lastLoadedOrgRef.current = null;
     setUser(null);
     setProfile(null);
     setGym(null);

@@ -2,7 +2,7 @@
 // VELTRONIK V2 - PAYMENTS PAGE (Refactored for Scale & Cache)
 // ============================================
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService } from '../services';
@@ -267,7 +267,7 @@ export default function PaymentsPage() {
             membershipEnd: `${data.periodEnd}T23:59:59`,
             status: 'active',
           });
-        } catch {}
+        } catch { /* best-effort: el pago ya quedó registrado; la membresía se puede ajustar a mano */ }
       }
 
       modal.close();
@@ -306,7 +306,7 @@ export default function PaymentsPage() {
             membershipEnd: `${payment.periodEnd}T23:59:59`,
             status: 'active',
           });
-        } catch {}
+        } catch { /* best-effort: el pago ya quedó marcado; la membresía se puede ajustar a mano */ }
       }
       loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
     } catch (error) {

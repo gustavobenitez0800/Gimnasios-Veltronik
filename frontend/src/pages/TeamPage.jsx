@@ -2,7 +2,7 @@
 // VELTRONIK V2 - TEAM PAGE
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeamController } from '../controllers/useTeamController';

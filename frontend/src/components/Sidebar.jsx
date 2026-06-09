@@ -122,10 +122,13 @@ function getNavSections(orgType, role) {
     default: sections = getGymNav(orgType);
   }
 
-  // Role-based filtering
+  // Role-based filtering — espejo de la política del backend (@PreAuthorize):
+  // Dashboard/Pagos/Retención/Reportes exponen datos financieros y el backend los
+  // restringe a OWNER/ADMIN. Mostrarlos a staff/reception solo producía pantallas
+  // rotas con 403 ("el frontend solo dibuja lo que el backend permite").
   if (role === 'reception') {
-    // Reception: only Dashboard, Access, and platform nav
-    const allowedPaths = [CONFIG.ROUTES.DASHBOARD, CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.LOBBY, CONFIG.ROUTES.SETTINGS];
+    // Recepción: check-in/acceso y ajustes (solo lectura para su rol).
+    const allowedPaths = [CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY];
     return sections.map(section => ({
       ...section,
       items: section.items.filter(item => allowedPaths.includes(item.to)),
@@ -133,8 +136,14 @@ function getNavSections(orgType, role) {
   }
 
   if (role === 'staff') {
-    // Staff: everything except Team management
-    const blockedPaths = [CONFIG.ROUTES.TEAM];
+    // Staff: operación diaria (socios, clases, acceso) sin equipo ni analítica financiera.
+    const blockedPaths = [
+      CONFIG.ROUTES.TEAM,
+      CONFIG.ROUTES.DASHBOARD,
+      CONFIG.ROUTES.PAYMENTS,
+      CONFIG.ROUTES.RETENTION,
+      CONFIG.ROUTES.REPORTS,
+    ];
     return sections.map(section => ({
       ...section,
       items: section.items.filter(item => !blockedPaths.includes(item.to)),
@@ -145,7 +154,7 @@ function getNavSections(orgType, role) {
 }
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { profile, logout, gym, orgRole, orgName } = useAuth();
+  const { profile, logout, gym, orgRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.fullName || 'Usuario';
@@ -154,7 +163,6 @@ export default function Sidebar({ isOpen, onClose }) {
   const initials = getInitials(userName);
 
   const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const currentOrgName = orgName || gym?.name || localStorage.getItem('current_org_name') || 'Veltronik';
   const navSections = getNavSections(currentOrgType, orgRole);
 
   const handleLogout = async () => {

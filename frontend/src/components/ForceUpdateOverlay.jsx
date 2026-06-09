@@ -48,13 +48,11 @@ export default function ForceUpdateOverlay() {
     const [downloadUrl, setDownloadUrl] = useState(null);
     const [downloadSize, setDownloadSize] = useState(null);
     const [releaseDate, setReleaseDate] = useState(null);
-    const [releaseNotes, setReleaseNotes] = useState('');
     const [needsUpdate, setNeedsUpdate] = useState(false);
     const [isElectron, setIsElectron] = useState(false);
     const [autoUpdateInProgress, setAutoUpdateInProgress] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(null);
     const [updateDownloaded, setUpdateDownloaded] = useState(false);
-    const [checkError, setCheckError] = useState(null);
 
     // Obtener la versión actual de la app
     const getCurrentVersion = useCallback(async () => {
@@ -99,13 +97,10 @@ export default function ForceUpdateOverlay() {
             setDownloadUrl(exeAsset?.browser_download_url || release.html_url);
             setDownloadSize(exeAsset?.size || null);
             setReleaseDate(release.published_at);
-            setReleaseNotes(release.body || '');
-            setCheckError(null);
 
             return latest;
         } catch (error) {
             console.error('Error checking latest version:', error);
-            setCheckError(error.message);
             return null;
         }
     }, []);
@@ -148,7 +143,7 @@ export default function ForceUpdateOverlay() {
         }
 
         if (window.electronAPI.onUpdateDownloaded) {
-            window.electronAPI.onUpdateDownloaded((info) => {
+            window.electronAPI.onUpdateDownloaded(() => {
                 setUpdateDownloaded(true);
                 setAutoUpdateInProgress(false);
                 setDownloadProgress(100);

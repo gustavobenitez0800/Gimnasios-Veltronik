@@ -11,6 +11,20 @@
   position: relative;
   overflow: hidden;
   background: #0a0e1a;
+
+  /* El fondo aurora es SIEMPRE oscuro (hardcodeado arriba), pero los tokens de texto
+     cambian con data-theme: en modo claro --text-primary pasa a casi-negro y las
+     palabras desaparecen sobre el vidrio oscuro. Fijamos acá los tokens del tema
+     oscuro para que las pantallas de auth se vean igual en ambos modos. */
+  --text-primary: #e8eaed;
+  --text-secondary: #a0a6b0;
+  --text-muted: #98a0ab;
+  --bg-primary: #0b0e14;
+  --bg-secondary: #12151c;
+  --bg-tertiary: #1a1e27;
+  --bg-elevated: #20252f;
+  --border-color: rgba(255, 255, 255, 0.07);
+  --border-color-hover: rgba(255, 255, 255, 0.14);
 }
 
 /* ---- Aurora Borealis: 3 orbes animados ---- */

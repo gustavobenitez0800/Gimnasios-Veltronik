@@ -5,7 +5,7 @@
 // Blocked orgs show an in-page modal instead of navigating.
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -16,7 +16,6 @@ import { getInitials } from '../lib/utils';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import gymLogoSrc from '../assets/VeltronikGym.png';
-import restoLogoSrc from '../assets/VeltronikRestaurante.png';
 import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
@@ -258,7 +257,7 @@ const BLOCK_MESSAGES = {
 // ============================================
 
 export default function LobbyPage() {
-  const { profile, logout, refreshAuth, refreshOrgContext } = useAuth();
+  const { profile, logout, refreshOrgContext } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -275,37 +274,49 @@ export default function LobbyPage() {
   const userName = profile?.fullName || 'Usuario';
   const initials = getInitials(userName);
 
+  // El spinner de pantalla completa solo corresponde a la PRIMERA carga; los refrescos
+  // (focus, polling del muro de pago) actualizan en silencio sin parpadear la grilla.
+  const hasLoadedOnceRef = useRef(false);
+
   // ─── Load all organizations + their subscription statuses ───
   const loadOrgs = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!hasLoadedOnceRef.current) setLoading(true);
       const data = await gymService.getUserGyms();
       // Filtrar duplicados en caso de errores en la DB
-      const uniqueOrgs = Array.from(new Map((data || []).map(org => [org.id, org])).values());
-      const orgsList = uniqueOrgs;
+      const orgsList = Array.from(new Map((data || []).map(org => [org.id, org])).values());
       setOrgs(orgsList);
+      // Mostrar las cards YA: los estados de pago y los grupos llegan en background.
+      // Antes la pantalla quedaba en "Cargando negocios..." hasta terminar TODO
+      // (negocios → grupos → 1 request de suscripción POR negocio, en serie).
+      hasLoadedOnceRef.current = true;
+      setLoading(false);
 
-      // Grupos del dueño (para organizar el lobby). Best-effort: si falla, lobby plano.
-      try {
-        setGroups(await groupService.getMyGroups() || []);
-      } catch { setGroups([]); }
+      // Grupos del dueño (para organizar el lobby), en paralelo. Best-effort.
+      const groupsPromise = groupService.getMyGroups()
+        .then(g => setGroups(g || []))
+        .catch(() => setGroups([]));
 
-      // Batch load subscriptions for all orgs
       if (orgsList.length > 0) {
-        const orgIds = orgsList.map(o => o.id);
-
-        // Batch load subscriptions for all orgs using apiClient
-        const subPromises = orgsList.map(org =>
-          apiClient.get(`/tenants/${org.id}/subscription`, {
-            // X-Tenant-ID explícito = la org que se está consultando (no la del localStorage).
-            // Alinea el chequeo IDOR del backend Y el filtro de Hibernate sobre Subscription.
-            headers: { 'X-Tenant-ID': org.id }
-          })
-            .then(res => res.data)
-            .catch(() => null)
-        );
-        const allSubsRaw = await Promise.all(subPromises);
-        const allSubs = allSubsRaw.filter(sub => sub !== null && sub !== "");
+        // 1 sola request batch con TODAS las suscripciones del usuario. Si el backend
+        // aún no tiene el endpoint (deploy desfasado), cae al método viejo por-negocio.
+        let allSubsRaw;
+        try {
+          const res = await apiClient.get('/tenants/my/subscriptions');
+          allSubsRaw = res.data || [];
+        } catch {
+          const subPromises = orgsList.map(org =>
+            apiClient.get(`/tenants/${org.id}/subscription`, {
+              // X-Tenant-ID explícito = la org que se está consultando (no la del localStorage).
+              // Alinea el chequeo IDOR del backend Y el filtro de Hibernate sobre Subscription.
+              headers: { 'X-Tenant-ID': org.id }
+            })
+              .then(res => res.data)
+              .catch(() => null)
+          );
+          allSubsRaw = await Promise.all(subPromises);
+        }
+        const allSubs = (allSubsRaw || []).filter(sub => sub !== null && sub !== "");
 
         // Build a map: orgId → best subscription (active > latest)
         const subMap = {};
@@ -325,7 +336,11 @@ export default function LobbyPage() {
           statuses[org.id] = computeOrgAccessStatus(org, sub);
         }
         setOrgStatuses(statuses);
+      } else {
+        setOrgStatuses({});
       }
+
+      await groupsPromise;
     } catch (err) {
       console.error('Error loading orgs:', err);
       showToast('Error al cargar los negocios', 'error');
@@ -367,16 +382,26 @@ export default function LobbyPage() {
   const handleSelectOrg = async (org) => {
     const orgType = org.type || 'GYM';
     const accessStatus = orgStatuses[org.id];
+    const role = org.role || 'owner';
 
     // Store org context in localStorage
     localStorage.setItem('current_org_id', org.id);
-    localStorage.setItem('current_org_role', org.role || 'owner');
+    localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', org.name);
     localStorage.setItem('current_org_type', orgType);
 
-    // If org has valid access → navigate immediately, refresh in background (optimistic)
-    if (accessStatus?.canAccess) {
-      navigate(CONFIG.ROUTES.DASHBOARD);
+    // Landing por rol: el Dashboard (KPIs financieros) es OWNER/ADMIN en el backend;
+    // staff/reception aterrizan en Acceso (su pantalla de trabajo real).
+    const landingRoute = (role === 'owner' || role === 'admin')
+      ? CONFIG.ROUTES.DASHBOARD
+      : CONFIG.ROUTES.ACCESS;
+
+    // Acceso válido O estado aún verificándose → navegar YA (optimista). Si el negocio
+    // estuviera bloqueado, el KillSwitch del backend responde 402 y la app redirige a
+    // BLOCKED igual — la velocidad no compromete el cobro. El contexto se refresca en
+    // background sin frenar el click.
+    if (!accessStatus || accessStatus.canAccess) {
+      navigate(landingRoute);
       refreshOrgContext(org.id); // non-blocking — loads in background
       return;
     }
@@ -511,8 +536,8 @@ export default function LobbyPage() {
           {{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción' }[org.role] || org.role}
         </p>
 
-        {/* Status indicator */}
-        {accessStatus && (
+        {/* Status indicator (chip neutro mientras se verifica el estado de pago) */}
+        {accessStatus ? (
           <div
             className="lobby-card-status"
             style={{
@@ -523,6 +548,18 @@ export default function LobbyPage() {
           >
             <Icon name={accessStatus.icon} size="0.95em" />
             <span>{accessStatus.label}</span>
+          </div>
+        ) : (
+          <div
+            className="lobby-card-status"
+            style={{
+              background: 'rgba(148, 163, 184, 0.12)',
+              color: '#94a3b8',
+              borderColor: 'rgba(148, 163, 184, 0.25)',
+            }}
+          >
+            <span className="spinner" style={{ width: '0.85em', height: '0.85em' }} />
+            <span>Verificando…</span>
           </div>
         )}
 

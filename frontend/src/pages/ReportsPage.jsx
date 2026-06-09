@@ -2,7 +2,7 @@
 // VELTRONIK V2 - REPORTS PAGE (Refactored to Fetch-on-Demand)
 // ============================================
 
-import { Suspense, lazy, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, paymentService, accessService } from '../services';
@@ -221,7 +221,6 @@ function GymReportsPage() {
     setExporting(e => ({ ...e, summary: format }));
     try {
       // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
-      const currentOrgId = localStorage.getItem('current_org_id');
 
       // Socios activos y total
       const members = await memberService.getAll();

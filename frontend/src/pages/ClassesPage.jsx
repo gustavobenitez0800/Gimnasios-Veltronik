@@ -2,7 +2,7 @@
 // VELTRONIK V2 - CLASSES PAGE (Refactored)
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { errorService } from '../services';
 import { useClassController } from '../controllers/useClassController';

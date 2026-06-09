@@ -20,17 +20,27 @@ class GymService {
   /**
    * Actualiza el gimnasio actual.
    * Java API: PUT /tenants/{orgId}
+   *
+   * businessType es OBLIGATORIO para el backend (@NotNull en TenantDTO): si el caller
+   * no lo manda (Ajustes solo edita nombre/dirección/teléfono/email), lo completamos
+   * con el tipo actual del negocio. Sin este fallback, guardar Ajustes devolvía 400
+   * "El tipo de negocio es obligatorio".
    */
   async updateCurrent(updates) {
     const orgId = localStorage.getItem('current_org_id');
     if (!orgId) throw new Error('No org selected');
+
+    const businessType = updates.businessType
+      || updates.type
+      || localStorage.getItem('current_org_type')
+      || 'GYM';
 
     const payload = {
       name: updates.name,
       address: updates.address,
       phone: updates.phone,
       email: updates.email,
-      businessType: updates.businessType || updates.businessType || updates.type
+      businessType,
     };
 
     const response = await apiClient.put(`/tenants/${orgId}`, payload);

@@ -5,13 +5,13 @@
 // ============================================
 
 class StorageService {
-  async uploadFile(file, folder = 'general', compress = true) {
+  async uploadFile(file, _folder = 'general', _compress = true) {
     console.warn("Upload feature temporarily disabled during Java migration.");
     // Dummy URL until Java implementation is ready
     return `https://dummyimage.com/600x400/000/fff&text=${encodeURIComponent(file.name)}`;
   }
 
-  async deleteFile(path) {
+  async deleteFile(_path) {
     console.warn("Delete file feature temporarily disabled during Java migration.");
     return true;
   }

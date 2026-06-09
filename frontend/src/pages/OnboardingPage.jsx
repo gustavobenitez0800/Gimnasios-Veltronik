@@ -22,7 +22,7 @@ const BUSINESS_TYPES = [
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { user, refreshAuth } = useAuth();
+  const { user } = useAuth();
 
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState('GYM'); // único tipo real → preseleccionado

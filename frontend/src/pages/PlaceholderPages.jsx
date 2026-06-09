@@ -25,7 +25,7 @@ const STEPS = {
 
 export function PaymentCallbackPage() {
   const navigate = useNavigate();
-  const { refreshAuth, hasValidAccess, gym, subscription } = useAuth();
+  const { refreshAuth } = useAuth();
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('Conectando con Mercado Pago...');
   const [progress, setProgress] = useState(0);
@@ -42,7 +42,6 @@ export function PaymentCallbackPage() {
     const params = new URLSearchParams(rawSearch || hashSearch);
 
     const paymentStatus = params.get('status') || params.get('collection_status') || '';
-    const externalRef = params.get('external_reference') || '';
 
     // Smooth progress animation
     let progressInterval = setInterval(() => {

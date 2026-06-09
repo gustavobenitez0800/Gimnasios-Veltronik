@@ -18,7 +18,7 @@ class AccessService {
     return response.data;
   }
 
-  async checkIn(memberId, accessMethod = 'manual', notes = null) {
+  async checkIn(memberId, accessMethod = 'manual') {
     const response = await apiClient.post('/gym/access/register', {
       memberId: memberId,
       method: accessMethod

@@ -2,8 +2,8 @@
 // VELTRONIK V2 - DASHBOARD PAGE (Refactored)
 // ============================================
 
-import { Suspense, lazy, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,7 +29,14 @@ import CONFIG from '../lib/config';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
 export default function DashboardPage() {
-  const { gym } = useAuth();
+  const { gym, orgRole } = useAuth();
+
+  // El backend restringe los KPIs financieros (stats/pagos) a OWNER/ADMIN. Para
+  // staff/reception esta página solo produciría 403s: los mandamos a su pantalla
+  // de trabajo (Acceso). Cubre deep-links; el sidebar ya no les ofrece Dashboard.
+  if (orgRole === 'staff' || orgRole === 'reception') {
+    return <Navigate to={CONFIG.ROUTES.ACCESS} replace />;
+  }
 
   // Solo dashboard de GYM (resto de rubros fueron eliminados)
 
