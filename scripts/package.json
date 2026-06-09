@@ -7,7 +7,12 @@
     "migrate": "node migrate.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
+    "@supabase/supabase-js": "^2.106.2",
+    "dotenv": "^16.6.1",
     "pg": "^8.11.3"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }
