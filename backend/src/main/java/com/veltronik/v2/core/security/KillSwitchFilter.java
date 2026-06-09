@@ -29,6 +29,17 @@ public class KillSwitchFilter extends OncePerRequestFilter {
     /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
+    /**
+     * PERF: caché de veredictos PERMITIDOS (tenant → vencimiento del veredicto, 30 s).
+     * Sin esto, CADA request pagaba 2 queries a la BD remota (tenant + suscripción) antes
+     * de llegar al endpoint. Solo se cachea el ALLOW: un tenant bloqueado siempre golpea
+     * la BD, así el desbloqueo tras un pago es INMEDIATO; el caso inverso (venció hace
+     * segundos) se tolera ≤30 s — el cobro no corre riesgo.
+     */
+    private static final long ALLOW_TTL_MS = 30_000;
+    private final java.util.concurrent.ConcurrentHashMap<UUID, Long> allowCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @Autowired
     private TenantRepository tenantRepository;
 
@@ -57,6 +68,16 @@ public class KillSwitchFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 2b. Veredicto positivo cacheado y vigente → pasar sin tocar la BD.
+        Long allowedUntil = allowCache.get(tenantId);
+        if (allowedUntil != null) {
+            if (System.currentTimeMillis() < allowedUntil) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+            allowCache.remove(tenantId);
+        }
+
         // 3. Obtener el Tenant para verificar su estado
         Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
         if (tenant == null) {
@@ -81,6 +102,8 @@ public class KillSwitchFilter extends OncePerRequestFilter {
         // 4b. Acceso válido = trial vigente O suscripción válida (período no vencido).
         boolean trialActive = tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(now);
         if (trialActive || hasValidSubscription(tenantId, now)) {
+            // Veredicto positivo verificado contra la BD → cachearlo 30 s (solo el ALLOW).
+            allowCache.put(tenantId, System.currentTimeMillis() + ALLOW_TTL_MS);
             filterChain.doFilter(request, response);
             return;
         }

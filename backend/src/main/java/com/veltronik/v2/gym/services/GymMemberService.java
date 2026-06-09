@@ -2,7 +2,6 @@ package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.security.TenantContextHolder;
-import com.veltronik.v2.core.services.BaseServiceImpl;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
 import org.springframework.http.HttpStatus;

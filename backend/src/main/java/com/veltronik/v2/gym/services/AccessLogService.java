@@ -66,17 +66,17 @@ public class AccessLogService {
         if (activeAccess.isPresent()) {
             // Si tiene acceso abierto, hacemos check-out
             AccessLog log = activeAccess.get();
-            log.setCheckOutAt(LocalDateTime.now());
+            log.setCheckOutAt(LocalDateTime.now(BUSINESS_ZONE));
             return accessLogRepository.save(log);
         } else {
             // Si no, registramos entrada
             AccessLog log = new AccessLog();
             Tenant tenant = new Tenant();
             tenant.setId(TenantContextHolder.getTenantId());
-            
+
             log.setTenant(tenant);
             log.setMember(member);
-            log.setCheckInAt(LocalDateTime.now());
+            log.setCheckInAt(LocalDateTime.now(BUSINESS_ZONE));
             log.setAccessMethod(method != null ? method : "MANUAL");
             return accessLogRepository.save(log);
         }
@@ -92,7 +92,7 @@ public class AccessLogService {
         }
         
         if (log.getCheckOutAt() == null) {
-            log.setCheckOutAt(LocalDateTime.now());
+            log.setCheckOutAt(LocalDateTime.now(BUSINESS_ZONE));
         }
         
         return accessLogRepository.save(log);

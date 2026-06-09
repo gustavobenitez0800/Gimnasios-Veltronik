@@ -78,6 +78,21 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Parámetro inválido: " + ex.getName(), request);
     }
 
+    /**
+     * Violación de integridad en la BD (clave única duplicada, FK referenciada) → 409.
+     * Es un conflicto de datos del cliente (ej: reservar dos veces la misma clase, DNI
+     * repetido), no un bug del servidor: sin esto caía al handler genérico como 500
+     * "error inesperado" y el usuario no entendía qué pasó.
+     */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        logger.warn("Conflicto de integridad en {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.CONFLICT,
+                "El registro ya existe o está vinculado a otros datos. Verificá la información e intentá de nuevo.",
+                request);
+    }
+
     /** Cualquier otra excepción (incluye RuntimeException no clasificado) → 500 genérico + log. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {

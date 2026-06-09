@@ -26,6 +26,9 @@ import java.util.UUID;
 @RequestMapping("/api/gym/payments")
 public class GymPaymentController {
 
+    /** Zona del negocio (Argentina): la fecha por defecto del pago es hora AR, no la del server. */
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
     private final GymPaymentService paymentService;
     private final GymPaymentMapper paymentMapper;
 
@@ -69,7 +72,7 @@ public class GymPaymentController {
         // setMemberId arma la referencia mínima (id); el service la resuelve y verifica el tenant.
         if (input.getMemberId() != null) payment.setMemberId(input.getMemberId());
         if (input.getAmount() != null) payment.setAmount(input.getAmount());
-        payment.setPaymentDate(input.getPaymentDate() != null ? input.getPaymentDate() : LocalDateTime.now());
+        payment.setPaymentDate(input.getPaymentDate() != null ? input.getPaymentDate() : LocalDateTime.now(BUSINESS_ZONE));
         if (input.getPaymentMethod() != null) payment.setPaymentMethod(input.getPaymentMethod());
         if (input.getStatus() != null) payment.setStatus(input.getStatus());
         if (input.getNotes() != null) payment.setNotes(input.getNotes());

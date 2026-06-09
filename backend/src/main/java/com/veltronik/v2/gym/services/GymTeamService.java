@@ -32,16 +32,19 @@ public class GymTeamService {
     private final AccessLogRepository accessLogRepository;
     private final GymPaymentRepository paymentRepository;
     private final GymMemberRepository memberRepository;
+    private final com.veltronik.v2.core.security.MembershipCache membershipCache;
 
     public GymTeamService(TenantMembershipRepository membershipRepository, AppUserRepository userRepository,
                           TenantRepository tenantRepository, AccessLogRepository accessLogRepository,
-                          GymPaymentRepository paymentRepository, GymMemberRepository memberRepository) {
+                          GymPaymentRepository paymentRepository, GymMemberRepository memberRepository,
+                          com.veltronik.v2.core.security.MembershipCache membershipCache) {
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.accessLogRepository = accessLogRepository;
         this.paymentRepository = paymentRepository;
         this.memberRepository = memberRepository;
+        this.membershipCache = membershipCache;
     }
 
     public List<Map<String, Object>> getTeamMembers() {
@@ -74,12 +77,7 @@ public class GymTeamService {
         AppUser user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException("El empleado debe tener una cuenta registrada en Veltronik."));
 
-        UserRole role;
-        try {
-            role = UserRole.valueOf(roleStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Rol no válido");
-        }
+        UserRole role = parseAssignableRole(roleStr);
 
         Optional<TenantMembership> existingOpt = membershipRepository.findByUserIdAndTenantId(user.getId(), tenantId);
         TenantMembership membership;
@@ -116,12 +114,7 @@ public class GymTeamService {
         TenantMembership membership = membershipRepository.findByUserIdAndTenantId(userId, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro no encontrado en este equipo"));
 
-        UserRole role;
-        try {
-            role = UserRole.valueOf(newRoleStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Rol no válido");
-        }
+        UserRole role = parseAssignableRole(newRoleStr);
 
         if (membership.getRole() == UserRole.OWNER) {
             throw new BusinessException("No se puede cambiar el rol del dueño principal.");
@@ -129,6 +122,8 @@ public class GymTeamService {
 
         membership.setRole(role);
         membershipRepository.save(membership);
+        // El rol vive cacheado 60s en el filtro de seguridad → invalidar para que aplique YA.
+        membershipCache.evict(userId, tenantId);
 
         Map<String, Object> map = new HashMap<>();
         map.put("role", membership.getRole().name().toLowerCase());
@@ -149,6 +144,29 @@ public class GymTeamService {
         // Let's do physical delete or logical? TenantMembership has is_active, so logical.
         membership.setActive(false);
         membershipRepository.save(membership);
+        // Sin esta invalidación, el removido conservaría acceso hasta 60s (TTL de la caché).
+        membershipCache.evict(userId, tenantId);
+    }
+
+    /**
+     * Parsea y valida un rol ASIGNABLE por la gestión de equipo.
+     *
+     * <p><b>SEGURIDAD (escalación de privilegios):</b> OWNER queda explícitamente prohibido.
+     * El rol de dueño solo lo crea el sistema al fundar el negocio (SetupController); si un
+     * ADMIN pudiera invitar/promover a alguien como OWNER, ese miembro quedaría irremovible
+     * (updateRole/removeMember protegen al OWNER) y con poder de borrar el negocio entero.</p>
+     */
+    private UserRole parseAssignableRole(String roleStr) {
+        UserRole role;
+        try {
+            role = UserRole.valueOf(roleStr.toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new BusinessException("Rol no válido");
+        }
+        if (role == UserRole.OWNER) {
+            throw new BusinessException("El rol de dueño no se puede asignar desde la gestión de equipo.");
+        }
+        return role;
     }
 
     /**

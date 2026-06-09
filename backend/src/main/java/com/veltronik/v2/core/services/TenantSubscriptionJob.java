@@ -16,11 +16,14 @@ import java.util.List;
 @Slf4j
 public class TenantSubscriptionJob {
 
+    /** Zona del negocio (Argentina): el cron y su "ahora" se anclan a hora AR, no a la del server. */
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
     private final TenantRepository tenantRepository;
 
     /**
      * Kill Switch (Nivel 1): Job Diario.
-     * Se ejecuta todos los días a las 00:05 AM.
+     * Se ejecuta todos los días a las 00:05 AM (hora Argentina, explícita en el cron).
      *
      * Busca tenants cuya suscripción expiró directamente en la BD (no carga todos a memoria)
      * y los desactiva automáticamente. Esto garantiza que el sistema siga cobrando
@@ -29,12 +32,12 @@ public class TenantSubscriptionJob {
      * IMPORTANTE: Si se escala horizontalmente (múltiples instancias en Railway),
      * agregar ShedLock para evitar ejecuciones paralelas duplicadas.
      */
-    @Scheduled(cron = "0 5 0 * * ?")
+    @Scheduled(cron = "0 5 0 * * ?", zone = "America/Argentina/Buenos_Aires")
     @Transactional
     public void executeKillSwitch() {
         log.info("=== KILL SWITCH CRONJOB INICIADO ===");
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
 
         // Query optimizada: filtra en BD, no en memoria
         List<Tenant> expiredTenants = tenantRepository.findExpiredActiveTenants(now);

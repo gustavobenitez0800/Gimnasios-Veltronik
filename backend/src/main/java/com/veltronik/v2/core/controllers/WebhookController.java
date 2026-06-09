@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
@@ -235,6 +236,11 @@ public class WebhookController {
     /**
      * Valida la firma HMAC-SHA256 del header x-signature (formato: ts=...,v1=...).
      * Doc: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+     *
+     * <p>El {@code data.id} alfanumérico se normaliza a minúscula (lo exige la spec de MP;
+     * los ids numéricos no cambian). La comparación del HMAC es en TIEMPO CONSTANTE
+     * ({@link MessageDigest#isEqual}): un {@code String.equals} permite, en teoría, adivinar
+     * la firma byte a byte midiendo tiempos de respuesta.</p>
      */
     private boolean isValidSignature(String xSignature, String xRequestId, String dataId, String body) {
         try {
@@ -248,13 +254,16 @@ public class WebhookController {
             }
             if (ts == null || v1 == null) return false;
 
-            String manifest = "id:" + (dataId != null ? dataId : "") + ";request-id:" +
+            String normalizedId = dataId != null ? dataId.toLowerCase() : "";
+            String manifest = "id:" + normalizedId + ";request-id:" +
                     (xRequestId != null ? xRequestId : "") + ";ts:" + ts + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] hash = mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash).equals(v1);
+            byte[] expected = HexFormat.of().formatHex(hash).getBytes(StandardCharsets.UTF_8);
+            byte[] received = v1.toLowerCase().getBytes(StandardCharsets.UTF_8);
+            return MessageDigest.isEqual(expected, received);
         } catch (Exception e) {
             log.error("Error validando firma del webhook: {}", e.getMessage());
             return false;

@@ -55,7 +55,17 @@ public class TenantGroupController {
     @PutMapping("/assign/{tenantId}")
     public ResponseEntity<Void> assign(@PathVariable UUID tenantId, @RequestBody Map<String, String> body) {
         String raw = body.get("groupId");
-        UUID groupId = (raw == null || raw.isBlank()) ? null : UUID.fromString(raw);
+        final UUID groupId;
+        if (raw == null || raw.isBlank()) {
+            groupId = null; // desagrupar
+        } else {
+            try {
+                groupId = UUID.fromString(raw);
+            } catch (IllegalArgumentException e) {
+                // Sin esto, un groupId malformado terminaba como 500 "error inesperado".
+                throw new com.veltronik.v2.core.exceptions.BusinessException("El grupo indicado no es válido.");
+            }
+        }
         groupService.assignTenantToGroup(tenantId, groupId);
         return ResponseEntity.noContent().build();
     }

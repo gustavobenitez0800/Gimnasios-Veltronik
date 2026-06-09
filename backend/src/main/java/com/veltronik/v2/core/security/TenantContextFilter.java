@@ -38,9 +38,12 @@ import java.util.UUID;
 public class TenantContextFilter extends OncePerRequestFilter {
 
     private final TenantMembershipRepository membershipRepository;
+    private final MembershipCache membershipCache;
 
-    public TenantContextFilter(TenantMembershipRepository membershipRepository) {
+    public TenantContextFilter(TenantMembershipRepository membershipRepository,
+                               MembershipCache membershipCache) {
         this.membershipRepository = membershipRepository;
+        this.membershipCache = membershipCache;
     }
 
     @Override
@@ -65,10 +68,19 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 }
 
                 // El usuario debe estar autenticado y ser miembro ACTIVO del tenant solicitado.
+                // PERF: el veredicto positivo se cachea 60s (MembershipCache) — sin la caché,
+                // CADA request pagaba una query a la BD remota antes de tocar el endpoint.
                 final UUID userId = SecurityUtils.getCurrentUserId();
-                final TenantMembership membership = (userId == null) ? null
-                        : membershipRepository.findByUserIdAndTenantIdAndActiveTrue(userId, tenantId).orElse(null);
-                if (membership == null) {
+                UserRole role = (userId == null) ? null : membershipCache.getRole(userId, tenantId);
+                if (role == null && userId != null) {
+                    final TenantMembership membership = membershipRepository
+                            .findByUserIdAndTenantIdAndActiveTrue(userId, tenantId).orElse(null);
+                    if (membership != null) {
+                        role = membership.getRole();
+                        membershipCache.put(userId, tenantId, role);
+                    }
+                }
+                if (role == null) {
                     writeError(response, HttpServletResponse.SC_FORBIDDEN,
                             "FORBIDDEN_TENANT", "No tiene acceso a este negocio.");
                     return;
@@ -79,7 +91,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 // control de acceso por método (@PreAuthorize) pueda bloquear endpoints sensibles
                 // (reportes, billing, equipo) a STAFF/RECEPTION. El rol es POR tenant, por eso se
                 // resuelve acá —con el tenant ya validado— y no en el JWT de Supabase.
-                injectRoleAuthority(membership.getRole());
+                injectRoleAuthority(role);
             }
 
             filterChain.doFilter(request, response);

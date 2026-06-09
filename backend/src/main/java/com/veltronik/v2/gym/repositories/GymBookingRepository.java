@@ -14,4 +14,5 @@ public interface GymBookingRepository extends JpaRepository<GymBooking, UUID> {
     List<GymBooking> findByTenantIdAndGymClassId(UUID tenantId, UUID classId);
     List<GymBooking> findByTenantIdAndGymClassIdAndBookingDate(UUID tenantId, UUID classId, LocalDate bookingDate);
     long countByTenantIdAndGymClassIdAndBookingDateAndStatus(UUID tenantId, UUID classId, LocalDate bookingDate, String status);
+    boolean existsByTenantIdAndGymClassIdAndMemberIdAndBookingDate(UUID tenantId, UUID classId, UUID memberId, LocalDate bookingDate);
 }

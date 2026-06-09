@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -39,7 +38,12 @@ public class BillingService {
     private final SubscriptionBillingService subscriptionBillingService;
     private final MercadoPagoService mercadoPagoService;
 
-    @Transactional
+    /**
+     * NO es {@code @Transactional} a propósito: este método es 100 % llamadas de red a MP
+     * (cancelar preapprovals previos + crear el nuevo) y no escribe en la BD. Mantener una
+     * conexión/transacción abierta durante llamadas remotas era justo lo que esta clase
+     * documenta que hay que evitar.
+     */
     public String createSubscriptionLink(Tenant tenant, String payerEmail) throws Exception {
         log.info("Generando link de suscripción para Tenant '{}' ({}), pagador: {}",
                 tenant.getName(), tenant.getId(), payerEmail);
@@ -144,9 +148,11 @@ public class BillingService {
      * Verifica el estado real de la suscripción contra Mercado Pago y lo sincroniza
      * localmente. Útil cuando el webhook no llegó (reconciliación manual desde Ajustes).
      *
+     * <p>Sin {@code @Transactional}: las llamadas a MP son de red; la escritura local la hace
+     * {@code updatePreapprovalStatus}, que abre su propia transacción corta.</p>
+     *
      * @return {changed: boolean, message: String} — changed=true si el estado local cambió.
      */
-    @Transactional
     public Map<String, Object> verifySubscription(Tenant tenant) throws Exception {
         Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId()).orElse(null);
         if (sub == null || sub.getMpSubscriptionId() == null || sub.getMpSubscriptionId().isBlank()) {
@@ -178,8 +184,10 @@ public class BillingService {
     /**
      * Cancela la suscripción en Mercado Pago (status=cancelled) y refleja el cambio
      * local. El acceso continúa hasta el fin del período ya pagado (lo evalúa el KillSwitch).
+     *
+     * <p>Sin {@code @Transactional}: la llamada a MP es de red; la escritura local la hace
+     * {@code updatePreapprovalStatus} en su propia transacción corta.</p>
      */
-    @Transactional
     public void cancelSubscription(Tenant tenant) throws Exception {
         Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenant.getId()).orElse(null);
         if (sub == null) {

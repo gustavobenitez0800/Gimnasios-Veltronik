@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,10 +16,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+/**
+ * Checkout de la suscripción del SaaS (link de Mercado Pago).
+ *
+ * <p><b>Seguridad:</b> restringido a OWNER/ADMIN, igual que {@link BillingController}.
+ * Crear un checkout CANCELA los preapprovals vivos del tenant (anti-duplicado): si
+ * STAFF/RECEPTION pudieran invocarlo, podrían dar de baja el cobro recurrente real
+ * del negocio en Mercado Pago.</p>
+ */
 @RestController
 @RequestMapping("/api/core/subscriptions")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasAnyRole('OWNER','ADMIN')")
 public class SubscriptionController {
 
     private final MercadoPagoService mercadoPagoService;

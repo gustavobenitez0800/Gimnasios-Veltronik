@@ -46,7 +46,7 @@ public class SetupController {
 
     @PostMapping("/tenant")
     @Transactional
-    public ResponseEntity<?> createTenant(@RequestBody TenantDTO tenantDTO) {
+    public ResponseEntity<?> createTenant(@jakarta.validation.Valid @RequestBody TenantDTO tenantDTO) {
         java.util.UUID userId = com.veltronik.v2.core.security.SecurityUtils.getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(401).body("No autorizado");

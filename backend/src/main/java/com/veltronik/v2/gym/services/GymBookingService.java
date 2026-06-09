@@ -38,6 +38,13 @@ public class GymBookingService {
         GymClass gymClass = classService.findByIdAndVerifyOwnership(classId);
         GymMember gymMember = memberService.findByIdAndVerifyOwnership(memberId);
 
+        // Mensaje claro para el caso más común; la garantía dura la da el UNIQUE
+        // (class_id, member_id, booking_date) de la BD (carrera → 409 del handler global).
+        if (bookingRepository.existsByTenantIdAndGymClassIdAndMemberIdAndBookingDate(
+                TenantContextHolder.getTenantId(), classId, memberId, date)) {
+            throw new BusinessException("El socio ya tiene una reserva para esta clase en esa fecha.");
+        }
+
         long currentBookings = bookingRepository.countByTenantIdAndGymClassIdAndBookingDateAndStatus(
                 TenantContextHolder.getTenantId(), classId, date, "CONFIRMED");
 
