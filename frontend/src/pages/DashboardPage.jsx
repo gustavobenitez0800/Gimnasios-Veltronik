@@ -31,6 +31,14 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcEleme
 export default function DashboardPage() {
   const { gym, orgRole } = useAuth();
 
+  // FUTBOL_5: la grilla ES el tablero de comando del complejo. Va ANTES del redirect
+  // por rol: mandar a un reception de canchas a /access (ruta gym) haría que el
+  // OrgTypeGuard lo rebote a /dashboard → loop infinito de redirects.
+  const orgTypeCurrent = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
+  if (orgTypeCurrent === 'FUTBOL_5') {
+    return <Navigate to={CONFIG.ROUTES.COURT_GRID} replace />;
+  }
+
   // El backend restringe los KPIs financieros (stats/pagos) a OWNER/ADMIN. Para
   // staff/reception esta página solo produciría 403s: los mandamos a su pantalla
   // de trabajo (Acceso). Cubre deep-links; el sidebar ya no les ofrece Dashboard.

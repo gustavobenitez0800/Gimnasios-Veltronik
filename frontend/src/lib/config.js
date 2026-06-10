@@ -33,6 +33,7 @@ const CONFIG = {
   PRICES_BY_TYPE: {
     GYM: 80000,
     CLUB: 80000,
+    FUTBOL_5: 80000,
     OTHER: 80000,
   },
 
@@ -60,6 +61,11 @@ const CONFIG = {
     LOBBY: '/lobby',
     MEMBER_PORTAL: '/member-portal',
     TEAM: '/team',
+    // ─── Vertical Canchas (FUTBOL_5) ───
+    COURT_GRID: '/court-grid',
+    COURTS: '/courts',
+    COURT_CUSTOMERS: '/court-customers',
+    COURT_FIXED: '/court-fixed',
   }),
 
   // Gym Status
@@ -90,6 +96,7 @@ const CONFIG = {
   ORG_TYPES: Object.freeze({
     GYM: 'GYM',
     CLUB: 'CLUB',
+    FUTBOL_5: 'FUTBOL_5',
     OTHER: 'OTHER',
   }),
 };

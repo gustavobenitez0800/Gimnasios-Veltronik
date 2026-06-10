@@ -20,11 +20,11 @@ import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
-// Solo existe el sistema Gimnasio. Los mapas conservan fallback por si llegara un tipo inesperado.
-const TYPE_LABELS = { GYM: 'Gimnasio' };
-const TYPE_ICONS = { GYM: gymLogoSrc };
-const TYPE_IS_IMAGE = { GYM: true };
-const TYPE_BADGES = { GYM: 'badge-success' };
+// Sistemas reales: Gimnasio y Cancha de Fútbol 5. Los mapas conservan fallback por si llegara un tipo inesperado.
+const TYPE_LABELS = { GYM: 'Gimnasio', FUTBOL_5: 'Fútbol 5' };
+const TYPE_ICONS = { GYM: gymLogoSrc, FUTBOL_5: <Icon name="futbol" /> };
+const TYPE_IS_IMAGE = { GYM: true, FUTBOL_5: false };
+const TYPE_BADGES = { GYM: 'badge-success', FUTBOL_5: 'badge-success' };
 
 // ─── Helpers ───
 

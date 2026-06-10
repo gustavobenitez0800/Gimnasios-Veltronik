@@ -355,6 +355,39 @@
   background: var(--bg-tertiary);
 }
 
+/* ─── 2.5 FUTBOL 5 (Verde Césped — Tablero de Comando del Complejo) ─── */
+[data-vertical="futbol_5"] body {
+  /* Grilla técnica (líneas de cancha) + tinte verde césped sutil */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(34, 197, 94, 0.10), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(132, 204, 22, 0.08), transparent 45%);
+  background-size: 30px 30px, 30px 30px, 100% 100%, 100% 100%;
+  background-attachment: scroll, scroll, fixed, fixed;
+}
+
+[data-theme="light"][data-vertical="futbol_5"] body {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(34, 197, 94, 0.06), transparent 42%);
+  background-size: 30px 30px, 30px 30px, 100% 100%;
+}
+
+[data-vertical="futbol_5"] .nav-item.active {
+  background: rgba(34, 197, 94, 0.10);
+  color: #22c55e;
+}
+
+[data-vertical="futbol_5"] .nav-item.active::before {
+  background: #22c55e;
+}
+
+[data-vertical="futbol_5"] .nav-item.active .nav-item-icon {
+  color: #22c55e;
+}
+
 /* ─── 3. GYM / TECH (Command Center) ─── */
 [data-vertical="gym"] body,
 [data-vertical="club"] body {

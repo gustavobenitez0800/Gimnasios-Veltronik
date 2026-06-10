@@ -30,6 +30,10 @@ import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PlansPage from './pages/PlansPage';
+import CourtGridPage from './pages/CourtGridPage';
+import CourtsPage from './pages/CourtsPage';
+import CourtCustomersPage from './pages/CourtCustomersPage';
+import CourtFixedPage from './pages/CourtFixedPage';
 import BlockedPage from './pages/BlockedPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import {
@@ -88,6 +92,14 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
                   <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
                   <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
+                </Route>
+
+                {/* ─── FUTBOL_5-ONLY ROUTES (Vertical Canchas) ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['FUTBOL_5']} />}>
+                  <Route path={CONFIG.ROUTES.COURT_GRID} element={<CourtGridPage />} />
+                  <Route path={CONFIG.ROUTES.COURTS} element={<CourtsPage />} />
+                  <Route path={CONFIG.ROUTES.COURT_CUSTOMERS} element={<CourtCustomersPage />} />
+                  <Route path={CONFIG.ROUTES.COURT_FIXED} element={<CourtFixedPage />} />
                 </Route>
               </Route>
 

@@ -1,0 +1,235 @@
+/* ============================================
+   VELTRONIK - VERTICAL CANCHAS (FUTBOL_5)
+   Grilla de turnos + páginas del vertical
+   ============================================ */
+
+/* ─── Grilla (Tablero de Comando) ─── */
+
+.court-grid-wrapper {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.court-grid {
+  display: grid;
+  min-width: 640px;
+  /* grid-template-columns se setea inline según la cantidad de canchas */
+}
+
+.court-grid-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.court-grid-head .court-head-sub {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.court-grid-time {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0.5rem 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.court-grid-cell {
+  min-height: 60px;
+  padding: 3px;
+  border-bottom: 1px solid var(--border-color);
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  position: relative;
+}
+
+/* Slot libre (verde): clickeable para crear turno */
+.court-slot-free {
+  width: 100%;
+  height: 100%;
+  min-height: 54px;
+  border: 1px dashed color-mix(in srgb, #22c55e 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, #22c55e 5%, transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 1rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.court-slot-free:hover {
+  background: color-mix(in srgb, #22c55e 14%, transparent);
+  color: #22c55e;
+}
+
+.court-grid-cell.drag-over .court-slot-free {
+  background: color-mix(in srgb, #22c55e 22%, transparent);
+  border-style: solid;
+}
+
+/* Slot fuera de horario / pasado en continuación */
+.court-slot-cont {
+  width: 100%;
+  height: 100%;
+  min-height: 54px;
+  border-radius: 8px;
+  opacity: 0.45;
+}
+
+/* ─── Tarjeta de turno ─── */
+
+.court-booking-card {
+  width: 100%;
+  height: 100%;
+  min-height: 54px;
+  border-radius: 8px;
+  padding: 0.375rem 0.5rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+.court-booking-card[draggable="true"] { cursor: grab; }
+.court-booking-card:active { cursor: grabbing; }
+
+.court-booking-name {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.court-booking-meta {
+  font-size: 0.6875rem;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Código de colores del vertical:
+   🟨 esperando seña · 🟥 señado/confirmado · ⬛ bloqueo · finalizados apagados */
+.court-booking-card.status-PENDING_DEPOSIT {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+}
+
+.court-booking-card.status-CONFIRMED {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #ef4444;
+}
+
+.court-booking-card.status-MAINTENANCE {
+  background: rgba(100, 116, 139, 0.25);
+  border-color: rgba(100, 116, 139, 0.5);
+  color: var(--text-muted);
+}
+
+.court-booking-card.status-COMPLETED {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.30);
+  color: #22c55e;
+  opacity: 0.75;
+}
+
+.court-booking-card.status-NO_SHOW {
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #a78bfa;
+  opacity: 0.75;
+}
+
+/* ─── Leyenda y header de la grilla ─── */
+
+.court-grid-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.court-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.court-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.court-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.court-date-nav .form-input { width: auto; }
+
+/* ─── Cards de canchas (página Canchas) ─── */
+
+.court-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.court-card-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.court-card-item .court-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .court-grid { min-width: 520px; }
+  .court-grid-cell { min-height: 52px; }
+}

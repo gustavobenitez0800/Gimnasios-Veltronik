@@ -44,6 +44,31 @@ const getGymNav = (orgType) => {
   ];
 };
 
+const FUTBOL_NAV = [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla' },
+      { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos' },
+      { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes' },
+      { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
 const RESTO_NAV = [
   {
     title: 'Restaurante',
@@ -119,6 +144,7 @@ function getNavSections(orgType, role) {
   switch (orgType) {
     case 'RESTO': sections = RESTO_NAV; break;
     case 'SALON': sections = SALON_NAV; break;
+    case 'FUTBOL_5': sections = FUTBOL_NAV; break;
     default: sections = getGymNav(orgType);
   }
 
@@ -128,7 +154,11 @@ function getNavSections(orgType, role) {
   // rotas con 403 ("el frontend solo dibuja lo que el backend permite").
   if (role === 'reception') {
     // Recepción: check-in/acceso y ajustes (solo lectura para su rol).
-    const allowedPaths = [CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY];
+    // En canchas, la grilla y los clientes SON el mostrador → permitidos.
+    const allowedPaths = [
+      CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
+      CONFIG.ROUTES.COURT_GRID, CONFIG.ROUTES.COURT_CUSTOMERS,
+    ];
     return sections.map(section => ({
       ...section,
       items: section.items.filter(item => allowedPaths.includes(item.to)),
@@ -192,7 +222,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="sidebar-logo-text">Veltronik</span>
               {currentOrgType !== 'GYM' && (
                 <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza' }[currentOrgType] || currentOrgType}
+                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza', FUTBOL_5: 'Fútbol 5' }[currentOrgType] || currentOrgType}
                 </span>
               )}
             </div>

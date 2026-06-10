@@ -17,6 +17,9 @@ export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
 export { storageService } from './storageService';
 
+// Vertical Canchas (FUTBOL_5)
+export { courtService } from './CourtService';
+
 // Analytics
 import InsightsService from './InsightsService';
 export const insightsService = new InsightsService();
