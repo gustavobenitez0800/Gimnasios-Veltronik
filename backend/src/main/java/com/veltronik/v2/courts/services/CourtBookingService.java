@@ -52,9 +52,9 @@ public class CourtBookingService {
         this.priceRuleService = priceRuleService;
     }
 
-    /** Turnos del día [00:00, 24:00) del tenant, para la grilla. */
+    /** Turnos del día [00:00, 24:00) del tenant, para la grilla. 1 sola query (JOIN FETCH). */
     public List<CourtBooking> findByDateForCurrentTenant(LocalDate date) {
-        return bookingRepository.findByTenantIdAndStartAtBetweenOrderByStartAtAsc(
+        return bookingRepository.findGridBookings(
                 TenantContextHolder.getTenantId(),
                 date.atStartOfDay(),
                 date.plusDays(1).atStartOfDay());

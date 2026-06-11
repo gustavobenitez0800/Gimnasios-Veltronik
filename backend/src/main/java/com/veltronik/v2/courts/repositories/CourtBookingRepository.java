@@ -14,9 +14,45 @@ import java.util.UUID;
 @Repository
 public interface CourtBookingRepository extends JpaRepository<CourtBooking, UUID> {
 
-    /** Turnos del día para la grilla (incluye cancelados/expirados: el front decide qué pintar). */
-    List<CourtBooking> findByTenantIdAndStartAtBetweenOrderByStartAtAsc(
-            UUID tenantId, LocalDateTime from, LocalDateTime to);
+    /**
+     * Turnos del día para la grilla (incluye cancelados/expirados: el front decide qué pintar).
+     *
+     * <p><b>PERF (latencia us-east ↔ São Paulo ~120ms/query):</b> JOIN FETCH de cancha y
+     * cliente — sin esto, los EAGER de la entidad disparan un select POR turno (N+1) y la
+     * grilla pagaba segundos. Con el fetch: 1 sola query.</p>
+     */
+    @Query("""
+            SELECT b FROM CourtBooking b
+            JOIN FETCH b.court
+            LEFT JOIN FETCH b.customer
+            WHERE b.tenant.id = :tenantId
+              AND b.startAt >= :from
+              AND b.startAt < :to
+            ORDER BY b.startAt ASC
+            """)
+    List<CourtBooking> findGridBookings(@Param("tenantId") UUID tenantId,
+                                        @Param("from") LocalDateTime from,
+                                        @Param("to") LocalDateTime to);
+
+    /** Fechas/horas ya materializadas de un turno fijo (1 query para el chequeo en memoria). */
+    @Query("SELECT b.startAt FROM CourtBooking b WHERE b.recurring.id = :recurringId")
+    List<LocalDateTime> findStartAtsByRecurringId(@Param("recurringId") UUID recurringId);
+
+    /**
+     * Rangos [startAt, endAt) de turnos VIVOS de una cancha en una ventana, sin cargar
+     * entidades (evita los EAGER): 1 query para validar solapamientos en memoria.
+     */
+    @Query("""
+            SELECT b.startAt, b.endAt FROM CourtBooking b
+            WHERE b.court.id = :courtId
+              AND b.status NOT IN (com.veltronik.v2.courts.entities.CourtBookingStatus.CANCELLED,
+                                   com.veltronik.v2.courts.entities.CourtBookingStatus.EXPIRED)
+              AND b.startAt < :to
+              AND b.endAt > :from
+            """)
+    List<Object[]> findAliveSlotRanges(@Param("courtId") UUID courtId,
+                                       @Param("from") LocalDateTime from,
+                                       @Param("to") LocalDateTime to);
 
     /**
      * ¿Hay un turno VIVO que se solape con [startAt, endAt) en esta cancha?

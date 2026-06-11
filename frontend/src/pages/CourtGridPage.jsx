@@ -121,11 +121,33 @@ export default function CourtGridPage() {
     loadGrid(date);
   }, [date, loadGrid]);
 
+  // Clientes para el modal: una sola carga al montar (no por apertura de modal).
+  useEffect(() => {
+    courtService.getCustomers().then(setCustomers).catch(() => { /* opcional */ });
+  }, []);
+
   // Refresco suave cada 60s: el cron del backend libera señas vencidas y la grilla lo refleja.
   useEffect(() => {
     const t = setInterval(() => loadGrid(date), 60_000);
     return () => clearInterval(t);
   }, [date, loadGrid]);
+
+  // ─── Updates locales (UI instantánea): las acciones patchean el estado con el DTO
+  // que devuelve el backend, sin pagar el round-trip de recargar toda la grilla. ───
+
+  const addBookingLocal = useCallback((b) => {
+    setGrid((g) => (g ? { ...g, bookings: [...g.bookings, b] } : g));
+    // Si la reserva creó un cliente nuevo inline, sumarlo al combo sin otra request.
+    if (b.customerId) {
+      setCustomers((cs) => cs.some((c) => c.id === b.customerId)
+        ? cs
+        : [...cs, { id: b.customerId, fullName: b.customerName, phone: b.customerPhone }]);
+    }
+  }, []);
+
+  const patchBookingLocal = useCallback((b) => {
+    setGrid((g) => (g ? { ...g, bookings: g.bookings.map((x) => (x.id === b.id ? b : x)) } : g));
+  }, []);
 
   const slots = useMemo(() => buildSlots(grid?.settings), [grid]);
   const courts = grid?.courts || [];
@@ -154,10 +176,9 @@ export default function CourtGridPage() {
 
   // ─── Crear turno ───
 
-  const openCreate = async (courtId, slot) => {
+  const openCreate = (courtId, slot) => {
     setForm({ ...EMPTY_FORM, courtId, time: slot.start });
     setCreateOpen(true);
-    try { setCustomers(await courtService.getCustomers()); } catch { /* opcional */ }
   };
 
   const handleCreate = async (e) => {
@@ -168,7 +189,7 @@ export default function CourtGridPage() {
     }
     setSaving(true);
     try {
-      await courtService.createBooking({
+      const created = await courtService.createBooking({
         courtId: form.courtId,
         startAt: `${date}T${form.time}:00`,
         status: form.status,
@@ -181,7 +202,7 @@ export default function CourtGridPage() {
       });
       showToast(form.status === 'MAINTENANCE' ? 'Cancha bloqueada' : 'Turno creado', 'success');
       setCreateOpen(false);
-      loadGrid(date);
+      addBookingLocal(created); // pinta al instante, sin round-trip extra
     } catch (err) {
       showToast(err.message || 'Error al crear el turno', 'error');
       if (err?.response?.status === 409) loadGrid(date);
@@ -195,11 +216,12 @@ export default function CourtGridPage() {
   const runAction = async (fn, okMsg) => {
     setActing(true);
     try {
-      await fn();
+      const updated = await fn();
       showToast(okMsg, 'success');
       setDetail(null);
       setConfirmCancel(false);
-      loadGrid(date);
+      if (updated?.id) patchBookingLocal(updated); // sin recargar toda la grilla
+      else loadGrid(date);
     } catch (err) {
       showToast(err.message || 'No se pudo completar la acción', 'error');
     } finally {
@@ -214,13 +236,26 @@ export default function CourtGridPage() {
     if (!dragId) return;
     const id = dragId;
     setDragId(null);
+
+    // OPTIMISTA: la tarjeta se mueve YA; si el backend rechaza (409), se revierte.
+    const previous = grid?.bookings.find((b) => b.id === id);
+    if (!previous) return;
+    const durationMin = (toMinutes(previous.endAt.slice(11, 16)) || 24 * 60) -
+      toMinutes(previous.startAt.slice(11, 16));
+    const startAt = `${date}T${slot.start}:00`;
+    const endMin = Math.min(toMinutes(slot.start) + durationMin, 24 * 60 - 1);
+    const courtName = courts.find((c) => c.id === courtId)?.name || previous.courtName;
+    patchBookingLocal({ ...previous, courtId, courtName, startAt, endAt: `${date}T${toHHMM(endMin)}:00` });
+
     try {
-      await courtService.moveBooking(id, courtId, `${date}T${slot.start}:00`);
+      const moved = await courtService.moveBooking(id, courtId, startAt);
+      patchBookingLocal(moved);
       showToast('Turno movido', 'success');
     } catch (err) {
+      patchBookingLocal(previous); // revertir
       showToast(err.message || 'No se pudo mover el turno', 'error');
+      if (err?.response?.status === 409) loadGrid(date);
     }
-    loadGrid(date);
   };
 
   // ─── Render ───

@@ -48,7 +48,7 @@ public class CourtRecurringBookingService {
     }
 
     public List<CourtRecurringBooking> findAllForCurrentTenant() {
-        return recurringRepository.findByTenantIdOrderByDayOfWeekAscStartTimeAsc(TenantContextHolder.getTenantId());
+        return recurringRepository.findAllWithRelations(TenantContextHolder.getTenantId());
     }
 
     public CourtRecurringBooking findByIdAndVerifyOwnership(UUID id) {
@@ -95,7 +95,7 @@ public class CourtRecurringBookingService {
     @Transactional
     public int materializeAllActive() {
         int created = 0;
-        for (CourtRecurringBooking r : recurringRepository.findByActiveTrue()) {
+        for (CourtRecurringBooking r : recurringRepository.findActiveWithRelations()) {
             created += materialize(r);
         }
         return created;
@@ -104,6 +104,11 @@ public class CourtRecurringBookingService {
     /**
      * Crea las instancias que falten dentro del horizonte. Idempotente: si la fecha ya
      * fue materializada o el slot está ocupado por otra reserva, la saltea.
+     *
+     * <p><b>PERF:</b> los chequeos (ya-materializado, solapamiento, precio) se resuelven
+     * EN MEMORIA con 3 queries de carga previa — con la BD a ~120ms/query, el esquema
+     * anterior (3 queries POR fecha) hacía que crear un turno fijo tardara segundos.
+     * El índice único sigue decidiendo cualquier race en el insert.</p>
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public int materialize(CourtRecurringBooking r) {
@@ -114,16 +119,30 @@ public class CourtRecurringBookingService {
         if (r.getValidUntil() != null && r.getValidUntil().isBefore(to)) {
             to = r.getValidUntil();
         }
+        if (to.isBefore(from)) return 0;
+
+        // Carga previa (3 queries) para chequear todo en memoria.
+        java.util.Set<LocalDateTime> materialized =
+                new java.util.HashSet<>(bookingRepository.findStartAtsByRecurringId(r.getId()));
+        List<Object[]> aliveRanges = bookingRepository.findAliveSlotRanges(
+                r.getCourt().getId(), from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+        java.math.BigDecimal price = r.getAgreedPrice();
+        List<com.veltronik.v2.courts.entities.CourtPriceRule> rules = (price == null)
+                ? priceRuleService.findByTenantId(tenantId) : List.of();
+        java.math.BigDecimal fallback = (price == null)
+                ? settingsService.getOrCreateForTenant(tenantId).getDefaultPrice() : null;
 
         int created = 0;
         for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
             if (date.getDayOfWeek().getValue() != r.getDayOfWeek()) continue;
 
             LocalDateTime startAt = date.atTime(r.getStartTime());
+            LocalDateTime endAt = date.atTime(r.getEndTime());
             if (startAt.isBefore(LocalDateTime.now())) continue; // no materializar el pasado
-            if (bookingRepository.existsByRecurringIdAndStartAt(r.getId(), startAt)) continue;
-            if (bookingRepository.existsOverlapping(r.getCourt().getId(), startAt,
-                    date.atTime(r.getEndTime()))) {
+            if (materialized.contains(startAt)) continue;
+            boolean taken = aliveRanges.stream().anyMatch(range ->
+                    ((LocalDateTime) range[0]).isBefore(endAt) && ((LocalDateTime) range[1]).isAfter(startAt));
+            if (taken) {
                 log.info("Turno fijo {}: slot {} {} ocupado por otra reserva, se saltea.",
                         r.getId(), r.getCourt().getName(), startAt);
                 continue;
@@ -134,13 +153,12 @@ public class CourtRecurringBookingService {
             b.setCourt(r.getCourt());
             b.setCustomer(r.getCustomer());
             b.setStartAt(startAt);
-            b.setEndAt(date.atTime(r.getEndTime()));
+            b.setEndAt(endAt);
             b.setStatus(CourtBookingStatus.CONFIRMED);
             b.setRecurring(r);
-            b.setTotalPrice(r.getAgreedPrice() != null
-                    ? r.getAgreedPrice()
-                    : priceRuleService.resolvePrice(tenantId, r.getCourt().getId(), startAt,
-                            settingsService.getOrCreateForTenant(tenantId).getDefaultPrice()));
+            b.setTotalPrice(price != null
+                    ? price
+                    : priceRuleService.resolvePrice(rules, r.getCourt().getId(), startAt, fallback));
             try {
                 bookingRepository.saveAndFlush(b);
                 created++;

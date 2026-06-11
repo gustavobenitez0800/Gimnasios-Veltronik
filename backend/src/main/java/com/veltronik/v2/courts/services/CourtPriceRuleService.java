@@ -70,10 +70,19 @@ public class CourtPriceRuleService {
      * contexto de request). {@code fallback} = defaultPrice de la configuración.
      */
     public BigDecimal resolvePrice(UUID tenantId, UUID courtId, LocalDateTime startAt, BigDecimal fallback) {
+        return resolvePrice(ruleRepository.findByTenantId(tenantId), courtId, startAt, fallback);
+    }
+
+    /**
+     * Variante PURA (sin tocar la BD): para los loops de materialización, que cargan
+     * las reglas UNA vez y resuelven N fechas en memoria (latencia DB ~120ms/query).
+     */
+    public BigDecimal resolvePrice(List<CourtPriceRule> rules, UUID courtId,
+                                   LocalDateTime startAt, BigDecimal fallback) {
         int isoDay = startAt.getDayOfWeek().getValue(); // 1 = lunes ... 7 = domingo
         LocalTime time = startAt.toLocalTime();
 
-        return ruleRepository.findByTenantId(tenantId).stream()
+        return rules.stream()
                 .filter(r -> r.getCourt() == null || r.getCourt().getId().equals(courtId))
                 .filter(r -> r.getDayOfWeek() == null || r.getDayOfWeek() == isoDay)
                 .filter(r -> !time.isBefore(r.getTimeFrom()) && time.isBefore(r.getTimeTo()))
@@ -81,5 +90,10 @@ public class CourtPriceRuleService {
                         (r.getCourt() != null ? 2 : 0) + (r.getDayOfWeek() != null ? 1 : 0)))
                 .map(CourtPriceRule::getPrice)
                 .orElse(fallback);
+    }
+
+    /** Reglas del tenant (para hoists de los jobs). */
+    public List<CourtPriceRule> findByTenantId(UUID tenantId) {
+        return ruleRepository.findByTenantId(tenantId);
     }
 }
