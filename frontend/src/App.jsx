@@ -34,6 +34,7 @@ import CourtGridPage from './pages/CourtGridPage';
 import CourtsPage from './pages/CourtsPage';
 import CourtCustomersPage from './pages/CourtCustomersPage';
 import CourtFixedPage from './pages/CourtFixedPage';
+import CourtPublicBookingPage from './pages/CourtPublicBookingPage';
 import PosPage from './pages/PosPage';
 import KioskProductsPage from './pages/KioskProductsPage';
 import KioskInventoryPage from './pages/KioskInventoryPage';
@@ -78,6 +79,8 @@ export default function App() {
               <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />
               <Route path={CONFIG.ROUTES.BLOCKED} element={<BlockedPage />} />
               <Route path={CONFIG.ROUTES.LOBBY} element={<LobbyPage />} />
+              {/* Reservas online: página pública del cliente final (sin login) */}
+              <Route path="/reservar/:token" element={<CourtPublicBookingPage />} />
 
               {/* App pages (with sidebar) */}
               <Route element={<AppLayout />}>

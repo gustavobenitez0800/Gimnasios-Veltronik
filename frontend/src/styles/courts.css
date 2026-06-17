@@ -457,3 +457,74 @@
 }
 .court-bycourt-occ { font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 34px; text-align: right; }
 .court-bycourt-rev { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 80px; text-align: right; }
+
+/* ─── Reservas online (página pública) ─── */
+
+.pub-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg-primary, #0b1220);
+}
+.pub-card {
+  width: 100%;
+  max-width: 460px;
+  margin: 1.5rem auto;
+  background: var(--bg-secondary, #111827);
+  border: 1px solid var(--border-color, #1f2937);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+.pub-center { text-align: center; }
+.pub-muted { color: var(--text-muted, #94a3b8); }
+
+.pub-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: #22c55e; }
+.pub-title { font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text-primary, #f8fafc); }
+
+.pub-days {
+  display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 0.5rem;
+}
+.pub-day {
+  flex: 0 0 auto; padding: 0.5rem 0.75rem; border-radius: 999px;
+  border: 1px solid var(--border-color, #1f2937); background: transparent;
+  color: var(--text-muted, #94a3b8); font-weight: 600; font-size: 0.8125rem; cursor: pointer; white-space: nowrap;
+}
+.pub-day.active { background: #22c55e; border-color: #22c55e; color: #06311a; }
+
+.pub-court { margin-top: 0.75rem; }
+.pub-court-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; color: var(--text-primary, #f8fafc); }
+.pub-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 0.4rem; }
+.pub-slot {
+  padding: 0.55rem 0; border-radius: 9px; border: 1px solid color-mix(in srgb, #22c55e 35%, transparent);
+  background: color-mix(in srgb, #22c55e 8%, transparent); color: #22c55e;
+  font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.pub-slot:hover { background: color-mix(in srgb, #22c55e 18%, transparent); }
+.pub-slot.active { background: #22c55e; color: #06311a; border-color: #22c55e; }
+
+.pub-form { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.6rem;
+  border-top: 1px solid var(--border-color, #1f2937); padding-top: 1rem; }
+.pub-pick { font-size: 0.9rem; }
+.pub-err { color: #ef4444; font-size: 0.8125rem; }
+.pub-btn { width: 100%; justify-content: center; }
+
+.pub-ok { text-align: center; color: #22c55e; margin-bottom: 0.5rem; }
+.pub-summary {
+  margin: 1rem 0; border: 1px solid var(--border-color, #1f2937); border-radius: 12px; overflow: hidden;
+}
+.pub-summary > div {
+  display: flex; justify-content: space-between; padding: 0.6rem 0.85rem; font-size: 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color, #1f2937) 60%, transparent);
+}
+.pub-summary > div:last-child { border-bottom: 0; }
+.pub-summary span { color: var(--text-muted, #94a3b8); }
+
+.pub-foot { text-align: center; font-size: 0.7rem; margin-top: 1.25rem; }
+
+/* Link público en la config (Canchas) */
+.court-public-link { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.4rem; }
+.court-public-link-row { display: flex; gap: 0.5rem; }
+.court-public-link-row .form-input { flex: 1; font-family: monospace; font-size: 0.8rem; }

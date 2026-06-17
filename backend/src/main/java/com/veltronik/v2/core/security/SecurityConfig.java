@@ -44,6 +44,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/webhooks/**").permitAll()
+                .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
                 .requestMatchers("/actuator/health").permitAll()
                 .anyRequest().authenticated()
             )

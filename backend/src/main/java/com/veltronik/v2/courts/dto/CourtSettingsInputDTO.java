@@ -28,4 +28,8 @@ public class CourtSettingsInputDTO {
     /** Token de Graph API. Solo se pisa si viene no vacío (dejar en blanco = mantener el actual). */
     private String waAccessToken;
     private String botInstructions;
+
+    // ─── Reservas online (link público) ───
+    private Boolean publicBookingEnabled;
+    private String whatsappNumber;
 }

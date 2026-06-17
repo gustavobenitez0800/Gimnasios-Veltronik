@@ -146,6 +146,7 @@ public class KillSwitchFilter extends OncePerRequestFilter {
                path.startsWith("/api/auth") ||
                path.startsWith("/api/billing") ||
                path.startsWith("/api/webhooks") ||
+               path.startsWith("/api/public") ||        // reservas online: sin X-Tenant-ID (el service resuelve el tenant por token)
                path.startsWith("/api/tenants") || // Permitir listar y crear tenants sin tener uno seleccionado
                path.startsWith("/api/core/setup") ||
                path.startsWith("/api/core/subscriptions") || // checkout/suscripción: el moroso debe poder pagar

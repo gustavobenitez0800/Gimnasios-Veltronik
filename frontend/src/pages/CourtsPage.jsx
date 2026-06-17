@@ -13,6 +13,7 @@ import { courtService } from '../services';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
+import CONFIG from '../lib/config';
 
 const SURFACES = ['SINTETICO', 'CESPED', 'CEMENTO', 'PARQUET'];
 const SURFACE_LABELS = { SINTETICO: 'Sintético', CESPED: 'Césped natural', CEMENTO: 'Cemento', PARQUET: 'Parquet' };
@@ -50,6 +51,8 @@ export default function CourtsPage() {
   const [settingsForm, setSettingsForm] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingBot, setSavingBot] = useState(false);
+  const [savingOnline, setSavingOnline] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Reglas de precio
   const [ruleModal, setRuleModal] = useState(false);
@@ -78,6 +81,9 @@ export default function CourtsPage() {
         waAccessToken: '',
         waConfigured: !!settingsData.waConfigured,
         botInstructions: settingsData.botInstructions ?? '',
+        publicBookingEnabled: !!settingsData.publicBookingEnabled,
+        whatsappNumber: settingsData.whatsappNumber ?? '',
+        publicToken: settingsData.publicToken ?? '',
       });
       setRules(rulesData);
     } catch (err) {
@@ -188,6 +194,42 @@ export default function CourtsPage() {
       showToast(err.message || 'Error al guardar el bot', 'error');
     } finally {
       setSavingBot(false);
+    }
+  };
+
+  const handleSaveOnline = async (e) => {
+    e.preventDefault();
+    setSavingOnline(true);
+    try {
+      await courtService.updateSettings({
+        publicBookingEnabled: settingsForm.publicBookingEnabled,
+        whatsappNumber: settingsForm.whatsappNumber.trim(),
+      });
+      showToast('Reservas online guardadas', 'success');
+      loadAll(); // refresca el token recién generado
+    } catch (err) {
+      showToast(err.message || 'Error al guardar reservas online', 'error');
+    } finally {
+      setSavingOnline(false);
+    }
+  };
+
+  // Link público que el dueño comparte. En web usa el origin actual; en Electron, el fallback.
+  const publicLink = (() => {
+    if (!settingsForm?.publicToken) return '';
+    const base = (typeof window !== 'undefined' && window.location.protocol.startsWith('http'))
+      ? window.location.origin
+      : CONFIG.PUBLIC_WEB_URL;
+    return `${base}/#/reservar/${settingsForm.publicToken}`;
+  })();
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      showToast('No se pudo copiar; copialo a mano', 'error');
     }
   };
 
@@ -386,6 +428,50 @@ export default function CourtsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* ─── Reservas online ─── */}
+          {settingsForm && (
+            <div className="card mb-3">
+              <h3 style={{ marginTop: 0 }}><Icon name="globe" size="1em" /> Reservas online</h3>
+              <p className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>
+                Compartí un link y tus clientes reservan solos: eligen horario, el turno queda
+                esperando seña y te mandan el comprobante. Menos WhatsApp manual para el mostrador.
+              </p>
+              <form onSubmit={handleSaveOnline}>
+                <div className="modal-form">
+                  <FormField
+                    label="Reservas online" type="select"
+                    value={settingsForm.publicBookingEnabled ? 'yes' : 'no'}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, publicBookingEnabled: v === 'yes' }))}
+                    options={[{ value: 'no', label: 'Desactivadas' }, { value: 'yes', label: 'Activadas' }]}
+                    hint="Al activarlas se genera el link para compartir"
+                  />
+                  <FormField
+                    label="WhatsApp de la cancha" type="tel" placeholder="Ej: 376 412-3456"
+                    value={settingsForm.whatsappNumber}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, whatsappNumber: v }))}
+                    hint="A este número el cliente te manda el comprobante de la seña"
+                  />
+                </div>
+                <div className="modal-actions" style={{ marginTop: '1rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={savingOnline}>
+                    {savingOnline ? <><span className="spinner" /> Guardando...</> : 'Guardar reservas online'}
+                  </button>
+                </div>
+              </form>
+              {settingsForm.publicBookingEnabled && publicLink && (
+                <div className="court-public-link">
+                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>Tu link para compartir (ponelo en el estado de WhatsApp, Instagram, etc.):</span>
+                  <div className="court-public-link-row">
+                    <input className="form-input" readOnly value={publicLink} onFocus={(e) => e.target.select()} />
+                    <button type="button" className="btn btn-secondary" onClick={copyLink}>
+                      <Icon name={copied ? 'check' : 'clipboard'} size="1em" /> {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

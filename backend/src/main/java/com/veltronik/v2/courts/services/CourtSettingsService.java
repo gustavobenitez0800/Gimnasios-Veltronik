@@ -55,6 +55,15 @@ public class CourtSettingsService {
         if (in.getBotInstructions() != null) s.setBotInstructions(in.getBotInstructions().isBlank() ? null : in.getBotInstructions().trim());
         // Token: solo se actualiza si viene un valor; en blanco NO borra (no exponerlo implica no reescribirlo sin querer).
         if (in.getWaAccessToken() != null && !in.getWaAccessToken().isBlank()) s.setWaAccessToken(in.getWaAccessToken().trim());
+        // Reservas online
+        if (in.getWhatsappNumber() != null) s.setWhatsappNumber(in.getWhatsappNumber().isBlank() ? null : in.getWhatsappNumber().trim());
+        if (in.getPublicBookingEnabled() != null) {
+            s.setPublicBookingEnabled(in.getPublicBookingEnabled());
+            // Al activar por primera vez, generamos un token impredecible para el link.
+            if (in.getPublicBookingEnabled() && (s.getPublicToken() == null || s.getPublicToken().isBlank())) {
+                s.setPublicToken(java.util.UUID.randomUUID().toString().replace("-", ""));
+            }
+        }
         return settingsRepository.save(s);
     }
 }

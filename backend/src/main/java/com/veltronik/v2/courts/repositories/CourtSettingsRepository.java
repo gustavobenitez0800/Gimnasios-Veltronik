@@ -13,4 +13,7 @@ public interface CourtSettingsRepository extends JpaRepository<CourtSettings, UU
 
     /** Enruta el webhook entrante de Meta → tenant. Corre sin contexto de tenant. */
     Optional<CourtSettings> findByWaPhoneNumberId(String waPhoneNumberId);
+
+    /** Enruta el link público de reservas → tenant. Corre sin contexto de tenant. */
+    Optional<CourtSettings> findByPublicToken(String publicToken);
 }

@@ -73,4 +73,18 @@ public class CourtSettings extends TenantAwareEntity {
     /** Instrucciones extra para el bot (datos del complejo: estacionamiento, cantina, etc.). */
     @Column(name = "bot_instructions", columnDefinition = "text")
     private String botInstructions;
+
+    // ─── Reservas online (link público) ───
+
+    /** Habilita el link público donde los clientes reservan solos (automatiza el mostrador). */
+    @Column(name = "public_booking_enabled", nullable = false)
+    private boolean publicBookingEnabled = false;
+
+    /** Token impredecible que identifica al complejo en el link público (sin login). Único. */
+    @Column(name = "public_token", length = 40)
+    private String publicToken;
+
+    /** WhatsApp de la cancha: el cliente le manda el comprobante de la seña desde el link. */
+    @Column(name = "whatsapp_number", length = 30)
+    private String whatsappNumber;
 }

@@ -23,4 +23,9 @@ public class CourtSettingsDTO {
     private String waPhoneNumberId;
     private String botInstructions;
     private boolean waConfigured;
+
+    // ─── Reservas online (link público) ───
+    private boolean publicBookingEnabled;
+    private String publicToken;       // se expone para que el dueño arme/comparta el link
+    private String whatsappNumber;
 }
