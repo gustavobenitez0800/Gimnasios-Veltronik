@@ -8,14 +8,16 @@ import com.veltronik.v2.courts.services.CourtPriceRuleService;
 import com.veltronik.v2.courts.services.CourtService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
-/** API REST de reglas de precio por franja horaria. */
+/** API REST de reglas de precio por franja horaria. Config sensible: solo dueño/admin. */
 @RestController
 @RequestMapping("/api/courts/price-rules")
+@PreAuthorize("hasAnyRole('OWNER','ADMIN')")
 public class CourtPriceRuleController {
 
     private final CourtPriceRuleService ruleService;

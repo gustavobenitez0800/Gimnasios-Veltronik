@@ -3,6 +3,7 @@ package com.veltronik.v2.courts.services;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.courts.dto.CourtBookingInputDTO;
 import com.veltronik.v2.courts.dto.CourtBookingMoveDTO;
+import com.veltronik.v2.courts.dto.CourtDaySummaryDTO;
 import com.veltronik.v2.courts.entities.*;
 import com.veltronik.v2.courts.repositories.CourtBookingRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,104 @@ public class CourtBookingService {
                 TenantContextHolder.getTenantId(),
                 date.atStartOfDay(),
                 date.plusDays(1).atStartOfDay());
+    }
+
+    /**
+     * Resumen del día para la barra de la grilla y la caja. Una lectura agregada:
+     * turnos y ocupación del día + plata cobrada en la fecha (señas y saldos) por método +
+     * lo que falta cobrar. Calcula sobre los turnos del día ya cargados + 2 sumas de caja.
+     */
+    public CourtDaySummaryDTO daySummary(LocalDate date) {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        CourtSettings settings = settingsService.getOrCreateForCurrentTenant();
+        int courtsCount = courtService.findActiveForCurrentTenant().size();
+        List<CourtBooking> bookings = findByDateForCurrentTenant(date);
+
+        // Capacidad horaria del día (para la ocupación %).
+        int openMin = settings.getOpeningTime().toSecondOfDay() / 60;
+        int closeMin = settings.getClosingTime().toSecondOfDay() / 60;
+        if (closeMin <= openMin) closeMin = 24 * 60;
+        long capacityMin = (long) courtsCount * (closeMin - openMin);
+
+        int totalBookings = 0;
+        long occupiedMin = 0;
+        BigDecimal expected = BigDecimal.ZERO;
+        BigDecimal pendingBalance = BigDecimal.ZERO;
+        BigDecimal pendingDepositAmount = BigDecimal.ZERO;
+        int pendingDepositCount = 0;
+
+        for (CourtBooking b : bookings) {
+            CourtBookingStatus s = b.getStatus();
+            if (s == CourtBookingStatus.CANCELLED || s == CourtBookingStatus.EXPIRED) continue;
+
+            // Ocupación: todo lo que bloquea el slot (incluye bloqueos y no-shows).
+            occupiedMin += overlapMinutes(b, date, openMin, closeMin);
+
+            if (s == CourtBookingStatus.MAINTENANCE) continue; // los bloqueos no son turnos
+
+            totalBookings++;
+            BigDecimal price = b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO;
+
+            if (s == CourtBookingStatus.PENDING_DEPOSIT || s == CourtBookingStatus.CONFIRMED
+                    || s == CourtBookingStatus.COMPLETED) {
+                expected = expected.add(price);
+            }
+            if (s == CourtBookingStatus.PENDING_DEPOSIT) {
+                pendingDepositCount++;
+                if (b.getDepositAmount() != null) pendingDepositAmount = pendingDepositAmount.add(b.getDepositAmount());
+            }
+            if (s == CourtBookingStatus.PENDING_DEPOSIT || s == CourtBookingStatus.CONFIRMED) {
+                pendingBalance = pendingBalance.add(defaultBalance(b));
+            }
+        }
+
+        // Caja del día: señas + saldos cuyo cobro cae en la fecha consultada.
+        LocalDateTime from = date.atStartOfDay();
+        LocalDateTime to = date.plusDays(1).atStartOfDay();
+        // Acumulación por método (dos consultas pequeñas): [cash, transfer, mp].
+        BigDecimal[] acc = {BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO};
+        accumulate(acc, bookingRepository.sumDepositsByMethod(tenantId, from, to));
+        accumulate(acc, bookingRepository.sumBalancesByMethod(tenantId, from, to));
+
+        CourtDaySummaryDTO dto = new CourtDaySummaryDTO();
+        dto.setDate(date.toString());
+        dto.setTotalBookings(totalBookings);
+        dto.setOccupancyPct(capacityMin > 0
+                ? (int) Math.min(100, Math.round(occupiedMin * 100.0 / capacityMin)) : 0);
+        dto.setExpectedRevenue(expected);
+        dto.setCollectedCash(acc[0]);
+        dto.setCollectedTransfer(acc[1]);
+        dto.setCollectedMp(acc[2]);
+        dto.setCollectedToday(acc[0].add(acc[1]).add(acc[2]));
+        dto.setPendingDepositCount(pendingDepositCount);
+        dto.setPendingDepositAmount(pendingDepositAmount);
+        dto.setPendingBalance(pendingBalance);
+        return dto;
+    }
+
+    /** Minutos del turno que caen dentro de la ventana horaria del día [openMin, closeMin]. */
+    private static long overlapMinutes(CourtBooking b, LocalDate date, int openMin, int closeMin) {
+        int startMin = b.getStartAt().toLocalDate().isBefore(date)
+                ? 0 : b.getStartAt().getHour() * 60 + b.getStartAt().getMinute();
+        int endMin = b.getEndAt().toLocalDate().isAfter(date)
+                ? 24 * 60 : b.getEndAt().getHour() * 60 + b.getEndAt().getMinute();
+        int lo = Math.max(openMin, startMin);
+        int hi = Math.min(closeMin, endMin);
+        return Math.max(0, hi - lo);
+    }
+
+    /** Suma las filas [método, monto] en el acumulador [cash, transfer, mp]. */
+    private static void accumulate(BigDecimal[] acc, List<Object[]> rows) {
+        for (Object[] row : rows) {
+            CourtPaymentMethod method = (CourtPaymentMethod) row[0];
+            BigDecimal amount = (BigDecimal) row[1];
+            if (method == null || amount == null) continue;
+            switch (method) {
+                case CASH -> acc[0] = acc[0].add(amount);
+                case TRANSFER -> acc[1] = acc[1].add(amount);
+                case MP -> acc[2] = acc[2].add(amount);
+            }
+        }
     }
 
     public CourtBooking findByIdAndVerifyOwnership(UUID id) {
@@ -147,12 +246,13 @@ public class CourtBookingService {
 
     // ─────────────────── transiciones de la máquina de estados ───────────────────
 
-    /** Seña recibida (en mano hoy; vía webhook MP en Fase 1.5). */
+    /** Seña recibida (en mano hoy; vía webhook MP en Fase 1.5). Registra el método de cobro. */
     @Transactional
-    public CourtBooking confirm(UUID id) {
+    public CourtBooking confirm(UUID id, CourtPaymentMethod method) {
         CourtBooking b = requireStatus(id, "confirmar", CourtBookingStatus.PENDING_DEPOSIT);
         b.setStatus(CourtBookingStatus.CONFIRMED);
         b.setDepositPaidAt(LocalDateTime.now());
+        b.setDepositMethod(method != null ? method : CourtPaymentMethod.CASH);
         b.setExpiresAt(null);
         return bookingRepository.save(b);
     }
@@ -166,11 +266,28 @@ public class CourtBookingService {
         return bookingRepository.save(b);
     }
 
+    /**
+     * El turno se jugó → COMPLETED. Cobra el saldo y registra el método (alimenta la caja).
+     * Si {@code amountPaid} es null, se asume el total menos la seña ya cobrada.
+     */
     @Transactional
-    public CourtBooking complete(UUID id) {
+    public CourtBooking complete(UUID id, BigDecimal amountPaid, CourtPaymentMethod method) {
         CourtBooking b = requireStatus(id, "cerrar", CourtBookingStatus.CONFIRMED);
+        BigDecimal balance = (amountPaid != null) ? amountPaid : defaultBalance(b);
+        b.setAmountPaid(balance);
+        b.setPaymentMethod(method != null ? method : CourtPaymentMethod.CASH);
+        b.setPaidAt(LocalDateTime.now());
         b.setStatus(CourtBookingStatus.COMPLETED);
         return bookingRepository.save(b);
+    }
+
+    /** Saldo a cobrar por defecto = total − seña ya acreditada (nunca negativo). */
+    private static BigDecimal defaultBalance(CourtBooking b) {
+        BigDecimal total = b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO;
+        BigDecimal paidDeposit = (b.getDepositPaidAt() != null && b.getDepositAmount() != null)
+                ? b.getDepositAmount() : BigDecimal.ZERO;
+        BigDecimal balance = total.subtract(paidDeposit);
+        return balance.signum() < 0 ? BigDecimal.ZERO : balance;
     }
 
     @Transactional

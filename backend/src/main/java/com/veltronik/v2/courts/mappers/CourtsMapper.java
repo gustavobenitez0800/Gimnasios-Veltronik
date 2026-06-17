@@ -21,6 +21,7 @@ public interface CourtsMapper {
     CourtCustomerDTO toDto(CourtCustomer entity);
     List<CourtCustomerDTO> toCustomerDtoList(List<CourtCustomer> entities);
 
+    @Mapping(target = "waConfigured", expression = "java(entity.getWaAccessToken() != null && !entity.getWaAccessToken().isBlank())")
     CourtSettingsDTO toDto(CourtSettings entity);
 
     @Mapping(target = "courtId", source = "court.id")

@@ -56,6 +56,13 @@ public class CourtCustomerService {
                         tenantId, q, tenantId, normalizePhone(q));
     }
 
+    /** Busca un cliente por teléfono SIN crearlo (lo usa el bot para no pedir el nombre dos veces). */
+    public java.util.Optional<CourtCustomer> findByPhoneForCurrentTenant(String rawPhone) {
+        String phone = normalizePhone(rawPhone);
+        if (phone == null || phone.isBlank()) return java.util.Optional.empty();
+        return customerRepository.findByTenantIdAndPhone(TenantContextHolder.getTenantId(), phone);
+    }
+
     public CourtCustomer findByIdAndVerifyOwnership(UUID id) {
         CourtCustomer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente no encontrado"));

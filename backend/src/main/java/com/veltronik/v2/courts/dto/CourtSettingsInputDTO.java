@@ -20,4 +20,12 @@ public class CourtSettingsInputDTO {
     @Min(value = 5, message = "El timeout mínimo de seña es de 5 minutos")
     @Max(value = 1440, message = "El timeout máximo de seña es de 24 horas")
     private Integer depositTimeoutMinutes;
+    private String paymentAlias;
+
+    // ─── Bot de WhatsApp ───
+    private Boolean botEnabled;
+    private String waPhoneNumberId;
+    /** Token de Graph API. Solo se pisa si viene no vacío (dejar en blanco = mantener el actual). */
+    private String waAccessToken;
+    private String botInstructions;
 }

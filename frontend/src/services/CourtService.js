@@ -21,6 +21,28 @@ class CourtService {
     return response.data;
   }
 
+  /** Resumen del día: turnos, ocupación, plata cobrada/pendiente (barra + caja). */
+  async getSummary(dateISO) {
+    const response = await apiClient.get('/courts/bookings/summary', {
+      params: dateISO ? { date: dateISO } : {},
+    });
+    return response.data;
+  }
+
+  // ─── Analítica (dueño/admin) ───
+
+  /** Dashboard del complejo: KPIs, ingresos, ocupación, predicción IA. */
+  async getDashboard() {
+    const response = await apiClient.get('/courts/analytics/dashboard');
+    return response.data;
+  }
+
+  /** Datos para exportar reportes en un rango de fechas. */
+  async getReport(from, to) {
+    const response = await apiClient.get('/courts/analytics/report', { params: { from, to } });
+    return response.data;
+  }
+
   // ─── Turnos ───
 
   async createBooking(booking) {
@@ -39,8 +61,9 @@ class CourtService {
     return response.data;
   }
 
-  async confirmBooking(id) {
-    const response = await apiClient.post(`/courts/bookings/${id}/confirm`);
+  /** Seña recibida → CONFIRMED. method: 'CASH' | 'TRANSFER' | 'MP' (default efectivo). */
+  async confirmBooking(id, method) {
+    const response = await apiClient.post(`/courts/bookings/${id}/confirm`, method ? { method } : {});
     return response.data;
   }
 
@@ -49,8 +72,9 @@ class CourtService {
     return response.data;
   }
 
-  async completeBooking(id) {
-    const response = await apiClient.post(`/courts/bookings/${id}/complete`);
+  /** Cerrar turno cobrando el saldo. payload: { amountPaid, method }. */
+  async completeBooking(id, payload) {
+    const response = await apiClient.post(`/courts/bookings/${id}/complete`, payload || {});
     return response.data;
   }
 

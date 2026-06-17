@@ -10,4 +10,7 @@ import java.util.UUID;
 @Repository
 public interface CourtSettingsRepository extends JpaRepository<CourtSettings, UUID> {
     Optional<CourtSettings> findByTenantId(UUID tenantId);
+
+    /** Enruta el webhook entrante de Meta → tenant. Corre sin contexto de tenant. */
+    Optional<CourtSettings> findByWaPhoneNumberId(String waPhoneNumberId);
 }

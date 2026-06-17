@@ -34,6 +34,10 @@ import CourtGridPage from './pages/CourtGridPage';
 import CourtsPage from './pages/CourtsPage';
 import CourtCustomersPage from './pages/CourtCustomersPage';
 import CourtFixedPage from './pages/CourtFixedPage';
+import PosPage from './pages/PosPage';
+import KioskProductsPage from './pages/KioskProductsPage';
+import KioskInventoryPage from './pages/KioskInventoryPage';
+import KioskCashPage from './pages/KioskCashPage';
 import BlockedPage from './pages/BlockedPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import {
@@ -100,6 +104,14 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.COURTS} element={<CourtsPage />} />
                   <Route path={CONFIG.ROUTES.COURT_CUSTOMERS} element={<CourtCustomersPage />} />
                   <Route path={CONFIG.ROUTES.COURT_FIXED} element={<CourtFixedPage />} />
+                </Route>
+
+                {/* ─── KIOSCO-ONLY ROUTES (Vertical Kiosco / Almacén) ─── */}
+                <Route element={<OrgTypeGuard allowedTypes={['KIOSCO']} />}>
+                  <Route path={CONFIG.ROUTES.POS} element={<PosPage />} />
+                  <Route path={CONFIG.ROUTES.KIOSK_PRODUCTS} element={<KioskProductsPage />} />
+                  <Route path={CONFIG.ROUTES.KIOSK_INVENTORY} element={<KioskInventoryPage />} />
+                  <Route path={CONFIG.ROUTES.KIOSK_CASH} element={<KioskCashPage />} />
                 </Route>
               </Route>
 

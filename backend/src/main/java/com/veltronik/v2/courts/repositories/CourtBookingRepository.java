@@ -93,8 +93,67 @@ public interface CourtBookingRepository extends JpaRepository<CourtBooking, UUID
     /** Señas vencidas a liberar por el cron (corre SIN contexto de tenant: barre todos). */
     List<CourtBooking> findByStatusAndExpiresAtBefore(CourtBookingStatus status, LocalDateTime now);
 
+    /**
+     * Caja del día — señas cobradas en la ventana, agrupadas por método.
+     * Devuelve filas {@code [CourtPaymentMethod, BigDecimal]}.
+     */
+    @Query("""
+            SELECT b.depositMethod, COALESCE(SUM(b.depositAmount), 0)
+            FROM CourtBooking b
+            WHERE b.tenant.id = :tenantId
+              AND b.depositPaidAt >= :from AND b.depositPaidAt < :to
+              AND b.depositAmount IS NOT NULL
+            GROUP BY b.depositMethod
+            """)
+    List<Object[]> sumDepositsByMethod(@Param("tenantId") UUID tenantId,
+                                       @Param("from") LocalDateTime from,
+                                       @Param("to") LocalDateTime to);
+
+    /**
+     * Caja del día — saldos cobrados al cerrar turnos en la ventana, agrupados por método.
+     * Devuelve filas {@code [CourtPaymentMethod, BigDecimal]}.
+     */
+    @Query("""
+            SELECT b.paymentMethod, COALESCE(SUM(b.amountPaid), 0)
+            FROM CourtBooking b
+            WHERE b.tenant.id = :tenantId
+              AND b.paidAt >= :from AND b.paidAt < :to
+              AND b.amountPaid IS NOT NULL
+            GROUP BY b.paymentMethod
+            """)
+    List<Object[]> sumBalancesByMethod(@Param("tenantId") UUID tenantId,
+                                       @Param("from") LocalDateTime from,
+                                       @Param("to") LocalDateTime to);
+
     /** ¿El turno fijo ya está materializado en esta fecha/hora? (para el job idempotente). */
     boolean existsByRecurringIdAndStartAt(UUID recurringId, LocalDateTime startAt);
+
+    /** Turnos por fecha de inicio en un rango (para ocupación / heatmap / no-shows). JOIN FETCH cancha. */
+    @Query("""
+            SELECT b FROM CourtBooking b
+            JOIN FETCH b.court
+            WHERE b.tenant.id = :tenantId
+              AND b.startAt >= :from AND b.startAt < :to
+            """)
+    List<CourtBooking> findByStartWithCourt(@Param("tenantId") UUID tenantId,
+                                            @Param("from") LocalDateTime from,
+                                            @Param("to") LocalDateTime to);
+
+    /** Turnos con un cobro (seña o saldo) dentro del rango — para ingresos/analítica. JOIN FETCH cancha+cliente. */
+    @Query("""
+            SELECT b FROM CourtBooking b
+            JOIN FETCH b.court
+            LEFT JOIN FETCH b.customer
+            WHERE b.tenant.id = :tenantId
+              AND ((b.depositPaidAt >= :from AND b.depositPaidAt < :to)
+                OR (b.paidAt >= :from AND b.paidAt < :to))
+            """)
+    List<CourtBooking> findPaidWithRelations(@Param("tenantId") UUID tenantId,
+                                             @Param("from") LocalDateTime from,
+                                             @Param("to") LocalDateTime to);
+
+    /** Turnos vivos en un estado puntual del tenant (scopeado por el filtro de Hibernate). */
+    List<CourtBooking> findByStatus(CourtBookingStatus status);
 
     /** Futuras instancias VIVAS de un turno fijo (para cancelarlas si se da de baja la plantilla). */
     @Query("""

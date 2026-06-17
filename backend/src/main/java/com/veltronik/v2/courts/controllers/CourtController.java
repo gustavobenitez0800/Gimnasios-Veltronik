@@ -7,6 +7,7 @@ import com.veltronik.v2.courts.mappers.CourtsMapper;
 import com.veltronik.v2.courts.services.CourtService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,6 +45,7 @@ public class CourtController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // alta de cancha: config, solo dueño/admin
     public ResponseEntity<CourtDTO> create(@Valid @RequestBody CourtInputDTO input) {
         Court court = new Court();
         applyEditableFields(court, input);
@@ -51,6 +53,7 @@ public class CourtController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<CourtDTO> update(@PathVariable UUID id, @Valid @RequestBody CourtInputDTO input) {
         Court court = courtService.findByIdAndVerifyOwnership(id);
         applyEditableFields(court, input);
@@ -58,6 +61,7 @@ public class CourtController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         courtService.deleteAndVerifyOwnership(id);
         return ResponseEntity.noContent().build();

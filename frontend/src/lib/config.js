@@ -34,6 +34,7 @@ const CONFIG = {
     GYM: 80000,
     CLUB: 80000,
     FUTBOL_5: 80000,
+    KIOSCO: 80000,
     OTHER: 80000,
   },
 
@@ -66,6 +67,11 @@ const CONFIG = {
     COURTS: '/courts',
     COURT_CUSTOMERS: '/court-customers',
     COURT_FIXED: '/court-fixed',
+    // ─── Vertical Kiosco (KIOSCO) ───
+    POS: '/pos',
+    KIOSK_PRODUCTS: '/kiosk-products',
+    KIOSK_INVENTORY: '/kiosk-inventory',
+    KIOSK_CASH: '/kiosk-cash',
   }),
 
   // Gym Status
@@ -97,6 +103,7 @@ const CONFIG = {
     GYM: 'GYM',
     CLUB: 'CLUB',
     FUTBOL_5: 'FUTBOL_5',
+    KIOSCO: 'KIOSCO',
     OTHER: 'OTHER',
   }),
 };

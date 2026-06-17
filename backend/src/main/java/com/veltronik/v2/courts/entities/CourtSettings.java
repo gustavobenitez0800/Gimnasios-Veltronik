@@ -48,4 +48,29 @@ public class CourtSettings extends TenantAwareEntity {
     /** Minutos para pagar la seña antes de que el cron libere el slot. */
     @Column(name = "deposit_timeout_minutes", nullable = false)
     private int depositTimeoutMinutes = 15;
+
+    /**
+     * Alias / CBU donde el cliente transfiere la seña. Lo usa el mensaje de WhatsApp
+     * "pedir seña" (1-click) para que el encargado no tenga que tipearlo cada vez.
+     */
+    @Column(name = "payment_alias", length = 120)
+    private String paymentAlias;
+
+    // ─── Bot de WhatsApp (Fase 3) ───
+
+    /** Master switch del bot para este complejo. */
+    @Column(name = "bot_enabled", nullable = false)
+    private boolean botEnabled = false;
+
+    /** phone_number_id de Meta: enruta el webhook entrante → este tenant. Único. */
+    @Column(name = "wa_phone_number_id", length = 40)
+    private String waPhoneNumberId;
+
+    /** Token de Graph API para responderle al cliente. SENSIBLE: nunca se expone al front. */
+    @Column(name = "wa_access_token", columnDefinition = "text")
+    private String waAccessToken;
+
+    /** Instrucciones extra para el bot (datos del complejo: estacionamiento, cantina, etc.). */
+    @Column(name = "bot_instructions", columnDefinition = "text")
+    private String botInstructions;
 }

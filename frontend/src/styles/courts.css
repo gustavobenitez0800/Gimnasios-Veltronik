@@ -229,7 +229,231 @@
   font-weight: 700;
 }
 
+/* ─── Barra resumen del día ─── */
+
+.court-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+.court-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  min-width: 120px;
+  color: var(--text-muted);
+}
+
+.court-stat .court-stat-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.court-stat-value {
+  font-weight: 800;
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.court-stat-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
+.court-stat.accent {
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  border-color: color-mix(in srgb, #22c55e 40%, transparent);
+  color: #16a34a;
+}
+.court-stat.accent .court-stat-value { color: #16a34a; }
+
+.court-stat.warn {
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+  color: #d97706;
+}
+.court-stat.warn .court-stat-value { color: #d97706; }
+
+.court-caja-btn { margin-left: auto; align-self: center; }
+
+/* ─── WhatsApp 1-click ─── */
+
+.court-wa-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-wa {
+  background: #25D366;
+  color: #06311a;
+  border: 1px solid #1ebe5a;
+  font-weight: 700;
+}
+.btn-wa:hover { background: #1ebe5a; color: #042412; }
+
+/* ─── Cobro (seña / cierre) ─── */
+
+.court-cobro-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  grid-column: 1 / -1;
+  padding: 0.75rem 0.875rem;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  margin-bottom: 0.25rem;
+}
+.court-cobro-summary > span:first-child { font-weight: 700; }
+.court-cobro-summary .text-muted { font-size: 0.8125rem; }
+
+.court-method-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.court-method-opt {
+  padding: 0.625rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.court-method-opt:hover { border-color: var(--accent-color, #22c55e); }
+.court-method-opt.active {
+  background: color-mix(in srgb, #22c55e 16%, transparent);
+  border-color: #22c55e;
+  color: #16a34a;
+}
+
+/* ─── Caja del día ─── */
+
+.court-caja { display: flex; flex-direction: column; gap: 0.125rem; }
+
+.court-caja-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.9375rem;
+}
+.court-caja-row.muted { color: var(--text-muted); font-size: 0.875rem; }
+
+.court-caja-label { display: inline-flex; align-items: center; gap: 0.5rem; }
+.court-caja-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.court-caja-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-top: 2px solid var(--border-color);
+  font-weight: 800;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  color: #16a34a;
+}
+
+.court-caja-pending {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border-color);
+}
+
 @media (max-width: 640px) {
   .court-grid { min-width: 520px; }
   .court-grid-cell { min-height: 52px; }
+  .court-caja-btn { margin-left: 0; width: 100%; justify-content: center; }
+  .court-stat { flex: 1 1 calc(50% - 0.5rem); min-width: 0; }
 }
+
+/* ─── Dashboard: mapa de calor ─── */
+
+.court-heatmap-wrap { overflow-x: auto; }
+
+.court-heatmap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.court-heatmap th {
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0.25rem;
+  text-align: center;
+}
+.court-heatmap-hour {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: 0.5rem;
+  white-space: nowrap;
+}
+.court-heatmap td { padding: 2px; }
+.court-heatmap-cell {
+  display: block;
+  width: 100%;
+  min-width: 26px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+.court-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+}
+.court-heatmap-scale {
+  display: inline-block;
+  width: 80px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, color-mix(in srgb, #22c55e 6%, transparent), #22c55e);
+}
+
+/* ─── Dashboard: por cancha ─── */
+
+.court-bycourt { display: flex; flex-direction: column; gap: 0.625rem; }
+.court-bycourt-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+}
+.court-bycourt-name { font-weight: 600; }
+.court-bycourt-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border-color) 60%, transparent);
+  overflow: hidden;
+}
+.court-bycourt-bar > span {
+  display: block;
+  height: 100%;
+  background: #22c55e;
+  border-radius: 4px;
+}
+.court-bycourt-occ { font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 34px; text-align: right; }
+.court-bycourt-rev { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 80px; text-align: right; }

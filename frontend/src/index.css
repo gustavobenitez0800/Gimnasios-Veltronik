@@ -53,6 +53,9 @@
 /* ─── Vertical Canchas (FUTBOL_5): grilla de turnos ─── */
 @import './styles/courts.css';
 
+/* ─── Vertical Kiosco (KIOSCO): POS, productos, caja ─── */
+@import './styles/kiosk.css';
+
 /* ─── Responsive / Adaptativo ───
    SIEMPRE AL FINAL: sus reglas deben ganar la cascada contra los estilos base de
    cada página (antes se importaba a mitad de lista y los archivos posteriores

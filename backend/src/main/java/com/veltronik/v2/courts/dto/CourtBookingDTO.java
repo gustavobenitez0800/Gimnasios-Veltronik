@@ -24,6 +24,10 @@ public class CourtBookingDTO {
     private BigDecimal totalPrice;
     private BigDecimal depositAmount;
     private LocalDateTime depositPaidAt;
+    private String depositMethod;
+    private BigDecimal amountPaid;
+    private String paymentMethod;
+    private LocalDateTime paidAt;
     private LocalDateTime expiresAt;
     private UUID recurringId;
     private String notes;

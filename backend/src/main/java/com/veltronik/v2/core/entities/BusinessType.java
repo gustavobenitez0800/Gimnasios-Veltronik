@@ -15,5 +15,12 @@ public enum BusinessType {
      * cuando se sume Pádel se agrega PADEL acá y se reutiliza el mismo módulo con otra
      * configuración (duración de slot, jerga del bot), sin duplicar código.
      */
-    FUTBOL_5
+    FUTBOL_5,
+
+    /**
+     * Kiosco / Almacén (vertical de retail transaccional). Usa el módulo genérico {@code kiosk}:
+     * sirve a Kiosco, Maxikiosco, Almacén, Despensa o Drugstore con solo cambiar la
+     * configuración del tenant. La facturación ARCA vive en el módulo compartido {@code fiscal}.
+     */
+    KIOSCO
 }

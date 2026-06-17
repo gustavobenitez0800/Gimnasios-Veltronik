@@ -6,7 +6,9 @@
 // ============================================
 
 import { useCallback, useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { courtService } from '../services';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
@@ -30,6 +32,7 @@ const fmtMoney = (v) => (v === null || v === undefined || v === '' ? '—' : `$$
 
 export default function CourtsPage() {
   const { showToast } = useToast();
+  const { orgRole } = useAuth();
 
   const [courts, setCourts] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -46,6 +49,7 @@ export default function CourtsPage() {
   // Configuración
   const [settingsForm, setSettingsForm] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [savingBot, setSavingBot] = useState(false);
 
   // Reglas de precio
   const [ruleModal, setRuleModal] = useState(false);
@@ -68,6 +72,12 @@ export default function CourtsPage() {
         defaultPrice: settingsData.defaultPrice ?? '',
         depositAmount: settingsData.depositAmount ?? '',
         depositTimeoutMinutes: settingsData.depositTimeoutMinutes,
+        paymentAlias: settingsData.paymentAlias ?? '',
+        botEnabled: !!settingsData.botEnabled,
+        waPhoneNumberId: settingsData.waPhoneNumberId ?? '',
+        waAccessToken: '',
+        waConfigured: !!settingsData.waConfigured,
+        botInstructions: settingsData.botInstructions ?? '',
       });
       setRules(rulesData);
     } catch (err) {
@@ -149,6 +159,7 @@ export default function CourtsPage() {
         defaultPrice: settingsForm.defaultPrice !== '' ? Number(settingsForm.defaultPrice) : null,
         depositAmount: settingsForm.depositAmount !== '' ? Number(settingsForm.depositAmount) : null,
         depositTimeoutMinutes: Number(settingsForm.depositTimeoutMinutes),
+        paymentAlias: settingsForm.paymentAlias.trim(),
       });
       showToast('Configuración guardada', 'success');
       loadAll();
@@ -156,6 +167,27 @@ export default function CourtsPage() {
       showToast(err.message || 'Error al guardar la configuración', 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleSaveBot = async (e) => {
+    e.preventDefault();
+    setSavingBot(true);
+    try {
+      const payload = {
+        botEnabled: settingsForm.botEnabled,
+        waPhoneNumberId: settingsForm.waPhoneNumberId.trim(),
+        botInstructions: settingsForm.botInstructions.trim(),
+      };
+      // El token solo viaja si lo cargaste (en blanco = mantener el actual).
+      if (settingsForm.waAccessToken.trim()) payload.waAccessToken = settingsForm.waAccessToken.trim();
+      await courtService.updateSettings(payload);
+      showToast('Bot de WhatsApp guardado', 'success');
+      loadAll();
+    } catch (err) {
+      showToast(err.message || 'Error al guardar el bot', 'error');
+    } finally {
+      setSavingBot(false);
     }
   };
 
@@ -194,6 +226,11 @@ export default function CourtsPage() {
       showToast(err.message || 'No se pudo eliminar la regla', 'error');
     }
   };
+
+  // Config sensible (precios, seña, bot): solo dueño/admin. El backend igual lo gatea (403).
+  if (orgRole && orgRole !== 'owner' && orgRole !== 'admin') {
+    return <Navigate to="/court-grid" replace />;
+  }
 
   return (
     <div>
@@ -287,10 +324,65 @@ export default function CourtsPage() {
                     onChange={(v) => setSettingsForm((f) => ({ ...f, depositTimeoutMinutes: v }))}
                     hint="Pasado el tiempo, el turno se libera solo"
                   />
+                  <FormField
+                    label="Alias / CBU para señas" fullWidth
+                    placeholder="Ej: cancha.popeye.mp"
+                    value={settingsForm.paymentAlias}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, paymentAlias: v }))}
+                    hint="Se incluye en el mensaje de WhatsApp cuando pedís la seña"
+                  />
                 </div>
                 <div className="modal-actions" style={{ marginTop: '1rem' }}>
                   <button type="submit" className="btn btn-primary" disabled={savingSettings}>
                     {savingSettings ? <><span className="spinner" /> Guardando...</> : 'Guardar configuración'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ─── Bot de WhatsApp ─── */}
+          {settingsForm && (
+            <div className="card mb-3">
+              <h3 style={{ marginTop: 0 }}><Icon name="messageCircle" size="1em" /> Bot de WhatsApp</h3>
+              <p className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>
+                Atiende a tus clientes 24/7: responde disponibilidad y precios, y toma reservas
+                (esperando seña). Si no entiende o piden una persona, deja de responder y queda para vos.
+              </p>
+              <form onSubmit={handleSaveBot}>
+                <div className="modal-form">
+                  <FormField
+                    label="Bot activo" type="select"
+                    value={settingsForm.botEnabled ? 'yes' : 'no'}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, botEnabled: v === 'yes' }))}
+                    options={[{ value: 'no', label: 'Desactivado' }, { value: 'yes', label: 'Activado' }]}
+                    hint="Necesita el número y el token cargados para funcionar"
+                  />
+                  <FormField
+                    label="Phone Number ID (Meta)"
+                    placeholder="Ej: 123456789012345"
+                    value={settingsForm.waPhoneNumberId}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, waPhoneNumberId: v }))}
+                    hint="Lo da Meta (WhatsApp Cloud API) para tu número"
+                  />
+                  <FormField
+                    label="Token de acceso (Meta)" type="password"
+                    placeholder={settingsForm.waConfigured ? '•••••••• (ya configurado)' : 'Pegá el token de Graph API'}
+                    value={settingsForm.waAccessToken}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, waAccessToken: v }))}
+                    hint={settingsForm.waConfigured ? 'Dejalo en blanco para mantener el actual' : 'Token permanente del System User'}
+                  />
+                  <FormField
+                    label="Datos extra para el bot" type="textarea" fullWidth
+                    placeholder="Ej: Hay estacionamiento. Cantina con cerveza y pizzas. No se permite fumar."
+                    value={settingsForm.botInstructions}
+                    onChange={(v) => setSettingsForm((f) => ({ ...f, botInstructions: v }))}
+                    hint="El bot usa esto para responder mejor (opcional)"
+                  />
+                </div>
+                <div className="modal-actions" style={{ marginTop: '1rem' }}>
+                  <button type="submit" className="btn btn-primary" disabled={savingBot}>
+                    {savingBot ? <><span className="spinner" /> Guardando...</> : 'Guardar bot'}
                   </button>
                 </div>
               </form>

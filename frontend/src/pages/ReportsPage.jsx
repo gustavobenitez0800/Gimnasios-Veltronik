@@ -9,6 +9,7 @@ import { memberService, paymentService, accessService } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
+import CourtReportsPage from './CourtReportsPage';
 
 // El DTO de socios de V2 trae `active` (boolean) + membershipEnd, NO un campo `status`.
 // Derivamos el estado real para que los reportes no muestren estado vacío/erróneo.
@@ -83,6 +84,11 @@ async function downloadPDF(title, filename, headers, rows) {
 
 export default function ReportsPage() {
   const { gym } = useAuth();
+
+  // Canchas: reportes propios del vertical (ingresos, no-shows, caja Z).
+  if (gym?.type === 'FUTBOL_5') {
+    return <CourtReportsPage />;
+  }
 
   // Si es restaurante, mostrar reportes de restaurante
   if (gym?.type === 'RESTO') {

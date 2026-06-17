@@ -6,6 +6,7 @@ import com.veltronik.v2.courts.mappers.CourtsMapper;
 import com.veltronik.v2.courts.services.CourtSettingsService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /** API REST de la configuración del vertical (slot, horarios, seña). */
@@ -27,6 +28,7 @@ public class CourtSettingsController {
     }
 
     @PutMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // config del vertical (precios, seña, bot): solo dueño/admin
     public ResponseEntity<CourtSettingsDTO> update(@Valid @RequestBody CourtSettingsInputDTO input) {
         return ResponseEntity.ok(mapper.toDto(settingsService.updateForCurrentTenant(input)));
     }

@@ -16,4 +16,11 @@ public class CourtSettingsDTO {
     private BigDecimal defaultPrice;
     private BigDecimal depositAmount;
     private int depositTimeoutMinutes;
+    private String paymentAlias;
+
+    // ─── Bot de WhatsApp (el token NUNCA se expone; solo si está configurado) ───
+    private boolean botEnabled;
+    private String waPhoneNumberId;
+    private String botInstructions;
+    private boolean waConfigured;
 }

@@ -22,6 +22,9 @@ public interface CourtRecurringBookingRepository extends JpaRepository<CourtRecu
             """)
     List<CourtRecurringBooking> findAllWithRelations(@Param("tenantId") UUID tenantId);
 
+    /** Cantidad de turnos fijos activos del tenant (KPI del dashboard). */
+    long countByTenantIdAndActiveTrue(UUID tenantId);
+
     /** Para el job de materialización (corre sin contexto de tenant: barre todos). */
     @Query("""
             SELECT r FROM CourtRecurringBooking r

@@ -48,10 +48,37 @@ const FUTBOL_NAV = [
   {
     title: 'Principal',
     items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
       { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla' },
       { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos' },
       { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
       { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const KIOSCO_NAV = [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta' },
+      { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos' },
+      { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario' },
+      { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja' },
     ],
   },
   {
@@ -145,6 +172,7 @@ function getNavSections(orgType, role) {
     case 'RESTO': sections = RESTO_NAV; break;
     case 'SALON': sections = SALON_NAV; break;
     case 'FUTBOL_5': sections = FUTBOL_NAV; break;
+    case 'KIOSCO': sections = KIOSCO_NAV; break;
     default: sections = getGymNav(orgType);
   }
 
@@ -158,6 +186,8 @@ function getNavSections(orgType, role) {
     const allowedPaths = [
       CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
       CONFIG.ROUTES.COURT_GRID, CONFIG.ROUTES.COURT_CUSTOMERS,
+      // Kiosco: el mostrador (POS) y la caja SON la tarea de recepción/cajero.
+      CONFIG.ROUTES.POS, CONFIG.ROUTES.KIOSK_CASH,
     ];
     return sections.map(section => ({
       ...section,
@@ -173,6 +203,10 @@ function getNavSections(orgType, role) {
       CONFIG.ROUTES.PAYMENTS,
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
+      // Kiosco: catálogo e inventario son gestión (dueño/admin). El backend los bloquea
+      // con @PreAuthorize → el front no dibuja lo que devolvería 403.
+      CONFIG.ROUTES.KIOSK_PRODUCTS,
+      CONFIG.ROUTES.KIOSK_INVENTORY,
     ];
     return sections.map(section => ({
       ...section,
@@ -222,7 +256,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="sidebar-logo-text">Veltronik</span>
               {currentOrgType !== 'GYM' && (
                 <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {{ RESTO: 'Restaurante', KIOSK: 'Kiosco', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza', FUTBOL_5: 'Fútbol 5' }[currentOrgType] || currentOrgType}
+                  {{ RESTO: 'Restaurante', KIOSCO: 'Kiosco / Almacén', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza', FUTBOL_5: 'Fútbol 5' }[currentOrgType] || currentOrgType}
                 </span>
               )}
             </div>

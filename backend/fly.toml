@@ -1,0 +1,28 @@
+app = "veltronik-api"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SPRING_PROFILES_ACTIVE = "prod"
+  JAVA_TOOL_OPTIONS = "-XX:MaxRAMPercentage=75.0"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.checks]
+    [http_service.checks.health]
+      interval = "30s"
+      timeout = "10s"
+      grace_period = "60s"
+      method = "GET"
+      path = "/actuator/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

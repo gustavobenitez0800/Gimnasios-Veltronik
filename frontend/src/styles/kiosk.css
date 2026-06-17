@@ -1,0 +1,171 @@
+/* ============================================
+   VELTRONIK - VERTICAL KIOSCO (KIOSCO)
+   POS, productos, inventario y caja. Acento turquesa.
+   ============================================ */
+
+:root {
+  --kiosk-accent: #14b8a6;
+  --kiosk-accent-soft: rgba(20, 184, 166, 0.12);
+}
+
+/* ─── Chips de rubros ─── */
+.kiosk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  background: var(--kiosk-accent-soft);
+  color: var(--kiosk-accent);
+  border: 1px solid rgba(20, 184, 166, 0.25);
+}
+.kiosk-chip-x {
+  display: inline-flex;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0;
+}
+.kiosk-chip-x:hover { opacity: 1; }
+
+/* ─── Stats de caja ─── */
+.kiosk-stat-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.kiosk-stat {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+.kiosk-stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.kiosk-stat-value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.kiosk-stock-low { color: #ef4444; font-weight: 600; }
+.kiosk-stock-up { color: var(--kiosk-accent); font-weight: 600; }
+
+/* ============================================
+   POS — Punto de Venta
+   ============================================ */
+.pos-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1rem;
+  align-items: stretch;
+  min-height: calc(100vh - 150px);
+}
+
+.pos-catalog {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pos-scan {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.85rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0.75rem;
+  border: 2px solid var(--kiosk-accent);
+  background: var(--kiosk-accent-soft);
+  color: var(--kiosk-accent);
+}
+.pos-scan-input {
+  border: none !important;
+  background: transparent !important;
+  padding-left: 0;
+}
+.pos-scan-input:focus { outline: none; box-shadow: none; }
+
+.pos-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  align-content: start;
+}
+.pos-product-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  transition: transform 0.08s ease, border-color 0.15s ease;
+}
+.pos-product-card:hover { transform: translateY(-1px); border-color: var(--kiosk-accent); }
+.pos-product-name { font-weight: 600; font-size: 0.85rem; line-height: 1.2; }
+.pos-product-price { color: var(--kiosk-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.pos-product-low { font-size: 0.65rem; color: #ef4444; text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* ─── Carrito ─── */
+.pos-cart {
+  display: flex;
+  flex-direction: column;
+  border-radius: 1rem;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+}
+.pos-cart-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+.pos-cart-header button { margin-left: auto; }
+.pos-cart-items { flex: 1; overflow-y: auto; padding: 0.5rem; min-height: 200px; }
+
+.pos-cart-row {
+  display: grid;
+  grid-template-columns: 1fr 64px auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+}
+.pos-cart-row:hover { background: var(--bg-tertiary, rgba(255, 255, 255, 0.03)); }
+.pos-cart-row-name { font-size: 0.85rem; font-weight: 600; }
+.pos-cart-qty { padding: 0.3rem 0.4rem !important; text-align: center; }
+.pos-cart-row-total { font-variant-numeric: tabular-nums; font-weight: 600; }
+.pos-cart-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.2rem; }
+.pos-cart-x:hover { color: #ef4444; }
+
+.pos-cart-footer { padding: 1rem; border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08)); }
+.pos-total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; }
+.pos-total-row > span:first-child { color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+.pos-total-value { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--kiosk-accent); }
+.pos-pay-btn { width: 100%; justify-content: center; font-size: 1.05rem; padding: 0.85rem; }
+
+/* ─── Ticket / vuelto ─── */
+.pos-receipt { text-align: center; padding: 1.5rem 1rem; }
+.pos-receipt-check {
+  width: 48px; height: 48px; margin: 0 auto 0.75rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--kiosk-accent-soft); color: var(--kiosk-accent); font-size: 1.5rem;
+}
+.pos-receipt-total { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pos-receipt-change { margin-top: 0.5rem; font-size: 1.1rem; }
+
+.pos-change-hint { padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: var(--kiosk-accent-soft); color: var(--kiosk-accent); font-size: 1rem; }
+.pos-change-short { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .pos-layout { grid-template-columns: 1fr; min-height: 0; }
+  .pos-cart { position: sticky; bottom: 0; }
+  .pos-product-grid { max-height: 50vh; }
+}

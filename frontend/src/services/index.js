@@ -20,6 +20,9 @@ export { storageService } from './storageService';
 // Vertical Canchas (FUTBOL_5)
 export { courtService } from './CourtService';
 
+// Vertical Kiosco (KIOSCO)
+export { kioskService } from './KioskService';
+
 // Analytics
 import InsightsService from './InsightsService';
 export const insightsService = new InsightsService();

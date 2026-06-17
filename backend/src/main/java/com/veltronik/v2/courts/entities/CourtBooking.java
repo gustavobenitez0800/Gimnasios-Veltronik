@@ -59,6 +59,24 @@ public class CourtBooking extends TenantAwareEntity {
     @Column(name = "deposit_paid_at")
     private LocalDateTime depositPaidAt;
 
+    /** Cómo se cobró la seña (efectivo/transferencia/MP). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "deposit_method", length = 20)
+    private CourtPaymentMethod depositMethod;
+
+    /** Saldo cobrado al cerrar el turno (puede diferir del total: descuentos, etc.). */
+    @Column(name = "amount_paid")
+    private BigDecimal amountPaid;
+
+    /** Cómo se cobró el saldo al cerrar el turno. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private CourtPaymentMethod paymentMethod;
+
+    /** Cuándo se cerró el cobro del saldo (alimenta la caja del día). */
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     /** id del pago de Mercado Pago de la seña (Fase 1.5, idempotencia del webhook). */
     @Column(name = "mp_payment_id", length = 50)
     private String mpPaymentId;

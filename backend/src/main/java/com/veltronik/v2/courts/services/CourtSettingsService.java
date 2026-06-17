@@ -48,6 +48,13 @@ public class CourtSettingsService {
         if (in.getDefaultPrice() != null) s.setDefaultPrice(in.getDefaultPrice());
         if (in.getDepositAmount() != null) s.setDepositAmount(in.getDepositAmount());
         if (in.getDepositTimeoutMinutes() != null) s.setDepositTimeoutMinutes(in.getDepositTimeoutMinutes());
+        if (in.getPaymentAlias() != null) s.setPaymentAlias(in.getPaymentAlias().isBlank() ? null : in.getPaymentAlias().trim());
+        // Bot de WhatsApp
+        if (in.getBotEnabled() != null) s.setBotEnabled(in.getBotEnabled());
+        if (in.getWaPhoneNumberId() != null) s.setWaPhoneNumberId(in.getWaPhoneNumberId().isBlank() ? null : in.getWaPhoneNumberId().trim());
+        if (in.getBotInstructions() != null) s.setBotInstructions(in.getBotInstructions().isBlank() ? null : in.getBotInstructions().trim());
+        // Token: solo se actualiza si viene un valor; en blanco NO borra (no exponerlo implica no reescribirlo sin querer).
+        if (in.getWaAccessToken() != null && !in.getWaAccessToken().isBlank()) s.setWaAccessToken(in.getWaAccessToken().trim());
         return settingsRepository.save(s);
     }
 }

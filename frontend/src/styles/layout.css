@@ -388,6 +388,38 @@
   color: #22c55e;
 }
 
+/* ─── 2.6 KIOSCO (Turquesa — Mostrador / Punto de Venta) ─── */
+[data-vertical="kiosco"] body {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(20, 184, 166, 0.10), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.08), transparent 45%);
+  background-size: 30px 30px, 30px 30px, 100% 100%, 100% 100%;
+  background-attachment: scroll, scroll, fixed, fixed;
+}
+
+[data-theme="light"][data-vertical="kiosco"] body {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+    radial-gradient(circle at 12% 0%, rgba(20, 184, 166, 0.06), transparent 42%);
+  background-size: 30px 30px, 30px 30px, 100% 100%;
+}
+
+[data-vertical="kiosco"] .nav-item.active {
+  background: rgba(20, 184, 166, 0.10);
+  color: #14b8a6;
+}
+
+[data-vertical="kiosco"] .nav-item.active::before {
+  background: #14b8a6;
+}
+
+[data-vertical="kiosco"] .nav-item.active .nav-item-icon {
+  color: #14b8a6;
+}
+
 /* ─── 3. GYM / TECH (Command Center) ─── */
 [data-vertical="gym"] body,
 [data-vertical="club"] body {
