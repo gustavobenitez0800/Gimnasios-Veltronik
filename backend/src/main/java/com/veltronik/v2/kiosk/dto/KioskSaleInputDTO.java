@@ -20,6 +20,9 @@ public class KioskSaleInputDTO {
     @NotNull(message = "El clientUuid (idempotencia) es obligatorio")
     private UUID clientUuid;
 
+    /** Cliente de cuenta corriente: obligatorio solo si algún pago es CUENTA_CORRIENTE (fiado). */
+    private UUID customerId;
+
     private String notes;
 
     @NotEmpty(message = "La venta necesita al menos un renglón")

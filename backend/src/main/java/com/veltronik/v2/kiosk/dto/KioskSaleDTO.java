@@ -12,6 +12,8 @@ public class KioskSaleDTO {
     private UUID id;
     private UUID clientUuid;
     private UUID cashSessionId;
+    private UUID customerId;
+    private String customerName;
     private BigDecimal subtotal;
     private BigDecimal surcharge;
     private BigDecimal total;

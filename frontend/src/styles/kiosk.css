@@ -49,6 +49,13 @@
 .kiosk-stock-low { color: #ef4444; font-weight: 600; }
 .kiosk-stock-up { color: var(--kiosk-accent); font-weight: 600; }
 
+/* ─── Renglones de compra (modal de registrar compra) ─── */
+.kiosk-buy-lines { display: flex; flex-direction: column; gap: 0.4rem; }
+.kiosk-buy-line { display: grid; grid-template-columns: 1fr 80px 100px auto; gap: 0.4rem; align-items: center; }
+.kiosk-buy-line .form-input { padding: 0.4rem 0.5rem !important; }
+.kiosk-buy-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.2rem; }
+.kiosk-buy-x:hover { color: #ef4444; }
+
 /* ============================================
    POS — Punto de Venta
    ============================================ */
@@ -159,6 +166,21 @@
 }
 .pos-receipt-total { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .pos-receipt-change { margin-top: 0.5rem; font-size: 1.1rem; }
+
+/* ─── Comprobante ARCA en el ticket ─── */
+.pos-receipt-fiscal {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color, rgba(255, 255, 255, 0.12));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pos-fiscal-title { font-weight: 700; font-size: 0.9rem; }
+.pos-fiscal-cae { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pos-fiscal-qr { background: #fff; padding: 8px; border-radius: 8px; line-height: 0; }
+.pos-fiscal-warn { font-size: 0.8rem; color: #f59e0b; }
 
 .pos-change-hint { padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: var(--kiosk-accent-soft); color: var(--kiosk-accent); font-size: 1rem; }
 .pos-change-short { background: rgba(239, 68, 68, 0.12); color: #ef4444; }

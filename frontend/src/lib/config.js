@@ -76,6 +76,8 @@ const CONFIG = {
     KIOSK_PRODUCTS: '/kiosk-products',
     KIOSK_INVENTORY: '/kiosk-inventory',
     KIOSK_CASH: '/kiosk-cash',
+    KIOSK_CUSTOMERS: '/kiosk-customers',
+    KIOSK_SUPPLIERS: '/kiosk-suppliers',
     KIOSK_FISCAL: '/kiosk-fiscal',
   }),
 

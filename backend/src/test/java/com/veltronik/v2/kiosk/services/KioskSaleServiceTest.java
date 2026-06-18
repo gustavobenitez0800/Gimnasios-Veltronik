@@ -39,6 +39,7 @@ class KioskSaleServiceTest {
     @Mock private KioskProductService productService;
     @Mock private KioskStockService stockService;
     @Mock private KioskCashService cashService;
+    @Mock private KioskCustomerService customerService;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private KioskSaleService service;

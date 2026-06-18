@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
 import { Modal, ModalForm, ModalActions, FormField } from '../components/ui';
@@ -22,7 +23,10 @@ const PAYMENT_METHODS = [
   { value: 'CARD', label: 'Tarjeta' },
   { value: 'TRANSFER', label: 'Transferencia' },
   { value: 'MP', label: 'Mercado Pago' },
+  { value: 'CUENTA_CORRIENTE', label: 'Cuenta corriente (fiado)' },
 ];
+const VOUCHER_LABELS = { FACTURA_A: 'Factura A', FACTURA_B: 'Factura B', FACTURA_C: 'Factura C' };
+const voucherNumber = (v) => `${String(v.pointOfSale).padStart(4, '0')}-${String(v.number).padStart(8, '0')}`;
 
 export default function PosPage() {
   const { showToast } = useToast();
@@ -31,6 +35,8 @@ export default function PosPage() {
 
   const [session, setSession] = useState(null);
   const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [autoInvoice, setAutoInvoice] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
@@ -39,18 +45,25 @@ export default function PosPage() {
 
   const [payModal, setPayModal] = useState(false);
   const [method, setMethod] = useState('CASH');
+  const [customerId, setCustomerId] = useState('');
   const [tendered, setTendered] = useState('');
   const [paying, setPaying] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  const [fiscalVoucher, setFiscalVoucher] = useState(null);
+  const saleRef = useRef(null); // venta que se está mostrando/poleando (ignora resultados viejos)
 
   const loadAll = useCallback(async () => {
     try {
-      const [cur, prods] = await Promise.all([
+      const [cur, prods, settings, custs] = await Promise.all([
         kioskService.getCurrentCash(),
         kioskService.getActiveProducts(),
+        kioskService.getSettings(),
+        kioskService.getActiveCustomers(),
       ]);
       setSession(cur);
       setProducts(prods);
+      setAutoInvoice(!!settings.autoInvoice);
+      setCustomers(custs);
     } catch (err) {
       showToast(err.message || 'Error al cargar el POS', 'error');
     } finally {
@@ -111,6 +124,7 @@ export default function PosPage() {
     if (cart.length === 0) { showToast('El carrito está vacío', 'error'); return; }
     setMethod('CASH');
     setTendered('');
+    setCustomerId('');
     setReceipt(null);
     setPayModal(true);
   };
@@ -120,23 +134,47 @@ export default function PosPage() {
     return Number(tendered) - total;
   }, [method, tendered, total]);
 
+  // La facturación es asíncrona: tras la venta, consultamos el comprobante hasta que ARCA
+  // devuelva el CAE (o se rinda). Ignora resultados de una venta anterior (saleRef).
+  const pollVoucher = async (saleId) => {
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      if (saleRef.current !== saleId) return;
+      try {
+        const v = await kioskService.getVoucherBySource('KIOSK_SALE', saleId);
+        if (v && saleRef.current === saleId) {
+          setFiscalVoucher(v);
+          if (v.status === 'AUTHORIZED' || v.status === 'REJECTED') return;
+        }
+      } catch { /* reintenta */ }
+    }
+  };
+
   const confirmSale = async (e) => {
     e.preventDefault();
+    if (method === 'CUENTA_CORRIENTE' && !customerId) {
+      showToast('Elegí el cliente para la cuenta corriente', 'error'); return;
+    }
     setPaying(true);
     try {
-      const sale = await kioskService.registerSale({
+      const payload = {
         clientUuid: (crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`),
         items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity })),
         payments: [{ method, amount: total }],
-      });
+      };
+      if (method === 'CUENTA_CORRIENTE') payload.customerId = customerId;
+      const sale = await kioskService.registerSale(payload);
       // El backend es la autoridad: mostramos SU total.
       const realTotal = Number(sale.total);
       const ch = (method === 'CASH' && tendered !== '') ? Number(tendered) - realTotal : null;
-      setReceipt({ total: realTotal, change: ch, method });
+      saleRef.current = sale.id;
+      setFiscalVoucher(null);
+      setReceipt({ total: realTotal, change: ch, method, saleId: sale.id });
       setCart([]);
       setPayModal(false);
       showToast('Venta registrada', 'success');
       barcodeRef.current?.focus();
+      if (autoInvoice) pollVoucher(sale.id); // dispara el polling del comprobante
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo registrar la venta', 'error');
     } finally {
@@ -219,6 +257,25 @@ export default function PosPage() {
               {receipt.change !== null && receipt.change >= 0 && (
                 <div className="pos-receipt-change">Vuelto: <strong>{fmtMoney(receipt.change)}</strong></div>
               )}
+
+              {/* Comprobante ARCA (asíncrono): el backend lo emite y acá lo mostramos al llegar. */}
+              {autoInvoice && (
+                <div className="pos-receipt-fiscal">
+                  {fiscalVoucher && fiscalVoucher.status === 'AUTHORIZED' ? (
+                    <>
+                      <div className="pos-fiscal-title">{VOUCHER_LABELS[fiscalVoucher.voucherType] || 'Comprobante'} {voucherNumber(fiscalVoucher)}</div>
+                      <div className="pos-fiscal-cae">CAE {fiscalVoucher.cae}</div>
+                      {fiscalVoucher.qrUrl && <div className="pos-fiscal-qr"><QRCodeSVG value={fiscalVoucher.qrUrl} size={120} /></div>}
+                    </>
+                  ) : fiscalVoucher && fiscalVoucher.status === 'REJECTED' ? (
+                    <div className="pos-fiscal-warn">Comprobante rechazado por ARCA</div>
+                  ) : fiscalVoucher && fiscalVoucher.status === 'CONTINGENCY' ? (
+                    <div className="pos-fiscal-warn">Comprobante en contingencia (se reintenta solo)</div>
+                  ) : (
+                    <div className="text-muted" style={{ fontSize: '0.8rem' }}><span className="spinner" /> Facturando…</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -253,6 +310,13 @@ export default function PosPage() {
         <ModalForm onSubmit={confirmSale}>
           <FormField label="Medio de pago" type="select"
             value={method} onChange={setMethod} options={PAYMENT_METHODS} />
+          {method === 'CUENTA_CORRIENTE' && (
+            <FormField label="Cliente" type="select" value={customerId} onChange={setCustomerId}
+              options={[{ value: '', label: 'Elegí un cliente' }, ...customers.map((c) => ({
+                value: c.id, label: c.fullName + (Number(c.balance) > 0 ? ` (debe ${fmtMoney(c.balance)})` : ''),
+              }))]}
+              hint={customers.length === 0 ? 'No hay clientes cargados (creá uno en Clientes / Fiado)' : undefined} />
+          )}
           {method === 'CASH' && (
             <FormField label="Paga con" type="number" min="0" placeholder="Para calcular el vuelto"
               value={tendered} onChange={setTendered} />

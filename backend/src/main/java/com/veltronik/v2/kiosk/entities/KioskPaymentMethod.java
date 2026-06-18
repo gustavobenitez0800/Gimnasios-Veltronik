@@ -14,5 +14,7 @@ public enum KioskPaymentMethod {
     /** Transferencia bancaria / alias. */
     TRANSFER,
     /** Mercado Pago (QR o link). En Fase 1 es solo etiqueta; el QR dinámico llega después. */
-    MP
+    MP,
+    /** Cuenta corriente (fiado): la venta se anota como deuda del cliente. Fase 2. */
+    CUENTA_CORRIENTE
 }

@@ -39,6 +39,11 @@ public interface KioskProductRepository extends JpaRepository<KioskProduct, UUID
     @Query("UPDATE KioskProduct p SET p.stockQuantity = p.stockQuantity + :delta, p.updatedAt = CURRENT_TIMESTAMP WHERE p.id = :id")
     void applyStockDelta(@Param("id") UUID id, @Param("delta") BigDecimal delta);
 
+    /** Actualiza el costo del producto (lo hace una compra). UPDATE atómico para no pisar el stock. */
+    @Modifying
+    @Query("UPDATE KioskProduct p SET p.costPrice = :cost, p.updatedAt = CURRENT_TIMESTAMP WHERE p.id = :id")
+    void updateCost(@Param("id") UUID id, @Param("cost") BigDecimal cost);
+
     /** Productos en o por debajo del mínimo (alerta de reposición). Ignora servicios. */
     @Query("""
             SELECT p FROM KioskProduct p

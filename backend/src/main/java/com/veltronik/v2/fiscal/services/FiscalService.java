@@ -79,6 +79,12 @@ public class FiscalService implements FiscalFacade {
         return voucherRepository.findTop200ByTenantIdOrderByCreatedAtDesc(TenantContextHolder.getTenantId());
     }
 
+    /** Comprobante de un origen (ej. una venta) — lo usa el ticket del POS para mostrar el CAE/QR. */
+    public Optional<FiscalVoucher> findBySourceForCurrentTenant(String sourceType, UUID sourceId) {
+        return voucherRepository.findByTenantIdAndSourceTypeAndSourceIdOrderByCreatedAtDesc(
+                TenantContextHolder.getTenantId(), sourceType, sourceId).stream().findFirst();
+    }
+
     /** Reintento del cron de contingencia: resuelve la config del tenant del voucher y reintenta. */
     public void retry(FiscalVoucher voucher) {
         configService.findByTenantId(voucher.getTenant().getId())

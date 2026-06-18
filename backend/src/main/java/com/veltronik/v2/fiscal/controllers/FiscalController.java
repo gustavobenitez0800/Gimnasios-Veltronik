@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
@@ -61,6 +62,20 @@ public class FiscalController {
     @GetMapping("/vouchers")
     public ResponseEntity<List<FiscalVoucherDTO>> getVouchers() {
         return ResponseEntity.ok(mapper.toVoucherDtoList(fiscalService.listVouchersForCurrentTenant()));
+    }
+
+    /**
+     * Comprobante de una venta (para el ticket del POS). Lo consulta el cajero (cualquier rol),
+     * por eso afloja el @PreAuthorize de la clase: es lectura del propio tenant, no es sensible.
+     * 204 si todavía no hay comprobante (la emisión es asíncrona → el POS reintenta).
+     */
+    @GetMapping("/vouchers/by-source")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<FiscalVoucherDTO> getVoucherBySource(@RequestParam String sourceType,
+                                                               @RequestParam UUID sourceId) {
+        return fiscalService.findBySourceForCurrentTenant(sourceType, sourceId)
+                .map(v -> ResponseEntity.ok(mapper.toDto(v)))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /** Parseo tolerante de enums: null/blank → null (patch parcial); texto inválido → 400. */

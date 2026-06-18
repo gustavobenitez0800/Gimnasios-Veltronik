@@ -31,6 +31,12 @@ public class KioskSale extends TenantAwareEntity {
     @JoinColumn(name = "cash_session_id", nullable = false)
     private KioskCashSession cashSession;
 
+    /** Cliente de cuenta corriente (fiado), si la venta fue a cuenta. EAGER (open-in-view=false);
+     *  KioskCustomer tiene @BatchSize para que el listado no caiga en N+1. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "customer_id")
+    private KioskCustomer customer;
+
     /** Idempotencia: UUID generado por el cliente. Único por tenant. */
     @Column(name = "client_uuid", nullable = false, updatable = false)
     private UUID clientUuid;

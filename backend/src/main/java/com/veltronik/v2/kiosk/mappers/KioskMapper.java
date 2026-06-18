@@ -38,8 +38,17 @@ public interface KioskMapper {
     KioskCashSessionDTO toDto(KioskCashSession entity);
     List<KioskCashSessionDTO> toCashSessionDtoList(List<KioskCashSession> entities);
 
+    // ─── Clientes / cuenta corriente (fiado) ───
+    KioskCustomerDTO toDto(KioskCustomer entity);
+    List<KioskCustomerDTO> toCustomerDtoList(List<KioskCustomer> entities);
+
+    KioskAccountMovementDTO toDto(KioskAccountMovement entity);
+    List<KioskAccountMovementDTO> toAccountMovementDtoList(List<KioskAccountMovement> entities);
+
     // ─── Ventas (agregado) ───
     @Mapping(target = "cashSessionId", source = "cashSession.id")
+    @Mapping(target = "customerId", source = "customer.id")
+    @Mapping(target = "customerName", source = "customer.fullName")
     KioskSaleDTO toDto(KioskSale entity);
     List<KioskSaleDTO> toSaleDtoList(List<KioskSale> entities);
 
@@ -50,6 +59,19 @@ public interface KioskMapper {
     KioskSaleItemDTO toDto(KioskSaleItem entity);
 
     KioskSalePaymentDTO toDto(KioskSalePayment entity);
+
+    // ─── Proveedores / compras ───
+    KioskSupplierDTO toDto(KioskSupplier entity);
+    List<KioskSupplierDTO> toSupplierDtoList(List<KioskSupplier> entities);
+
+    @Mapping(target = "supplierId", source = "supplier.id")
+    @Mapping(target = "supplierName", source = "supplier.name")
+    KioskPurchaseDTO toDto(KioskPurchase entity);
+    List<KioskPurchaseDTO> toPurchaseDtoList(List<KioskPurchase> entities);
+
+    @Mapping(target = "productId", source = "product.id")
+    @Mapping(target = "productName", source = "productNameSnapshot")
+    KioskPurchaseItemDTO toDto(KioskPurchaseItem entity);
 
     // ─── Configuración ───
     KioskSettingsDTO toDto(KioskSettings entity);

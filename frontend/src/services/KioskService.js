@@ -74,6 +74,49 @@ class KioskService {
     return true;
   }
 
+  // ─── Clientes / cuenta corriente (fiado) ───
+
+  async getCustomers() {
+    const response = await apiClient.get('/kiosk/customers');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async getActiveCustomers() {
+    const response = await apiClient.get('/kiosk/customers/active');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async getCustomersWithDebt() {
+    const response = await apiClient.get('/kiosk/customers/with-debt');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async getCustomerMovements(id) {
+    const response = await apiClient.get(`/kiosk/customers/${id}/movements`);
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async createCustomer(customer) {
+    const response = await apiClient.post('/kiosk/customers', customer);
+    return response.data;
+  }
+
+  async updateCustomer(id, updates) {
+    const response = await apiClient.put(`/kiosk/customers/${id}`, updates);
+    return response.data;
+  }
+
+  async deleteCustomer(id) {
+    await apiClient.delete(`/kiosk/customers/${id}`);
+    return true;
+  }
+
+  /** Registra un pago del cliente a su cuenta corriente. */
+  async registerCustomerPayment(id, amount, notes) {
+    const response = await apiClient.post(`/kiosk/customers/${id}/payment`, { amount, notes });
+    return response.data;
+  }
+
   // ─── Inventario ───
 
   async getMovements() {
@@ -89,6 +132,44 @@ class KioskService {
   /** Ajuste por recuento: { productId, countedQuantity, reason }. */
   async adjustStock(adjustment) {
     const response = await apiClient.post('/kiosk/inventory/adjust', adjustment);
+    return response.data;
+  }
+
+  // ─── Proveedores / compras ───
+
+  async getSuppliers() {
+    const response = await apiClient.get('/kiosk/suppliers');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async getActiveSuppliers() {
+    const response = await apiClient.get('/kiosk/suppliers/active');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  async createSupplier(supplier) {
+    const response = await apiClient.post('/kiosk/suppliers', supplier);
+    return response.data;
+  }
+
+  async updateSupplier(id, updates) {
+    const response = await apiClient.put(`/kiosk/suppliers/${id}`, updates);
+    return response.data;
+  }
+
+  async deleteSupplier(id) {
+    await apiClient.delete(`/kiosk/suppliers/${id}`);
+    return true;
+  }
+
+  async getPurchases() {
+    const response = await apiClient.get('/kiosk/purchases');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /** Registra una compra: { supplierId?, purchaseDate?, notes?, items:[{productId, quantity, unitCost}] }. */
+  async registerPurchase(purchase) {
+    const response = await apiClient.post('/kiosk/purchases', purchase);
     return response.data;
   }
 
@@ -175,6 +256,12 @@ class KioskService {
   async getFiscalVouchers() {
     const response = await apiClient.get('/fiscal/vouchers');
     return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /** Comprobante de una venta (para el ticket del POS). null si todavía no se emitió (204). */
+  async getVoucherBySource(sourceType, sourceId) {
+    const response = await apiClient.get('/fiscal/vouchers/by-source', { params: { sourceType, sourceId } });
+    return response.data || null;
   }
 }
 

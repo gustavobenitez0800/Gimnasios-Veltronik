@@ -43,17 +43,20 @@ public class KioskSaleService {
     private final KioskProductService productService;
     private final KioskStockService stockService;
     private final KioskCashService cashService;
+    private final KioskCustomerService customerService;
     private final ApplicationEventPublisher eventPublisher;
 
     public KioskSaleService(KioskSaleRepository saleRepository,
                             KioskProductService productService,
                             KioskStockService stockService,
                             KioskCashService cashService,
+                            KioskCustomerService customerService,
                             ApplicationEventPublisher eventPublisher) {
         this.saleRepository = saleRepository;
         this.productService = productService;
         this.stockService = stockService;
         this.cashService = cashService;
+        this.customerService = customerService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -148,16 +151,35 @@ public class KioskSaleService {
 
         // 4) Pagos. El backend valida que cubran exactamente el total (el vuelto es del front).
         BigDecimal paid = BigDecimal.ZERO;
+        BigDecimal fiado = BigDecimal.ZERO;
         for (KioskSalePaymentInputDTO payIn : in.getPayments()) {
+            KioskPaymentMethod method = parseMethod(payIn.getMethod());
             KioskSalePayment payment = new KioskSalePayment();
-            payment.setMethod(parseMethod(payIn.getMethod()));
+            payment.setMethod(method);
             payment.setAmount(payIn.getAmount());
             sale.addPayment(payment);
             paid = paid.add(payIn.getAmount());
+            if (method == KioskPaymentMethod.CUENTA_CORRIENTE) fiado = fiado.add(payIn.getAmount());
         }
         if (paid.compareTo(total) != 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Los pagos (" + paid + ") no coinciden con el total de la venta (" + total + ")");
+        }
+
+        // 4.b) Fiado: la parte a cuenta corriente necesita un cliente; se valida el límite de crédito.
+        KioskCustomer customer = null;
+        if (fiado.signum() > 0) {
+            if (in.getCustomerId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "La venta a cuenta corriente necesita un cliente");
+            }
+            customer = customerService.findByIdAndVerifyOwnership(in.getCustomerId());
+            if (customer.getCreditLimit().signum() > 0
+                    && customer.getBalance().add(fiado).compareTo(customer.getCreditLimit()) > 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Supera el límite de fiado de " + customer.getFullName());
+            }
+            sale.setCustomer(customer);
         }
 
         // 5) Persistir el agregado. La carrera de idempotencia la decide el índice único.
@@ -177,6 +199,11 @@ public class KioskSaleService {
                 stockService.applyMovement(product, KioskStockMovementType.SALE,
                         item.getQuantity().negate(), "Venta", saved.getId());
             }
+        }
+
+        // 6.b) Fiado: anotar la deuda en la cuenta corriente del cliente (saldo atómico).
+        if (customer != null) {
+            customerService.registerDebt(customer, fiado, saved.getId());
         }
 
         // 7) Avisar que la venta se completó. El listener de facturación (AFTER_COMMIT, async)
@@ -200,7 +227,14 @@ public class KioskSaleService {
                         item.getQuantity(), "Anulación de venta", sale.getId());
             }
         }
-        sale.getPayments().size(); // inicializa los pagos para el mapeo (open-in-view=false)
+        // Fiado: anular una venta a cuenta corriente devuelve esa deuda al cliente.
+        BigDecimal fiado = sale.getPayments().stream()   // getPayments() también inicializa para el mapeo
+                .filter(p -> p.getMethod() == KioskPaymentMethod.CUENTA_CORRIENTE)
+                .map(KioskSalePayment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (fiado.signum() > 0 && sale.getCustomer() != null) {
+            customerService.registerPayment(sale.getCustomer().getId(), fiado, "Anulación de venta fiada");
+        }
         return saleRepository.save(sale);
     }
 

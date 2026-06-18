@@ -39,6 +39,8 @@ import PosPage from './pages/PosPage';
 import KioskProductsPage from './pages/KioskProductsPage';
 import KioskInventoryPage from './pages/KioskInventoryPage';
 import KioskCashPage from './pages/KioskCashPage';
+import KioskCustomersPage from './pages/KioskCustomersPage';
+import KioskSuppliersPage from './pages/KioskSuppliersPage';
 import KioskFiscalPage from './pages/KioskFiscalPage';
 import BlockedPage from './pages/BlockedPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -116,6 +118,8 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.KIOSK_PRODUCTS} element={<KioskProductsPage />} />
                   <Route path={CONFIG.ROUTES.KIOSK_INVENTORY} element={<KioskInventoryPage />} />
                   <Route path={CONFIG.ROUTES.KIOSK_CASH} element={<KioskCashPage />} />
+                  <Route path={CONFIG.ROUTES.KIOSK_CUSTOMERS} element={<KioskCustomersPage />} />
+                  <Route path={CONFIG.ROUTES.KIOSK_SUPPLIERS} element={<KioskSuppliersPage />} />
                   <Route path={CONFIG.ROUTES.KIOSK_FISCAL} element={<KioskFiscalPage />} />
                 </Route>
               </Route>
