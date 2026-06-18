@@ -121,6 +121,36 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- 10.b PostgreSQL embebida (in-process, SIN Docker): test de arranque real que aplica
+             todas las migraciones Flyway y valida el contexto Spring. Red de seguridad que faltaba
+             (ver ApplicationBootIT). Solo test-scope → no entra al JAR de producción. -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
+            <version>16.2.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-linux-amd64</artifactId>
+            <version>16.2.0</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- commons-compress (de zonky) requiere commons-io >= 2.16; el classpath traía 2.11.0
+             transitivo (NoSuchMethodError en la extracción del binario). Solo test-scope. -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.16.1</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- 11. Spring Actuator: Health check para Railway y monitoreo -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
