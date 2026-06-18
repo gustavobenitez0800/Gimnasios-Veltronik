@@ -75,12 +75,14 @@ const KIOSCO_NAV = [
   {
     title: 'Principal',
     items: [
+      { to: CONFIG.ROUTES.KIOSK_DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
       { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta' },
       { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos' },
       { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario' },
       { to: CONFIG.ROUTES.KIOSK_CUSTOMERS, icon: 'users', label: 'Clientes / Fiado' },
       { to: CONFIG.ROUTES.KIOSK_SUPPLIERS, icon: 'store', label: 'Proveedores' },
       { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja' },
+      { to: CONFIG.ROUTES.KIOSK_REPORTS, icon: 'chart', label: 'Reportes' },
       { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación' },
     ],
   },
@@ -206,8 +208,10 @@ function getNavSections(orgType, role) {
       CONFIG.ROUTES.PAYMENTS,
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
-      // Kiosco: catálogo, inventario y facturación son gestión (dueño/admin). El backend los
-      // bloquea con @PreAuthorize → el front no dibuja lo que devolvería 403.
+      // Kiosco: catálogo, inventario, facturación y la analítica (dashboard/reportes) son gestión
+      // (dueño/admin). El backend los bloquea con @PreAuthorize → el front no dibuja lo que daría 403.
+      CONFIG.ROUTES.KIOSK_DASHBOARD,
+      CONFIG.ROUTES.KIOSK_REPORTS,
       CONFIG.ROUTES.KIOSK_PRODUCTS,
       CONFIG.ROUTES.KIOSK_INVENTORY,
       CONFIG.ROUTES.KIOSK_SUPPLIERS,

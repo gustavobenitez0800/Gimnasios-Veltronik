@@ -223,6 +223,20 @@ class KioskService {
     return response.data;
   }
 
+  // ─── Analítica (dashboard + reportes, solo dueño/admin) ───
+
+  /** Tablero del dueño: rentabilidad, producto estrella, hora pico, fiado, stock bajo + insights. */
+  async getDashboard() {
+    const response = await apiClient.get('/kiosk/analytics/dashboard');
+    return response.data;
+  }
+
+  /** Reporte exportable del rango: resumen, rentabilidad por producto y ticket por ticket. */
+  async getReport(from, to) {
+    const response = await apiClient.get('/kiosk/analytics/report', { params: { from, to } });
+    return response.data;
+  }
+
   // ─── Configuración ───
 
   async getSettings() {

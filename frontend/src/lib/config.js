@@ -73,6 +73,8 @@ const CONFIG = {
     COURT_FIXED: '/court-fixed',
     // ─── Vertical Kiosco (KIOSCO) ───
     POS: '/pos',
+    KIOSK_DASHBOARD: '/kiosk-dashboard',
+    KIOSK_REPORTS: '/kiosk-reports',
     KIOSK_PRODUCTS: '/kiosk-products',
     KIOSK_INVENTORY: '/kiosk-inventory',
     KIOSK_CASH: '/kiosk-cash',

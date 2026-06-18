@@ -1,6 +1,7 @@
 package com.veltronik.v2.kiosk.repositories;
 
 import com.veltronik.v2.kiosk.entities.KioskSale;
+import com.veltronik.v2.kiosk.entities.KioskSaleStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,6 +25,25 @@ public interface KioskSaleRepository extends JpaRepository<KioskSale, UUID> {
     /** Ventas del tenant en una ventana de fechas (reportes / listado del día). */
     List<KioskSale> findByTenantIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             UUID tenantId, LocalDateTime from, LocalDateTime to);
+
+    /**
+     * Ventas en un estado dado dentro de una ventana semiabierta {@code [from, to)} para la
+     * analítica (dashboard / reportes). Los renglones y pagos se recorren LAZY dentro de la
+     * transacción de lectura (cargados en lotes por {@code @BatchSize}); por eso el método de
+     * servicio que la usa es {@code @Transactional(readOnly = true)}.
+     */
+    @Query("""
+            SELECT s FROM KioskSale s
+            WHERE s.tenant.id = :tenantId
+              AND s.status = :status
+              AND s.createdAt >= :from
+              AND s.createdAt < :to
+            ORDER BY s.createdAt ASC
+            """)
+    List<KioskSale> findByStatusInPeriod(@Param("tenantId") UUID tenantId,
+                                         @Param("status") KioskSaleStatus status,
+                                         @Param("from") LocalDateTime from,
+                                         @Param("to") LocalDateTime to);
 
     /**
      * Efectivo cobrado en una sesión (para el arqueo): Σ de los pagos CASH de las ventas
