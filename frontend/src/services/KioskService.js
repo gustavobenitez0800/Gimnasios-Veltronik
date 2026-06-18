@@ -153,6 +153,29 @@ class KioskService {
     const response = await apiClient.put('/kiosk/settings', updates);
     return response.data;
   }
+
+  // ─── Facturación ARCA (módulo fiscal compartido, /api/fiscal) ───
+
+  async getFiscalConfig() {
+    const response = await apiClient.get('/fiscal/config');
+    return response.data;
+  }
+
+  async updateFiscalConfig(updates) {
+    const response = await apiClient.put('/fiscal/config', updates);
+    return response.data;
+  }
+
+  /** Sube el certificado + clave (PEM). El backend los guarda CIFRADOS. */
+  async uploadFiscalCertificate(certificatePem, privateKeyPem) {
+    const response = await apiClient.post('/fiscal/config/certificate', { certificatePem, privateKeyPem });
+    return response.data;
+  }
+
+  async getFiscalVouchers() {
+    const response = await apiClient.get('/fiscal/vouchers');
+    return Array.isArray(response.data) ? response.data : [];
+  }
 }
 
 export const kioskService = new KioskService();

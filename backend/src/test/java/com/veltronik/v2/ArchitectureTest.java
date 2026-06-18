@@ -51,8 +51,16 @@ class ArchitectureTest {
     @Test
     void core_no_depende_de_ningun_vertical() {
         noClasses().that().resideInAPackage("..core..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
                 .because("core es la base reutilizable: nada del dominio de un vertical puede filtrarse a core")
+                .check(CLASSES);
+    }
+
+    @Test
+    void fiscal_no_depende_de_verticales() {
+        noClasses().that().resideInAPackage("..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..")
+                .because("fiscal es un módulo COMPARTIDO (por debajo de las verticales): las verticales lo usan, no al revés")
                 .check(CLASSES);
     }
 }

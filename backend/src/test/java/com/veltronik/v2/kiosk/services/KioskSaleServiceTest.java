@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,6 +39,7 @@ class KioskSaleServiceTest {
     @Mock private KioskProductService productService;
     @Mock private KioskStockService stockService;
     @Mock private KioskCashService cashService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private KioskSaleService service;
 

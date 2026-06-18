@@ -79,6 +79,7 @@ const KIOSCO_NAV = [
       { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos' },
       { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario' },
       { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja' },
+      { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación' },
     ],
   },
   {
@@ -203,10 +204,11 @@ function getNavSections(orgType, role) {
       CONFIG.ROUTES.PAYMENTS,
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
-      // Kiosco: catálogo e inventario son gestión (dueño/admin). El backend los bloquea
-      // con @PreAuthorize → el front no dibuja lo que devolvería 403.
+      // Kiosco: catálogo, inventario y facturación son gestión (dueño/admin). El backend los
+      // bloquea con @PreAuthorize → el front no dibuja lo que devolvería 403.
       CONFIG.ROUTES.KIOSK_PRODUCTS,
       CONFIG.ROUTES.KIOSK_INVENTORY,
+      CONFIG.ROUTES.KIOSK_FISCAL,
     ];
     return sections.map(section => ({
       ...section,

@@ -106,6 +106,14 @@
             <version>2.9.2</version>
         </dependency>
 
+        <!-- 9.b BouncyCastle: firma CMS/PKCS#7 del Login Ticket de WSAA (ARCA/AFIP).
+             Necesario para autenticar contra los web services fiscales con el certificado del tenant. -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+
         <!-- 10. Herramientas para testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

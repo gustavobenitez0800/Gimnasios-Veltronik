@@ -7,7 +7,9 @@ import com.veltronik.v2.kiosk.dto.KioskSaleInputDTO;
 import com.veltronik.v2.kiosk.dto.KioskSaleItemInputDTO;
 import com.veltronik.v2.kiosk.dto.KioskSalePaymentInputDTO;
 import com.veltronik.v2.kiosk.entities.*;
+import com.veltronik.v2.kiosk.events.KioskSaleCompletedEvent;
 import com.veltronik.v2.kiosk.repositories.KioskSaleRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -41,15 +43,18 @@ public class KioskSaleService {
     private final KioskProductService productService;
     private final KioskStockService stockService;
     private final KioskCashService cashService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public KioskSaleService(KioskSaleRepository saleRepository,
                             KioskProductService productService,
                             KioskStockService stockService,
-                            KioskCashService cashService) {
+                            KioskCashService cashService,
+                            ApplicationEventPublisher eventPublisher) {
         this.saleRepository = saleRepository;
         this.productService = productService;
         this.stockService = stockService;
         this.cashService = cashService;
+        this.eventPublisher = eventPublisher;
     }
 
     public KioskSale findByIdAndVerifyOwnership(UUID id) {
@@ -173,6 +178,10 @@ public class KioskSaleService {
                         item.getQuantity().negate(), "Venta", saved.getId());
             }
         }
+
+        // 7) Avisar que la venta se completó. El listener de facturación (AFTER_COMMIT, async)
+        //    decide si emitir comprobante a ARCA. La venta no espera ni depende de eso.
+        eventPublisher.publishEvent(new KioskSaleCompletedEvent(tenantId, saved.getId(), saved.getTotal()));
         return saved;
     }
 

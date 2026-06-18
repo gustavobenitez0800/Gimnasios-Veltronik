@@ -76,6 +76,7 @@ const CONFIG = {
     KIOSK_PRODUCTS: '/kiosk-products',
     KIOSK_INVENTORY: '/kiosk-inventory',
     KIOSK_CASH: '/kiosk-cash',
+    KIOSK_FISCAL: '/kiosk-fiscal',
   }),
 
   // Gym Status

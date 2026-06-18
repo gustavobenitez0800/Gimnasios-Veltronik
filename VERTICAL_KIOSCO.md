@@ -4,11 +4,11 @@
 
 > **ESTADO (2026-06-15): FASE 1 BACKEND IMPLEMENTADA** ✅ — módulo `kiosk` completo
 > (8 entidades + enums, 6 repositorios, DTOs, `KioskMapper` MapStruct, 6 services, 6 controllers
-> REST), migración **V23** (`V23__Init_Kiosk_Module.sql`), `BusinessType.KIOSCO`. Compila
-> (BUILD SUCCESS) y 10 tests unitarios verdes (motor de ventas + caja). La V23 se aplica sola
+> REST), migración **V25** (`V25__Init_Kiosk_Module.sql`), `BusinessType.KIOSCO`. Compila
+> (BUILD SUCCESS) y 10 tests unitarios verdes (motor de ventas + caja). La V25 se aplica sola
 > (Flyway) en el próximo deploy — es aditiva (solo CREATE de tablas `kiosk_*`, no toca nada
 > existente). **Pendiente:** frontend (POS/productos/inventario/caja + onboarding/sidebar/tema/guard),
-> Fase 2 (fiado/proveedores) y Fase 3 (módulo `fiscal` ARCA, V24).
+> Fase 2 (fiado/proveedores) y Fase 3 (módulo `fiscal` ARCA, V26+).
 
 > Complementa al [VELTRONIK_CODEX.md](VELTRONIK_CODEX.md) y replica el patrón probado en
 > producción de `courts` ([VERTICAL_FUTBOL5.md](VERTICAL_FUTBOL5.md), v2.5.0). **v2.0** agrega
@@ -49,8 +49,8 @@ abajo.
 
 ### 2.1 Dos módulos nuevos, no uno
 ```text
-com.veltronik.v2.kiosk     ← la vertical retail (POS, stock, caja, fiado)   → migración V23
-com.veltronik.v2.fiscal    ← facturación ARCA, COMPARTIDO entre verticales  → migración V24
+com.veltronik.v2.kiosk     ← la vertical retail (POS, stock, caja, fiado)   → migración V25
+com.veltronik.v2.fiscal    ← facturación ARCA, COMPARTIDO entre verticales  → migración V26
 ```
 
 **Por qué `fiscal` va aparte y no dentro de `kiosk`:** facturar a ARCA no es exclusivo del
@@ -83,7 +83,7 @@ y evita saturar ARCA con millones de microcomprobantes.
 
 ---
 
-## 🗄️ 3. Modelo de Datos `kiosk` (Migración V23)
+## 🗄️ 3. Modelo de Datos `kiosk` (Migración V25)
 
 Todas heredan de `TenantAwareEntity`. Mismo estilo que la V20 (courts).
 
@@ -101,7 +101,7 @@ Todas heredan de `TenantAwareEntity`. Mismo estilo que la V20 (courts).
 | `KioskSettings` | card_surcharge_pct, allow_fiado, auto_invoice, low_stock_alert | 1 fila por tenant |
 
 ```sql
--- V23__Init_Kiosk_Module.sql  (extracto de las piezas no triviales; el resto sigue el molde V20)
+-- V25__Init_Kiosk_Module.sql  (extracto de las piezas no triviales; el resto sigue el molde V20)
 
 -- Producto: is_service = recarga/SUBE (no descuenta stock); iva_rate para Factura A/B.
 CREATE TABLE kiosk_product (
@@ -186,7 +186,7 @@ CREATE TABLE kiosk_sale_payment (
 --  e índices: idénticos en estilo a la V20 — omitidos acá por brevedad, van completos en la migración)
 ```
 
-**Invariantes duras de la V23:** `ux_kiosk_product_barcode` (barcode único), caja única abierta,
+**Invariantes duras de la V25:** `ux_kiosk_product_barcode` (barcode único), caja única abierta,
 `ux_kiosk_sale_client_uuid` (idempotencia offline). Stock = Σ movimientos. Balance = Σ acct_movements.
 
 ---
@@ -260,7 +260,7 @@ Endpoints:
    - Producción:            https://servicios1.arca.gob.ar/wsfev1/service.asmx
 ```
 
-### 5.4 Modelo de datos `fiscal` (Migración V24)
+### 5.4 Modelo de datos `fiscal` (Migración V26)
 
 | Entidad | Campos clave | Notas |
 |---|---|---|
@@ -316,7 +316,7 @@ sensible:
 ## 📴 6. Offline-first (la otra parte difícil)
 
 Un kiosco no puede dejar de vender sin internet. Diseñado desde el día 1, implementado en Fase 1.5:
-1. **Idempotencia ya en la V23** (`client_uuid` único) → la cola offline reenvía sin duplicar.
+1. **Idempotencia ya en la V25** (`client_uuid` único) → la cola offline reenvía sin duplicar.
 2. **Cache de catálogo en Electron** (IndexedDB/SQLite) → el POS vende leyendo local.
 3. **Cola de ventas** con su `client_uuid` → worker que sincroniza al reconectar.
 4. **La factura ARCA también es offline-tolerante**: la venta offline genera el comprobante en
@@ -360,10 +360,10 @@ en courts §4).
 
 | Fase | Contenido | Entregable |
 |---|---|---|
-| **1 — Motor de Venta + Caja** | Enum `KIOSCO` · V23 (índices únicos parciales) · CRUD productos/categorías (con IVA y servicio) · POS (scanner, carrito, pago mixto, recargo tarjeta, vuelto) · Inventario auditado + alertas · Caja apertura/cierre/arqueo · Onboarding/Sidebar/Guard/tema | El kiosquero vende con scanner y cierra caja |
+| **1 — Motor de Venta + Caja** | Enum `KIOSCO` · V25 (índices únicos parciales) · CRUD productos/categorías (con IVA y servicio) · POS (scanner, carrito, pago mixto, recargo tarjeta, vuelto) · Inventario auditado + alertas · Caja apertura/cierre/arqueo · Onboarding/Sidebar/Guard/tema | El kiosquero vende con scanner y cierra caja |
 | **1.5 — Offline-first** | Cache de catálogo Electron · Cola de ventas (`client_uuid`) · Sync al reconectar | Vende sin internet, sincroniza solo |
 | **2 — Fiado + Compras + Proveedores** | `KioskCustomer` + cuenta corriente · `KioskSupplier` + compras (→ stock + costo) · vencimientos de perecederos | Cuenta corriente y control de costos/márgenes |
-| **3 — Facturación ARCA** | Módulo `fiscal` (V24) + `FiscalFacade` · WSAA + WSFEv1 (Factura C/B/A) · certificados multi-tenant cifrados · CAE + QR · contingencia con job · `KioskFiscalPage` | El kiosco factura legal a ARCA |
+| **3 — Facturación ARCA** | Módulo `fiscal` (V26) + `FiscalFacade` · WSAA + WSFEv1 (Factura C/B/A) · certificados multi-tenant cifrados · CAE + QR · contingencia con job · `KioskFiscalPage` | El kiosco factura legal a ARCA |
 | **4 — MP QR + Recarga + Bot + Reportes** | QR dinámico MP (namespace `sale:`) · recarga virtual/SUBE (red Carga Virtual) · reportes (rentabilidad, top, mermas, horas pico) · bot de stock/pedidos | Cobro digital, servicios y analítica |
 
 > **Nota de orden:** ARCA es Fase 3 a propósito — primero el motor que vende y se adopta, después
