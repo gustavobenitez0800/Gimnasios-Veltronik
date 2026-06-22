@@ -7,6 +7,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
+import { verticalThemeKey } from '../lib/verticals';
 import CONFIG from '../lib/config';
 
 import ErrorBoundary from './ErrorBoundary';
@@ -29,10 +30,11 @@ export function AppLayout() {
     toggleRef.current?.focus();
   }, []);
 
-  // Apply vertical theme
+  // Apply vertical theme — la clave sale del registry (fuente única): un tipo
+  // inesperado cae a 'other' (con estilos) en vez de un string sin tema.
   useEffect(() => {
     const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-    document.documentElement.setAttribute('data-vertical', orgType.toLowerCase());
+    document.documentElement.setAttribute('data-vertical', verticalThemeKey(orgType));
     return () => {
       document.documentElement.removeAttribute('data-vertical');
     };

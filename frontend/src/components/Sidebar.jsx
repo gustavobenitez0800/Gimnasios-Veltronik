@@ -6,6 +6,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
+import { getVertical, roleLabel } from '../lib/verticals';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
@@ -13,8 +14,8 @@ import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 // ─── Navigation sections by organization type ───
 
 const getGymNav = (orgType) => {
-  const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
-  
+  const membersLabel = getVertical(orgType).membersLabel;
+
   return [
     {
       title: 'Principal',
@@ -231,8 +232,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.fullName || 'Usuario';
-  const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
-  const userRole = ROLE_LABELS[orgRole] || orgRole;
+  const userRole = roleLabel(orgRole);
   const initials = getInitials(userName);
 
   const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
@@ -270,7 +270,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="sidebar-logo-text">Veltronik</span>
               {currentOrgType !== 'GYM' && (
                 <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {{ RESTO: 'Restaurante', KIOSCO: 'Kiosco / Almacén', PILATES: 'Pilates & Yoga', CLUB: 'Club Deportivo', ACADEMY: 'Academia', OTHER: 'Negocio', SALON: 'Belleza', FUTBOL_5: 'Fútbol 5' }[currentOrgType] || currentOrgType}
+                  {getVertical(currentOrgType).label}
                 </span>
               )}
             </div>

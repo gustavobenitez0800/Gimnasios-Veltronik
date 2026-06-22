@@ -13,6 +13,7 @@ import { gymService } from '../services';
 import { groupService } from '../services/GroupService';
 import UpdateIndicator from '../components/UpdateIndicator';
 import { getInitials } from '../lib/utils';
+import { getVertical, roleLabel } from '../lib/verticals';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import gymLogoSrc from '../assets/VeltronikGym.png';
@@ -20,8 +21,9 @@ import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
-// Sistemas reales: Gimnasio y Cancha de Fútbol 5. Los mapas conservan fallback por si llegara un tipo inesperado.
-const TYPE_LABELS = { GYM: 'Gimnasio', FUTBOL_5: 'Fútbol 5' };
+// Etiqueta y rol salen del registry de verticales (fuente única). Los íconos del
+// modal siguen en este mapa hasta la Etapa 2 (decidir el glifo del gym sin cambiar
+// el look del Lobby). Fallback por si llegara un tipo inesperado.
 const TYPE_ICONS = { GYM: gymLogoSrc, FUTBOL_5: <Icon name="futbol" /> };
 const TYPE_IS_IMAGE = { GYM: true, FUTBOL_5: false };
 const TYPE_BADGES = { GYM: 'badge-success', FUTBOL_5: 'badge-success' };
@@ -530,10 +532,10 @@ export default function LobbyPage() {
         </div>
         <h3 className="lobby-card-name">{org.name}</h3>
         <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
-          {TYPE_LABELS[orgType] || orgType}
+          {getVertical(orgType).label}
         </span>
         <p className="lobby-card-role">
-          {{ owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción' }[org.role] || org.role}
+          {roleLabel(org.role)}
         </p>
 
         {/* Status indicator (chip neutro mientras se verifica el estado de pago) */}
