@@ -203,6 +203,12 @@ button, a, input, select, textarea, [role="button"] {
 
   .sidebar-overlay { display: block; }
 
+  /* El botón ✕ de cerrar solo tiene sentido cuando el sidebar es un drawer */
+  .sidebar-close { display: inline-flex; }
+
+  /* Drawer abierto → congelar el fondo (si no, la página scrollea detrás del menú) */
+  body.sidebar-drawer-open { overflow: hidden; }
+
   .main-content { margin-left: 0; }
 
   /* ── Header móvil: vidrio fijo arriba, respeta el notch ── */
@@ -244,6 +250,17 @@ button, a, input, select, textarea, [role="button"] {
 
   /* Botones de cabecera a lo ancho: cómodos para el pulgar */
   .page-header-actions .btn { flex: 1 1 auto; }
+
+  /* Varias páginas agrupan sus acciones en un <div> (p.ej. Proveedores: "Proveedor" +
+     "Registrar compra"). Sin esto el grupo no se estira y los botones quedan apretados
+     a la izquierda. Lo hacemos full-width y repartimos el ancho entre los botones. */
+  .page-header-actions > div {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .page-header-actions > div > .btn { flex: 1 1 auto; }
 
   /* ── Grids del dashboard ── */
   .stats-grid,

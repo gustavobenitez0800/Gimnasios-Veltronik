@@ -2,7 +2,7 @@
 // VELTRONIK - LAYOUT COMPONENTS
 // ============================================
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
@@ -20,6 +20,14 @@ export function AppLayout() {
   const { loading, subscription, gym } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const toggleRef = useRef(null);
+
+  // Cierre del drawer reutilizable: además de ocultarlo, devuelve el foco al botón
+  // hamburguesa (en desktop el botón está display:none → focus() es no-op inocuo).
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    toggleRef.current?.focus();
+  }, []);
 
   // Apply vertical theme
   useEffect(() => {
@@ -29,6 +37,19 @@ export function AppLayout() {
       document.documentElement.removeAttribute('data-vertical');
     };
   }, [gym]);
+
+  // Drawer móvil abierto → bloquear el scroll del fondo y cerrar con Escape.
+  // El lock vive en <body> (CSS solo lo aplica en mobile); el listener se limpia al cerrar.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    document.body.classList.add('sidebar-drawer-open');
+    const onKey = (e) => { if (e.key === 'Escape') closeSidebar(); };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.classList.remove('sidebar-drawer-open');
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [sidebarOpen, closeSidebar]);
 
   // Payment warning banner logic
   const paymentWarning = useMemo(() => {
@@ -62,14 +83,18 @@ export function AppLayout() {
 
   return (
     <div className="app-layout">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       <main className="main-content">
         {/* Mobile header */}
         <header className="mobile-header">
           <button
+            ref={toggleRef}
             className="btn-icon sidebar-toggle"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir menú de navegación"
+            aria-expanded={sidebarOpen}
+            aria-controls="sidebar"
           >
             <Icon name="menu" />
           </button>

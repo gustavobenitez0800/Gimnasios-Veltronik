@@ -53,7 +53,9 @@
 .kiosk-buy-lines { display: flex; flex-direction: column; gap: 0.4rem; }
 .kiosk-buy-line { display: grid; grid-template-columns: 1fr 80px 100px auto; gap: 0.4rem; align-items: center; }
 .kiosk-buy-line .form-input { padding: 0.4rem 0.5rem !important; }
-.kiosk-buy-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.2rem; }
+/* Sin esto el <select>/<input> no encoge bajo su contenido y la hoja desborda en horizontal */
+.kiosk-buy-line > * { min-width: 0; }
+.kiosk-buy-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.2rem; display: inline-flex; align-items: center; justify-content: center; }
 .kiosk-buy-x:hover { color: #ef4444; }
 
 /* ============================================
@@ -190,4 +192,22 @@
   .pos-layout { grid-template-columns: 1fr; min-height: 0; }
   .pos-cart { position: sticky; bottom: 0; }
   .pos-product-grid { max-height: 50vh; }
+}
+
+/* Teléfonos chicos: el renglón de compra apila el producto a lo ancho y deja
+   cantidad / costo / quitar en una segunda fila (antes se apretaba ilegible). */
+@media (max-width: 480px) {
+  .kiosk-buy-line { grid-template-columns: 1fr 1fr auto; }
+  .kiosk-buy-line > select { grid-column: 1 / -1; }
+}
+
+/* Touch: objetivos cómodos para el dedo en el carrito y los renglones de compra.
+   Los íconos "quitar" y el input de cantidad eran ~24px → ahora 40px reales. */
+@media (hover: none), (pointer: coarse) {
+  .pos-cart-x,
+  .kiosk-buy-x {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .pos-cart-qty { min-height: 40px; }
 }

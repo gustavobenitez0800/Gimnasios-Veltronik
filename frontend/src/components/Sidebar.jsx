@@ -248,9 +248,14 @@ export default function Sidebar({ isOpen, onClose }) {
       <div
         className={`sidebar-overlay ${isOpen ? 'overlay-show' : ''}`}
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`} id="sidebar">
+      <aside
+        className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}
+        id="sidebar"
+        aria-label="Navegación principal"
+      >
         {/* Header */}
         <div className="sidebar-header">
           <div className="sidebar-logo">
@@ -270,13 +275,25 @@ export default function Sidebar({ isOpen, onClose }) {
               )}
             </div>
           </div>
-          <button
-            className="sidebar-theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-          >
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-          </button>
+          <div className="sidebar-header-actions">
+            <button
+              className="sidebar-theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+              aria-label={theme === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+            </button>
+            {/* Cerrar el drawer: visible solo en mobile (CSS). En desktop el sidebar es fijo. */}
+            <button
+              className="sidebar-close"
+              onClick={onClose}
+              aria-label="Cerrar menú"
+              title="Cerrar menú"
+            >
+              <Icon name="x" />
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}

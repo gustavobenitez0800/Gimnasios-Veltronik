@@ -60,6 +60,12 @@
   background-clip: text;
 }
 
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .sidebar-theme-toggle {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
@@ -76,6 +82,25 @@
   background: var(--bg-elevated);
   color: var(--primary-400);
   border-color: var(--primary-500);
+}
+
+/* Botón de cerrar el drawer: oculto por defecto; el responsive lo muestra en mobile */
+.sidebar-close {
+  display: none;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 0.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  align-items: center;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-close:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-color-hover);
 }
 
 .sidebar-nav {

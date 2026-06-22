@@ -153,10 +153,10 @@ export default function KioskDashboardPage() {
                   <tr><td colSpan="4" className="text-center text-muted" style={{ padding: '1.5rem' }}>Sin ventas este mes</td></tr>
                 ) : data.topProducts.map((p, i) => (
                   <tr key={i}>
-                    <td>{p.name}</td>
-                    <td>{Number(p.units).toLocaleString('es-AR')}</td>
-                    <td>{formatCurrency(p.revenue)}</td>
-                    <td>{Number(p.profit) > 0 ? formatCurrency(p.profit) : '—'}</td>
+                    <td data-label="Producto">{p.name}</td>
+                    <td data-label="Unid.">{Number(p.units).toLocaleString('es-AR')}</td>
+                    <td data-label="Vendido">{formatCurrency(p.revenue)}</td>
+                    <td data-label="Ganancia">{Number(p.profit) > 0 ? formatCurrency(p.profit) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -178,9 +178,9 @@ export default function KioskDashboardPage() {
                   <tr><td colSpan="3" className="text-center text-muted" style={{ padding: '1.5rem' }}>Nadie te debe. Bien ahí.</td></tr>
                 ) : data.topDebtors.map((c, i) => (
                   <tr key={i}>
-                    <td>{c.name}</td>
-                    <td>{c.phone || '—'}</td>
-                    <td>{formatCurrency(c.balance)}</td>
+                    <td data-label="Cliente">{c.name}</td>
+                    <td data-label="Teléfono">{c.phone || '—'}</td>
+                    <td data-label="Debe">{formatCurrency(c.balance)}</td>
                   </tr>
                 ))}
               </tbody>
