@@ -72,26 +72,26 @@ const gymNav = (membersLabel) => [
   {
     title: 'Principal',
     items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: membersLabel },
-      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos' },
-      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases' },
-      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso' },
-      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención' },
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
+      { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: membersLabel, module: 'members' },
+      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos', module: 'payments' },
+      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases', module: 'classes' },
+      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso', module: 'access' },
+      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención', module: 'retention' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
     ],
   },
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
   },
   {
     title: 'Plataforma',
     items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema', module: 'lobby' },
     ],
   },
 ];
@@ -100,25 +100,25 @@ const FUTBOL_NAV = [
   {
     title: 'Principal',
     items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla' },
-      { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos' },
-      { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes' },
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
+      { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla', module: 'courtGrid' },
+      { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos', module: 'courtFixed' },
+      { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes', module: 'courtCustomers' },
     ],
   },
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
-      { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas' },
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
+      { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas', module: 'courts' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
   },
   {
     title: 'Plataforma',
     items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema', module: 'lobby' },
     ],
   },
 ];
@@ -127,28 +127,28 @@ const KIOSCO_NAV = [
   {
     title: 'Principal',
     items: [
-      { to: CONFIG.ROUTES.KIOSK_DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta' },
-      { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos' },
-      { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario' },
-      { to: CONFIG.ROUTES.KIOSK_CUSTOMERS, icon: 'users', label: 'Clientes / Fiado' },
-      { to: CONFIG.ROUTES.KIOSK_SUPPLIERS, icon: 'store', label: 'Proveedores' },
-      { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja' },
-      { to: CONFIG.ROUTES.KIOSK_REPORTS, icon: 'chart', label: 'Reportes' },
-      { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación' },
+      { to: CONFIG.ROUTES.KIOSK_DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
+      { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta', module: 'pos' },
+      { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos', module: 'products' },
+      { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario', module: 'inventory' },
+      { to: CONFIG.ROUTES.KIOSK_CUSTOMERS, icon: 'users', label: 'Clientes / Fiado', module: 'customers' },
+      { to: CONFIG.ROUTES.KIOSK_SUPPLIERS, icon: 'store', label: 'Proveedores', module: 'suppliers' },
+      { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja', module: 'cash' },
+      { to: CONFIG.ROUTES.KIOSK_REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
+      { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación', module: 'fiscal' },
     ],
   },
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
   },
   {
     title: 'Plataforma',
     items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema', module: 'lobby' },
     ],
   },
 ];

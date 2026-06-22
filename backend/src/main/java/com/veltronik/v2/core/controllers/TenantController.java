@@ -1,10 +1,12 @@
 package com.veltronik.v2.core.controllers;
 
 import com.veltronik.v2.core.dto.TenantDTO;
+import com.veltronik.v2.core.dto.WorkspaceDTO;
 import com.veltronik.v2.core.entities.TenantMembership;
 import com.veltronik.v2.core.entities.UserRole;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.security.SecurityUtils;
+import com.veltronik.v2.core.security.WorkspacePolicy;
 import com.veltronik.v2.core.services.TenantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +70,27 @@ public class TenantController {
     public ResponseEntity<TenantDTO> getById(@PathVariable UUID id) {
         requireMembership(id);
         return ResponseEntity.ok(tenantService.findById(id));
+    }
+
+    /**
+     * Manifiesto del espacio de trabajo: vertical + rol + módulos que el usuario puede VER.
+     * Lo consume el front para dibujar la navegación sin duplicar la política de roles (antes
+     * el Sidebar la espejaba a mano). La autorización REAL de los datos sigue por endpoint.
+     * Requiere ser miembro activo del negocio.
+     */
+    @GetMapping("/{id}/workspace")
+    public ResponseEntity<WorkspaceDTO> getWorkspace(@PathVariable UUID id) {
+        TenantMembership membership = requireMembership(id);
+        TenantDTO tenant = tenantService.findById(id);
+        String orgType = tenant.getBusinessType() != null
+                ? tenant.getBusinessType().name()
+                : (tenant.getType() != null ? tenant.getType() : "GYM");
+        return ResponseEntity.ok(new WorkspaceDTO(
+                id,
+                orgType,
+                membership.getRole().name().toLowerCase(),
+                WorkspacePolicy.modulesFor(membership.getRole())
+        ));
     }
 
     /** Actualiza los datos del negocio. Requiere rol OWNER o ADMIN. */

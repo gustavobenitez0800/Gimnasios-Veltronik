@@ -7,17 +7,30 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
 import { getVertical, roleLabel, getVerticalNav } from '../lib/verticals';
+import { useWorkspace } from '../hooks/useWorkspace';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
 // Las secciones de navegación por vertical viven en el registry (lib/verticals.js).
 
-function getNavSections(orgType, role) {
-  // Sale del registry (fuente única); acá solo se filtra por ROL.
-  let sections = getVerticalNav(orgType);
+function getNavSections(orgType, role, allowedModules) {
+  // Las secciones salen del registry (fuente única).
+  const sections = getVerticalNav(orgType);
 
-  // Role-based filtering — espejo de la política del backend (@PreAuthorize):
+  // Preferencia: el backend dicta qué módulos se ven (fuente única de la política).
+  // El front SOLO dibuja lo permitido. (Items sin `module` pasan, por las dudas.)
+  if (allowedModules) {
+    return sections
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item => !item.module || allowedModules.includes(item.module)),
+      }))
+      .filter(section => section.items.length > 0);
+  }
+
+  // Fallback (backend sin /workspace todavía): filtrado por rol heredado —
+  // espejo de la política del backend (@PreAuthorize):
   // Dashboard/Pagos/Retención/Reportes exponen datos financieros y el backend los
   // restringe a OWNER/ADMIN. Mostrarlos a staff/reception solo producía pantallas
   // rotas con 403 ("el frontend solo dibuja lo que el backend permite").
@@ -71,7 +84,9 @@ export default function Sidebar({ isOpen, onClose }) {
   const initials = getInitials(userName);
 
   const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const navSections = getNavSections(currentOrgType, orgRole);
+  // El backend dicta los módulos visibles (fuente única); si no responde, cae al rol.
+  const workspace = useWorkspace(gym?.id);
+  const navSections = getNavSections(currentOrgType, orgRole, workspace?.modules);
 
   const handleLogout = async () => {
     await logout();
