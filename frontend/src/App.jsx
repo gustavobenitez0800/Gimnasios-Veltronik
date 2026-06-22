@@ -14,6 +14,7 @@ import { AppLayout, AuthLayout } from './components/Layout';
 import OrgTypeGuard from './components/OrgTypeGuard';
 import ForceUpdateOverlay from './components/ForceUpdateOverlay';
 import CONFIG from './lib/config';
+import { FITNESS_VERTICALS } from './lib/verticals';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -98,7 +99,7 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
 
                 {/* ─── GYM-ONLY ROUTES (Fitness & Wellness Ecosystem) ─── */}
-                <Route element={<OrgTypeGuard allowedTypes={['GYM', 'PILATES', 'CLUB', 'ACADEMY']} />}>
+                <Route element={<OrgTypeGuard allowedTypes={FITNESS_VERTICALS} />}>
                   <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
                   <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
                   <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />

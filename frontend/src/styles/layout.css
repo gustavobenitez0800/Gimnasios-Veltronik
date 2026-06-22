@@ -144,7 +144,12 @@
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(14, 165, 233, 0.06));
+  /* Tinte del acento del vertical: themea por token. Antes era un sky-blue fijo
+     (rgba(14,165,233)) que ni siquiera coincidía con el primary del gym; ahora cada
+     vertical lo colorea vía --primary-500 → un solo lugar, sin overrides por rubro. */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary-500) 14%, transparent),
+    color-mix(in srgb, var(--primary-500) 6%, transparent));
   color: var(--primary-400);
   font-weight: 600;
 }
@@ -404,18 +409,7 @@
   background-size: 30px 30px, 30px 30px, 100% 100%;
 }
 
-[data-vertical="futbol_5"] .nav-item.active {
-  background: color-mix(in srgb, var(--primary-500) 10%, transparent);
-  color: var(--primary-500);
-}
-
-[data-vertical="futbol_5"] .nav-item.active::before {
-  background: var(--primary-500);
-}
-
-[data-vertical="futbol_5"] .nav-item.active .nav-item-icon {
-  color: var(--primary-500);
-}
+/* Nav activo de futbol_5: ahora lo themea el .nav-item.active base por token. */
 
 /* ─── 2.6 KIOSCO (Turquesa — Mostrador / Punto de Venta) ─── */
 [data-vertical="kiosco"] body {
@@ -436,18 +430,7 @@
   background-size: 30px 30px, 30px 30px, 100% 100%;
 }
 
-[data-vertical="kiosco"] .nav-item.active {
-  background: color-mix(in srgb, var(--primary-500) 10%, transparent);
-  color: var(--primary-500);
-}
-
-[data-vertical="kiosco"] .nav-item.active::before {
-  background: var(--primary-500);
-}
-
-[data-vertical="kiosco"] .nav-item.active .nav-item-icon {
-  color: var(--primary-500);
-}
+/* Nav activo de kiosco: ahora lo themea el .nav-item.active base por token. */
 
 /* ─── 3. GYM / TECH (Command Center) ─── */
 [data-vertical="gym"] body,

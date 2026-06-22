@@ -21,6 +21,7 @@
 //     `accent` en sync con el primary-500 del bloque CSS correspondiente.
 
 import gymLogoSrc from '../assets/VeltronikGym.png';
+import CONFIG from './config';
 
 // Cada entrada: { id, label, icon, accent, membersLabel }
 //   - label: nombre visible (badge del Lobby, subtítulo del Sidebar).
@@ -60,4 +61,181 @@ export function verticalThemeKey(orgType) {
 /** Etiqueta legible del rol; cae al propio valor si llega uno inesperado. */
 export function roleLabel(role) {
   return ROLE_LABELS[role] || role;
+}
+
+// ─── Navegación por vertical ───
+// Antes vivía como arrays sueltos + un switch en Sidebar.jsx. Acá es parte del
+// registry (fuente única). El filtrado por ROL se mantiene en el Sidebar: es
+// política y la etapa 3 la mueve al backend. Los items referencian CONFIG.ROUTES.
+
+const gymNav = (membersLabel) => [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: membersLabel },
+      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos' },
+      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases' },
+      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso' },
+      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const FUTBOL_NAV = [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla' },
+      { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos' },
+      { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+      { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const KIOSCO_NAV = [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.KIOSK_DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta' },
+      { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos' },
+      { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario' },
+      { to: CONFIG.ROUTES.KIOSK_CUSTOMERS, icon: 'users', label: 'Clientes / Fiado' },
+      { to: CONFIG.ROUTES.KIOSK_SUPPLIERS, icon: 'store', label: 'Proveedores' },
+      { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja' },
+      { to: CONFIG.ROUTES.KIOSK_REPORTS, icon: 'chart', label: 'Reportes' },
+      { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const RESTO_NAV = [
+  {
+    title: 'Restaurante',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.TABLES, icon: 'grid', label: 'Mesas' },
+      { to: CONFIG.ROUTES.MENU, icon: 'list', label: 'Menú' },
+      { to: CONFIG.ROUTES.ORDERS, icon: 'clipboard', label: 'Pedidos' },
+      { to: CONFIG.ROUTES.KITCHEN, icon: 'fire', label: 'Cocina' },
+    ],
+  },
+  {
+    title: 'Gestión',
+    items: [
+      { to: CONFIG.ROUTES.CASH_REGISTER, icon: 'wallet', label: 'Caja' },
+      { to: CONFIG.ROUTES.INVENTORY, icon: 'package', label: 'Inventario' },
+      { to: CONFIG.ROUTES.RESERVATIONS, icon: 'calendar', label: 'Reservas' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const SALON_NAV = [
+  {
+    title: 'Salón',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
+      { to: CONFIG.ROUTES.SALON_AGENDA, icon: 'calendar', label: 'Agenda' },
+      { to: CONFIG.ROUTES.SALON_CLIENTS, icon: 'users', label: 'Clientes' },
+      { to: CONFIG.ROUTES.SALON_SERVICES, icon: 'list', label: 'Servicios' },
+      { to: CONFIG.ROUTES.SALON_STYLISTS, icon: 'userCog', label: 'Estilistas' },
+    ],
+  },
+  {
+    title: 'Gestión',
+    items: [
+      { to: CONFIG.ROUTES.SALON_CASH, icon: 'wallet', label: 'Caja' },
+      { to: CONFIG.ROUTES.SALON_PRODUCTS, icon: 'package', label: 'Productos' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
+    ],
+  },
+];
+
+const NAV_BY_ID = {
+  FUTBOL_5: FUTBOL_NAV,
+  KIOSCO: KIOSCO_NAV,
+  RESTO: RESTO_NAV,
+  SALON: SALON_NAV,
+};
+
+// Verticales de la familia "fitness": comparten el módulo gym, su navegación y sus
+// rutas exclusivas (socios, pagos, clases, acceso, retención). Lo consume el
+// OrgTypeGuard en App.jsx (antes era un array a mano que podía driftear).
+export const FITNESS_VERTICALS = ['GYM', 'PILATES', 'CLUB', 'ACADEMY'];
+
+/** Secciones de navegación del vertical, SIN filtrar por rol (eso lo hace el Sidebar). */
+export function getVerticalNav(orgType) {
+  const v = getVertical(orgType);
+  return NAV_BY_ID[v.id] || gymNav(v.membersLabel);
 }
