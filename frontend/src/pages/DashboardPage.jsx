@@ -332,14 +332,14 @@ function GymDashboard({ gym }) {
                 ) : (
                   recentMembers.map((member) => (
                     <tr key={member.id}>
-                      <td>{member.fullName}</td>
-                      <td>{member.dni || '-'}</td>
-                      <td>
+                      <td data-label="Nombre">{member.fullName}</td>
+                      <td data-label="DNI">{member.dni || '-'}</td>
+                      <td data-label="Estado">
                         <span className={`badge ${getStatusBadgeClass(member.status)}`}>
                           {getStatusLabel(member.status)}
                         </span>
                       </td>
-                      <td>{formatDate(member.membershipEnd)}</td>
+                      <td data-label="Vencimiento">{formatDate(member.membershipEnd)}</td>
                     </tr>
                   ))
                 )}

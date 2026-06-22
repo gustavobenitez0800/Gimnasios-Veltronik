@@ -243,11 +243,11 @@ export default function AccessPage() {
                 const member = log.member;
                 return (
                 <tr key={log.id}>
-                  <td><strong>{member?.fullName || 'Socio'}</strong></td>
-                  <td>{member?.dni || '-'}</td>
-                  <td>{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                  <td>{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
-                  <td>
+                  <td data-label="Socio"><strong>{member?.fullName || 'Socio'}</strong></td>
+                  <td data-label="DNI">{member?.dni || '-'}</td>
+                  <td data-label="Entrada">{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td data-label="Salida">{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
+                  <td data-label="Método">
                     {(log.accessMethod || '').toLowerCase() === 'manual' ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
                     ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (

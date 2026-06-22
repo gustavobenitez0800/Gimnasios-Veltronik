@@ -226,17 +226,17 @@ export default function ClassesPage() {
                   <tr><td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>No hay clases registradas</td></tr>
                 ) : classes.map(cls => (
                   <tr key={cls.id}>
-                    <td><div className="flex items-center gap-1">
+                    <td data-label="Clase"><div className="flex items-center gap-1">
                       <span style={{ width: 12, height: 12, borderRadius: '50%', background: cls.color || '#0EA5E9', display: 'inline-block' }} />
                       <strong>{cls.name}</strong>
                     </div></td>
-                    <td>{cls.instructor || '-'}</td>
-                    <td>{getDayName(cls.day_of_week)}</td>
-                    <td>{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</td>
-                    <td>{cls.capacity || 20}</td>
-                    <td><span className={`badge ${cls.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
+                    <td data-label="Instructor">{cls.instructor || '-'}</td>
+                    <td data-label="Día">{getDayName(cls.day_of_week)}</td>
+                    <td data-label="Horario">{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</td>
+                    <td data-label="Cupos">{cls.capacity || 20}</td>
+                    <td data-label="Estado"><span className={`badge ${cls.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
                       {cls.status === 'active' ? 'Activa' : 'Inactiva'}</span></td>
-                    <td><div className="table-actions">
+                    <td data-label="Acciones"><div className="table-actions">
                       <button className="action-btn-quick action-btn-payment" onClick={() => openEdit(cls)} title="Editar"><Icon name="edit" /></button>
                       <button className="action-btn-quick action-btn-delete"
                         onClick={() => setDeleteId(cls.id)} title="Eliminar"><Icon name="trash" /></button>

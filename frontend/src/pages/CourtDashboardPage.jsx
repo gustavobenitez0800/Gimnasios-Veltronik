@@ -170,9 +170,9 @@ export default function CourtDashboardPage() {
                   <tr><td colSpan="3" className="text-center text-muted" style={{ padding: '1.5rem' }}>Sin clientes este mes</td></tr>
                 ) : data.topCustomers.map((c, i) => (
                   <tr key={i}>
-                    <td>{c.name}</td>
-                    <td>{c.visits}</td>
-                    <td>{formatCurrency(c.spent)}</td>
+                    <td data-label="Cliente">{c.name}</td>
+                    <td data-label="Turnos">{c.visits}</td>
+                    <td data-label="Gastó">{formatCurrency(c.spent)}</td>
                   </tr>
                 ))}
               </tbody>
