@@ -225,6 +225,10 @@
 
 .main-content {
   flex: 1;
+  /* min-width:0 — sin esto, el flex-item NO encoge bajo su contenido (default
+     min-width:auto): un canvas de Chart.js o una tabla ancha estiran .main-content
+     más allá del viewport y, con overflow-x:hidden del body, recortan la derecha. */
+  min-width: 0;
   margin-left: var(--sidebar-width);
   min-height: 100vh;
   display: flex;

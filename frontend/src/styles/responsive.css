@@ -277,7 +277,9 @@ button, a, input, select, textarea, [role="button"] {
 
   .dashboard-grid,
   .dashboard-grid-3 {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr) y no 1fr: 1fr = minmax(auto,1fr) deja que el contenido (canvas)
+       agrande el track y desborde a la derecha en mobile. minmax(0,...) lo permite encoger. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
 

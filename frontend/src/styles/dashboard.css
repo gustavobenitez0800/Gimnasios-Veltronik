@@ -37,6 +37,15 @@
   margin-bottom: 2rem;
 }
 
+/* Los hijos del grid (incl. el canvas de Chart.js) deben poder encoger. Sin esto,
+   su min-width:auto fuerza el track —y el contenedor— más ancho que el viewport en
+   mobile, y la grilla se corta a la derecha. Va de la mano con .main-content{min-width:0}. */
+.stats-grid > *,
+.dashboard-grid > *,
+.dashboard-grid-3 > * {
+  min-width: 0;
+}
+
 .stats-grid-2 {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
