@@ -58,6 +58,13 @@ export default function PosTicket({ businessName, receipt, fiscalVoucher, method
         </>
       )}
 
+      {receipt.offline && (
+        <>
+          <div className="pos-ticket-sep" />
+          <div className="pos-ticket-center pos-ticket-meta">** COMPROBANTE PROVISORIO — PENDIENTE DE ENVÍO **</div>
+        </>
+      )}
+
       <div className="pos-ticket-sep" />
       <div className="pos-ticket-footer">¡Gracias por su compra!</div>
     </div>

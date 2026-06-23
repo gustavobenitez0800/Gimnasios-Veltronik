@@ -17,6 +17,9 @@ import { Modal, ModalForm, ModalActions, FormField } from '../components/ui';
 import Icon from '../components/Icon';
 import PosTicket from '../components/PosTicket';
 import CONFIG from '../lib/config';
+import {
+  enqueueSale, flushQueuedSales, queuedCount, cacheCatalog, getCachedCatalog, isNetworkError,
+} from '../lib/offlineQueue';
 
 const fmtMoney = (v) => `$${Number(v || 0).toLocaleString('es-AR')}`;
 const PAYMENT_METHODS = [
@@ -52,6 +55,8 @@ export default function PosPage() {
   const [receipt, setReceipt] = useState(null);
   const [fiscalVoucher, setFiscalVoucher] = useState(null);
   const [fiscalPolling, setFiscalPolling] = useState(false); // true mientras se espera el CAE
+  const [offline, setOffline] = useState(false);             // sin conexión al backend
+  const [pendingCount, setPendingCount] = useState(0);       // ventas en cola esperando reenvío
   const saleRef = useRef(null); // venta que se está mostrando/poleando (ignora resultados viejos)
 
   const loadAll = useCallback(async () => {
@@ -64,16 +69,51 @@ export default function PosPage() {
       ]);
       setSession(cur);
       setProducts(prods);
+      cacheCatalog(prods);           // guardá el catálogo para poder operar durante un corte
+      setOffline(false);
       setAutoInvoice(!!settings.autoInvoice);
       setCustomers(custs);
     } catch (err) {
-      showToast(err.message || 'Error al cargar el POS', 'error');
+      // Sin conexión al cargar: usá el catálogo cacheado para seguir escaneando/vendiendo.
+      if (isNetworkError(err)) {
+        const cached = getCachedCatalog();
+        if (cached) {
+          setProducts(cached);
+          setOffline(true);
+          showToast('Sin conexión — usando catálogo guardado. Las ventas se envían al reconectar.', 'warning');
+        } else {
+          showToast('Sin conexión y sin catálogo guardado. Conectate una vez para cargar los productos.', 'error');
+        }
+      } else {
+        showToast(err.message || 'Error al cargar el POS', 'error');
+      }
     } finally {
       setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Reenvío de la cola offline: al montar, cuando vuelve la conexión, y cada 30s por las dudas.
+  // Idempotente por client_uuid → reintentar nunca duplica.
+  useEffect(() => {
+    const flush = async () => {
+      const before = queuedCount();
+      if (before === 0) { setPendingCount(0); return; }
+      const { synced } = await flushQueuedSales((p) => kioskService.registerSale(p));
+      setPendingCount(queuedCount());
+      if (synced > 0) {
+        setOffline(false);
+        showToast(`${synced} venta(s) sin conexión sincronizada(s)`, 'success');
+        loadAll(); // refrescá stock/caja con la realidad del backend
+      }
+    };
+    setPendingCount(queuedCount());
+    flush();
+    window.addEventListener('online', flush);
+    const id = setInterval(flush, 30000);
+    return () => { window.removeEventListener('online', flush); clearInterval(id); };
+  }, [loadAll, showToast]);
 
   // El total de preview (UX). El total real lo confirma el backend al registrar.
   const total = useMemo(() => cart.reduce((acc, c) => acc + Number(c.salePrice) * c.quantity, 0), [cart]);
@@ -172,14 +212,14 @@ export default function PosPage() {
     if (method === 'CUENTA_CORRIENTE' && !customerId) {
       showToast('Elegí el cliente para la cuenta corriente', 'error'); return;
     }
+    const payload = {
+      clientUuid: (crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`),
+      items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity })),
+      payments: [{ method, amount: total }],
+    };
+    if (method === 'CUENTA_CORRIENTE') payload.customerId = customerId;
     setPaying(true);
     try {
-      const payload = {
-        clientUuid: (crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`),
-        items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity })),
-        payments: [{ method, amount: total }],
-      };
-      if (method === 'CUENTA_CORRIENTE') payload.customerId = customerId;
       const sale = await kioskService.registerSale(payload);
       // El backend es la autoridad: mostramos SU total.
       const realTotal = Number(sale.total);
@@ -194,7 +234,31 @@ export default function PosPage() {
       barcodeRef.current?.focus();
       if (autoInvoice) { setFiscalPolling(true); pollVoucher(sale.id); } // dispara el polling del comprobante
     } catch (err) {
-      showToast(err?.response?.data?.message || 'No se pudo registrar la venta', 'error');
+      // Sin conexión: encolá la venta y mostrá un recibo provisional (se reenvía al reconectar).
+      // El fiado NO va offline: necesita validar el límite de crédito contra el backend.
+      if (isNetworkError(err) && method !== 'CUENTA_CORRIENTE') {
+        enqueueSale(payload);
+        setPendingCount(queuedCount());
+        setOffline(true);
+        const provTotal = total; // sin backend, usamos el total de preview (precio cacheado)
+        const ch = (method === 'CASH' && tendered !== '') ? Number(tendered) - provTotal : null;
+        saleRef.current = payload.clientUuid;
+        setFiscalVoucher(null);
+        setFiscalPolling(false);
+        setReceipt({
+          total: provTotal, change: ch, method, saleId: null, offline: true,
+          createdAt: new Date().toISOString(), customerName: null,
+          items: cart.map((c) => ({
+            productName: c.name, quantity: c.quantity, lineTotal: Number(c.salePrice) * c.quantity,
+          })),
+        });
+        setCart([]);
+        setPayModal(false);
+        showToast('Sin conexión: venta guardada, se enviará al volver internet.', 'warning');
+        barcodeRef.current?.focus();
+      } else {
+        showToast(err?.response?.data?.message || 'No se pudo registrar la venta', 'error');
+      }
     } finally {
       setPaying(false);
     }
@@ -256,6 +320,13 @@ export default function PosPage() {
       <div className="pos-cart">
         <div className="pos-cart-header">
           <Icon name="wallet" size="1em" /> Carrito
+          {(offline || pendingCount > 0) && (
+            <span title="Las ventas se reenvían solas al reconectar"
+              style={{ marginLeft: '0.5rem', fontSize: '0.72rem', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="wifiOff" size="0.9em" />
+              {offline ? 'Sin conexión' : 'Reconectando'}{pendingCount > 0 ? ` · ${pendingCount} en cola` : ''}
+            </span>
+          )}
           {cart.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setCart([])}>Vaciar</button>}
         </div>
 
@@ -276,8 +347,15 @@ export default function PosPage() {
                 <div className="pos-receipt-change">Vuelto: <strong>{fmtMoney(receipt.change)}</strong></div>
               )}
 
+              {/* Venta offline: todavía no llegó al backend; se reenvía sola al reconectar. */}
+              {receipt.offline && (
+                <div className="pos-receipt-fiscal">
+                  <div className="pos-fiscal-warn"><Icon name="wifiOff" size="0.9em" /> Venta sin conexión — se enviará al volver internet</div>
+                </div>
+              )}
+
               {/* Comprobante ARCA (asíncrono): el backend lo emite y acá lo mostramos al llegar. */}
-              {autoInvoice && (
+              {autoInvoice && !receipt.offline && (
                 <div className="pos-receipt-fiscal">
                   {fiscalVoucher && fiscalVoucher.status === 'AUTHORIZED' ? (
                     <>
