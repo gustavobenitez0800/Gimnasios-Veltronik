@@ -33,13 +33,26 @@ export default function KioskDashboardPage() {
   const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    kioskService.getDashboard()
-      .then(setData)
-      .catch((err) => showToast(err.message || 'Error al cargar el dashboard', 'error'))
-      .finally(() => setLoading(false));
-  }, [showToast]);
+    let alive = true;
+    setLoading(true);
+    // Reintento transitorio: el backend puede estar frío/reiniciando (recién deployado) y el primer
+    // request falla; el segundo suele andar. Evita el "dashboard en blanco" del primer ingreso.
+    const load = (attempt = 0) => {
+      kioskService.getDashboard()
+        .then((d) => { if (alive) { setData(d); setLoading(false); } })
+        .catch((err) => {
+          if (!alive) return;
+          if (attempt < 2) { setTimeout(() => load(attempt + 1), 1000); return; }
+          setLoading(false);
+          showToast(err.message || 'Error al cargar el dashboard', 'error');
+        });
+    };
+    load();
+    return () => { alive = false; };
+  }, [showToast, reloadKey]);
 
   // Defensa en profundidad: si no es dueño/admin, al mostrador (el backend igual lo bloquea).
   if (orgRole && orgRole !== 'owner' && orgRole !== 'admin') {
@@ -56,7 +69,19 @@ export default function KioskDashboardPage() {
       </div>
     );
   }
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div>
+        <PageHeader title="Dashboard" subtitle="Vista general del kiosco" icon="dashboard" />
+        <div className="card text-center text-muted" style={{ padding: '3rem' }}>
+          <div style={{ marginBottom: '1rem' }}>No se pudo cargar el dashboard.</div>
+          <button className="btn btn-primary btn-sm" onClick={() => setReloadKey((k) => k + 1)}>
+            <Icon name="refresh" size="1em" /> Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const hasSales = data.monthSalesCount > 0;
 

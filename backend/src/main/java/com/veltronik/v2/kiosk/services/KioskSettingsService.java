@@ -5,8 +5,8 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.kiosk.dto.KioskSettingsInputDTO;
 import com.veltronik.v2.kiosk.entities.KioskSettings;
 import com.veltronik.v2.kiosk.repositories.KioskSettingsRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -23,21 +23,30 @@ public class KioskSettingsService {
         this.settingsRepository = settingsRepository;
     }
 
-    @Transactional
+    // SIN @Transactional a propósito: el get-or-create lazy puede correr en paralelo (la pantalla
+    // de Ajustes y el listener de facturación que corre en CADA venta lo invocan). Con una sola
+    // transacción, el choque del unique tenant_id deja la tx envenenada y no se puede releer.
+    // Cada operación de repo en su propia tx → el catch+reread funciona (idempotente, no 409).
     public KioskSettings getOrCreateForCurrentTenant() {
         UUID tenantId = TenantContextHolder.getTenantId();
-        return settingsRepository.findByTenantId(tenantId)
-                .orElseGet(() -> {
-                    KioskSettings s = new KioskSettings(); // defaults en la entidad
-                    Tenant tenant = new Tenant();
-                    tenant.setId(tenantId);
-                    s.setTenant(tenant);
-                    return settingsRepository.save(s);
-                });
+        return settingsRepository.findByTenantId(tenantId).orElseGet(() -> createDefault(tenantId));
+    }
+
+    /** Crea la fila con defaults; si otra request la creó en la ventana del get-or-create, el unique
+     *  de tenant_id la rechaza → devolvemos la existente en vez de propagar un 409. */
+    private KioskSettings createDefault(UUID tenantId) {
+        try {
+            KioskSettings s = new KioskSettings(); // defaults en la entidad
+            Tenant tenant = new Tenant();
+            tenant.setId(tenantId);
+            s.setTenant(tenant);
+            return settingsRepository.saveAndFlush(s);
+        } catch (DataIntegrityViolationException race) {
+            return settingsRepository.findByTenantId(tenantId).orElseThrow(() -> race);
+        }
     }
 
     /** Patch parcial: solo pisa lo que vino en el request. */
-    @Transactional
     public KioskSettings updateForCurrentTenant(KioskSettingsInputDTO in) {
         KioskSettings s = getOrCreateForCurrentTenant();
         if (in.getCardSurchargePct() != null) s.setCardSurchargePct(in.getCardSurchargePct());

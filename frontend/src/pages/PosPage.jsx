@@ -50,6 +50,7 @@ export default function PosPage() {
   const [paying, setPaying] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [fiscalVoucher, setFiscalVoucher] = useState(null);
+  const [fiscalPolling, setFiscalPolling] = useState(false); // true mientras se espera el CAE
   const saleRef = useRef(null); // venta que se está mostrando/poleando (ignora resultados viejos)
 
   const loadAll = useCallback(async () => {
@@ -137,17 +138,32 @@ export default function PosPage() {
   // La facturación es asíncrona: tras la venta, consultamos el comprobante hasta que ARCA
   // devuelva el CAE (o se rinda). Ignora resultados de una venta anterior (saleRef).
   const pollVoucher = async (saleId) => {
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
-      if (saleRef.current !== saleId) return;
-      try {
-        const v = await kioskService.getVoucherBySource('KIOSK_SALE', saleId);
-        if (v && saleRef.current === saleId) {
-          setFiscalVoucher(v);
-          if (v.status === 'AUTHORIZED' || v.status === 'REJECTED') return;
-        }
-      } catch { /* reintenta */ }
+    try {
+      for (let i = 0; i < 8; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        if (saleRef.current !== saleId) return;
+        try {
+          const v = await kioskService.getVoucherBySource('KIOSK_SALE', saleId);
+          if (v && saleRef.current === saleId) {
+            setFiscalVoucher(v);
+            if (v.status === 'AUTHORIZED' || v.status === 'REJECTED') return;
+          }
+        } catch { /* reintenta */ }
+      }
+    } finally {
+      // Se acabaron los reintentos (o se cambió de venta): cortá el spinner. La venta YA quedó
+      // registrada; si no llegó el CAE, el comprobante se sigue emitiendo solo (cron de contingencia).
+      if (saleRef.current === saleId) setFiscalPolling(false);
     }
+  };
+
+  /** Limpia el ticket en pantalla y deja todo listo para la próxima venta. */
+  const startNewSale = () => {
+    saleRef.current = null;      // corta cualquier polling en curso
+    setReceipt(null);
+    setFiscalVoucher(null);
+    setFiscalPolling(false);
+    barcodeRef.current?.focus();
   };
 
   const confirmSale = async (e) => {
@@ -174,7 +190,7 @@ export default function PosPage() {
       setPayModal(false);
       showToast('Venta registrada', 'success');
       barcodeRef.current?.focus();
-      if (autoInvoice) pollVoucher(sale.id); // dispara el polling del comprobante
+      if (autoInvoice) { setFiscalPolling(true); pollVoucher(sale.id); } // dispara el polling del comprobante
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo registrar la venta', 'error');
     } finally {
@@ -271,11 +287,18 @@ export default function PosPage() {
                     <div className="pos-fiscal-warn">Comprobante rechazado por ARCA</div>
                   ) : fiscalVoucher && fiscalVoucher.status === 'CONTINGENCY' ? (
                     <div className="pos-fiscal-warn">Comprobante en contingencia (se reintenta solo)</div>
-                  ) : (
+                  ) : fiscalPolling ? (
                     <div className="text-muted" style={{ fontSize: '0.8rem' }}><span className="spinner" /> Facturando…</div>
+                  ) : (
+                    // El polling terminó sin CAE: la venta está hecha, la factura sigue en cola.
+                    <div className="text-muted" style={{ fontSize: '0.8rem' }}>Factura pendiente — se emite en segundo plano (revisá <strong>Facturación</strong>).</div>
                   )}
                 </div>
               )}
+
+              <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }} onClick={startNewSale}>
+                <Icon name="plus" size="1em" /> Nueva venta
+              </button>
             </div>
           )}
 

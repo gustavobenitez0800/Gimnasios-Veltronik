@@ -7,9 +7,9 @@ import com.veltronik.v2.fiscal.entities.FiscalConfig;
 import com.veltronik.v2.fiscal.entities.FiscalEnvironment;
 import com.veltronik.v2.fiscal.integration.FiscalCredentials;
 import com.veltronik.v2.fiscal.repositories.FiscalConfigRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
@@ -31,16 +31,24 @@ public class FiscalConfigService {
         this.crypto = crypto;
     }
 
-    @Transactional
+    // SIN @Transactional a propósito (idempotente y a prueba de carrera): el get-or-create lazy
+    // puede coincidir con otra request; con una sola tx el choque del unique tenant_id la envenena
+    // y no se puede releer. Cada op de repo en su propia tx → el catch+reread funciona, sin 409.
     public FiscalConfig getOrCreateForCurrentTenant() {
         UUID tenantId = TenantContextHolder.getTenantId();
-        return configRepository.findByTenantId(tenantId).orElseGet(() -> {
+        return configRepository.findByTenantId(tenantId).orElseGet(() -> createDefault(tenantId));
+    }
+
+    private FiscalConfig createDefault(UUID tenantId) {
+        try {
             FiscalConfig c = new FiscalConfig();
             Tenant tenant = new Tenant();
             tenant.setId(tenantId);
             c.setTenant(tenant);
-            return configRepository.save(c);
-        });
+            return configRepository.saveAndFlush(c);
+        } catch (DataIntegrityViolationException race) {
+            return configRepository.findByTenantId(tenantId).orElseThrow(() -> race);
+        }
     }
 
     public Optional<FiscalConfig> findByTenantId(UUID tenantId) {
@@ -64,7 +72,6 @@ public class FiscalConfigService {
                 config.getEnvironment());
     }
 
-    @Transactional
     public FiscalConfig updateForCurrentTenant(Long cuit, String razonSocial, FiscalCondicionIva condicionIva,
                                                FiscalEnvironment environment, Integer defaultPosNumber, Boolean enabled) {
         FiscalConfig c = getOrCreateForCurrentTenant();
@@ -78,7 +85,6 @@ public class FiscalConfigService {
     }
 
     /** Guarda el certificado + clave CIFRADOS. Reciben el PEM en claro; nunca se persiste en claro. */
-    @Transactional
     public FiscalConfig uploadCredentialsForCurrentTenant(String certificatePem, String privateKeyPem) {
         if (certificatePem == null || certificatePem.isBlank() || privateKeyPem == null || privateKeyPem.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta el certificado o la clave privada");
