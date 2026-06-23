@@ -15,6 +15,7 @@ import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
 import { Modal, ModalForm, ModalActions, FormField } from '../components/ui';
 import Icon from '../components/Icon';
+import PosTicket from '../components/PosTicket';
 import CONFIG from '../lib/config';
 
 const fmtMoney = (v) => `$${Number(v || 0).toLocaleString('es-AR')}`;
@@ -185,7 +186,8 @@ export default function PosPage() {
       const ch = (method === 'CASH' && tendered !== '') ? Number(tendered) - realTotal : null;
       saleRef.current = sale.id;
       setFiscalVoucher(null);
-      setReceipt({ total: realTotal, change: ch, method, saleId: sale.id });
+      setReceipt({ total: realTotal, change: ch, method, saleId: sale.id,
+        items: sale.items, createdAt: sale.createdAt, customerName: sale.customerName });
       setCart([]);
       setPayModal(false);
       showToast('Venta registrada', 'success');
@@ -296,9 +298,22 @@ export default function PosPage() {
                 </div>
               )}
 
-              <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }} onClick={startNewSale}>
-                <Icon name="plus" size="1em" /> Nueva venta
-              </button>
+              <div className="flex gap-2" style={{ marginTop: '1rem' }}>
+                <button className="btn btn-primary btn-sm flex-1" onClick={() => window.print()}>
+                  <Icon name="fileText" size="1em" /> Imprimir ticket
+                </button>
+                <button className="btn btn-secondary btn-sm flex-1" onClick={startNewSale}>
+                  <Icon name="plus" size="1em" /> Nueva venta
+                </button>
+              </div>
+
+              {/* Ticket térmico: oculto en pantalla, se imprime con el botón de arriba. */}
+              <PosTicket
+                businessName={localStorage.getItem('current_org_name')}
+                receipt={receipt}
+                fiscalVoucher={fiscalVoucher}
+                methodLabel={PAYMENT_METHODS.find((m) => m.value === receipt.method)?.label}
+              />
             </div>
           )}
 

@@ -211,3 +211,33 @@
   }
   .pos-cart-qty { min-height: 40px; }
 }
+
+/* ─── Ticket térmico (impresión 58/80mm) ───────────────────────────────────
+   Oculto en pantalla; se materializa SOLO al imprimir (window.print). Usa el
+   diálogo del SO → funciona con cualquier impresora térmica con driver, sin SDK
+   ESC/POS (misma filosofía universal que el lector de código de barras). */
+.pos-ticket { display: none; }
+
+.pos-ticket-header { text-align: center; font-weight: 700; font-size: 14px; }
+.pos-ticket-footer { text-align: center; margin-top: 2mm; }
+.pos-ticket-center { text-align: center; }
+.pos-ticket-meta { font-size: 10px; }
+.pos-ticket-sep { border-top: 1px dashed #000; margin: 1.5mm 0; }
+.pos-ticket-line { display: flex; justify-content: space-between; gap: 6px; }
+.pos-ticket-item-name { flex: 1; word-break: break-word; }
+.pos-ticket-total { font-weight: 700; font-size: 13px; }
+.pos-ticket-qr { display: flex; justify-content: center; margin: 2mm 0; }
+
+@media print {
+  /* Ocultá toda la app por tinta (no por layout) y dejá visible solo el ticket. */
+  body * { visibility: hidden !important; }
+  .pos-ticket, .pos-ticket * { visibility: visible !important; }
+  .pos-ticket {
+    display: block !important;
+    position: absolute; left: 0; top: 0;
+    width: 72mm; padding: 2mm;
+    font-family: 'Courier New', monospace;
+    font-size: 11px; line-height: 1.35; color: #000;
+  }
+  @page { size: 80mm auto; margin: 0; }
+}
