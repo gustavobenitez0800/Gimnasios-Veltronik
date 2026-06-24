@@ -9,6 +9,8 @@ import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
+import { errorService } from '../services';
+import { diagnoseConnectivity } from '../lib/connectivity';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -50,7 +52,7 @@ export default function RegisterPage() {
       showToast('¡Cuenta creada! Redirigiendo...', 'success');
     } catch (error) {
       console.error('Register error:', error);
-      showToast(getRegisterErrorMessage(error), 'error');
+      showToast(await getRegisterErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -154,10 +156,18 @@ export default function RegisterPage() {
   );
 }
 
-function getRegisterErrorMessage(error) {
+async function getRegisterErrorMessage(error) {
   const message = error.message || error.toString();
   if (message.includes('User already registered')) return 'Este email ya está registrado';
   if (message.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres';
   if (message.includes('Unable to validate email')) return 'Email inválido';
+
+  // Fallo de RED: diagnosticamos la causa real (antivirus/firewall vs sin internet)
+  // en vez del genérico "intentá de nuevo".
+  if (errorService.isNetworkError(error)) {
+    const diagnosis = await diagnoseConnectivity();
+    return errorService.messageForDiagnosis(diagnosis);
+  }
+
   return 'Error al crear la cuenta. Intenta de nuevo.';
 }
