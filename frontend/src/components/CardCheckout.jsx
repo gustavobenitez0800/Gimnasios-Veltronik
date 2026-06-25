@@ -11,10 +11,24 @@ import { loadMercadoPago } from '@mercadopago/sdk-js';
 import CONFIG from '../lib/config';
 import { subscriptionService } from '../services/SubscriptionService';
 import { mpRejectionMessage } from '../lib/mpStatusDetail';
+import { getMpPublicKey } from '../lib/paymentConfig';
 
 const CONTAINER_ID = 'cardPaymentBrick_container';
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX = 40; // ~2 min
+const SDK_TIMEOUT_MS = 12000; // corte si el SDK de MP no carga (red/Electron) — evita el spinner eterno
+
+/** Promesa con timeout: si tarda más de `ms`, rechaza (en vez de colgarse para siempre). */
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
+// Mensaje único cuando el brick no puede cargar: siempre apunta al método alternativo
+// (link de Mercado Pago), que está disponible en cada pantalla de pago.
+const FALLBACK_HINT = 'No pudimos cargar el formulario de tarjeta. Usá el método de pago alternativo (link de Mercado Pago) que aparece debajo.';
 
 // Estados (espejo del backend)
 const S = {
@@ -71,17 +85,22 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
     setStatus(S.LOADING);
     setMessage('');
 
-    if (!CONFIG.MP_PUBLIC_KEY) {
-      setStatus(S.ERROR);
-      setMessage('Falta configurar Mercado Pago. Usá el método de pago alternativo.');
-      return;
-    }
-
     (async () => {
       try {
-        await loadMercadoPago();
+        // Clave pública resuelta en RUNTIME (backend → fallback build). Así un build sin la
+        // clave no rompe el pago: la toma del backend, que es la fuente de verdad.
+        const mpKey = await getMpPublicKey();
         if (cancelled) return;
-        const mp = new window.MercadoPago(CONFIG.MP_PUBLIC_KEY, { locale: 'es-AR' });
+        if (!mpKey) {
+          setStatus(S.ERROR);
+          setMessage(FALLBACK_HINT);
+          return;
+        }
+
+        // El SDK de MP se baja de su CDN; con timeout para no quedar en "Cargando…" eterno.
+        await withTimeout(loadMercadoPago(), SDK_TIMEOUT_MS, 'sdk-timeout');
+        if (cancelled) return;
+        const mp = new window.MercadoPago(mpKey, { locale: 'es-AR' });
         controller = await mp.bricks().create('cardPayment', CONTAINER_ID, {
           initialization: { amount: propsRef.current.amount },
           customization: {
@@ -92,7 +111,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
             onReady: () => { if (!cancelled) setStatus(S.READY); },
             onError: (err) => {
               console.error('[CardCheckout] brick error:', err);
-              if (!cancelled) { setStatus(S.ERROR); setMessage('No se pudo cargar el formulario de pago.'); }
+              if (!cancelled) { setStatus(S.ERROR); setMessage(FALLBACK_HINT); }
               propsRef.current.onError?.(err);
             },
             onSubmit: async (cardFormData) => {
@@ -123,7 +142,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
         if (cancelled && controller?.unmount) controller.unmount();
       } catch (e) {
         console.error('[CardCheckout] init error:', e);
-        if (!cancelled) { setStatus(S.ERROR); setMessage('No se pudo inicializar Mercado Pago.'); }
+        if (!cancelled) { setStatus(S.ERROR); setMessage(FALLBACK_HINT); }
       }
     })();
 
