@@ -35,9 +35,13 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
      * a clientes que pagan religiosamente solo porque su trial original venció —
      * exactamente lo que pasaría con los gimnasios más grandes (POPEYE, SEKUR).</p>
      *
-     * <p>Se considera "suscripción válida" cuando: está {@code active}; o está
-     * {@code past_due} pero dentro del período de gracia; o está {@code canceled} pero
-     * el período pago en curso todavía no terminó. Ante la duda, NO se bloquea.</p>
+     * <p>"Suscripción válida" se define EXACTAMENTE igual que en {@link
+     * com.veltronik.v2.core.security.SubscriptionAccessPolicy} (la fuente única de verdad
+     * que comparte con el filtro en tiempo real): {@code active} con período concreto y
+     * futuro; {@code past_due} dentro de la gracia; {@code canceled} con el período pago
+     * aún corriendo. <b>Un {@code active} con {@code current_period_end} NULL ya NO cuenta
+     * como válido</b> (antes sí, y eso hacía divergir esta query del filtro: un dato
+     * heredado de V1 sin período podía dar acceso eterno).</p>
      */
     @Query("""
             SELECT t FROM Tenant t
@@ -48,7 +52,7 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
                   SELECT 1 FROM Subscription s
                   WHERE s.tenant = t
                     AND (
-                         (s.status = 'active' AND (s.currentPeriodEnd IS NULL OR s.currentPeriodEnd > :now))
+                         (s.status = 'active' AND s.currentPeriodEnd IS NOT NULL AND s.currentPeriodEnd > :now)
                       OR (s.status = 'past_due' AND s.gracePeriodEndsAt IS NOT NULL AND s.gracePeriodEndsAt > :now)
                       OR (s.status = 'canceled' AND s.currentPeriodEnd IS NOT NULL AND s.currentPeriodEnd > :now)
                     )

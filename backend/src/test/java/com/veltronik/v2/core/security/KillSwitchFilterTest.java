@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -26,10 +27,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * Tests del Kill Switch (hasValidSubscription, vía doFilterInternal): la barrera
- * operativa que bloquea con 402 a los tenants sin trial vigente ni suscripción válida.
- * Replica el criterio del cron: active solo con período no vencido, past_due solo
- * dentro de la gracia, canceled solo mientras el período ya pago siga corriendo.
+ * Tests de la PLOMERÍA del Kill Switch (doFilterInternal): contexto de tenant, caché de
+ * veredictos, respuesta 402, exclusión de rutas y persistencia de la baja. La DECISIÓN de
+ * acceso la toma {@link SubscriptionAccessPolicy} (su matriz se cubre en
+ * {@code SubscriptionAccessPolicyTest}); acá se inyecta la policy REAL (vía {@code @Spy})
+ * para verificar el cableado end-to-end del filtro.
  */
 @ExtendWith(MockitoExtension.class)
 class KillSwitchFilterTest {
@@ -43,6 +45,8 @@ class KillSwitchFilterTest {
     private SubscriptionRepository subscriptionRepository;
     @Mock
     private FilterChain chain;
+    @Spy
+    private SubscriptionAccessPolicy accessPolicy = new SubscriptionAccessPolicy();
 
     @InjectMocks
     private KillSwitchFilter filter;
@@ -287,5 +291,43 @@ class KillSwitchFilterTest {
 
         verify(chain).doFilter(billingRequest, response);
         verifyNoInteractions(tenantRepository, subscriptionRepository);
+    }
+
+    // ─────────────────────────── período NULL y persistencia de la baja ───────────────────────────
+
+    @Test
+    @DisplayName("active con período NULL → 402 (no es acceso eterno; alineado con el cron)")
+    void activeWithNullPeriodBlocks() throws Exception {
+        givenTenantExists();
+        givenSubscription("active", null, null);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertBlocked402();
+    }
+
+    @Test
+    @DisplayName("al bloquear por vencimiento, persiste is_active=false (bandera maestra veraz)")
+    void blockingByExpiryPersistsInactive() throws Exception {
+        givenTenantExists();
+        givenSubscription("active", now.minusDays(2), null);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertBlocked402();
+        assertFalse(tenant.isActive(), "el tenant debe quedar inactivo tras el bloqueo por vencimiento");
+        verify(tenantRepository).save(tenant);
+    }
+
+    @Test
+    @DisplayName("la baja MANUAL (ya inactivo) no se vuelve a persistir")
+    void manualBlockDoesNotPersistAgain() throws Exception {
+        tenant.setActive(false);
+        givenTenantExists();
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertBlocked402();
+        verify(tenantRepository, never()).save(any());
     }
 }

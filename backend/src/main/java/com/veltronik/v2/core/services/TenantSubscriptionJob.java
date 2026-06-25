@@ -1,6 +1,7 @@
 package com.veltronik.v2.core.services;
 
 import com.veltronik.v2.core.entities.Tenant;
+import com.veltronik.v2.core.repositories.SubscriptionRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ public class TenantSubscriptionJob {
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final TenantRepository tenantRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     /**
      * Kill Switch (Nivel 1): Job Diario.
@@ -38,6 +40,14 @@ public class TenantSubscriptionJob {
         log.info("=== KILL SWITCH CRONJOB INICIADO ===");
 
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+
+        // 0) Verdad de datos: normalizar las suscripciones 'active' con período vencido a 'expired'.
+        //    No cambia el acceso (el período vencido ya no habilita), pero evita que el estado
+        //    diga 'active' eternamente — el caso de las suscripciones migradas de V1.
+        int normalized = subscriptionRepository.markLapsedActiveAsExpired(now);
+        if (normalized > 0) {
+            log.info("Kill Switch: {} suscripción(es) vencida(s) normalizada(s) de 'active' a 'expired'.", normalized);
+        }
 
         // Query optimizada: filtra en BD, no en memoria
         List<Tenant> expiredTenants = tenantRepository.findExpiredActiveTenants(now);
