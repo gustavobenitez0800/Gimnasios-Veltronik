@@ -10,6 +10,7 @@ import Icon from '../components/Icon';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 import CONFIG from '../lib/config';
 import { authService, errorService } from '../services';
+import { diagnoseConnectivity } from '../lib/connectivity';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -32,7 +33,7 @@ export default function LoginPage() {
       await login(email.trim(), password.trim());
     } catch (error) {
       console.error('Login error:', error);
-      showToast(getAuthErrorMessage(error), 'error');
+      showToast(await getAuthErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -55,7 +56,7 @@ export default function LoginPage() {
       showToast(`Te enviamos un correo a ${email.trim()} para restablecer tu contraseña. Revisá tu bandeja de entrada y el spam.`, 'success', 8000);
     } catch (error) {
       console.error('Reset password error:', error);
-      showToast(getAuthErrorMessage(error), 'error');
+      showToast(await getAuthErrorMessage(error), 'error');
     }
   };
 
@@ -159,20 +160,28 @@ export default function LoginPage() {
   );
 }
 
-function getAuthErrorMessage(error) {
+async function getAuthErrorMessage(error) {
   const message = error.message || error.toString();
-  
+
   // Rate limiting specific check
   if (message.includes('Too many requests') || message.includes('rate limit')) {
     return 'Demasiados intentos. Por favor espera unos minutos e intenta de nuevo.';
   }
-  
+
   if (message.includes('Invalid login credentials')) return 'Email o contraseña incorrectos';
   if (message.includes('User already registered')) return 'Este email ya está registrado';
   if (message.includes('Email not confirmed')) return 'Por favor confirma tu email antes de iniciar sesión';
   if (message.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres';
   if (message.includes('Unable to validate email')) return 'Email inválido';
-  
-  // Use generic error service for network errors and others
+
+  // Fallo de RED: el mensaje "revisá tu internet" suele ser engañoso (la internet anda,
+  // pero el antivirus/firewall bloquea a Supabase). Diagnosticamos para mostrar la causa
+  // real y un texto accionable, en vez del genérico.
+  if (errorService.isNetworkError(error)) {
+    const diagnosis = await diagnoseConnectivity();
+    return errorService.messageForDiagnosis(diagnosis);
+  }
+
+  // Use generic error service for other errors
   return errorService.getMessage(error);
 }

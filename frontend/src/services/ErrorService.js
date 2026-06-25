@@ -5,6 +5,19 @@
 // a mensajes amigables en español.
 // ============================================
 
+import { CONNECTIVITY } from '../lib/connectivity';
+
+// Mensajes por resultado del diagnóstico de conectividad. Centralizados acá para que
+// haya UNA sola fuente de verdad del texto que ve el usuario ante un fallo de red.
+const CONNECTIVITY_MESSAGES = {
+  [CONNECTIVITY.ONLINE]: 'Hubo un problema momentáneo de conexión. Intentá nuevamente.',
+  [CONNECTIVITY.OFFLINE]: 'Sin conexión a internet. Revisá tu red (WiFi o cable) e intentá de nuevo.',
+  [CONNECTIVITY.AUTH_UNREACHABLE]:
+    'No pudimos conectar con el servidor de acceso. Suele estar bloqueado por el antivirus o el firewall (escaneo HTTPS/SSL). Probá desactivar ese escaneo, agregar una excepción para Veltronik, o conectarte a otra red.',
+  [CONNECTIVITY.BACKEND_UNREACHABLE]:
+    'No pudimos conectar con el servidor de Veltronik. Puede ser un bloqueo de red/antivirus o una caída temporal del servicio. Reintentá en unos minutos.',
+};
+
 class ErrorService {
   constructor() {
     this.errorMap = [
@@ -94,6 +107,30 @@ class ErrorService {
     }
 
     return message;
+  }
+
+  /**
+   * ¿Es un fallo de TRANSPORTE (no llegó respuesta HTTP)? Cubre el fetch del navegador
+   * ("Failed to fetch" / "NetworkError"), el "Network Error" de axios y el timeout que
+   * normaliza nuestro resilientFetch. Clave: un error CON `error.response` es una
+   * decisión del backend (4xx/5xx), NO un fallo de red.
+   */
+  isNetworkError(error) {
+    if (!error || error.response) return false;
+    const msg = (error.message || error.toString?.() || '').toLowerCase();
+    return (
+      msg.includes('failed to fetch') ||
+      msg.includes('networkerror') ||
+      msg.includes('network error') ||
+      msg.includes('timeout') ||
+      error.code === 'ECONNABORTED' || // axios timeout
+      error.code === 'ERR_NETWORK'
+    );
+  }
+
+  /** Mensaje accionable según el resultado de diagnoseConnectivity(). */
+  messageForDiagnosis(code) {
+    return CONNECTIVITY_MESSAGES[code] || CONNECTIVITY_MESSAGES[CONNECTIVITY.ONLINE];
   }
 }
 

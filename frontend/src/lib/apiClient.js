@@ -1,12 +1,21 @@
 import axios from 'axios';
 
 // Instancia base de Axios apuntando al backend de Java (Fase 3)
+// `timeout`: sin esto, una request a un backend lento/inalcanzable quedaba colgada
+// indefinidamente (la UI trabada). 20s es holgado para Railway y corta los cuelgues.
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Reintentos para errores de RED (sin respuesta HTTP) en métodos idempotentes. Un blip
+// transitorio de red no debe romper un GET; los reintentamos con backoff. NUNCA se
+// reintenta un POST/PUT/DELETE (evita duplicar cobros, altas, etc.) ni un error con
+// respuesta HTTP (4xx/5xx ya son decisiones del backend, no fallos de transporte).
+const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, methods: ['get', 'head'] };
 
 import { supabase } from './supabase';
 
@@ -49,7 +58,25 @@ let unauthorizedHandled = false;
 // Interceptor de RESPONSE: Manejar errores globales (ej: 401 Unauthorized, 402 Payment Required)
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // ── Reintento de errores de RED en métodos idempotentes ──
+    // Un error de transporte NO trae `error.response` (a diferencia de un 4xx/5xx).
+    const config = error.config;
+    const isNetworkError = !error.response;
+    const method = (config?.method || 'get').toLowerCase();
+    if (config && isNetworkError && NETWORK_RETRY.methods.includes(method)) {
+      config.__retryCount = config.__retryCount || 0;
+      if (config.__retryCount < NETWORK_RETRY.maxRetries) {
+        config.__retryCount += 1;
+        const delay = Math.min(
+          NETWORK_RETRY.baseDelayMs * 2 ** (config.__retryCount - 1),
+          NETWORK_RETRY.maxDelayMs,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return apiClient(config);
+      }
+    }
+
     if (error.response && error.response.status === 401) {
       if (!unauthorizedHandled) {
         unauthorizedHandled = true;
