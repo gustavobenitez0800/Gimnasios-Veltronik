@@ -81,6 +81,13 @@ public class SubscriptionBillingService {
         //    o mayor. Así el 1er cobro (~1h) de un alta recién activada NO duplica el período
         //    (la activación ya otorgó 30d); las renovaciones SÍ extienden (al vencer, el período
         //    corriente ≈ hoy → hoy+30d).
+        //
+        //    Nota de diseño: la FUENTE AUTORITATIVA de "pagó en V2" es la suscripción
+        //    (current_period_end, abajo) — así lo evalúa SubscriptionAccessPolicy. Acá
+        //    espejamos esa fecha en tenant.trial_ends_at de forma deliberada: es la
+        //    "fecha de acceso" que el filtro usa como atajo (evita un query a subscriptions
+        //    cuando el negocio está dentro del período) y la que ancla al cron. No es una
+        //    confusión trial/pago: la policy distingue ambos por el ORIGEN (suscripción vs trial).
         LocalDateTime candidate = now.plusDays(ACCESS_DAYS_PER_CYCLE);
         LocalDateTime periodEnd = (tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(candidate))
                 ? tenant.getTrialEndsAt() : candidate;

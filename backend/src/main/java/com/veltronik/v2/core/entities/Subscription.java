@@ -14,8 +14,16 @@ import java.time.LocalDateTime;
 @Setter
 public class Subscription extends TenantAwareEntity {
 
+    // Estados posibles:
+    //   active          → suscripción al día (otorga acceso si current_period_end es futuro)
+    //   past_due        → cobro pendiente (otorga acceso solo dentro de grace_period_ends_at)
+    //   canceled        → cancelada (otorga acceso mientras el período ya pago siga corriendo)
+    //   expired         → período vencido (NO otorga acceso; estado "honesto" tras el vencimiento)
+    //   pending_payment → alta con tarjeta, esperando el primer cobro (NO otorga acceso)
+    //   pending         → estado inicial/desconocido (NO otorga acceso)
+    // La decisión de acceso vive en SubscriptionAccessPolicy (fuente única de verdad).
     @Column(nullable = false, length = 50)
-    private String status; // 'active', 'past_due', 'canceled'
+    private String status;
 
     @Column(name = "current_period_start")
     private LocalDateTime currentPeriodStart;

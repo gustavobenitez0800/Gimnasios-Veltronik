@@ -8,7 +8,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -22,8 +23,14 @@ import java.util.UUID;
  * Se ejecuta DESPUÉS del JwtAuthenticationFilter.
  * Verifica si el Tenant (Negocio) tiene la suscripción al día o si está en período de prueba.
  * Si no está al día, bloquea la petición con un error 402 (Payment Required).
+ *
+ * <p>La DECISIÓN de acceso NO vive acá: la delega en {@link SubscriptionAccessPolicy}, la
+ * fuente única de verdad que comparte con el cron. Este filtro solo aporta la plomería
+ * (contexto de tenant, caché de veredictos, respuesta 402) y la persistencia de la baja.</p>
  */
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class KillSwitchFilter extends OncePerRequestFilter {
 
     /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
@@ -40,11 +47,9 @@ public class KillSwitchFilter extends OncePerRequestFilter {
     private final java.util.concurrent.ConcurrentHashMap<UUID, Long> allowCache =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    @Autowired
-    private TenantRepository tenantRepository;
-
-    @Autowired
-    private SubscriptionRepository subscriptionRepository;
+    private final TenantRepository tenantRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionAccessPolicy accessPolicy;
 
     @Override
     protected void doFilterInternal(@org.springframework.lang.NonNull HttpServletRequest request, 
@@ -85,50 +90,45 @@ public class KillSwitchFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 4. LÓGICA DEL KILL SWITCH (validación en TIEMPO REAL — no depende del cron diario)
+        // 4. DECISIÓN DE ACCESO (tiempo real, delegada en la fuente única de verdad).
         //
-        // Antes esto solo miraba tenant.isActive() y delegaba el vencimiento al cron de
-        // las 00:05. Problema: entre el vencimiento y el cron (hasta ~24h), o si el cron
-        // no marcaba bien (subs 'active' con período vencido), el tenant seguía entrando.
-        // Ahora evaluamos el acceso real en cada request.
+        // Antes la regla estaba duplicada acá y en el cron, y divergían. Ahora ambos usan
+        // SubscriptionAccessPolicy. La evaluación es por-request, así que no dependemos del
+        // cron de las 00:05: un período vencido se bloquea al instante.
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
 
-        // 4a. Baja manual a nivel maestro → bloqueo inmediato.
-        if (!tenant.isActive()) {
-            blockPaymentRequired(response);
-            return;
-        }
+        // Optimización: el trial vigente se resuelve con datos del propio tenant. Solo si NO
+        // hay trial vigente (y el tenant sigue activo a nivel maestro) pagamos el query de la
+        // suscripción. Así un negocio en prueba no golpea la tabla subscriptions.
+        boolean onTrial = tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(now);
+        Subscription latest = (tenant.isActive() && !onTrial)
+                ? subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null)
+                : null;
 
-        // 4b. Acceso válido = trial vigente O suscripción válida (período no vencido).
-        boolean trialActive = tenant.getTrialEndsAt() != null && tenant.getTrialEndsAt().isAfter(now);
-        if (trialActive || hasValidSubscription(tenantId, now)) {
+        SubscriptionAccessPolicy.Decision decision = accessPolicy.evaluate(tenant, latest, now);
+
+        if (decision.allowed()) {
             // Veredicto positivo verificado contra la BD → cachearlo 30 s (solo el ALLOW).
             allowCache.put(tenantId, System.currentTimeMillis() + ALLOW_TTL_MS);
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 4c. Activo a nivel maestro pero sin trial ni suscripción vigente → venció. Bloqueo.
+        // Bloqueo. Si el negocio venía ACTIVO a nivel maestro y el bloqueo es por VENCIMIENTO
+        // (no una baja manual), persistimos is_active=false para que la bandera maestra refleje
+        // la realidad al instante, sin esperar al cron. Fail-safe: si la escritura falla, se
+        // bloquea igual (la seguridad no depende de la persistencia).
+        if (decision.reason() == SubscriptionAccessPolicy.Reason.NO_VALID_ENTITLEMENT && tenant.isActive()) {
+            try {
+                tenant.setActive(false);
+                tenantRepository.save(tenant);
+                log.warn("KILL SWITCH (tiempo real) — Negocio '{}' ({}) bloqueado: sin habilitación vigente.",
+                        tenant.getName(), tenant.getId());
+            } catch (Exception e) {
+                log.warn("No se pudo persistir la baja del tenant {} (se bloquea igual): {}", tenantId, e.getMessage());
+            }
+        }
         blockPaymentRequired(response);
-    }
-
-    /**
-     * ¿El tenant tiene una suscripción que le da acceso AHORA? Replica exactamente el
-     * criterio del cron ({@code TenantRepository.findExpiredActiveTenants}) para que las
-     * dos capas de defensa nunca se contradigan:
-     *  - active: solo si el período no venció (currentPeriodEnd > now, o null si recién creada);
-     *  - past_due: dentro del período de gracia;
-     *  - canceled: el período pago en curso aún no terminó.
-     */
-    private boolean hasValidSubscription(UUID tenantId, LocalDateTime now) {
-        Subscription s = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null);
-        if (s == null || s.getStatus() == null) return false;
-        return switch (s.getStatus()) {
-            case "active" -> s.getCurrentPeriodEnd() != null && s.getCurrentPeriodEnd().isAfter(now);
-            case "past_due" -> s.getGracePeriodEndsAt() != null && s.getGracePeriodEndsAt().isAfter(now);
-            case "canceled" -> s.getCurrentPeriodEnd() != null && s.getCurrentPeriodEnd().isAfter(now);
-            default -> false;
-        };
     }
 
     private void blockPaymentRequired(HttpServletResponse response) throws IOException {
