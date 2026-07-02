@@ -52,6 +52,12 @@ apiClient.interceptors.request.use(
       config.headers['X-Device-Id'] = deviceId;
     }
 
+    // Versión de la app (inyectada por Vite desde package.json): alimenta la señal
+    // de vida del registro de equipos — la base del rollout por anillos (ADR-007).
+    if (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) {
+      config.headers['X-App-Version'] = __APP_VERSION__;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
