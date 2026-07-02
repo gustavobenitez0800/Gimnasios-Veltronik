@@ -18,6 +18,7 @@ const apiClient = axios.create({
 const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, methods: ['get', 'head'] };
 
 import { supabase } from './supabase';
+import { getDeviceId } from './deviceId';
 
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
@@ -43,7 +44,14 @@ apiClient.interceptors.request.use(
     if (orgId && !config.headers['X-Tenant-ID']) {
       config.headers['X-Tenant-ID'] = orgId;
     }
-    
+
+    // DNI de equipo (ADR-002): identifica ESTA instalación en cada escritura.
+    // El backend lo estampa en origin_device_id (trazabilidad para el sync V3).
+    const deviceId = getDeviceId();
+    if (deviceId) {
+      config.headers['X-Device-Id'] = deviceId;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
