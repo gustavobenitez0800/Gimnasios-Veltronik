@@ -9,7 +9,9 @@ target/
 .env
 .env.*
 *.env
-application-local.properties
+# OJO: application-local.properties NO se ignora — es la config del PERFIL `local`
+# (el cerebro embebido del instalable, ADR-009): solo dummies y defaults, cero
+# secretos. Los secretos reales siguen viniendo de variables de entorno.
 
 # IDE
 .idea/
