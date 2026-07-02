@@ -42,4 +42,25 @@ public abstract class TenantAwareEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
+
+    /**
+     * "DNI de equipo" (ADR-002, Fase 0 de la V3): id de la instalación que ORIGINÓ este
+     * registro. Nulo cuando la escritura no viene de un equipo identificado (web, webhooks,
+     * jobs). Se estampa UNA vez al insertar y no se toca más ({@code updatable = false}):
+     * la procedencia de un registro no cambia aunque el registro se edite.
+     */
+    @Column(name = "origin_device_id", updatable = false)
+    private java.util.UUID originDeviceId;
+
+    /**
+     * Hook de JPA: antes de insertar, si nadie asignó la procedencia explícitamente,
+     * toma el DNI de equipo de la request actual (header {@code X-Device-Id}, puesto
+     * en el ThreadLocal por {@code DeviceContextFilter}).
+     */
+    @PrePersist
+    protected void stampOriginDevice() {
+        if (this.originDeviceId == null) {
+            this.originDeviceId = com.veltronik.v2.core.security.DeviceContextHolder.getDeviceId();
+        }
+    }
 }

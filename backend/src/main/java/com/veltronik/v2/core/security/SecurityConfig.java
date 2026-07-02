@@ -75,7 +75,10 @@ public class SecurityConfig {
         // Usamos OriginPatterns para que el comodín '*' sea legal junto a las credenciales
         configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "X-Tenant-ID"));
+        // X-Device-Id: DNI de equipo (ADR-002). OJO ORDEN DE DEPLOY: el backend debe permitir
+        // el header ANTES de que un frontend lo empiece a mandar, o el preflight CORS rechaza
+        // todas las requests de la web ("el nuevo se adapta al viejo", contrato de compatibilidad).
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "X-Tenant-ID", "X-Device-Id"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Tenant-ID"));
         // Autenticación por Bearer token (no cookies) → NO necesitamos credenciales CORS.
         // Mantenerlo en false evita reflejar cualquier origin con Access-Control-Allow-Credentials,
