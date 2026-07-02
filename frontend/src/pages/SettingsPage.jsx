@@ -6,8 +6,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { gymService, errorService } from '../services';
+import { gymService, errorService, deviceService } from '../services';
 import { formatCurrency } from '../lib/utils';
+import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
@@ -42,6 +43,18 @@ export default function SettingsPage() {
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [verifyingSubscription, setVerifyingSubscription] = useState(false);
   const [showCardForm, setShowCardForm] = useState(false);
+
+  // Equipos (Fase 1: registro + bautizo — docs/FASE1-PLAN.md)
+  const canManageDevices = ['owner', 'admin'].includes(currentRole);
+  const thisDeviceId = getDeviceId();
+  const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [enrollForm, setEnrollForm] = useState({ role: 'CAJA', displayName: '' });
+  const [enrollConfirm, setEnrollConfirm] = useState(false);
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [replacePrompt, setReplacePrompt] = useState(null); // Caja Madre en conflicto (409)
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const thisDevice = devices.find((d) => d.id === thisDeviceId);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -117,6 +130,60 @@ export default function SettingsPage() {
   }, [authGym, showToast]);
 
   useEffect(() => { loadSettings(); }, [loadSettings]);
+
+  // ── Equipos (Fase 1) ──────────────────────────────────────────────
+  const loadDevices = useCallback(async () => {
+    if (!canManageDevices) return;
+    try {
+      setDevicesLoading(true);
+      setDevices(await deviceService.list());
+    } catch {
+      // Silencioso: la sección de equipos nunca debe romper Ajustes.
+    } finally {
+      setDevicesLoading(false);
+    }
+  }, [canManageDevices]);
+
+  useEffect(() => { loadDevices(); }, [loadDevices]);
+
+  // El bautizo. Si el backend responde 409 (ya hay Caja Madre activa), abre el
+  // diálogo de reemplazo explícito — nunca se pisa una Caja Madre en silencio.
+  const handleEnroll = async (replaceActiveManager = false) => {
+    setEnrollBusy(true);
+    try {
+      await deviceService.enroll({
+        role: enrollForm.role,
+        displayName: enrollForm.displayName.trim(),
+        replaceActiveManager,
+      });
+      showToast(`Equipo enrolado como ${enrollForm.role === 'ENCARGADO' ? 'Caja Madre' : 'Caja'}`, 'success');
+      setEnrollConfirm(false);
+      setReplacePrompt(null);
+      await loadDevices();
+    } catch (error) {
+      setEnrollConfirm(false);
+      if (error.response?.status === 409 && error.response?.data?.error === 'ENCARGADO_ACTIVO') {
+        setReplacePrompt(error.response.data.conflictingDevice || {});
+      } else {
+        showToast(errorService.getMessage(error), 'error');
+      }
+    } finally {
+      setEnrollBusy(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    try {
+      await deviceService.revoke(revokeTarget.id);
+      showToast('Enrolamiento revocado (el historial del equipo se conserva)', 'success');
+      await loadDevices();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setRevokeTarget(null);
+    }
+  };
 
   // Save gym settings
   const handleSaveGym = async (e) => {
@@ -423,6 +490,74 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Equipos (Fase 1: registro + bautizo) */}
+        {canManageDevices && (
+          <div className="settings-section">
+            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="monitor" size="1.1em" /> Equipos</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
+              Computadoras que operan este negocio. Enrolá esta computadora para identificarla con un nombre y un rol.
+            </p>
+
+            {devicesLoading ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>Cargando equipos…</p>
+            ) : devices.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>
+                Todavía no hay equipos registrados. Aparecen solos a medida que las computadoras usan el sistema.
+              </p>
+            ) : (
+              <div style={{ marginBottom: '1rem' }}>
+                {devices.map((d) => (
+                  <div key={d.id} className="info-row" style={{ alignItems: 'center' }}>
+                    <span className="info-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <Icon name="monitor" size="1em" />
+                      <span>{d.displayName || `Equipo ${String(d.id).slice(0, 8)}`}</span>
+                      {d.id === thisDeviceId && (
+                        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--primary-500)', border: '1px solid var(--primary-500)', borderRadius: '999px', padding: '0 8px' }}>
+                          esta computadora
+                        </span>
+                      )}
+                    </span>
+                    <span className="info-value" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {d.enrolled && <span style={{ fontWeight: 600 }}>{d.role === 'ENCARGADO' ? 'Caja Madre' : 'Caja'}</span>}
+                      {d.status === 'REVOKED' && <span style={{ color: 'var(--text-muted)' }}>revocado</span>}
+                      {d.lastAppVersion && <span style={{ color: 'var(--text-muted)' }}>v{d.lastAppVersion}</span>}
+                      <span style={{ color: 'var(--text-muted)' }} title="Última señal de vida">
+                        {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                      </span>
+                      {d.enrolled && (
+                        <button className="btn-outline-danger" onClick={() => setRevokeTarget(d)}>Revocar</button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!thisDevice?.enrolled && (
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: '1 1 220px' }}>
+                  <label className="form-label">Nombre del equipo</label>
+                  <input className="form-input" placeholder="Ej: Caja mostrador" maxLength={120}
+                    value={enrollForm.displayName}
+                    onChange={(e) => setEnrollForm((f) => ({ ...f, displayName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="form-label">Rol</label>
+                  <select className="form-input" value={enrollForm.role}
+                    onChange={(e) => setEnrollForm((f) => ({ ...f, role: e.target.value }))}>
+                    <option value="CAJA">Caja</option>
+                    <option value="ENCARGADO">Caja Madre (encargado)</option>
+                  </select>
+                </div>
+                <button className="btn-primary" disabled={enrollBusy || !enrollForm.displayName.trim()}
+                  onClick={() => setEnrollConfirm(true)}>
+                  Enrolar esta computadora
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Appearance */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
@@ -481,6 +616,22 @@ export default function SettingsPage() {
         message="¿Estás seguro de cerrar tu sesión?"
         icon="logout" confirmText="Cerrar Sesión" confirmClass="btn-danger"
         onConfirm={handleLogout} onCancel={() => setConfirmLogout(false)} />
+
+      {/* Equipos: la confirmación del bautizo es explícita y con nombre del negocio (diseño en docs/FASE1-PLAN.md) */}
+      <ConfirmDialog open={enrollConfirm} title="Enrolar esta computadora"
+        message={`Vas a configurar ESTA computadora como ${enrollForm.role === 'ENCARGADO' ? 'CAJA MADRE (encargado)' : 'CAJA'} de "${gymForm.name || orgLabelCap}". ¿Es correcto?`}
+        icon="monitor" confirmText={enrollBusy ? 'Enrolando…' : 'Sí, enrolar'} confirmClass="btn-primary"
+        onConfirm={() => handleEnroll(false)} onCancel={() => setEnrollConfirm(false)} />
+
+      <ConfirmDialog open={!!replacePrompt} title="Ya hay una Caja Madre activa"
+        message={`Este negocio ya tiene una Caja Madre activa${replacePrompt?.displayName ? ` ("${replacePrompt.displayName}")` : ''}${replacePrompt?.lastSeenAt ? `, vista por última vez el ${new Date(replacePrompt.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. ¿Querés reemplazarla por esta computadora? La anterior quedará revocada.`}
+        icon="alertTriangle" confirmText={enrollBusy ? 'Reemplazando…' : 'Sí, reemplazar'} confirmClass="btn-danger"
+        onConfirm={() => handleEnroll(true)} onCancel={() => setReplacePrompt(null)} />
+
+      <ConfirmDialog open={!!revokeTarget} title="Revocar equipo"
+        message={`¿Revocar el enrolamiento de "${revokeTarget?.displayName || 'este equipo'}"? Su historial no se borra y podés volver a enrolarlo cuando quieras.`}
+        icon="alertTriangle" confirmText="Revocar" confirmClass="btn-danger"
+        onConfirm={handleRevoke} onCancel={() => setRevokeTarget(null)} />
     </div>
   );
 }

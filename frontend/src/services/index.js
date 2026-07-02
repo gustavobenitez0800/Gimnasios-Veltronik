@@ -16,6 +16,7 @@ export { teamService } from './TeamService';
 export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
 export { storageService } from './storageService';
+export { deviceService } from './DeviceService';
 
 // Vertical Canchas (FUTBOL_5)
 export { courtService } from './CourtService';
