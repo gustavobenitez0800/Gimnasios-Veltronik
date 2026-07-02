@@ -12,9 +12,9 @@
 
 | # | Ladrillo | Qué entrega | Estado |
 |---|---|---|---|
-| 1 | **Registro de equipos + señal de vida** | La nube conoce cada equipo (DNI), cuándo se lo vio por última vez y qué versión corre. Endpoint para listarlos. Semilla de Mission Control y prerequisito del enrolamiento | 🟡 En curso |
-| 2 | **Enrolamiento v1 (el bautizo)** | El equipo deja de ser anónimo: el dueño lo ata a una sucursal con nombre y rol. Pantalla en el instalable + integridad (un encargado activo por sucursal) | ⚪ |
-| 3 | **Runtime local (el cerebro embebido)** | El instalable corre el monolito Spring + base local. La decisión técnica grande (cómo empaquetar JVM+Postgres en Electron) tiene su propia sesión de diseño | ⚪ |
+| 1 | **Registro de equipos + señal de vida** | La nube conoce cada equipo (DNI), cuándo se lo vio por última vez y qué versión corre. Endpoint para listarlos. Semilla de Mission Control y prerequisito del enrolamiento | ✅ En producción (2026-07-02) |
+| 2 | **Enrolamiento v1 (el bautizo)** | El equipo deja de ser anónimo: el dueño lo ata a una sucursal con nombre y rol. Sección Equipos en Ajustes + integridad (un encargado activo por sucursal) | ✅ En producción (2026-07-02) |
+| 3 | **Runtime local (el cerebro embebido)** | El instalable corre el monolito Spring + Postgres embebido, lanzados por Electron. Diseño decidido en [ADR-009](adr/ADR-009-runtime-local-embebido.md): PG embebido + JRE jlink + proceso hijo | 🟡 Diseño ✅ — implementación pendiente |
 | 4 | **Sync engine v1** | Outbox local → nube (eventos, idempotencia por UUID), config nube → local, watermarks, oportunista | ⚪ |
 | 5 | **PIN local de cajeros** | El login diario deja de necesitar internet | ⚪ |
 | 6 | **La web lee el espejo** | Dashboard del dueño sobre datos sincronizados + "última sync hace X" | ⚪ |
