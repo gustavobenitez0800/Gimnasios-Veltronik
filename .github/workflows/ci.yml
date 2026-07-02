@@ -1,0 +1,84 @@
+name: CI
+
+# Regla innegociable #9 (docs/ARCHITECTURE.md): sin verde no hay merge.
+# Corre en cada push a main y en cada PR. Complementa a release.yml (que solo
+# publica el instalador Electron por tags) — hasta ahora NO había CI de tests.
+#
+# Backend: mvn verify corre los tests completos, incluyendo:
+#   - ApplicationBootTest: arranque real con Postgres embebido (binarios linux
+#     ya declarados en el pom) → aplica TODAS las migraciones Flyway + validate.
+#   - ArchitectureTest: límites de módulos + higiene (sin System.out, sin
+#     java.util.logging, sin @Autowired en campos). El build se pone rojo solo.
+# Frontend: lint (no-console y demás reglas) + build de Vite.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+# Un push nuevo cancela el run anterior de la misma rama (no gastar minutos al pedo).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (mvn verify)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # La JVM de producción corre en hora Argentina (fix timezone, Dockerfile).
+      # El runner es UTC: fijamos TZ para que los tests corran como en prod.
+      TZ: America/Argentina/Buenos_Aires
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Tests + verificación
+        run: ./mvnw -B verify
+
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install deps
+        # --frozen-lockfile: el lock se regeneró en Fase 0 (2026-07-01) y ahora
+        # está sincronizado con package.json → builds 100% reproducibles.
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build (vite)
+        # Sin secrets: las VITE_* quedan undefined y el bundle no es usable en
+        # runtime, pero el build DEBE compilar. Los bundles reales (con secrets)
+        # los produce release.yml.
+        run: pnpm run build

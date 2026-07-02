@@ -9,10 +9,8 @@ import com.veltronik.v2.core.mappers.TenantMapper;
 import com.veltronik.v2.core.repositories.AppUserRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,19 +21,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/core/setup")
+@RequiredArgsConstructor // inyección por constructor (regla ArchitectureTest: sin @Autowired en campos)
 public class SetupController {
 
-    @Autowired
-    private TenantRepository tenantRepository;
-
-    @Autowired
-    private TenantMembershipRepository membershipRepository;
-
-    @Autowired
-    private AppUserRepository userRepository;
-
-    @Autowired
-    private TenantMapper tenantMapper;
+    private final TenantRepository tenantRepository;
+    private final TenantMembershipRepository membershipRepository;
+    private final AppUserRepository userRepository;
+    private final TenantMapper tenantMapper;
 
     /** Días de prueba de la primera sucursal. Configurable (application.properties / env TRIAL_DAYS). */
     @org.springframework.beans.factory.annotation.Value("${veltronik.billing.trial-days:14}")

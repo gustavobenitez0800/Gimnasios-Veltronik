@@ -5,7 +5,7 @@ import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.core.services.BillingService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -15,14 +15,12 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor // inyección por constructor (regla ArchitectureTest: sin @Autowired en campos)
 @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // gestión de la suscripción del SaaS: dueño/admin (no STAFF/RECEPTION)
 public class BillingController {
 
-    @Autowired
-    private BillingService billingService;
-
-    @Autowired
-    private TenantRepository tenantRepository;
+    private final BillingService billingService;
+    private final TenantRepository tenantRepository;
 
     @GetMapping("/billing/subscription-link")
     public ResponseEntity<?> getSubscriptionLink() {

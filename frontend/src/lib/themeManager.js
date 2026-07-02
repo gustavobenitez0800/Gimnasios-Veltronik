@@ -5,6 +5,8 @@
 // los tokens CSS nativos en tiempo de ejecución.
 // ============================================
 
+import { log } from './utils';
+
 /**
  * Convierte un color HEX a RGB para usar en rgba()
  */
@@ -54,8 +56,8 @@ export function applyOrganizationTheme(baseColorHex) {
   const rgb = hexToRgb(primary500);
   root.style.setProperty('--shadow-glow', `0 0 20px rgba(${rgb}, 0.15)`);
   
-  // Notificar por consola para debugging
-  console.log(`%c[Veltronik Theme] White-Label activado: ${baseColorHex}`, `color: ${baseColorHex}; font-weight: bold;`);
+  // Notificar por consola para debugging (solo con CONFIG.DEBUG activo)
+  log(`%c[Veltronik Theme] White-Label activado: ${baseColorHex}`, `color: ${baseColorHex}; font-weight: bold;`);
 }
 
 /**

@@ -27,6 +27,10 @@ export default defineConfig([
       // Ignorar identificadores que empiezan en mayúscula (componentes/constantes)
       // elimina esos falsos positivos y deja los positivos reales (minúscula).
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
+      // Higiene Fase 0 (docs/ARCHITECTURE.md §Reglas innegociables): nada de console.log
+      // suelto en producción — el debug pasa por el logger condicional de lib/utils.js
+      // (gateado por CONFIG.DEBUG). warn/error quedan permitidos: reportan problemas reales.
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       // Reglas nuevas (react-hooks v6+) sobre patrones de efectos: son consejos de
       // performance/estilo, no bugs. Quedan como warning para verlas sin romper el lint
       // (refactorizarlas en una app en producción es un cambio de comportamiento aparte).

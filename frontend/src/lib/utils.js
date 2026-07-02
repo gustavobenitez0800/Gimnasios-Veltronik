@@ -5,9 +5,11 @@
 import CONFIG from './config';
 
 /**
- * Conditional logging
+ * Conditional logging — el ÚNICO lugar sancionado para console.log de debug.
+ * (Regla no-console de ESLint: todo log condicional pasa por acá, nunca directo.)
  */
 export function log(...args) {
+  // eslint-disable-next-line no-console -- logger sancionado, gateado por CONFIG.DEBUG
   if (CONFIG.DEBUG) console.log(...args);
 }
 

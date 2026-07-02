@@ -17,6 +17,10 @@ release-builds/
 .env.*
 !.env.example
 
+# Scripts operativos ad-hoc con credenciales (regla 8 de docs/ARCHITECTURE.md):
+# NUNCA se commitean.
+scripts/
+
 # Sistema operativo / editores
 .DS_Store
 Thumbs.db

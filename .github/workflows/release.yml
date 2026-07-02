@@ -41,11 +41,9 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install deps
-        # --no-frozen-lockfile: el pnpm-lock.yaml versionado quedo viejo respecto a
-        # package.json (falta @tanstack/react-query, supabase desactualizado).
-        # Permite resolver desde package.json sin fallar. Regenerar el lock queda
-        # como higiene post-cutover para volver a builds 100% reproducibles.
-        run: pnpm install --no-frozen-lockfile
+        # --frozen-lockfile: el lock se regeneró en Fase 0 (2026-07-01) y quedó
+        # sincronizado con package.json → releases 100% reproducibles.
+        run: pnpm install --frozen-lockfile
 
       - name: Build web (vite)
         # Vite inyecta las VITE_* en build-time. Vienen de GitHub Secrets (NUNCA del

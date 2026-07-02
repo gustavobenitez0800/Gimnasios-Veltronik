@@ -36,7 +36,6 @@ export default function CourtsPage() {
   const { orgRole } = useAuth();
 
   const [courts, setCourts] = useState([]);
-  const [settings, setSettings] = useState(null);
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +66,6 @@ export default function CourtsPage() {
         courtService.getPriceRules(),
       ]);
       setCourts(courtsData);
-      setSettings(settingsData);
       setSettingsForm({
         slotDurationMinutes: settingsData.slotDurationMinutes,
         openingTime: hhmm(settingsData.openingTime),

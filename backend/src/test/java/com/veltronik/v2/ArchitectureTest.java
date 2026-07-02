@@ -6,6 +6,9 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
+import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS;
+import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_USE_JAVA_UTIL_LOGGING;
 
 /**
  * Reglas de arquitectura "a prueba de juniors" (Codex §5.1): se compilan como tests, así que
@@ -61,6 +64,39 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("..fiscal..")
                 .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..")
                 .because("fiscal es un módulo COMPARTIDO (por debajo de las verticales): las verticales lo usan, no al revés")
+                .check(CLASSES);
+    }
+
+    // ------------------------------------------------------------------
+    // Higiene (Fase 0, ARCHITECTURE.md §Reglas innegociables): "limpio no
+    // es el proyecto que se limpia, es el que no se puede ensuciar".
+    // ------------------------------------------------------------------
+
+    /** Regla #7 del ARCHITECTURE.md: prohibido System.out/System.err y printStackTrace — logging solo por logger. */
+    @Test
+    void prohibido_system_out_y_printStackTrace() {
+        NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS
+                .because("logging solo por SLF4J (@Slf4j): System.out no llega a los logs de Railway ni a Mission Control")
+                .check(CLASSES);
+    }
+
+    /** java.util.logging esquiva la configuración de Logback: todo por SLF4J. */
+    @Test
+    void prohibido_java_util_logging() {
+        NO_CLASSES_SHOULD_USE_JAVA_UTIL_LOGGING
+                .because("el stack de logging es SLF4J/Logback; java.util.logging no respeta esa configuración")
+                .check(CLASSES);
+    }
+
+    /**
+     * Inyección por constructor, nunca @Autowired en campos: dependencias explícitas,
+     * finales y testeables sin reflection. (Idioma del proyecto: Lombok @RequiredArgsConstructor.)
+     * Nota: @Value en campo queda permitido por ahora — hay ~17 usos legados; migrarlos es limpieza aparte.
+     */
+    @Test
+    void prohibida_inyeccion_por_campo_con_autowired() {
+        noFields().should().beAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
+                .because("la inyección va por constructor (@RequiredArgsConstructor): explícita, final y testeable")
                 .check(CLASSES);
     }
 }
