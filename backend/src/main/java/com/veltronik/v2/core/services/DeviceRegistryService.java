@@ -1,16 +1,23 @@
 package com.veltronik.v2.core.services;
 
 import com.veltronik.v2.core.entities.Device;
+import com.veltronik.v2.core.entities.DeviceRole;
+import com.veltronik.v2.core.entities.DeviceStatus;
+import com.veltronik.v2.core.exceptions.BusinessException;
+import com.veltronik.v2.core.exceptions.DeviceEnrollConflictException;
+import com.veltronik.v2.core.exceptions.EntityNotFoundException;
 import com.veltronik.v2.core.repositories.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -70,8 +77,75 @@ public class DeviceRegistryService {
         }
     }
 
-    /** Equipos vistos operando la sucursal, para el listado del dueño (semilla de Mission Control). */
+    /** Equipos de la sucursal (enrolados a ella o vistos operándola), para el listado del dueño. */
     public List<Device> devicesOf(UUID tenantId) {
-        return deviceRepository.findByLastTenantIdOrderByLastSeenAtDesc(tenantId);
+        return deviceRepository.findByEnrolledTenantIdOrLastTenantIdOrderByLastSeenAtDesc(tenantId, tenantId);
+    }
+
+    /** Estado del equipo que llama (para que el instalable decida si mostrar el bautizo). */
+    public Optional<Device> findDevice(UUID deviceId) {
+        return deviceRepository.findById(deviceId);
+    }
+
+    // ── Enrolamiento: el "bautizo" (ladrillo 2, diseño en docs/FASE1-PLAN.md) ──────
+
+    /**
+     * Enrola el equipo a la sucursal: pertenencia fuerte, con rol y nombre visible.
+     * El equipo no se crea acá si ya dio señales de vida — se lo <b>reclama</b>.
+     *
+     * <p><b>Integridad:</b> una sucursal admite UN solo {@link DeviceRole#ENCARGADO} ACTIVO.
+     * Si ya hay otro, lanza {@link DeviceEnrollConflictException} (HTTP 409) salvo que se
+     * pida el reemplazo explícito — nunca se pisa una Caja Madre en silencio.</p>
+     *
+     * <p>Re-enrolar (cambiar de sucursal, rol o nombre) es legal por diseño: la sucursal es
+     * una etiqueta reasignable; el DNI y su historial no cambian (ADR-002).</p>
+     */
+    @Transactional
+    public Device enroll(UUID deviceId, UUID tenantId, UUID enrolledByUserId,
+                         DeviceRole role, String displayName, boolean replaceActiveManager) {
+        if (role == null) throw new BusinessException("Elegí el rol del equipo (CAJA o ENCARGADO).");
+        if (displayName == null || displayName.isBlank())
+            throw new BusinessException("Poné un nombre visible para el equipo (ej: Caja mostrador).");
+
+        if (role == DeviceRole.ENCARGADO) {
+            Optional<Device> conflict = deviceRepository
+                    .findByEnrolledTenantIdAndRoleAndStatus(tenantId, DeviceRole.ENCARGADO, DeviceStatus.ACTIVE)
+                    .stream().filter(d -> !d.getId().equals(deviceId)).findFirst();
+            if (conflict.isPresent()) {
+                if (!replaceActiveManager) throw new DeviceEnrollConflictException(conflict.get());
+                Device old = conflict.get();
+                old.setStatus(DeviceStatus.REVOKED);
+                deviceRepository.save(old);
+                log.info("Caja Madre {} de la sucursal {} revocada por reemplazo (nuevo encargado: {})",
+                        old.getId(), tenantId, deviceId);
+            }
+        }
+
+        Device device = deviceRepository.findById(deviceId).orElseGet(() -> {
+            Device fresh = new Device();
+            fresh.setId(deviceId);
+            fresh.setLastSeenAt(LocalDateTime.now());
+            return fresh;
+        });
+        device.setEnrolledTenantId(tenantId);
+        device.setRole(role);
+        device.setDisplayName(displayName.trim().substring(0, Math.min(120, displayName.trim().length())));
+        device.setStatus(DeviceStatus.ACTIVE);
+        device.setEnrolledAt(LocalDateTime.now());
+        device.setEnrolledByUserId(enrolledByUserId);
+        return deviceRepository.save(device);
+    }
+
+    /**
+     * Revoca el enrolamiento de un equipo de la sucursal. Nunca borra: el DNI y su
+     * historial quedan (los datos históricos siguen apuntando a él por origin_device_id).
+     */
+    @Transactional
+    public void revoke(UUID deviceId, UUID tenantId) {
+        Device device = deviceRepository.findById(deviceId)
+                .filter(d -> tenantId.equals(d.getEnrolledTenantId()))
+                .orElseThrow(() -> new EntityNotFoundException("equipo de esta sucursal", deviceId));
+        device.setStatus(DeviceStatus.REVOKED);
+        deviceRepository.save(device);
     }
 }

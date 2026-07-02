@@ -1,16 +1,23 @@
 package com.veltronik.v2.core.services;
 
 import com.veltronik.v2.core.entities.Device;
+import com.veltronik.v2.core.entities.DeviceRole;
+import com.veltronik.v2.core.entities.DeviceStatus;
+import com.veltronik.v2.core.exceptions.BusinessException;
+import com.veltronik.v2.core.exceptions.DeviceEnrollConflictException;
+import com.veltronik.v2.core.exceptions.EntityNotFoundException;
 import com.veltronik.v2.core.repositories.DeviceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -104,5 +111,109 @@ class DeviceRegistryServiceTest {
         when(repository.save(any(Device.class))).thenThrow(new RuntimeException("boom"));
 
         service.heartbeat(deviceId, tenantId, "2.6.4"); // no debe lanzar
+    }
+
+    // ── Enrolamiento (ladrillo 2, "el bautizo") ─────────────────────────────────
+
+    private final UUID ownerId = UUID.randomUUID();
+
+    @Test
+    @DisplayName("el bautizo ata el equipo a la sucursal con rol, nombre y auditoría")
+    void enroll_feliz() {
+        when(repository.findById(deviceId)).thenReturn(Optional.empty());
+        when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.CAJA, "Caja mostrador", false);
+
+        assertThat(enrolled.getId()).isEqualTo(deviceId);
+        assertThat(enrolled.getEnrolledTenantId()).isEqualTo(tenantId);
+        assertThat(enrolled.getRole()).isEqualTo(DeviceRole.CAJA);
+        assertThat(enrolled.getDisplayName()).isEqualTo("Caja mostrador");
+        assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.ACTIVE);
+        assertThat(enrolled.getEnrolledAt()).isNotNull();
+        assertThat(enrolled.getEnrolledByUserId()).isEqualTo(ownerId);
+        assertThat(enrolled.isEnrolledActiveIn(tenantId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("sin nombre o sin rol no hay bautizo (BusinessException)")
+    void enroll_valida_entrada() {
+        assertThatThrownBy(() -> service.enroll(deviceId, tenantId, ownerId, null, "Caja", false))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.enroll(deviceId, tenantId, ownerId, DeviceRole.CAJA, "  ", false))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("un encargado activo por sucursal: el segundo choca con 409 (conflicto)")
+    void enroll_encargado_choca_si_ya_hay_uno_activo() {
+        Device existingManager = new Device();
+        existingManager.setId(UUID.randomUUID());
+        existingManager.setEnrolledTenantId(tenantId);
+        existingManager.setRole(DeviceRole.ENCARGADO);
+        existingManager.setStatus(DeviceStatus.ACTIVE);
+        when(repository.findByEnrolledTenantIdAndRoleAndStatus(tenantId, DeviceRole.ENCARGADO, DeviceStatus.ACTIVE))
+                .thenReturn(List.of(existingManager));
+
+        assertThatThrownBy(() -> service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre", false))
+                .isInstanceOf(DeviceEnrollConflictException.class);
+        verify(repository, never()).save(any(Device.class));
+    }
+
+    @Test
+    @DisplayName("con reemplazo explícito, la Caja Madre anterior queda REVOKED y entra la nueva")
+    void enroll_encargado_con_reemplazo_explicito() {
+        Device existingManager = new Device();
+        existingManager.setId(UUID.randomUUID());
+        existingManager.setEnrolledTenantId(tenantId);
+        existingManager.setRole(DeviceRole.ENCARGADO);
+        existingManager.setStatus(DeviceStatus.ACTIVE);
+        when(repository.findByEnrolledTenantIdAndRoleAndStatus(tenantId, DeviceRole.ENCARGADO, DeviceStatus.ACTIVE))
+                .thenReturn(List.of(existingManager));
+        when(repository.findById(deviceId)).thenReturn(Optional.empty());
+        when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre nueva", true);
+
+        assertThat(existingManager.getStatus()).isEqualTo(DeviceStatus.REVOKED);
+        assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.ACTIVE);
+        assertThat(enrolled.getRole()).isEqualTo(DeviceRole.ENCARGADO);
+    }
+
+    @Test
+    @DisplayName("re-enrolarse a sí mismo como encargado no cuenta como conflicto")
+    void enroll_reenrolar_el_mismo_equipo_no_choca() {
+        Device self = new Device();
+        self.setId(deviceId);
+        self.setEnrolledTenantId(tenantId);
+        self.setRole(DeviceRole.ENCARGADO);
+        self.setStatus(DeviceStatus.ACTIVE);
+        when(repository.findByEnrolledTenantIdAndRoleAndStatus(tenantId, DeviceRole.ENCARGADO, DeviceStatus.ACTIVE))
+                .thenReturn(List.of(self));
+        when(repository.findById(deviceId)).thenReturn(Optional.of(self));
+        when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre", false);
+
+        assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("revocar deja REVOKED sin borrar; un equipo de otra sucursal da 404")
+    void revoke_y_aislamiento() {
+        Device enrolled = new Device();
+        enrolled.setId(deviceId);
+        enrolled.setEnrolledTenantId(tenantId);
+        enrolled.setStatus(DeviceStatus.ACTIVE);
+        when(repository.findById(deviceId)).thenReturn(Optional.of(enrolled));
+        when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.revoke(deviceId, tenantId);
+        assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.REVOKED);
+        verify(repository, never()).delete(any(Device.class));
+
+        // Equipo enrolado a OTRA sucursal: para este tenant no existe (no se filtra info).
+        assertThatThrownBy(() -> service.revoke(deviceId, UUID.randomUUID()))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 }

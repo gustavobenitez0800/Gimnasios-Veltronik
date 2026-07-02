@@ -2,6 +2,8 @@ package com.veltronik.v2.core.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,4 +42,38 @@ public class Device extends BaseEntity {
     /** Última señal de vida (throttleada: se persiste como mucho cada 5 minutos). */
     @Column(name = "last_seen_at", nullable = false)
     private LocalDateTime lastSeenAt;
+
+    // ── Enrolamiento (ladrillo 2, "el bautizo") ─────────────────────────────────
+    // La pertenencia FUERTE a una sucursal (a diferencia de lastTenantId = telemetría).
+    // Todos nullables: un equipo puede vivir sin enrolarse (ej. el navegador del dueño).
+
+    /** Sucursal a la que fue enrolado. Null = equipo anónimo (solo telemetría). */
+    @Column(name = "enrolled_tenant_id")
+    private UUID enrolledTenantId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", length = 20)
+    private DeviceRole role;
+
+    /** Nombre visible que le puso el dueño ("Caja mostrador"). */
+    @Column(name = "display_name", length = 120)
+    private String displayName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
+    private DeviceStatus status;
+
+    @Column(name = "enrolled_at")
+    private LocalDateTime enrolledAt;
+
+    /** Quién lo bautizó (auditoría). */
+    @Column(name = "enrolled_by_user_id")
+    private UUID enrolledByUserId;
+
+    /** ¿Está enrolado y activo en la sucursal dada? */
+    public boolean isEnrolledActiveIn(UUID tenantId) {
+        return tenantId != null
+                && tenantId.equals(enrolledTenantId)
+                && status == DeviceStatus.ACTIVE;
+    }
 }
