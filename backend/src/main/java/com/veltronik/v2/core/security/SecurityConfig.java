@@ -32,6 +32,7 @@ public class SecurityConfig {
 
     private final TenantContextFilter tenantContextFilter;
     private final KillSwitchFilter killSwitchFilter;
+    private final DeviceCredentialFilter deviceCredentialFilter;
     private final Environment environment;
 
     @Value("${veltronik.jwt.jwks-uri}")
@@ -48,6 +49,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/webhooks/**").permitAll()
                     .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
+                    // Sync headless (ladrillo 4): permitAll a nivel Security porque la puerta
+                    // REAL es DeviceCredentialFilter (fail-closed: sin X-Device-Key válida → 401).
+                    .requestMatchers("/api/sync/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll();
                 // SOLO en modo local (ADR-009): Electron apaga el backend embebido con
                 // POST /actuator/shutdown para que zonky detenga Postgres prolijamente.
@@ -64,6 +68,8 @@ public class SecurityConfig {
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.decoder(jwtDecoder()))
             )
+            // Credencial de equipo ANTES del BearerTokenFilter: /api/sync/** no trae JWT
+            .addFilterBefore(deviceCredentialFilter, BearerTokenAuthenticationFilter.class)
             // Agregar nuestro filtro de Tenant DESPUES del BearerTokenFilter (que valida el JWT)
             .addFilterAfter(tenantContextFilter, BearerTokenAuthenticationFilter.class)
             // Agregar el KillSwitch DESPUES del TenantFilter

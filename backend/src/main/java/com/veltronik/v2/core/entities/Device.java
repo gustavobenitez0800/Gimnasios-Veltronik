@@ -70,6 +70,14 @@ public class Device extends BaseEntity {
     @Column(name = "enrolled_by_user_id")
     private UUID enrolledByUserId;
 
+    /**
+     * Hash SHA-256 (hex) de la credencial de equipo emitida al enrolar (ladrillo 4).
+     * El secreto en claro viaja UNA sola vez al equipo; acá solo vive su hash.
+     * El sync headless autentica con X-Device-Id + X-Device-Key contra esto.
+     */
+    @Column(name = "credential_hash", length = 64)
+    private String credentialHash;
+
     /** ¿Está enrolado y activo en la sucursal dada? */
     public boolean isEnrolledActiveIn(UUID tenantId) {
         return tenantId != null

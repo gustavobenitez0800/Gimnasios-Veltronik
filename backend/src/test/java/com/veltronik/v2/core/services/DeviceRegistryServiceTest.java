@@ -118,12 +118,22 @@ class DeviceRegistryServiceTest {
     private final UUID ownerId = UUID.randomUUID();
 
     @Test
-    @DisplayName("el bautizo ata el equipo a la sucursal con rol, nombre y auditoría")
+    @DisplayName("el bautizo ata el equipo a la sucursal con rol, nombre, auditoría y credencial")
     void enroll_feliz() {
         when(repository.findById(deviceId)).thenReturn(Optional.empty());
         when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.CAJA, "Caja mostrador", false);
+        DeviceRegistryService.EnrollResult result =
+                service.enroll(deviceId, tenantId, ownerId, DeviceRole.CAJA, "Caja mostrador", false);
+        Device enrolled = result.device();
+
+        // Credencial de equipo (ladrillo 4): secreto en claro devuelto UNA vez, hash en DB.
+        assertThat(result.deviceKey()).startsWith("vk_");
+        assertThat(enrolled.getCredentialHash()).isNotBlank().hasSize(64);
+        // La clave autentica contra su propio hash (round-trip).
+        when(repository.findById(deviceId)).thenReturn(Optional.of(enrolled));
+        assertThat(service.authenticate(deviceId, result.deviceKey())).isPresent();
+        assertThat(service.authenticate(deviceId, "vk_clave-incorrecta")).isEmpty();
 
         assertThat(enrolled.getId()).isEqualTo(deviceId);
         assertThat(enrolled.getEnrolledTenantId()).isEqualTo(tenantId);
@@ -173,7 +183,7 @@ class DeviceRegistryServiceTest {
         when(repository.findById(deviceId)).thenReturn(Optional.empty());
         when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre nueva", true);
+        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre nueva", true).device();
 
         assertThat(existingManager.getStatus()).isEqualTo(DeviceStatus.REVOKED);
         assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.ACTIVE);
@@ -193,7 +203,7 @@ class DeviceRegistryServiceTest {
         when(repository.findById(deviceId)).thenReturn(Optional.of(self));
         when(repository.save(any(Device.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre", false);
+        Device enrolled = service.enroll(deviceId, tenantId, ownerId, DeviceRole.ENCARGADO, "Caja Madre", false).device();
 
         assertThat(enrolled.getStatus()).isEqualTo(DeviceStatus.ACTIVE);
     }

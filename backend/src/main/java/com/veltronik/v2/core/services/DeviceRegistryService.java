@@ -12,9 +12,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -89,9 +95,14 @@ public class DeviceRegistryService {
 
     // ── Enrolamiento: el "bautizo" (ladrillo 2, diseño en docs/FASE1-PLAN.md) ──────
 
+    /** Resultado del bautizo: el equipo + su credencial EN CLARO (viaja una sola vez). */
+    public record EnrollResult(Device device, String deviceKey) {}
+
     /**
      * Enrola el equipo a la sucursal: pertenencia fuerte, con rol y nombre visible.
      * El equipo no se crea acá si ya dio señales de vida — se lo <b>reclama</b>.
+     * Emite además la <b>credencial de equipo</b> (ladrillo 4): un secreto de larga vida
+     * que se devuelve UNA sola vez; acá queda solo su hash. Re-enrolar rota la credencial.
      *
      * <p><b>Integridad:</b> una sucursal admite UN solo {@link DeviceRole#ENCARGADO} ACTIVO.
      * Si ya hay otro, lanza {@link DeviceEnrollConflictException} (HTTP 409) salvo que se
@@ -101,8 +112,8 @@ public class DeviceRegistryService {
      * una etiqueta reasignable; el DNI y su historial no cambian (ADR-002).</p>
      */
     @Transactional
-    public Device enroll(UUID deviceId, UUID tenantId, UUID enrolledByUserId,
-                         DeviceRole role, String displayName, boolean replaceActiveManager) {
+    public EnrollResult enroll(UUID deviceId, UUID tenantId, UUID enrolledByUserId,
+                               DeviceRole role, String displayName, boolean replaceActiveManager) {
         if (role == null) throw new BusinessException("Elegí el rol del equipo (CAJA o ENCARGADO).");
         if (displayName == null || displayName.isBlank())
             throw new BusinessException("Poné un nombre visible para el equipo (ej: Caja mostrador).");
@@ -133,7 +144,44 @@ public class DeviceRegistryService {
         device.setStatus(DeviceStatus.ACTIVE);
         device.setEnrolledAt(LocalDateTime.now());
         device.setEnrolledByUserId(enrolledByUserId);
-        return deviceRepository.save(device);
+
+        // Credencial de equipo (ladrillo 4): secreto de alta entropía, hasheado en DB,
+        // devuelto EN CLARO una única vez. Re-enrolar rota la credencial anterior.
+        String deviceKey = generateDeviceKey();
+        device.setCredentialHash(sha256Hex(deviceKey));
+
+        return new EnrollResult(deviceRepository.save(device), deviceKey);
+    }
+
+    /**
+     * Autentica un equipo por su credencial (el filtro de /api/sync/** la usa).
+     * Devuelve el equipo solo si: existe, está ACTIVO, enrolado a una sucursal,
+     * y el hash de la clave coincide (comparación en tiempo constante).
+     */
+    public Optional<Device> authenticate(UUID deviceId, String deviceKey) {
+        if (deviceId == null || deviceKey == null || deviceKey.isBlank()) return Optional.empty();
+        return deviceRepository.findById(deviceId)
+                .filter(d -> d.getStatus() == DeviceStatus.ACTIVE)
+                .filter(d -> d.getEnrolledTenantId() != null)
+                .filter(d -> d.getCredentialHash() != null)
+                .filter(d -> MessageDigest.isEqual(
+                        d.getCredentialHash().getBytes(StandardCharsets.UTF_8),
+                        sha256Hex(deviceKey).getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String generateDeviceKey() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return "vk_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 no disponible", e); // imposible en JVM estándar
+        }
     }
 
     /**

@@ -27,6 +27,12 @@ export const deviceService = {
    */
   async enroll({ role, displayName, replaceActiveManager = false }) {
     const res = await apiClient.post('/core/devices/enroll', { role, displayName, replaceActiveManager });
+    // Credencial de equipo (ladrillo 4): viaja UNA sola vez en el enroll. Se guarda
+    // para el sync headless — la próxima tajada se la pasa al cerebro local.
+    const deviceKey = res.data?.deviceKey;
+    if (deviceKey) {
+      try { localStorage.setItem('veltronik_device_key', deviceKey); } catch { /* sin storage: se re-enrola */ }
+    }
     return res.data?.data;
   },
 

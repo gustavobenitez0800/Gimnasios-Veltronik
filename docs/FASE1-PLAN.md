@@ -15,7 +15,7 @@
 | 1 | **Registro de equipos + señal de vida** | La nube conoce cada equipo (DNI), cuándo se lo vio por última vez y qué versión corre. Endpoint para listarlos. Semilla de Mission Control y prerequisito del enrolamiento | ✅ En producción (2026-07-02) |
 | 2 | **Enrolamiento v1 (el bautizo)** | El equipo deja de ser anónimo: el dueño lo ata a una sucursal con nombre y rol. Sección Equipos en Ajustes + integridad (un encargado activo por sucursal) | ✅ En producción (2026-07-02) |
 | 3 | **Runtime local (el cerebro embebido)** | El instalable corre el monolito Spring + Postgres embebido, lanzados por Electron. Diseño decidido en [ADR-009](adr/ADR-009-runtime-local-embebido.md): PG embebido + JRE jlink + proceso hijo | 🟡 Diseño ✅ — implementación pendiente |
-| 4 | **Sync engine v1** | Outbox local → nube (eventos, idempotencia por UUID), config nube → local, watermarks, oportunista | ⚪ |
+| 4 | **Sync engine v1** | Outbox local → nube (eventos, idempotencia por UUID), config nube → local, watermarks, oportunista. Diseño en [ADR-010](adr/ADR-010-sync-engine-v1.md) | 🟡 Primera tajada ✅ (captura por triggers + push idempotente + credencial de equipo, familia de la venta). Faltan: maestros ↑, config ↓, cableado de credencial al cerebro |
 | 5 | **PIN local de cajeros** | El login diario deja de necesitar internet | ⚪ |
 | 6 | **La web lee el espejo** | Dashboard del dueño sobre datos sincronizados + "última sync hace X" | ⚪ |
 | 7 | **Anillos de update + Mission Control mínimo** | Staged rollout de electron-updater + tablero de flota (versión/last-seen/salud de sync) | ⚪ |

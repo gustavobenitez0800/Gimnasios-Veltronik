@@ -83,10 +83,14 @@ public class DeviceController {
         }
 
         try {
-            Device enrolled = deviceRegistryService.enroll(
+            DeviceRegistryService.EnrollResult result = deviceRegistryService.enroll(
                     deviceId, tenantId, SecurityUtils.getCurrentUserId(),
                     request.getRole(), request.getDisplayName(), request.isReplaceActiveManager());
-            return ResponseEntity.ok(Map.of("data", toDto(enrolled, tenantId)));
+            // deviceKey: la credencial de equipo EN CLARO — viaja UNA sola vez (ladrillo 4).
+            // El equipo la guarda para autenticar el sync headless; acá solo queda su hash.
+            return ResponseEntity.ok(Map.of(
+                    "data", toDto(result.device(), tenantId),
+                    "deviceKey", result.deviceKey()));
         } catch (DeviceEnrollConflictException e) {
             // 409: ya hay una Caja Madre activa — la UI pregunta ¿reemplazo o error?
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(

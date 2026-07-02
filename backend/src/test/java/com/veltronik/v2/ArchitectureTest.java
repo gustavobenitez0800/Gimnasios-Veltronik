@@ -67,6 +67,22 @@ class ArchitectureTest {
                 .check(CLASSES);
     }
 
+    @Test
+    void sync_no_depende_de_verticales() {
+        noClasses().that().resideInAPackage("..sync..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .because("el sync engine es GENÉRICO a nivel fila: conoce nombres de tablas (SyncTableRegistry), jamás clases de dominio de un vertical")
+                .check(CLASSES);
+    }
+
+    @Test
+    void verticales_no_dependen_de_sync() {
+        noClasses().that().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAPackage("..sync..")
+                .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
+                .check(CLASSES);
+    }
+
     // ------------------------------------------------------------------
     // Higiene (Fase 0, ARCHITECTURE.md §Reglas innegociables): "limpio no
     // es el proyecto que se limpia, es el que no se puede ensuciar".

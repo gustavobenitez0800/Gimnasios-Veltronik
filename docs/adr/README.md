@@ -20,5 +20,6 @@ Un ADR es **una página que explica una decisión de arquitectura**: qué se dec
 | [ADR-007](ADR-007-updates-por-anillos.md) | Auto-update silencioso por anillos + contrato de compatibilidad | ✅ Aceptada |
 | [ADR-008](ADR-008-sucursal-es-tenant.md) | La Sucursal de la V3 es el `Tenant` existente — no se crea entidad nueva | ✅ Aceptada |
 | [ADR-009](ADR-009-runtime-local-embebido.md) | Runtime local: Postgres embebido + JRE jlink + proceso hijo de Electron | ✅ Aceptada |
+| [ADR-010](ADR-010-sync-engine-v1.md) | Sync engine v1: triggers de captura + protocolo genérico a nivel fila + credencial de equipo | ✅ Aceptada |
 
 **Criterio rector de todas las decisiones de la V3:** minimizar variantes hoy sin cerrar puertas mañana — Veltronik lo mantiene un equipo de una persona, y cada variante (binarios, superficies, hardware) multiplica el costo de soporte a escala.
