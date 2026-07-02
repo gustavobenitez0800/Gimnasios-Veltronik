@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -30,6 +32,7 @@ public class SecurityConfig {
 
     private final TenantContextFilter tenantContextFilter;
     private final KillSwitchFilter killSwitchFilter;
+    private final Environment environment;
 
     @Value("${veltronik.jwt.jwks-uri}")
     private String jwksUri;
@@ -42,12 +45,19 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/webhooks/**").permitAll()
-                .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
-                .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().authenticated()
-            )
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers("/api/webhooks/**").permitAll()
+                    .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
+                    .requestMatchers("/actuator/health").permitAll();
+                // SOLO en modo local (ADR-009): Electron apaga el backend embebido con
+                // POST /actuator/shutdown para que zonky detenga Postgres prolijamente.
+                // Seguro: en local el server escucha solo en 127.0.0.1. En la nube este
+                // matcher no existe y el endpoint además está deshabilitado.
+                if (environment.acceptsProfiles(Profiles.of("local"))) {
+                    auth.requestMatchers("/actuator/shutdown").permitAll();
+                }
+                auth.anyRequest().authenticated();
+            })
             .sessionManagement(sess -> sess
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )

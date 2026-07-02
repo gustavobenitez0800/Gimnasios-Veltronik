@@ -18,6 +18,11 @@ release-builds
 dist_electron
 package-lock.json
 
+# El cerebro embebido (JRE jlink + jar, ~200MB): artefacto de build, lo produce
+# build-tools/build-backend.ps1 — jamás se commitea
+resources/backend
+
+
 # Environment & Secrets - NUNCA subir al repositorio
 .env
 .env.production

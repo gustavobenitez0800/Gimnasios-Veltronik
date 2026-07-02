@@ -11,6 +11,7 @@ const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require('electron
 const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
 const deviceManager = require('./device-manager.cjs');
+const backendRuntime = require('./backend-runtime.cjs');
 
 // ============================================
 // MENÚ DE APLICACIÓN PERSONALIZADO
@@ -176,6 +177,15 @@ app.whenReady().then(() => {
 
     createWindow();
 
+    // El cerebro embebido (ADR-009, esqueleto caminante): solo se activa con
+    // VELTRONIK_LOCAL_BRAIN=1. Fire-and-forget: la UI no espera al backend local
+    // (hoy sigue hablando con la nube; el cableado real llega con el ladrillo 4).
+    if (backendRuntime.isEnabled() && !isDev()) {
+        backendRuntime.start().catch((e) => {
+            console.error('[Main] El cerebro local no arrancó:', e.message);
+        });
+    }
+
     // macOS: recrear ventana al hacer clic en el dock
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -188,6 +198,19 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
+    }
+});
+
+// Apagado PROLIJO del cerebro local antes de salir: actuator/shutdown deja que
+// la JVM corra sus hooks y zonky detenga Postgres (un kill duro dejaría un
+// postgres.exe huérfano bloqueando el pgdata). Patrón preventDefault + exit.
+let backendStopped = false;
+app.on('will-quit', (event) => {
+    if (backendRuntime.isRunning() && !backendStopped) {
+        event.preventDefault();
+        backendRuntime.stop()
+            .catch(() => { /* mejor esfuerzo: el log ya lo cuenta */ })
+            .finally(() => { backendStopped = true; app.quit(); });
     }
 });
 

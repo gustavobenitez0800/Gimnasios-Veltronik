@@ -121,20 +121,23 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- 10.b PostgreSQL embebida (in-process, SIN Docker): test de arranque real que aplica
-             todas las migraciones Flyway y valida el contexto Spring. Red de seguridad que faltaba
-             (ver ApplicationBootIT). Solo test-scope → no entra al JAR de producción. -->
+        <!-- 10.b PostgreSQL embebida (in-process, SIN Docker). Nació como red de seguridad de
+             tests (ApplicationBootTest) y desde el ladrillo 3 de la V3 (ADR-009) es también el
+             MOTOR DE PRODUCCIÓN del runtime local: bajo el perfil `local`, el monolito arranca
+             su propia Postgres con data dir persistente (LocalEmbeddedPostgresConfig).
+             Por eso zonky + binarios de WINDOWS van en scope runtime (viajan en el jar del
+             instalable); los de LINUX quedan test-only (el CI corre en ubuntu; la nube JAMÁS
+             usa Postgres embebida — el perfil `local` no se activa en Railway). -->
         <dependency>
             <groupId>io.zonky.test</groupId>
             <artifactId>embedded-postgres</artifactId>
             <version>2.0.7</version>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.zonky.test.postgres</groupId>
             <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
             <version>16.2.0</version>
-            <scope>test</scope>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>io.zonky.test.postgres</groupId>
@@ -143,12 +146,12 @@
             <scope>test</scope>
         </dependency>
         <!-- commons-compress (de zonky) requiere commons-io >= 2.16; el classpath traía 2.11.0
-             transitivo (NoSuchMethodError en la extracción del binario). Solo test-scope. -->
+             transitivo (NoSuchMethodError en la extracción del binario). Con zonky en runtime,
+             la extracción también ocurre en los kioscos → scope compile. -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.16.1</version>
-            <scope>test</scope>
         </dependency>
 
         <!-- 11. Spring Actuator: Health check para Railway y monitoreo -->

@@ -28,6 +28,11 @@ asar: true
 extraResources:
   - from: "assets/"
     to: "assets/"
+  # El cerebro embebido (ADR-009): JRE jlink + fat jar del monolito, producidos
+  # por build-tools/build-backend.ps1 ANTES de electron-builder (ver release.yml).
+  # backend-runtime.cjs los lanza desde process.resourcesPath/backend/.
+  - from: "resources/backend/"
+    to: "backend/"
 
 # Directorio de salida (instaladores). Relativo: el build de producción corre en
 # GitHub Actions (runner Windows limpio), donde no existe el lock de Defender/OneDrive

@@ -28,6 +28,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Java 17 (cerebro embebido, ADR-009)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Build backend embebido (jar + JRE jlink)
+        # Produce frontend/resources/backend/ — electron-builder lo empaqueta
+        # como extraResources (resources/backend del instalable).
+        working-directory: frontend
+        run: powershell -ExecutionPolicy Bypass -File build-tools\build-backend.ps1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
