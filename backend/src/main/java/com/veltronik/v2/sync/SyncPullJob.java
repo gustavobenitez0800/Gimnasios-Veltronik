@@ -38,20 +38,22 @@ public class SyncPullJob {
 
     @Scheduled(fixedDelayString = "${veltronik.sync.pull-interval-ms:60000}", initialDelay = 60000)
     public void pullConfig() {
-        if (!identity.configured()) return;
+        // Se re-resuelve en cada tick: enrolar con el cerebro corriendo activa el sync solo.
+        var id = identity.resolve().orElse(null);
+        if (id == null) return;
 
         try {
             List<String> stored = jdbcTemplate.queryForList(
                     "SELECT value FROM sync_state WHERE key = ?", String.class, WATERMARK_KEY);
             String since = stored.isEmpty() ? "" : stored.get(0);
 
-            String uri = UriComponentsBuilder.fromUriString(identity.getCloudUrl() + "/api/sync/pull")
+            String uri = UriComponentsBuilder.fromUriString(id.cloudUrl() + "/api/sync/pull")
                     .queryParam("since", since)
                     .build().toUriString();
             JsonNode body = restClient.get()
                     .uri(uri)
-                    .header("X-Device-Id", identity.getDeviceId())
-                    .header("X-Device-Key", identity.getDeviceKey())
+                    .header("X-Device-Id", id.deviceId())
+                    .header("X-Device-Key", id.deviceKey())
                     .retrieve()
                     .body(JsonNode.class);
             if (body == null) return;

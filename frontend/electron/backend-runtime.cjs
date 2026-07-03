@@ -51,6 +51,34 @@ function logsDir() {
     return dir;
 }
 
+/**
+ * Persiste la identidad del sync (el cableado del bautizo): cuando el dueño enrola
+ * ESTA máquina desde la app, la credencial aterriza acá y el cerebro local la lee
+ * en su próximo tick (SyncIdentity del backend) — sin reinicios ni configuración.
+ */
+function saveSyncIdentity(identity) {
+    const cloudUrl = String(identity?.cloudUrl || '').trim();
+    const deviceId = String(identity?.deviceId || '').trim();
+    const deviceKey = String(identity?.deviceKey || '').trim();
+    if (!cloudUrl || !deviceId || !deviceKey) {
+        throw new Error('Identidad de sync incompleta (cloudUrl/deviceId/deviceKey)');
+    }
+    const base = process.env.LOCALAPPDATA || require('os').homedir();
+    const dir = path.join(base, 'Veltronik');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'sync-identity.json');
+    const payload = {
+        cloudUrl,
+        deviceId,
+        deviceKey,
+        role: String(identity?.role || '').trim() || undefined,
+        savedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(file, JSON.stringify(payload, null, 2), 'utf8');
+    console.log(`[BackendRuntime] Identidad de sync guardada (${file})`);
+    return { ok: true };
+}
+
 function httpGet(pathname, timeoutMs = 3000) {
     return new Promise((resolve, reject) => {
         const req = http.get({ host: '127.0.0.1', port: API_PORT, path: pathname, timeout: timeoutMs }, (res) => {
@@ -157,4 +185,4 @@ async function stop() {
     console.log(`[BackendRuntime] Cerebro local detenido (${result})`);
 }
 
-module.exports = { start, stop, isRunning, isEnabled, BASE_URL };
+module.exports = { start, stop, isRunning, isEnabled, saveSyncIdentity, BASE_URL };

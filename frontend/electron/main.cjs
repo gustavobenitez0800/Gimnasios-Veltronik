@@ -243,3 +243,14 @@ ipcMain.handle('restart-for-update', () => {
     const { quitAndInstall } = require('./updater.cjs');
     quitAndInstall();
 });
+
+// El cableado del bautizo (ladrillo 4): el renderer enrola contra la nube y le pasa
+// la credencial al proceso principal, que la persiste para el cerebro local.
+ipcMain.handle('local-brain:set-sync-identity', (event, identity) => {
+    try {
+        return backendRuntime.saveSyncIdentity(identity);
+    } catch (e) {
+        console.error('[Main] No se pudo guardar la identidad de sync:', e.message);
+        return { ok: false, error: e.message };
+    }
+});

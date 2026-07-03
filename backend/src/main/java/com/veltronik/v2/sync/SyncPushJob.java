@@ -37,7 +37,9 @@ public class SyncPushJob {
 
     @Scheduled(fixedDelayString = "${veltronik.sync.push-interval-ms:30000}", initialDelay = 45000)
     public void drainOutbox() {
-        if (!identity.configured()) return;
+        // Se re-resuelve en cada tick: enrolar con el cerebro corriendo activa el sync solo.
+        var id = identity.resolve().orElse(null);
+        if (id == null) return;
 
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -59,9 +61,9 @@ public class SyncPushJob {
             }).toList();
 
             restClient.post()
-                    .uri(identity.getCloudUrl() + "/api/sync/push")
-                    .header("X-Device-Id", identity.getDeviceId())
-                    .header("X-Device-Key", identity.getDeviceKey())
+                    .uri(id.cloudUrl() + "/api/sync/push")
+                    .header("X-Device-Id", id.deviceId())
+                    .header("X-Device-Key", id.deviceKey())
                     .body(Map.of("changes", changes))
                     .retrieve()
                     .toBodilessEntity();
