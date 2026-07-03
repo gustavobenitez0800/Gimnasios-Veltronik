@@ -62,7 +62,9 @@ public class SyncTableRegistry {
     /** Tablas que BAJAN (pull): config cuya fuente de verdad es la nube. */
     private static final List<SyncTable> CONFIG_TABLES = List.of(
             new SyncTable("tenant", Kind.CONFIG, "id"),
-            new SyncTable("kiosk_settings", Kind.CONFIG)
+            new SyncTable("kiosk_settings", Kind.CONFIG),
+            // Cajeros con PIN (ladrillo 5): bajan los hashes → el login diario es offline.
+            new SyncTable("cashier", Kind.CONFIG)
     );
 
     public List<SyncTable> pushTables() {
