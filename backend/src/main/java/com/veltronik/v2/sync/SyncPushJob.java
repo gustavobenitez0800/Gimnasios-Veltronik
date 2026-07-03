@@ -1,8 +1,8 @@
 package com.veltronik.v2.sync;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,46 +20,24 @@ import java.util.Map;
  *
  * <p><b>Garantía de entrega:</b> las filas del outbox se borran SOLO tras el 2xx de la
  * nube (at-least-once). Si el mismo lote llega dos veces, la idempotencia del otro lado
- * (ON CONFLICT DO NOTHING) lo vuelve inofensivo.</p>
- *
- * <p><b>Identidad:</b> usa la credencial del bautizo vía properties
- * ({@code veltronik.sync.*} / env {@code VELTRONIK_SYNC_*}). Sin configurar → el job
- * queda dormido (el cableado automático post-enrolamiento llega en la próxima tajada).</p>
+ * (eventos: ON CONFLICT DO NOTHING; maestros: upsert) lo vuelve inofensivo.</p>
  */
 @Slf4j
 @Component
 @Profile("local")
+@RequiredArgsConstructor
 public class SyncPushJob {
 
     private static final int BATCH_SIZE = 200;
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
-    private final String cloudUrl;
-    private final String deviceId;
-    private final String deviceKey;
-    private final RestClient restClient;
-
-    public SyncPushJob(JdbcTemplate jdbcTemplate,
-                       ObjectMapper objectMapper,
-                       @Value("${veltronik.sync.cloud-url:}") String cloudUrl,
-                       @Value("${veltronik.sync.device-id:}") String deviceId,
-                       @Value("${veltronik.sync.device-key:}") String deviceKey) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.objectMapper = objectMapper;
-        this.cloudUrl = cloudUrl == null ? "" : cloudUrl.trim();
-        this.deviceId = deviceId == null ? "" : deviceId.trim();
-        this.deviceKey = deviceKey == null ? "" : deviceKey.trim();
-        this.restClient = RestClient.create();
-    }
-
-    private boolean configured() {
-        return !cloudUrl.isBlank() && !deviceId.isBlank() && !deviceKey.isBlank();
-    }
+    private final SyncIdentity identity;
+    private final RestClient restClient = RestClient.create();
 
     @Scheduled(fixedDelayString = "${veltronik.sync.push-interval-ms:30000}", initialDelay = 45000)
     public void drainOutbox() {
-        if (!configured()) return;
+        if (!identity.configured()) return;
 
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -81,9 +59,9 @@ public class SyncPushJob {
             }).toList();
 
             restClient.post()
-                    .uri(cloudUrl + "/api/sync/push")
-                    .header("X-Device-Id", deviceId)
-                    .header("X-Device-Key", deviceKey)
+                    .uri(identity.getCloudUrl() + "/api/sync/push")
+                    .header("X-Device-Id", identity.getDeviceId())
+                    .header("X-Device-Key", identity.getDeviceKey())
                     .body(Map.of("changes", changes))
                     .retrieve()
                     .toBodilessEntity();
@@ -97,7 +75,7 @@ public class SyncPushJob {
             log.info("Sync: {} cambios empujados a la nube", sentIds.size());
         } catch (Exception e) {
             // Offline o nube caída = lo NORMAL de este job: se reintenta en el próximo tick.
-            log.debug("Sync pospuesto ({}): {}", e.getClass().getSimpleName(), e.getMessage());
+            log.debug("Sync push pospuesto ({}): {}", e.getClass().getSimpleName(), e.getMessage());
         }
     }
 }

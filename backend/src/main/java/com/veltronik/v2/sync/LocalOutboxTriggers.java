@@ -67,14 +67,17 @@ public class LocalOutboxTriggers {
         public void handle(Event event, Context context) {
             try (Statement statement = context.getConnection().createStatement()) {
                 statement.execute(TRIGGER_FUNCTION);
-                for (SyncTableRegistry.SyncTable table : registry.tables()) {
+                for (SyncTableRegistry.SyncTable table : registry.pushTables()) {
+                    // Eventos: solo INSERT (append-only). Maestros: también UPDATE (mutables).
+                    String events = table.kind() == SyncTableRegistry.Kind.MASTER
+                            ? "INSERT OR UPDATE" : "INSERT";
                     String trigger = "trg_sync_outbox_" + table.name();
                     statement.execute("DROP TRIGGER IF EXISTS " + trigger + " ON " + table.name());
                     statement.execute("CREATE TRIGGER " + trigger
-                            + " AFTER INSERT ON " + table.name()
+                            + " AFTER " + events + " ON " + table.name()
                             + " FOR EACH ROW EXECUTE FUNCTION veltronik_outbox_capture()");
                 }
-                log.info("Outbox local cableado: {} tablas con trigger de captura", registry.tables().size());
+                log.info("Outbox local cableado: {} tablas con trigger de captura", registry.pushTables().size());
             } catch (SQLException e) {
                 // Sin captura no hay sync — mejor frenar el arranque que operar "en silencio roto".
                 throw new IllegalStateException("No se pudieron crear los triggers del outbox", e);

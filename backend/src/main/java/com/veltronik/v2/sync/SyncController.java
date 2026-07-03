@@ -6,11 +6,14 @@ import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +30,7 @@ import java.util.Map;
 public class SyncController {
 
     private final SyncApplyService syncApplyService;
+    private final SyncPullService syncPullService;
 
     @Data
     public static class PushRequest {
@@ -44,5 +48,20 @@ public class SyncController {
         return ResponseEntity.ok(Map.of(
                 "applied", result.applied(),
                 "skipped", result.skipped()));
+    }
+
+    /**
+     * La bajada de config: filas de las tablas CONFIG del tenant del equipo modificadas
+     * después del watermark ({@code since}, ISO local; ausente = desde el principio).
+     */
+    @GetMapping("/pull")
+    public ResponseEntity<?> pull(@RequestParam(name = "since", required = false) String since) {
+        LocalDateTime sinceAt = (since == null || since.isBlank())
+                ? SyncPullService.EPOCH
+                : LocalDateTime.parse(since.trim());
+        SyncPullService.PullResult result = syncPullService.pull(TenantContextHolder.getTenantId(), sinceAt);
+        return ResponseEntity.ok(Map.of(
+                "changes", result.changes(),
+                "watermark", result.watermark().toString()));
     }
 }

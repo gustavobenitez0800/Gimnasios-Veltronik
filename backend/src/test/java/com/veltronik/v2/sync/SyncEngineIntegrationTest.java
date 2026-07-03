@@ -46,6 +46,7 @@ class SyncEngineIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
     @Autowired SyncApplyService applyService;
+    @Autowired SyncPullService pullService;
     @Autowired ObjectMapper mapper;
 
     @Test
@@ -104,9 +105,79 @@ class SyncEngineIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("app_user");
 
-        // ── 6. Solo INSERT en v1 ──
+        // ── 6. Un EVENTO no admite UPDATE (append-only) ──
         change.setOp("UPDATE");
         assertThatThrownBy(() -> applyService.apply(tenantId, deviceId, List.of(change)))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void maestros_capturan_updates_y_se_aplican_como_upsert() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
+                + "VALUES (?, now(), now(), 'Kiosco Maestros', 'KIOSK', true)", tenantId);
+
+        // Insert + update de un maestro: el trigger captura AMBOS (INSERT OR UPDATE)
+        jdbc.update("INSERT INTO kiosk_category (id, created_at, updated_at, tenant_id, name, display_order, is_active) "
+                + "VALUES (?, now(), now(), ?, 'Golosinas', 0, true)", categoryId, tenantId);
+        jdbc.update("UPDATE kiosk_category SET name = 'Golosinas y Snacks' WHERE id = ?", categoryId);
+
+        List<Map<String, Object>> captured = jdbc.queryForList(
+                "SELECT op, payload::text AS payload FROM sync_outbox WHERE row_id = ? ORDER BY id", categoryId);
+        assertThat(captured).hasSize(2);
+        assertThat(captured.get(0).get("op")).isEqualTo("INSERT");
+        assertThat(captured.get(1).get("op")).isEqualTo("UPDATE");
+
+        // Simular la base receptora: aplicar INSERT y luego UPDATE (upsert en ambos casos)
+        jdbc.update("DELETE FROM kiosk_category WHERE id = ?", categoryId);
+
+        SyncChange insert = changeFor("kiosk_category", "INSERT", categoryId, (String) captured.get(0).get("payload"));
+        SyncChange update = changeFor("kiosk_category", "UPDATE", categoryId, (String) captured.get(1).get("payload"));
+
+        applyService.apply(tenantId, deviceId, List.of(insert));
+        assertThat(jdbc.queryForObject("SELECT name FROM kiosk_category WHERE id = ?", String.class, categoryId))
+                .isEqualTo("Golosinas");
+
+        applyService.apply(tenantId, deviceId, List.of(update));
+        assertThat(jdbc.queryForObject("SELECT name FROM kiosk_category WHERE id = ?", String.class, categoryId))
+                .isEqualTo("Golosinas y Snacks");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM kiosk_category WHERE id = ?", Integer.class, categoryId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void la_config_baja_por_pull_con_watermark_honesto() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
+                + "VALUES (?, now(), now(), 'Kiosco Pull', 'KIOSK', true)", tenantId);
+
+        // Primer pull (desde el principio de los tiempos): baja la fila del tenant
+        SyncPullService.PullResult first = pullService.pull(tenantId, SyncPullService.EPOCH);
+        assertThat(first.changes()).isNotEmpty();
+        assertThat(first.changes().get(0).getTable()).isEqualTo("tenant");
+        assertThat(first.watermark()).isAfter(SyncPullService.EPOCH);
+
+        // El apply local materializa el cambio (el dueño renombró el negocio en la web)
+        var row = (com.fasterxml.jackson.databind.node.ObjectNode) first.changes().get(0).getRow();
+        row.put("name", "Kiosco Pull Renombrado");
+        applyService.applyConfig(List.of(first.changes().get(0)));
+        assertThat(jdbc.queryForObject("SELECT name FROM tenant WHERE id = ?", String.class, tenantId))
+                .isEqualTo("Kiosco Pull Renombrado");
+
+        // Segundo pull desde el watermark: nada nuevo que bajar
+        SyncPullService.PullResult second = pullService.pull(tenantId, first.watermark());
+        assertThat(second.changes()).isEmpty();
+        assertThat(second.watermark()).isEqualTo(first.watermark());
+    }
+
+    private SyncChange changeFor(String table, String op, UUID rowId, String payload) throws Exception {
+        SyncChange change = new SyncChange();
+        change.setTable(table);
+        change.setOp(op);
+        change.setRowId(rowId);
+        change.setRow(mapper.readTree(payload));
+        return change;
     }
 }
