@@ -23,7 +23,7 @@
 - *Tajada 1 (auth backend)* ✅: el cerebro embebido autentica al cajero por PIN, sin Google ni internet — cadena de seguridad separada por perfil (`LocalSecurityConfig`, la nube queda con `SecurityConfig @Profile("!local")`), tokens firmados con HMAC (`LocalSessionService`, secreto en `sync_state`), `POST /api/local/login`.
 - *Tajada 2a (válvula + espejo)* ✅: `lib/connection.js` resuelve nube vs cerebro local al arrancar (default nube; local solo si Electron + cerebro responde `ready`); el web-espejo muestra "última señal hace X" en Equipos.
 - *Tajada 2b (la canilla abierta)* ✅: `App.jsx` bifurca a `LocalApp` en modo local — PIN (`LocalLoginPage`) → reusa `PosPage` + `KioskCashPage` contra el cerebro embebido, con un `AuthContext` mínimo derivado del cajero. Verificado en preview (PIN renderiza; la nube sigue impecable). Falta solo la **verificación E2E en hardware real** (Electron + cerebro + enrolamiento), no automatizable.
-| 7 | **Anillos de update + Mission Control mínimo** | Staged rollout de electron-updater + tablero de flota (versión/last-seen/salud de sync) | ⚪ |
+| 7 | **Anillos de update + Mission Control mínimo** | Staged rollout de electron-updater + tablero de flota (versión/last-seen/salud de sync) | ✅ En producción (2026-07-04): salud de sync + anillos por equipo, rollout por anillos (updater fail-open + versión objetivo publicable), Mission Control del fundador (/mission-control). El updater actúa desde el próximo release Electron |
 
 **Regla de cierre:** ningún cliente real migra a local-first hasta que el ladrillo 7 esté en
 producción (ADR-007: no se despliega un cerebro local que no se pueda actualizar y ver remoto).
