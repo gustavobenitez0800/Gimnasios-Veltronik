@@ -7,7 +7,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { gymService, errorService, deviceService, cashierService } from '../services';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, timeAgo } from '../lib/utils';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
@@ -587,8 +587,9 @@ export default function SettingsPage() {
                       {d.enrolled && <span style={{ fontWeight: 600 }}>{d.role === 'ENCARGADO' ? 'Caja Madre' : 'Caja'}</span>}
                       {d.status === 'REVOKED' && <span style={{ color: 'var(--text-muted)' }}>revocado</span>}
                       {d.lastAppVersion && <span style={{ color: 'var(--text-muted)' }}>v{d.lastAppVersion}</span>}
-                      <span style={{ color: 'var(--text-muted)' }} title="Última señal de vida">
-                        {d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                      <span style={{ color: 'var(--text-muted)' }}
+                        title={d.lastSeenAt ? `Última señal: ${new Date(d.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin señal aún'}>
+                        {timeAgo(d.lastSeenAt)}
                       </span>
                       {d.enrolled && (
                         <button className="btn-outline-danger" onClick={() => setRevokeTarget(d)}>Revocar</button>

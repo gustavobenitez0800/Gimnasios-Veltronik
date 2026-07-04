@@ -51,6 +51,27 @@ export function formatCurrency(amount, currency = 'ARS') {
 }
 
 /**
+ * Tiempo relativo en castellano ("hace 5 min", "hace 2 h", "recién").
+ * Usado por el web-espejo (V3): que el dueño vea la frescura de cada equipo/sync.
+ */
+export function timeAgo(date) {
+  if (!date) return '—';
+  const then = new Date(date).getTime();
+  if (Number.isNaN(then)) return '—';
+  const secs = Math.round((Date.now() - then) / 1000);
+  if (secs < 45) return 'recién';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `hace ${days} d`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `hace ${months} mes${months > 1 ? 'es' : ''}`;
+  return `hace ${Math.round(months / 12)} a`;
+}
+
+/**
  * Format date for display
  */
 export function formatDate(date, options = {}) {

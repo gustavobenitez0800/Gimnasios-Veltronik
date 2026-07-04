@@ -19,10 +19,27 @@ const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, metho
 
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';
+import { isLocalMode, getApiBase } from './connection';
 
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
   async (config) => {
+    // La conexión vigente manda el baseURL: nube (default) o cerebro local (ladrillo 6).
+    config.baseURL = getApiBase();
+
+    // MODO LOCAL: el cajero entró por PIN contra el cerebro local. Sin Supabase: la
+    // credencial es el token de sesión local; el tenant lo saca el backend del token.
+    if (isLocalMode()) {
+      const localToken = localStorage.getItem('veltronik_local_token');
+      if (localToken) config.headers.Authorization = `Bearer ${localToken}`;
+      const deviceId = getDeviceId();
+      if (deviceId) config.headers['X-Device-Id'] = deviceId;
+      if (typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) {
+        config.headers['X-App-Version'] = __APP_VERSION__;
+      }
+      return config;
+    }
+
     // Obtener sesión activa de Supabase. Envuelto en try/catch: getSession() puede fallar o
     // colgarse por contención del lock de Supabase; si se propagara, rompería la request (y
     // podría disparar el ErrorBoundary). Ante fallo seguimos SIN token → el backend responde
