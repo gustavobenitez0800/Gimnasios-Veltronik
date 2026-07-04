@@ -58,6 +58,7 @@ const CONFIG = {
     MEMBERS: '/members',
     PAYMENTS: '/payments',
     SETTINGS: '/settings',
+    MISSION_CONTROL: '/mission-control',
     CLASSES: '/classes',
     REPORTS: '/reports',
     ACCESS: '/access',

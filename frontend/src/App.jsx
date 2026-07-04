@@ -31,6 +31,7 @@ import RetentionPage from './pages/RetentionPage';
 import ReportsPage from './pages/ReportsPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import MissionControlPage from './pages/MissionControlPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PlansPage from './pages/PlansPage';
 import CourtGridPage from './pages/CourtGridPage';
@@ -107,6 +108,8 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
+                {/* Mission Control (ladrillo 7): la propia página se gatea por fundador. */}
+                <Route path={CONFIG.ROUTES.MISSION_CONTROL} element={<MissionControlPage />} />
 
                 {/* ─── GYM-ONLY ROUTES (Fitness & Wellness Ecosystem) ─── */}
                 <Route element={<OrgTypeGuard allowedTypes={FITNESS_VERTICALS} />}>
