@@ -26,8 +26,10 @@ Thumbs.db
 logs/
 *.log
 
-# Debug scripts (nunca deben estar en el repo)
-Check*.java
-Test*.java
-Update*.java
+# Debug scripts sueltos en la RAÍZ de backend/ (nunca deben estar en el repo).
+# Anclados con '/' a la raíz: sin esto atrapaban clases legítimas de src/ como
+# UpdateRollout.java / UpdatesController.java (bug que dejó un commit incompleto).
+/Check*.java
+/Test*.java
+/Update*.java
 scripts/
