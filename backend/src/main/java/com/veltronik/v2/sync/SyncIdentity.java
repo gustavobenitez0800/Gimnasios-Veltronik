@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * La identidad del equipo para el sync headless (ladrillo 4 + cableado): URL de la nube
@@ -31,30 +32,35 @@ import java.util.Optional;
 @Profile("local")
 public class SyncIdentity {
 
-    public record Identity(String cloudUrl, String deviceId, String deviceKey) {}
+    /** {@code tenantId} puede ser null en el modo props (env de prueba sin sucursal). */
+    public record Identity(String cloudUrl, String deviceId, String deviceKey, UUID tenantId) {}
 
     private final String propCloudUrl;
     private final String propDeviceId;
     private final String propDeviceKey;
+    private final String propTenantId;
     private final Path identityFile;
     private final ObjectMapper objectMapper;
 
     public SyncIdentity(@Value("${veltronik.sync.cloud-url:}") String cloudUrl,
                         @Value("${veltronik.sync.device-id:}") String deviceId,
                         @Value("${veltronik.sync.device-key:}") String deviceKey,
+                        @Value("${veltronik.sync.tenant-id:}") String tenantId,
                         @Value("${veltronik.sync.identity-file:}") String identityFile,
                         ObjectMapper objectMapper) {
         this.propCloudUrl = trimmed(cloudUrl);
         this.propDeviceId = trimmed(deviceId);
         this.propDeviceKey = trimmed(deviceKey);
+        this.propTenantId = trimmed(tenantId);
         this.identityFile = resolveIdentityFile(trimmed(identityFile));
         this.objectMapper = objectMapper;
     }
 
-    /** La identidad vigente, si existe. Los jobs la piden en cada tick. */
+    /** La identidad vigente, si existe. Los jobs (y el login local) la piden por tick/request. */
     public Optional<Identity> resolve() {
         if (!propCloudUrl.isBlank() && !propDeviceId.isBlank() && !propDeviceKey.isBlank()) {
-            return Optional.of(new Identity(normalizeUrl(propCloudUrl), propDeviceId, propDeviceKey));
+            return Optional.of(new Identity(normalizeUrl(propCloudUrl), propDeviceId, propDeviceKey,
+                    parseUuid(propTenantId)));
         }
         try {
             if (!Files.exists(identityFile)) return Optional.empty();
@@ -63,11 +69,21 @@ public class SyncIdentity {
             String deviceId = json.path("deviceId").asText("");
             String deviceKey = json.path("deviceKey").asText("");
             if (cloudUrl.isBlank() || deviceId.isBlank() || deviceKey.isBlank()) return Optional.empty();
-            return Optional.of(new Identity(normalizeUrl(cloudUrl), deviceId.trim(), deviceKey.trim()));
+            return Optional.of(new Identity(normalizeUrl(cloudUrl), deviceId.trim(), deviceKey.trim(),
+                    parseUuid(json.path("tenantId").asText(""))));
         } catch (Exception e) {
             // Archivo corrupto ≠ operación rota: el sync duerme y se loguea el porqué.
             log.warn("sync-identity.json ilegible ({}): {}", identityFile, e.getMessage());
             return Optional.empty();
+        }
+    }
+
+    private static UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

@@ -7,6 +7,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.annotation.Profile;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -34,6 +35,10 @@ import java.util.UUID;
  * acá se valida contra {@code tenant_membership} ANTES de habilitar el contexto;
  * de lo contrario el filtro de Hibernate filtraría por el tenant equivocado.</p>
  */
+// Solo nube: en modo local el tenant sale del token de sesión (LocalSessionFilter), no de
+// un header. Además, gatearlo evita que Spring Boot lo auto-registre como servlet filter
+// en el cerebro local (los @Component OncePerRequestFilter corren fuera de la cadena).
+@Profile("!local")
 @Component
 public class TenantContextFilter extends OncePerRequestFilter {
 

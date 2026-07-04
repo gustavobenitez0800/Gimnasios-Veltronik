@@ -71,6 +71,8 @@ function saveSyncIdentity(identity) {
         cloudUrl,
         deviceId,
         deviceKey,
+        // La sucursal (tenant) enrolada: el login local por PIN la necesita (ladrillo 6).
+        tenantId: String(identity?.tenantId || '').trim() || undefined,
         role: String(identity?.role || '').trim() || undefined,
         savedAt: new Date().toISOString(),
     };

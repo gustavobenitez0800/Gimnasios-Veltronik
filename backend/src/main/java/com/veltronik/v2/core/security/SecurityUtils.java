@@ -21,8 +21,11 @@ public class SecurityUtils {
             return UUID.fromString(jwt.getSubject());
         } else if (principal instanceof com.veltronik.v2.core.entities.AppUser) {
             return ((com.veltronik.v2.core.entities.AppUser) principal).getId();
+        } else if (principal instanceof LocalPrincipal) {
+            // Modo local (ladrillo 6): el "usuario" es el cajero que entró por PIN.
+            return ((LocalPrincipal) principal).cashierId();
         }
-        
+
         return null;
     }
 

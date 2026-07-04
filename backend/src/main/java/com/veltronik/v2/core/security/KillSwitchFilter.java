@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,7 +28,13 @@ import java.util.UUID;
  * <p>La DECISIÓN de acceso NO vive acá: la delega en {@link SubscriptionAccessPolicy}, la
  * fuente única de verdad que comparte con el cron. Este filtro solo aporta la plomería
  * (contexto de tenant, caché de veredictos, respuesta 402) y la persistencia de la baja.</p>
+ *
+ * <p><b>Solo en la nube ({@code @Profile("!local")}):</b> la facturación es un asunto de la
+ * nube. El cerebro local jamás bloquea una venta por pago (ADR-003, "nunca perder una venta").
+ * Además, al ser un {@code @Component}, Spring Boot lo auto-registra como servlet filter fuera
+ * de la cadena de seguridad — sin este gate, correría igual en modo local y bloquearía todo.</p>
  */
+@Profile("!local")
 @Component
 @RequiredArgsConstructor
 @Slf4j

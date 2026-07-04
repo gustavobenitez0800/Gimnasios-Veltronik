@@ -16,8 +16,10 @@
 | 2 | **Enrolamiento v1 (el bautizo)** | El equipo deja de ser anónimo: el dueño lo ata a una sucursal con nombre y rol. Sección Equipos en Ajustes + integridad (un encargado activo por sucursal) | ✅ En producción (2026-07-02) |
 | 3 | **Runtime local (el cerebro embebido)** | El instalable corre el monolito Spring + Postgres embebido, lanzados por Electron. Diseño decidido en [ADR-009](adr/ADR-009-runtime-local-embebido.md): PG embebido + JRE jlink + proceso hijo | 🟡 Diseño ✅ — implementación pendiente |
 | 4 | **Sync engine v1** | Outbox local → nube (eventos, idempotencia por UUID), config nube → local, watermarks, oportunista. Diseño en [ADR-010](adr/ADR-010-sync-engine-v1.md) | 🟡 Los TRES ríos ✅ (eventos ↑ idempotentes, maestros ↑ upsert, config ↓ pull con watermark + credencial de equipo). Falta: cableado automático de la credencial al cerebro local |
-| 5 | **PIN local de cajeros** | El login diario deja de necesitar internet | ⚪ |
+| 5 | **PIN local de cajeros** | El login diario deja de necesitar internet | ✅ En producción (2026-07-03). Gestión en la nube + hash BCrypt que baja por sync (CONFIG). `verifyPin` listo para el login local del ladrillo 6 |
 | 6 | **La web lee el espejo** | Dashboard del dueño sobre datos sincronizados + "última sync hace X" | ⚪ |
+
+**Ladrillo 6 — tajada 1 ✅ (2026-07-03): auth local.** El cerebro embebido autentica al cajero por PIN, sin Google ni internet: cadena de seguridad separada por perfil (`LocalSecurityConfig`, la nube queda con `SecurityConfig @Profile("!local")`), tokens de sesión firmados con HMAC (`LocalSessionService`, secreto en `sync_state`), `POST /api/local/login`. Falta la **tajada 2**: la válvula del frontend (apuntar la app al cerebro local según enrolamiento + pantalla de PIN) y el web-espejo con "última sync hace X".
 | 7 | **Anillos de update + Mission Control mínimo** | Staged rollout de electron-updater + tablero de flota (versión/last-seen/salud de sync) | ⚪ |
 
 **Regla de cierre:** ningún cliente real migra a local-first hasta que el ladrillo 7 esté en

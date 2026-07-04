@@ -19,7 +19,8 @@ class SyncIdentityTest {
     Path tempDir;
 
     private SyncIdentity identity(String cloud, String id, String key, Path file) {
-        return new SyncIdentity(cloud, id, key, file.toString(), mapper);
+        // tenantId por props vacío: estos tests validan la resolución de cloud/device/key.
+        return new SyncIdentity(cloud, id, key, "", file.toString(), mapper);
     }
 
     @Test

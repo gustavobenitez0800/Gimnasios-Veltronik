@@ -56,7 +56,7 @@ class SyncEngineIntegrationTest {
         UUID deviceId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Test Sync', 'KIOSK', true)", tenantId);
+                + "VALUES (?, now(), now(), 'Kiosco Test Sync', 'KIOSCO', true)", tenantId);
         jdbc.update("INSERT INTO kiosk_cash_session (id, created_at, updated_at, tenant_id, status, opening_amount, opened_at) "
                 + "VALUES (?, now(), now(), ?, 'OPEN', 0, now())", sessionId, tenantId);
 
@@ -117,7 +117,7 @@ class SyncEngineIntegrationTest {
         UUID deviceId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Maestros', 'KIOSK', true)", tenantId);
+                + "VALUES (?, now(), now(), 'Kiosco Maestros', 'KIOSCO', true)", tenantId);
 
         // Insert + update de un maestro: el trigger captura AMBOS (INSERT OR UPDATE)
         jdbc.update("INSERT INTO kiosk_category (id, created_at, updated_at, tenant_id, name, display_order, is_active) "
@@ -151,7 +151,7 @@ class SyncEngineIntegrationTest {
     void la_config_baja_por_pull_con_watermark_honesto() throws Exception {
         UUID tenantId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Pull', 'KIOSK', true)", tenantId);
+                + "VALUES (?, now(), now(), 'Kiosco Pull', 'KIOSCO', true)", tenantId);
 
         // Primer pull (desde el principio de los tiempos): baja la fila del tenant
         SyncPullService.PullResult first = pullService.pull(tenantId, SyncPullService.EPOCH);

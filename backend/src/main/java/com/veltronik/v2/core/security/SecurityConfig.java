@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Configuration
+@Profile("!local")   // el cerebro local usa LocalSecurityConfig (sin Supabase/JWKS). La nube, esta.
 @EnableWebSecurity
 @EnableMethodSecurity   // habilita @PreAuthorize para control de acceso por rol a nivel de método
 @RequiredArgsConstructor

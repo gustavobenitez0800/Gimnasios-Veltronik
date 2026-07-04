@@ -45,6 +45,8 @@ export const deviceService = {
           cloudUrl,
           deviceId: getDeviceId(),
           deviceKey,
+          // La sucursal enrolada = la org activa. El login local por PIN la usa (ladrillo 6).
+          tenantId: localStorage.getItem('current_org_id') || undefined,
           role: res.data?.data?.role,
         }).catch(() => { /* mejor esfuerzo: se puede re-enrolar */ });
       }
