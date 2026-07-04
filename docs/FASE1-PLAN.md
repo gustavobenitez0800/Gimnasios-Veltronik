@@ -19,7 +19,10 @@
 | 5 | **PIN local de cajeros** | El login diario deja de necesitar internet | ✅ En producción (2026-07-03). Gestión en la nube + hash BCrypt que baja por sync (CONFIG). `verifyPin` listo para el login local del ladrillo 6 |
 | 6 | **La web lee el espejo** | Dashboard del dueño sobre datos sincronizados + "última sync hace X" | ⚪ |
 
-**Ladrillo 6 — tajada 1 ✅ (2026-07-03): auth local.** El cerebro embebido autentica al cajero por PIN, sin Google ni internet: cadena de seguridad separada por perfil (`LocalSecurityConfig`, la nube queda con `SecurityConfig @Profile("!local")`), tokens de sesión firmados con HMAC (`LocalSessionService`, secreto en `sync_state`), `POST /api/local/login`. Falta la **tajada 2**: la válvula del frontend (apuntar la app al cerebro local según enrolamiento + pantalla de PIN) y el web-espejo con "última sync hace X".
+**Ladrillo 6 — COMPLETO (2026-07-03/04): el circuito local-first cerrado.**
+- *Tajada 1 (auth backend)* ✅: el cerebro embebido autentica al cajero por PIN, sin Google ni internet — cadena de seguridad separada por perfil (`LocalSecurityConfig`, la nube queda con `SecurityConfig @Profile("!local")`), tokens firmados con HMAC (`LocalSessionService`, secreto en `sync_state`), `POST /api/local/login`.
+- *Tajada 2a (válvula + espejo)* ✅: `lib/connection.js` resuelve nube vs cerebro local al arrancar (default nube; local solo si Electron + cerebro responde `ready`); el web-espejo muestra "última señal hace X" en Equipos.
+- *Tajada 2b (la canilla abierta)* ✅: `App.jsx` bifurca a `LocalApp` en modo local — PIN (`LocalLoginPage`) → reusa `PosPage` + `KioskCashPage` contra el cerebro embebido, con un `AuthContext` mínimo derivado del cajero. Verificado en preview (PIN renderiza; la nube sigue impecable). Falta solo la **verificación E2E en hardware real** (Electron + cerebro + enrolamiento), no automatizable.
 | 7 | **Anillos de update + Mission Control mínimo** | Staged rollout de electron-updater + tablero de flota (versión/last-seen/salud de sync) | ⚪ |
 
 **Regla de cierre:** ningún cliente real migra a local-first hasta que el ladrillo 7 esté en
