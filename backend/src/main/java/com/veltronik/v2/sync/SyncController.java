@@ -2,9 +2,11 @@ package com.veltronik.v2.sync;
 
 import com.veltronik.v2.core.security.DeviceContextHolder;
 import com.veltronik.v2.core.security.TenantContextHolder;
+import com.veltronik.v2.core.services.DeviceRegistryService;
 import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,12 +27,14 @@ import java.util.Map;
  * acá implica equipo autenticado, activo y enrolado.</p>
  */
 @RestController
+@Slf4j
 @RequestMapping("/api/sync")
 @RequiredArgsConstructor
 public class SyncController {
 
     private final SyncApplyService syncApplyService;
     private final SyncPullService syncPullService;
+    private final DeviceRegistryService deviceRegistryService;
 
     @Data
     public static class PushRequest {
@@ -45,6 +49,12 @@ public class SyncController {
                 TenantContextHolder.getTenantId(),
                 DeviceContextHolder.getDeviceId(),
                 request.getChanges());
+        // Señal de frescura para el web-espejo (ladrillo 7). Telemetría: jamás rompe el sync.
+        try {
+            deviceRegistryService.recordSync(DeviceContextHolder.getDeviceId());
+        } catch (Exception e) {
+            log.warn("No se pudo registrar last_sync_at del equipo: {}", e.getMessage());
+        }
         return ResponseEntity.ok(Map.of(
                 "applied", result.applied(),
                 "skipped", result.skipped()));

@@ -43,6 +43,18 @@ public class Device extends BaseEntity {
     @Column(name = "last_seen_at", nullable = false)
     private LocalDateTime lastSeenAt;
 
+    /**
+     * Última vez que el equipo EMPUJÓ datos por sync (ladrillo 7). Señal honesta de
+     * frescura ("los datos de esta caja están al día en la nube"), a diferencia de
+     * {@link #lastSeenAt} que es el heartbeat de cualquier request.
+     */
+    @Column(name = "last_sync_at")
+    private LocalDateTime lastSyncAt;
+
+    /** Anillo de despliegue del rollout escalonado (ADR-007): 0=piloto, 1=amigos, 2=todos. Null=todos. */
+    @Column(name = "update_ring")
+    private Short updateRing;
+
     // ── Enrolamiento (ladrillo 2, "el bautizo") ─────────────────────────────────
     // La pertenencia FUERTE a una sucursal (a diferencia de lastTenantId = telemetría).
     // Todos nullables: un equipo puede vivir sin enrolarse (ej. el navegador del dueño).

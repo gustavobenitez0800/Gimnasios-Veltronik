@@ -34,4 +34,10 @@ public class DeviceDTO {
 
     /** ACTIVE | REVOKED (null si nunca fue enrolado). */
     private String status;
+
+    /** Última vez que el equipo empujó datos por sync (frescura honesta; ladrillo 7). */
+    private LocalDateTime lastSyncAt;
+
+    /** Anillo de update: 0=piloto, 1=amigos, 2=todos. Null=todos (ladrillo 7). */
+    private Short updateRing;
 }

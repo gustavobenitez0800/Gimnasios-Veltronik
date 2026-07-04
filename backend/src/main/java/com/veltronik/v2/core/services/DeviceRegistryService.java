@@ -93,6 +93,32 @@ public class DeviceRegistryService {
         return deviceRepository.findById(deviceId);
     }
 
+    /**
+     * Marca que el equipo empujó datos por sync recién (ladrillo 7). Señal honesta de
+     * frescura para el web-espejo. Telemetría: nunca rompe el sync (try/catch en el caller).
+     */
+    @Transactional
+    public void recordSync(UUID deviceId) {
+        if (deviceId == null) return;
+        deviceRepository.findById(deviceId).ifPresent(device -> {
+            device.setLastSyncAt(LocalDateTime.now());
+            deviceRepository.save(device);
+        });
+    }
+
+    /** Asigna el anillo de update de un equipo de la sucursal (ladrillo 7, rollout escalonado). */
+    @Transactional
+    public void setRing(UUID tenantId, UUID deviceId, Short ring) {
+        if (ring != null && (ring < 0 || ring > 2)) {
+            throw new BusinessException("Anillo inválido (0=piloto, 1=amigos, 2=todos).");
+        }
+        Device device = deviceRepository.findById(deviceId)
+                .filter(d -> tenantId.equals(d.getEnrolledTenantId()))
+                .orElseThrow(() -> new EntityNotFoundException("equipo de esta sucursal", deviceId));
+        device.setUpdateRing(ring);
+        deviceRepository.save(device);
+    }
+
     // ── Enrolamiento: el "bautizo" (ladrillo 2, diseño en docs/FASE1-PLAN.md) ──────
 
     /** Resultado del bautizo: el equipo + su credencial EN CLARO (viaja una sola vez). */

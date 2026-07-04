@@ -9,6 +9,7 @@ import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.core.services.DeviceRegistryService;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -111,6 +112,23 @@ public class DeviceController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
+    @Data
+    public static class RingRequest {
+        /** 0=piloto, 1=amigos, 2=todos. Null = todos (ladrillo 7, rollout escalonado). */
+        private Short ring;
+    }
+
+    /** Asigna el anillo de update de un equipo (rollout escalonado, ADR-007). */
+    @PostMapping("/{deviceId}/ring")
+    public ResponseEntity<?> setRing(@PathVariable UUID deviceId, @RequestBody RingRequest request) {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        if (tenantId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "No hay negocio en la sesión."));
+        }
+        deviceRegistryService.setRing(tenantId, deviceId, request.getRing());
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
     private DeviceDTO toDto(Device d, UUID currentTenantId) {
         DeviceDTO dto = new DeviceDTO();
         dto.setId(d.getId());
@@ -121,6 +139,8 @@ public class DeviceController {
         dto.setDisplayName(d.getDisplayName());
         dto.setRole(d.getRole() != null ? d.getRole().name() : null);
         dto.setStatus(d.getStatus() != null ? d.getStatus().name() : null);
+        dto.setLastSyncAt(d.getLastSyncAt());
+        dto.setUpdateRing(d.getUpdateRing());
         return dto;
     }
 }
