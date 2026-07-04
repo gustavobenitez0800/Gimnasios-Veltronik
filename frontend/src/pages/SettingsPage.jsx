@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { gymService, errorService, deviceService } from '../services';
+import { gymService, errorService, deviceService, cashierService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
@@ -55,6 +55,14 @@ export default function SettingsPage() {
   const [replacePrompt, setReplacePrompt] = useState(null); // Caja Madre en conflicto (409)
   const [revokeTarget, setRevokeTarget] = useState(null);
   const thisDevice = devices.find((d) => d.id === thisDeviceId);
+
+  // Cajeros con PIN (Fase 1, ladrillo 5 — el login local del ladrillo 6)
+  const [cashiers, setCashiers] = useState([]);
+  const [cashierForm, setCashierForm] = useState({ name: '', pin: '', role: 'CAJERO' });
+  const [cashierBusy, setCashierBusy] = useState(false);
+  const [pinResetTarget, setPinResetTarget] = useState(null); // { id, name }
+  const [pinResetValue, setPinResetValue] = useState('');
+  const [cashierToggleTarget, setCashierToggleTarget] = useState(null);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -182,6 +190,64 @@ export default function SettingsPage() {
       showToast(errorService.getMessage(error), 'error');
     } finally {
       setRevokeTarget(null);
+    }
+  };
+
+  // ── Cajeros con PIN (ladrillo 5) ──────────────────────────────────
+  const loadCashiers = useCallback(async () => {
+    if (!canManageDevices) return;
+    try {
+      setCashiers(await cashierService.list());
+    } catch {
+      // Silencioso: la sección de cajeros nunca debe romper Ajustes.
+    }
+  }, [canManageDevices]);
+
+  useEffect(() => { loadCashiers(); }, [loadCashiers]);
+
+  const handleCreateCashier = async () => {
+    setCashierBusy(true);
+    try {
+      await cashierService.create({
+        name: cashierForm.name.trim(),
+        pin: cashierForm.pin.trim(),
+        role: cashierForm.role,
+      });
+      showToast('Cajero creado. Su PIN queda guardado de forma segura (no se puede volver a ver).', 'success');
+      setCashierForm({ name: '', pin: '', role: 'CAJERO' });
+      await loadCashiers();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setCashierBusy(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (!pinResetTarget) return;
+    setCashierBusy(true);
+    try {
+      await cashierService.resetPin(pinResetTarget.id, pinResetValue.trim());
+      showToast(`PIN de ${pinResetTarget.name} actualizado`, 'success');
+      setPinResetTarget(null);
+      setPinResetValue('');
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setCashierBusy(false);
+    }
+  };
+
+  const handleToggleCashier = async () => {
+    if (!cashierToggleTarget) return;
+    try {
+      await cashierService.setActive(cashierToggleTarget.id, !cashierToggleTarget.active);
+      showToast(cashierToggleTarget.active ? 'Cajero desactivado' : 'Cajero reactivado', 'success');
+      await loadCashiers();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setCashierToggleTarget(null);
     }
   };
 
@@ -558,6 +624,84 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Cajeros con PIN (Fase 1: ladrillo 5) */}
+        {canManageDevices && (
+          <div className="settings-section">
+            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size="1.1em" /> Cajeros</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
+              Operadores del mostrador que entran con un PIN (sin email ni Google). El PIN se guarda cifrado y no se puede volver a ver — si se olvida, asignale uno nuevo.
+            </p>
+
+            {cashiers.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                {cashiers.map((c) => (
+                  <div key={c.id} className="info-row" style={{ alignItems: 'center' }}>
+                    <span className="info-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Icon name="user" size="1em" />
+                      <span style={{ opacity: c.active ? 1 : 0.5 }}>{c.name}</span>
+                    </span>
+                    <span className="info-value" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span style={{ fontWeight: 600 }}>{c.role === 'ENCARGADO' ? 'Encargado' : 'Cajero'}</span>
+                      {!c.active && <span style={{ color: 'var(--text-muted)' }}>inactivo</span>}
+                      {pinResetTarget?.id === c.id ? (
+                        <>
+                          <input className="form-input" type="password" inputMode="numeric" maxLength={6}
+                            placeholder="Nuevo PIN" autoFocus
+                            style={{ width: '110px' }}
+                            value={pinResetValue}
+                            onChange={(e) => setPinResetValue(e.target.value.replace(/\D/g, ''))} />
+                          <button className="btn-primary" disabled={cashierBusy || pinResetValue.length < 4}
+                            onClick={handleResetPin}>Guardar</button>
+                          <button className="btn-outline-secondary" onClick={() => { setPinResetTarget(null); setPinResetValue(''); }}>Cancelar</button>
+                        </>
+                      ) : (
+                        <>
+                          {c.active && (
+                            <button className="btn-outline-secondary" onClick={() => { setPinResetTarget(c); setPinResetValue(''); }}>Nuevo PIN</button>
+                          )}
+                          <button className={c.active ? 'btn-outline-danger' : 'btn-outline-secondary'}
+                            onClick={() => setCashierToggleTarget(c)}>
+                            {c.active ? 'Desactivar' : 'Reactivar'}
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 200px' }}>
+                <label className="form-label">Nombre</label>
+                <input className="form-input" placeholder="Ej: Marta" maxLength={120}
+                  value={cashierForm.name}
+                  onChange={(e) => setCashierForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="form-label">PIN (4-6 dígitos)</label>
+                <input className="form-input" type="password" inputMode="numeric" maxLength={6}
+                  placeholder="••••" style={{ width: '120px' }}
+                  value={cashierForm.pin}
+                  onChange={(e) => setCashierForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))} />
+              </div>
+              <div>
+                <label className="form-label">Rol</label>
+                <select className="form-input" value={cashierForm.role}
+                  onChange={(e) => setCashierForm((f) => ({ ...f, role: e.target.value }))}>
+                  <option value="CAJERO">Cajero</option>
+                  <option value="ENCARGADO">Encargado</option>
+                </select>
+              </div>
+              <button className="btn-primary"
+                disabled={cashierBusy || !cashierForm.name.trim() || cashierForm.pin.length < 4}
+                onClick={handleCreateCashier}>
+                Agregar cajero
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Appearance */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
@@ -632,6 +776,16 @@ export default function SettingsPage() {
         message={`¿Revocar el enrolamiento de "${revokeTarget?.displayName || 'este equipo'}"? Su historial no se borra y podés volver a enrolarlo cuando quieras.`}
         icon="alertTriangle" confirmText="Revocar" confirmClass="btn-danger"
         onConfirm={handleRevoke} onCancel={() => setRevokeTarget(null)} />
+
+      <ConfirmDialog open={!!cashierToggleTarget}
+        title={cashierToggleTarget?.active ? 'Desactivar cajero' : 'Reactivar cajero'}
+        message={cashierToggleTarget?.active
+          ? `¿Desactivar a "${cashierToggleTarget?.name}"? No podrá entrar con su PIN, pero su historial se conserva y podés reactivarlo cuando quieras.`
+          : `¿Reactivar a "${cashierToggleTarget?.name}"? Volverá a poder entrar con su PIN.`}
+        icon={cashierToggleTarget?.active ? 'alertTriangle' : 'user'}
+        confirmText={cashierToggleTarget?.active ? 'Desactivar' : 'Reactivar'}
+        confirmClass={cashierToggleTarget?.active ? 'btn-danger' : 'btn-primary'}
+        onConfirm={handleToggleCashier} onCancel={() => setCashierToggleTarget(null)} />
     </div>
   );
 }
