@@ -35,7 +35,10 @@ public class DeviceCredentialFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/sync/");
+        // Autentica por credencial de equipo el sync (ladrillo 4) y las consultas de
+        // actualización (ladrillo 7: el updater pregunta qué versión le toca a su anillo).
+        String uri = request.getRequestURI();
+        return !(uri.startsWith("/api/sync/") || uri.startsWith("/api/updates/"));
     }
 
     @Override

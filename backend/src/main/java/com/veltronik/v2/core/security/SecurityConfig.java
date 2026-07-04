@@ -51,9 +51,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/webhooks/**").permitAll()
                     .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
-                    // Sync headless (ladrillo 4): permitAll a nivel Security porque la puerta
-                    // REAL es DeviceCredentialFilter (fail-closed: sin X-Device-Key válida → 401).
+                    // Sync headless (ladrillo 4) y consultas de update (ladrillo 7): permitAll a
+                    // nivel Security porque la puerta REAL es DeviceCredentialFilter (fail-closed:
+                    // sin X-Device-Key válida → 401).
                     .requestMatchers("/api/sync/**").permitAll()
+                    .requestMatchers("/api/updates/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll();
                 // SOLO en modo local (ADR-009): Electron apaga el backend embebido con
                 // POST /actuator/shutdown para que zonky detenga Postgres prolijamente.

@@ -157,6 +157,8 @@ public class KillSwitchFilter extends OncePerRequestFilter {
                path.startsWith("/api/tenants") || // Permitir listar y crear tenants sin tener uno seleccionado
                path.startsWith("/api/core/setup") ||
                path.startsWith("/api/core/subscriptions") || // checkout/suscripción: el moroso debe poder pagar
-               path.startsWith("/api/core/profiles");
+               path.startsWith("/api/core/profiles") ||
+               path.startsWith("/api/updates") ||  // el updater pregunta por credencial de equipo (sin tenant)
+               path.startsWith("/api/hq");          // Mission Control del fundador: global, cross-tenant
     }
 }
