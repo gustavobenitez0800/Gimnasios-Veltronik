@@ -15,6 +15,8 @@ import OrgTypeGuard from './components/OrgTypeGuard';
 import ForceUpdateOverlay from './components/ForceUpdateOverlay';
 import CONFIG from './lib/config';
 import { FITNESS_VERTICALS } from './lib/verticals';
+import { isLocalMode } from './lib/connection';
+import LocalApp from './components/LocalApp';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -64,6 +66,14 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  // MODO LOCAL (V3, ladrillo 6): en un equipo enrolado con cerebro local, la app
+  // es una CAJA — PIN + POS contra el backend embebido, sin Supabase. Bifurca acá
+  // antes de armar el app de la nube. isLocalMode() ya está resuelto (main.jsx lo
+  // esperó); para el 100% de los clientes de hoy es false → app normal.
+  if (isLocalMode()) {
+    return <LocalApp />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <HashRouter>

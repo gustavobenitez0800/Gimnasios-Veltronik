@@ -20,6 +20,7 @@ const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, metho
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';
 import { isLocalMode, getApiBase } from './connection';
+import { clearLocalSession } from './localSession';
 
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
@@ -108,7 +109,12 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (error.response && error.response.status === 401) {
+    if (error.response && error.response.status === 401 && isLocalMode()) {
+      // MODO LOCAL: token de sesión vencido/revocado → limpiar y volver a pedir PIN.
+      // Nada de Supabase acá (no hay).
+      clearLocalSession();
+      window.dispatchEvent(new Event('local-auth-unauthorized'));
+    } else if (error.response && error.response.status === 401) {
       if (!unauthorizedHandled) {
         unauthorizedHandled = true;
         // Token expirado o inválido: Forzar logout visual

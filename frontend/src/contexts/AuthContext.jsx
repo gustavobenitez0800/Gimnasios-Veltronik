@@ -14,7 +14,10 @@ import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
 import logoSrc from '../assets/LogoPrincipalVeltronik.png';
 
-const AuthContext = createContext(null);
+// Exportado para que el shell del modo local (V3, ladrillo 6) pueda proveer un valor
+// mínimo derivado de la sesión del cajero — así las páginas del POS (que llaman useAuth
+// solo para el rol) funcionan sin el AuthProvider de Supabase.
+export const AuthContext = createContext(null);
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
