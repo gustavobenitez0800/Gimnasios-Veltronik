@@ -58,4 +58,9 @@ export const deviceService = {
   async revoke(deviceId) {
     await apiClient.post(`/core/devices/${deviceId}/revoke`);
   },
+
+  /** Asigna el anillo de update: 0=piloto, 1=amigos, 2=todos, null=todos (ladrillo 7). */
+  async setRing(deviceId, ring) {
+    await apiClient.post(`/core/devices/${deviceId}/ring`, { ring });
+  },
 };

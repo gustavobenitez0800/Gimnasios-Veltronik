@@ -193,6 +193,17 @@ export default function SettingsPage() {
     }
   };
 
+  // Anillo de update (ladrillo 7): '' = Todos (null), '0' Piloto, '1' Amigos, '2' Todos.
+  const handleSetRing = async (deviceId, value) => {
+    try {
+      await deviceService.setRing(deviceId, value === '' ? null : Number(value));
+      showToast('Anillo de actualización actualizado', 'success');
+      await loadDevices();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    }
+  };
+
   // ── Cajeros con PIN (ladrillo 5) ──────────────────────────────────
   const loadCashiers = useCallback(async () => {
     if (!canManageDevices) return;
@@ -587,10 +598,26 @@ export default function SettingsPage() {
                       {d.enrolled && <span style={{ fontWeight: 600 }}>{d.role === 'ENCARGADO' ? 'Caja Madre' : 'Caja'}</span>}
                       {d.status === 'REVOKED' && <span style={{ color: 'var(--text-muted)' }}>revocado</span>}
                       {d.lastAppVersion && <span style={{ color: 'var(--text-muted)' }}>v{d.lastAppVersion}</span>}
+                      {d.enrolled && (
+                        <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          title={d.lastSyncAt ? `Última sincronización: ${new Date(d.lastSyncAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : 'Todavía no sincronizó'}>
+                          <Icon name="refresh" size="0.9em" /> {d.lastSyncAt ? timeAgo(d.lastSyncAt) : 'sin sync'}
+                        </span>
+                      )}
                       <span style={{ color: 'var(--text-muted)' }}
                         title={d.lastSeenAt ? `Última señal: ${new Date(d.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : 'Sin señal aún'}>
                         {timeAgo(d.lastSeenAt)}
                       </span>
+                      {d.enrolled && (
+                        <select className="form-input" style={{ width: 'auto', padding: '2px 6px', fontSize: 'var(--font-size-xs)' }}
+                          value={d.updateRing == null ? '' : String(d.updateRing)}
+                          title="Anillo de actualización (rollout escalonado)"
+                          onChange={(e) => handleSetRing(d.id, e.target.value)}>
+                          <option value="0">Anillo: Piloto</option>
+                          <option value="1">Anillo: Amigos</option>
+                          <option value="">Anillo: Todos</option>
+                        </select>
+                      )}
                       {d.enrolled && (
                         <button className="btn-outline-danger" onClick={() => setRevokeTarget(d)}>Revocar</button>
                       )}
