@@ -35,9 +35,11 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Build backend embebido (jar + JRE jlink)
+      - name: Build backend embebido (jar + JRE firmada de Microsoft)
         # Produce frontend/resources/backend/ — electron-builder lo empaqueta
-        # como extraResources (resources/backend del instalable).
+        # como extraResources (resources/backend del instalable). La JRE que
+        # viaja es la de Microsoft (Authenticode, ADR-011): jlink quedó
+        # descartado porque su runtime sin firma es bloqueado por WDAC.
         working-directory: frontend
         run: powershell -ExecutionPolicy Bypass -File build-tools\build-backend.ps1
 

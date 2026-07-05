@@ -1,6 +1,9 @@
 # ADR-009: Runtime local — Postgres embebido + JRE jlink + proceso hijo de Electron
 
-- **Estado:** ✅ Aceptada
+- **Estado:** ✅ Aceptada — ⚠️ el punto "JRE jlink" fue **reemplazado por
+  [ADR-011](ADR-011-jre-de-fabricante-firmada.md)** (2026-07-05: WDAC bloquea el runtime
+  de jlink por no tener firma; ahora viaja el Microsoft OpenJDK firmado). Postgres
+  embebido y proceso hijo siguen vigentes tal cual.
 - **Fecha:** 2026-07-02
 
 ## Contexto

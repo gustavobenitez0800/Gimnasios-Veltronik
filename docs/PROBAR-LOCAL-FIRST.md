@@ -30,14 +30,15 @@
    ```
    Guardalos: los necesitás en el Paso 2.
 
-## Paso 1 — Construir el cerebro local (una sola vez, ~2 min)
+## Paso 1 — Construir el cerebro local (una sola vez; la primera descarga ~180MB)
 
 ```powershell
 cd "C:\Users\gusta\OneDrive\Desktop\Veltronik V2\frontend"
 powershell -ExecutionPolicy Bypass -File build-tools\build-backend.ps1
 ```
-Al terminar tenés `frontend\resources\backend\jre\` (la JRE recortada) y
-`frontend\resources\backend\veltronik-backend.jar` (el monolito).
+Al terminar tenés `frontend\resources\backend\jre\` (la **JRE firmada de Microsoft**,
+ADR-011 — Smart App Control la acepta) y `frontend\resources\backend\veltronik-backend.jar`
+(el monolito). El zip del JDK queda cacheado: las próximas corridas no re-descargan.
 
 ## Paso 2 — Arrancar el cerebro local (Terminal 2)
 
@@ -103,6 +104,9 @@ Si viste ese último paso, la V3 local-first funciona de punta a punta.
 - **La venta no sube:** revisá los logs del cerebro (Terminal 2) buscando `Sync:`; y que el
   WiFi haya vuelto. El push reintenta solo cada 30s.
 - **Java no arranca:** usá la JRE del build (`.\jre\bin\java.exe`), no el Java del sistema.
+- **"Una directiva de Control de aplicaciones bloqueó este archivo":** tu build es viejo
+  (JRE de jlink, sin firma). Re-corré el Paso 1 — desde el ADR-011 la JRE que viaja es la
+  firmada de Microsoft y Smart App Control la acepta.
 
 > Nota: esto simula lo que en producción hará Electron solo (spawnea el cerebro con
 > `VELTRONIK_LOCAL_BRAIN=1` y le pasa la identidad tras el enrolamiento). Acá lo hacemos a
