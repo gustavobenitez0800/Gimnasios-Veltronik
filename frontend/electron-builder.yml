@@ -41,12 +41,17 @@ directories:
   output: dist_electron
   buildResources: build
 
-# Auto-updates via GitHub Releases
+# Auto-updates via GitHub Releases.
+# releaseType: draft → el tag publica un BORRADOR (no lo ve el electron-updater de los
+# clientes hasta que un humano lo publica desde GitHub). Es el freno de mano para una
+# flota que se auto-actualiza: probás el .exe empaquetado en una máquina, y recién
+# cuando confirmás que arranca, publicás el borrador y ahí sí propaga. Alineado con el
+# rollout escalonado (ADR-007): ningún cliente recibe algo sin verificación humana previa.
 publish:
   provider: github
   owner: gustavobenitez0800
   repo: gimnasios-veltronik
-  releaseType: release
+  releaseType: draft
 
 # ============================================
 # WINDOWS

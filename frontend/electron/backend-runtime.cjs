@@ -28,8 +28,32 @@ let child = null;
 let restarts = 0;
 let stopping = false;
 
+/**
+ * ¿Debe correr el cerebro local en este equipo? (un-gate, V3 producción)
+ * - Producción: se prende si el equipo está ENROLADO (existe sync-identity.json completo,
+ *   que solo se escribe al enrolar deliberadamente desde la app). Un equipo NO enrolado
+ *   se comporta como siempre (habla con la nube).
+ * - VELTRONIK_LOCAL_BRAIN=1 lo fuerza a prender (testing); =0 lo apaga (escape hatch).
+ * start() igual verifica que los artefactos existan → los builds sin cerebro son no-op.
+ */
 function isEnabled() {
-    return process.env.VELTRONIK_LOCAL_BRAIN === '1';
+    const flag = process.env.VELTRONIK_LOCAL_BRAIN;
+    if (flag === '0') return false;
+    if (flag === '1') return true;
+    return isEnrolled();
+}
+
+/** ¿El equipo fue enrolado? (sync-identity.json con cloudUrl+deviceId+deviceKey). */
+function isEnrolled() {
+    try {
+        const base = process.env.LOCALAPPDATA || require('os').homedir();
+        const file = path.join(base, 'Veltronik', 'sync-identity.json');
+        if (!fs.existsSync(file)) return false;
+        const id = JSON.parse(fs.readFileSync(file, 'utf8'));
+        return !!(id && id.cloudUrl && id.deviceId && id.deviceKey);
+    } catch {
+        return false;
+    }
 }
 
 function isRunning() {
