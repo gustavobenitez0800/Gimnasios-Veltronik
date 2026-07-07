@@ -1,6 +1,7 @@
 package com.veltronik.v2.gym.repositories;
 
 import com.veltronik.v2.gym.entities.GymPayment;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,10 @@ import java.util.UUID;
 public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
     @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantId(@Param("tenantId") UUID tenantId);
+
+    /** Últimos pagos del tenant (límite en BD por Pageable — para feeds/actividad, no cargar el historial entero). */
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
+    List<GymPayment> findRecentByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
 
     /**
      * Pagos del tenant en el rango [from, to] (ambos inclusivos). {@code from}/{@code to}

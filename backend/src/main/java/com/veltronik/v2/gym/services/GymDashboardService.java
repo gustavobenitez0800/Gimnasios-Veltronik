@@ -49,8 +49,9 @@ public class GymDashboardService {
 
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime in7Days = now.plusDays(7);
-        long expiringMembers = memberRepository.findByTenantIdAndMembershipEndBetween(tenantId, now, in7Days).size();
-        long expiredMembers = memberRepository.findByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, now).size();
+        // COUNT en BD: el dashboard solo necesita el número, no las entidades.
+        long expiringMembers = memberRepository.countByTenantIdAndMembershipEndBetween(tenantId, now, in7Days);
+        long expiredMembers = memberRepository.countByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalMembers", totalMembers);

@@ -15,10 +15,11 @@ public interface KioskStockMovementRepository extends JpaRepository<KioskStockMo
 
     // JOIN FETCH del producto (asociación EAGER + open-in-view=false → mapear en el controller).
 
-    /** Historial de movimientos de un producto (auditoría del stock). */
+    /** Historial de movimientos de un producto (auditoría del stock; límite por Pageable —
+     *  un producto de alta rotación acumula miles de movimientos, no se devuelven todos). */
     @Query("SELECT m FROM KioskStockMovement m JOIN FETCH m.product "
             + "WHERE m.product.id = :productId ORDER BY m.createdAt DESC")
-    List<KioskStockMovement> findByProductIdWithProduct(@Param("productId") UUID productId);
+    List<KioskStockMovement> findByProductIdWithProduct(@Param("productId") UUID productId, Pageable pageable);
 
     /** Últimos movimientos del tenant para la pantalla de inventario (límite por Pageable). */
     @Query("SELECT m FROM KioskStockMovement m JOIN FETCH m.product "

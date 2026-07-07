@@ -88,6 +88,8 @@ public class KioskStockService {
     }
 
     public List<KioskStockMovement> historyForProduct(UUID productId) {
-        return movementRepository.findByProductIdWithProduct(productId);
+        // Acotado igual que recentForCurrentTenant: la pantalla muestra el historial reciente;
+        // devolver el ledger completo de un producto de alta rotación no escala.
+        return movementRepository.findByProductIdWithProduct(productId, PageRequest.of(0, 200));
     }
 }

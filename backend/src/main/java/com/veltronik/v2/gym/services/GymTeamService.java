@@ -183,8 +183,8 @@ public class GymTeamService {
         for (AccessLog a : accessLogRepository.findTop25ByTenantIdOrderByCheckInAtDesc(tenantId)) {
             items.add(activityItem("access", memberName(a.getMember()), "registró un ingreso", "Acceso", a.getCheckInAt()));
         }
-        // Pagos (la query ya viene ordenada desc con el socio cargado)
-        paymentRepository.findByTenantId(tenantId).stream().limit(25).forEach(p ->
+        // Pagos: límite en la BD (traer el historial entero para cortar a 25 en memoria no escala)
+        paymentRepository.findRecentByTenantId(tenantId, org.springframework.data.domain.PageRequest.of(0, 25)).forEach(p ->
             items.add(activityItem("payment", memberName(p.getMember()), "registró un pago", "Pago", p.getPaymentDate()))
         );
         // Altas de socios

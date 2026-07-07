@@ -35,4 +35,8 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
 
     // Para "At Risk" (vencidos en el pasado pero siguen marcados como activos)
     List<GymMember> findByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
+
+    // Versiones COUNT (el dashboard solo necesita el número; cargar las entidades para .size() no escala)
+    long countByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
+    long countByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 }
