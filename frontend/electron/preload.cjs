@@ -88,6 +88,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
          * @returns {Promise<{ok: boolean, error?: string}>}
          */
         setSyncIdentity: (identity) => ipcRenderer.invoke('local-brain:set-sync-identity', identity),
+
+        /**
+         * ¿Este equipo debería tener cerebro local (enrolado o forzado)? Permite al
+         * renderer re-probar el modo local si el cerebro todavía estaba booteando.
+         * @returns {Promise<boolean>}
+         */
+        isEnabled: () => ipcRenderer.invoke('local-brain:is-enabled'),
     },
 
     // ============================================

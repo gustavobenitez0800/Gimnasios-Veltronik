@@ -177,9 +177,10 @@ app.whenReady().then(() => {
 
     createWindow();
 
-    // El cerebro embebido (ADR-009, esqueleto caminante): solo se activa con
-    // VELTRONIK_LOCAL_BRAIN=1. Fire-and-forget: la UI no espera al backend local
-    // (hoy sigue hablando con la nube; el cableado real llega con el ladrillo 4).
+    // El cerebro embebido (ADR-009): se prende solo si el equipo está ENROLADO
+    // (sync-identity.json completo); VELTRONIK_LOCAL_BRAIN=1/0 fuerza/apaga (escape hatch).
+    // Fire-and-forget: la UI no espera al backend local (arranca contra la nube y el
+    // renderer decide a quién hablar según el enrolamiento).
     if (backendRuntime.isEnabled() && !isDev()) {
         backendRuntime.start().catch((e) => {
             console.error('[Main] El cerebro local no arrancó:', e.message);
@@ -252,5 +253,17 @@ ipcMain.handle('local-brain:set-sync-identity', (event, identity) => {
     } catch (e) {
         console.error('[Main] No se pudo guardar la identidad de sync:', e.message);
         return { ok: false, error: e.message };
+    }
+});
+
+// ¿Este equipo debería tener cerebro local? (enrolado o forzado por env). Lo consulta el
+// renderer para saber si vale la pena RE-probar el modo local cuando el probe inicial
+// falló (el cerebro tarda en bootear más que la app; sin esto, un arranque sin internet
+// quedaba clavado en modo nube hasta reiniciar la app).
+ipcMain.handle('local-brain:is-enabled', () => {
+    try {
+        return backendRuntime.isEnabled();
+    } catch {
+        return false;
     }
 });
