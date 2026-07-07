@@ -101,10 +101,22 @@ export default function KioskFiscalPage() {
     }
   };
 
+  // Lee un archivo (.crt/.key/.pem) directo al formulario: para el dueño es mucho más
+  // simple elegir el archivo que abrirlo y copiar/pegar el texto PEM.
+  const readFileInto = (field) => (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCert((c) => ({ ...c, [field]: String(reader.result || '').trim() }));
+    reader.onerror = () => showToast('No se pudo leer el archivo. Probá pegando el contenido.', 'error');
+    reader.readAsText(file);
+    e.target.value = ''; // permite re-elegir el mismo archivo
+  };
+
   const handleUploadCert = async (e) => {
     e.preventDefault();
     if (!cert.certificatePem.trim() || !cert.privateKeyPem.trim()) {
-      showToast('Pegá el certificado y la clave privada', 'error'); return;
+      showToast('Cargá el certificado y la clave privada', 'error'); return;
     }
     setUploadingCert(true);
     try {
@@ -175,10 +187,31 @@ export default function KioskFiscalPage() {
             label={config?.certificateLoaded ? 'Cargado' : 'Sin cargar'} />
         </h3>
         <p className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>
-          Pegá el certificado (.crt) y la clave privada (.key) que generaste en ARCA. Se guardan
-          <strong> cifrados</strong> — nunca se muestran ni se descargan.
+          Elegí los archivos que descargaste de ARCA (o pegá su contenido). Se guardan
+          <strong> cifrados</strong> — nunca se muestran ni se descargan. Al subirlos, el sistema
+          verifica que el certificado esté vigente y que la clave corresponda al certificado.
         </p>
+        <details style={{ marginBottom: '0.75rem' }}>
+          <summary className="text-muted" style={{ cursor: 'pointer', fontSize: '0.8125rem' }}>
+            ¿Cómo consigo el certificado? (3 pasos)
+          </summary>
+          <ol className="text-muted" style={{ fontSize: '0.8125rem', lineHeight: 1.6, margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
+            <li>En el sitio de ARCA (con clave fiscal), entrá a <strong>"Administración de Certificados Digitales"</strong> y creá un alias para tu negocio.</li>
+            <li>Descargá el certificado (<code>.crt</code>). La clave privada (<code>.key</code>) es la que se generó junto con el pedido — si te lo hizo tu contador, pedile los dos archivos.</li>
+            <li>En <strong>"Administrador de Relaciones de Clave Fiscal"</strong>, autorizá el servicio <strong>"Facturación Electrónica" (wsfe)</strong> para ese certificado. Después cargá los archivos acá.</li>
+          </ol>
+        </details>
         <form onSubmit={handleUploadCert}>
+          <div className="modal-form">
+            <div>
+              <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo del certificado (.crt / .pem)</label>
+              <input type="file" accept=".crt,.pem,.cer,.txt" onChange={readFileInto('certificatePem')} />
+            </div>
+            <div>
+              <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo de la clave privada (.key)</label>
+              <input type="file" accept=".key,.pem,.txt" onChange={readFileInto('privateKeyPem')} />
+            </div>
+          </div>
           <FormField label="Certificado (PEM)" type="textarea" fullWidth
             placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
             value={cert.certificatePem} onChange={(v) => setCert((c) => ({ ...c, certificatePem: v }))} />

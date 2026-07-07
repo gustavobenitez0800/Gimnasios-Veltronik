@@ -54,6 +54,48 @@ public class CmsSigner {
         }
     }
 
+    /**
+     * Valida el par certificado + clave ANTES de guardarlo (onboarding de ARCA): PEM parseable,
+     * certificado vigente y clave privada que corresponde al certificado. Sin esto, un archivo
+     * equivocado se guardaba en silencio y el dueño se enteraba recién cuando la emisión fallaba
+     * con un error SOAP indescifrable.
+     *
+     * @throws IllegalArgumentException con mensaje apto para mostrarle al dueño.
+     */
+    public void validatePair(String certificatePem, String privateKeyPem) {
+        X509Certificate certificate;
+        try {
+            certificate = parseCertificate(certificatePem);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "El certificado no es válido. Subí el archivo .crt/.pem que descargaste de ARCA.");
+        }
+        try {
+            certificate.checkValidity();
+        } catch (java.security.cert.CertificateExpiredException e) {
+            throw new IllegalArgumentException(
+                    "El certificado está VENCIDO. Generá uno nuevo en el sitio de ARCA y volvé a subirlo.");
+        } catch (java.security.cert.CertificateNotYetValidException e) {
+            throw new IllegalArgumentException("El certificado todavía no entró en vigencia. Revisá la fecha de emisión.");
+        }
+        PrivateKey privateKey;
+        try {
+            privateKey = parsePrivateKey(privateKeyPem);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "La clave privada no es válida. Subí el archivo .key que generaste junto con el pedido del certificado.");
+        }
+        // La clave debe ser LA PAREJA del certificado (mismo módulo RSA). Si el dueño mezcla
+        // archivos de dos trámites distintos, ARCA rechazaría todo después — mejor avisarle ya.
+        if (certificate.getPublicKey() instanceof java.security.interfaces.RSAPublicKey pub
+                && privateKey instanceof java.security.interfaces.RSAPrivateKey priv) {
+            if (!pub.getModulus().equals(priv.getModulus())) {
+                throw new IllegalArgumentException(
+                        "La clave privada NO corresponde a este certificado. Revisá que ambos archivos sean del mismo trámite de ARCA.");
+            }
+        }
+    }
+
     private X509Certificate parseCertificate(String pem) throws Exception {
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
         return (X509Certificate) factory.generateCertificate(

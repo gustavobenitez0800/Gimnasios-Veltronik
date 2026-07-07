@@ -22,15 +22,17 @@ import lombok.Setter;
 @Setter
 public class FiscalConfig extends TenantAwareEntity {
 
-    /** CUIT del emisor (11 dígitos). */
-    @Column(nullable = false)
+    /** CUIT del emisor (11 dígitos). NULL hasta que el dueño lo carga (onboarding);
+     *  la emisión lo exige vía requireComplete(), no la BD (V39). */
+    @Column
     private Long cuit;
 
     @Column(name = "razon_social")
     private String razonSocial;
 
+    /** NULL hasta que el dueño la elige (onboarding); la emisión la exige requireComplete(). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "condicion_iva", nullable = false, length = 30)
+    @Column(name = "condicion_iva", length = 30)
     private FiscalCondicionIva condicionIva;
 
     @Enumerated(EnumType.STRING)
