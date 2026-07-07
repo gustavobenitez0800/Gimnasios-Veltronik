@@ -37,7 +37,7 @@ public class SubscriptionAccessPolicy {
     /** Motivo del veredicto (para logs/diagnóstico; no se expone al cliente). */
     public enum Reason {
         ACTIVE_SUBSCRIPTION,   // suscripción 'active' con período vigente
-        IN_GRACE,              // 'past_due' dentro del período de gracia
+        IN_GRACE,              // período vencido pero dentro de la gracia ('active' esperando la renovación, o 'past_due')
         CANCELED_PAID_PERIOD,  // 'canceled' pero el mes ya pago sigue corriendo
         ACTIVE_TRIAL,          // prueba gratis vigente
         MASTER_DISABLED,       // baja manual a nivel maestro (tenant.is_active = false)
@@ -79,11 +79,20 @@ public class SubscriptionAccessPolicy {
     /**
      * ¿La suscripción otorga acceso pago vigente? Devuelve el motivo, o {@code null} si no habilita.
      * Exige período CONCRETO y futuro (nunca NULL): un 'active' sin período no es acceso.
+     *
+     * <p><b>Gracia en 'active' (la costura de la renovación):</b> el acceso dura 30 días fijos
+     * desde el cobro, pero Mercado Pago renueva por mes CALENDARIO (28–31 días) y además puede
+     * reintentar un cobro fallido durante días. Sin la gracia, en cada mes de 31 días el cliente
+     * quedaba bloqueado horas ANTES de que MP intentara cobrar la renovación. Una suscripción
+     * 'active' (MP la sigue cobrando) con el período recién vencido conserva el acceso hasta
+     * {@code grace_period_ends_at}; si la renovación no entra en esa ventana, se bloquea.
+     * La gracia exige fecha CONCRETA: un 'active' vencido sin gracia definida no habilita.</p>
      */
     private Reason subscriptionAccess(Subscription s, LocalDateTime now) {
         if (s == null || s.getStatus() == null) return null;
         return switch (s.getStatus()) {
-            case "active"   -> isFuture(s.getCurrentPeriodEnd(), now)  ? Reason.ACTIVE_SUBSCRIPTION  : null;
+            case "active"   -> isFuture(s.getCurrentPeriodEnd(), now)  ? Reason.ACTIVE_SUBSCRIPTION
+                             : isFuture(s.getGracePeriodEndsAt(), now) ? Reason.IN_GRACE             : null;
             case "past_due" -> isFuture(s.getGracePeriodEndsAt(), now) ? Reason.IN_GRACE             : null;
             case "canceled" -> isFuture(s.getCurrentPeriodEnd(), now)  ? Reason.CANCELED_PAID_PERIOD : null;
             // pending, pending_payment, rejected, expired, etc. → NO otorgan acceso.

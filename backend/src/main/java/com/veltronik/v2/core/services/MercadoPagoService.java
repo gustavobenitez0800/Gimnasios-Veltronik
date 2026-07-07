@@ -54,8 +54,11 @@ public class MercadoPagoService {
      */
     public String createSubscriptionForTenant(Tenant tenant, String payerEmail) {
         try {
-            // Anti-duplicado: cancelar suscripciones previas del tenant antes de crear la nueva.
-            cancelActivePreapprovals(tenant.getId(), null);
+            // Anti-duplicado: acá NO se cancelan las suscripciones previas. El link se crea en
+            // estado 'pending' (no cobra) y el cliente puede abandonar el checkout: cancelar
+            // antes lo dejaba SIN cobro recurrente sin saberlo (al mes siguiente, bloqueado).
+            // Las previas se cancelan cuando la nueva queda 'authorized' (webhook
+            // subscription_preapproval → cancelActivePreapprovals con exceptId).
             PreapprovalClient client = new PreapprovalClient();
 
             // Configuración de cobro automático mensual
@@ -105,9 +108,6 @@ public class MercadoPagoService {
      * se cobra directo. El 1er cobro real ocurre ~1h después (llega por webhook).</p>
      */
     public CardSubscriptionResult createCardSubscription(Tenant tenant, String payerEmail, String cardToken) {
-        // Anti-duplicado: dar de baja en MP cualquier suscripción previa del tenant ANTES de crear
-        // la nueva (cada cobro/cambio de tarjeta dejaba un preapproval extra cobrando en paralelo).
-        cancelActivePreapprovals(tenant.getId(), null);
         // Por HTTP directo: el SDK 2.9.2 NO expone card_token_id en PreapprovalCreateRequest
         // (verificado: el builder no tiene .cardTokenId()). Mismo patrón que getAuthorizedPayment().
         try {
@@ -149,6 +149,13 @@ public class MercadoPagoService {
             String status = text(node, "status");
             log.info("Suscripción con tarjeta creada para Tenant '{}' ({}): preapprovalId={}, status={}",
                     tenant.getName(), tenant.getId(), id, status);
+
+            // Anti-duplicado: recién DESPUÉS del alta exitosa se dan de baja las suscripciones
+            // previas (conservando la nueva). Cancelar antes era el orden inverso al correcto:
+            // si MP rechazaba el alta, el cliente quedaba sin NINGÚN cobro recurrente sin saberlo.
+            // Best-effort: si falla, el webhook 'authorized' de la nueva repite esta limpieza.
+            cancelActivePreapprovals(tenant.getId(), id);
+
             return new CardSubscriptionResult(id, status);
 
         } catch (RuntimeException re) {

@@ -218,4 +218,85 @@ class SubscriptionBillingServiceTest {
         verify(tenantPaymentRepository).save(paymentCaptor.capture());
         assertEquals(BigDecimal.ZERO, paymentCaptor.getValue().getAmount());
     }
+
+    // ─────────── guardias anti-pisada (webhooks rezagados del preapproval viejo) ───────────
+
+    private Subscription givenCurrentSubscriptionWithPreapproval(String preapprovalId) {
+        Subscription sub = new Subscription();
+        sub.setStatus("active");
+        sub.setMpSubscriptionId(preapprovalId);
+        when(subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId))
+                .thenReturn(Optional.of(sub));
+        return sub;
+    }
+
+    @Test
+    @DisplayName("un 'cancelled' rezagado de un preapproval VIEJO no pisa la suscripción vigente")
+    void staleCancelledFromOldPreapprovalIsIgnored() {
+        Subscription sub = givenCurrentSubscriptionWithPreapproval("preapproval-NUEVO");
+
+        service.updatePreapprovalStatus(tenantId, "preapproval-VIEJO", "cancelled");
+
+        assertEquals("active", sub.getStatus());
+        assertEquals("preapproval-NUEVO", sub.getMpSubscriptionId());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("un 'authorized' de un preapproval nuevo SÍ se aplica (pasa a ser la vigente)")
+    void authorizedForNewPreapprovalIsApplied() {
+        Subscription sub = givenCurrentSubscriptionWithPreapproval("preapproval-VIEJO");
+        sub.setStatus("canceled");
+
+        service.updatePreapprovalStatus(tenantId, "preapproval-NUEVO", "authorized");
+
+        assertEquals("active", sub.getStatus());
+        assertEquals("preapproval-NUEVO", sub.getMpSubscriptionId());
+        verify(subscriptionRepository).save(sub);
+    }
+
+    @Test
+    @DisplayName("preapproval autorizado SIN suscripción local (alta por link) → crea el registro con su id")
+    void authorizedWithoutLocalSubscriptionCreatesRecord() {
+        when(subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId))
+                .thenReturn(Optional.empty());
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+
+        service.updatePreapprovalStatus(tenantId, "preapproval-LINK", "authorized");
+
+        ArgumentCaptor<Subscription> subCaptor = ArgumentCaptor.forClass(Subscription.class);
+        verify(subscriptionRepository).save(subCaptor.capture());
+        Subscription created = subCaptor.getValue();
+        // Autorizada en MP pero SIN cobro todavía: no otorga acceso (pending_payment, sin período).
+        assertEquals("pending_payment", created.getStatus());
+        assertEquals("preapproval-LINK", created.getMpSubscriptionId());
+        assertEquals(tenant, created.getTenant());
+        assertNull(created.getCurrentPeriodEnd());
+    }
+
+    @Test
+    @DisplayName("un rechazo rezagado de un preapproval VIEJO no marca 'rejected' a la suscripción nueva")
+    void staleRejectionFromOldPreapprovalIsIgnored() {
+        Subscription sub = givenCurrentSubscriptionWithPreapproval("preapproval-NUEVO");
+        sub.setStatus("pending_payment"); // reintento con otra tarjeta, cobro nuevo en curso
+        sub.setLastChargeStatus(null);
+
+        service.recordRejectedCharge(tenantId, "preapproval-VIEJO", "cc_rejected_bad_filled_security_code");
+
+        assertNull(sub.getLastChargeStatus());
+        assertEquals("preapproval-NUEVO", sub.getMpSubscriptionId());
+        verify(subscriptionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("un rechazo del preapproval VIGENTE sí se registra con su motivo")
+    void rejectionForCurrentPreapprovalIsRecorded() {
+        Subscription sub = givenCurrentSubscriptionWithPreapproval("preapproval-NUEVO");
+
+        service.recordRejectedCharge(tenantId, "preapproval-NUEVO", "cc_rejected_insufficient_amount");
+
+        assertEquals("rejected", sub.getLastChargeStatus());
+        assertEquals("cc_rejected_insufficient_amount", sub.getLastChargeDetail());
+        verify(subscriptionRepository).save(sub);
+    }
 }

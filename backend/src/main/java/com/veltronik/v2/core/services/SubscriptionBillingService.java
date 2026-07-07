@@ -35,6 +35,10 @@ import java.util.UUID;
 @Slf4j
 public class SubscriptionBillingService {
 
+    /** Precio mensual esperado: centinela de cobros por montos anómalos (solo log, no bloquea). */
+    @org.springframework.beans.factory.annotation.Value("${veltronik.billing.monthly-price:80000}")
+    private BigDecimal monthlyPrice;
+
     /** Días de acceso que otorga cada cobro mensual aprobado. */
     private static final int ACCESS_DAYS_PER_CYCLE = 30;
     /** Gracia extra tras el fin de período antes de bloquear (colchón ante demoras de webhook). */
@@ -66,6 +70,14 @@ public class SubscriptionBillingService {
         }
 
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+
+        // Centinela de ingresos: un cobro aprobado por MENOS del precio mensual no debería
+        // existir (el preapproval se crea por el precio completo). Se aplica igual — bloquear
+        // acá castigaría un cambio de precio legítimo — pero queda la alarma en los logs.
+        if (amount != null && monthlyPrice != null && amount.compareTo(monthlyPrice) < 0) {
+            log.warn("Cobro {} del tenant {} por ${} — MENOR al precio mensual (${}). Revisar en MP.",
+                    mpPaymentId, tenantId, amount, monthlyPrice);
+        }
 
         // 1) Registrar el cobro (historial del SaaS).
         TenantPayment payment = new TenantPayment();
@@ -123,16 +135,54 @@ public class SubscriptionBillingService {
      * Mapea el estado de MP al de la tabla subscriptions, que es lo que evalúa el Kill Switch.
      * NO bloquea de inmediato: el acceso corre hasta {@code trial_ends_at}; el cron desactiva
      * cuando vence y no hay suscripción válida.
+     *
+     * <p><b>Guardia anti-pisada:</b> el flujo anti-duplicado cancela en MP los preapprovals
+     * viejos, y esos webhooks de cancelación llegan DESPUÉS de que el nuevo ya es la suscripción
+     * de registro. Un evento no-autorizante (cancelled/paused) de un preapproval DISTINTO al
+     * vigente se ignora: aplicarlo pisaría el estado (y el id) de la suscripción real del
+     * cliente. Un 'authorized' siempre se aplica: es un alta nueva que pasa a ser la vigente.</p>
      */
     @Transactional
     public void updatePreapprovalStatus(UUID tenantId, String mpPreapprovalId, String mpStatus) {
+        String localStatus = mapPreapprovalStatus(mpStatus);
+
         Subscription sub = subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).orElse(null);
         if (sub == null) {
-            log.info("Preapproval {} sin suscripción local para tenant {}; nada que actualizar.",
-                    mpPreapprovalId, tenantId);
+            // Alta por link: el preapproval queda 'authorized' ANTES del primer cobro y todavía
+            // no existe registro local. Se crea acá (sin período ni acceso: eso lo da SOLO el
+            // cobro aprobado) para que el id quede registrado desde el minuto cero — sin esto,
+            // "Cancelar suscripción" o "Verificar con MP" no encontraban qué cancelar/verificar
+            // y MP seguía cobrando una suscripción invisible para el sistema.
+            if (!"active".equals(localStatus)) {
+                log.info("Preapproval {} (estado MP '{}') sin suscripción local para tenant {}; nada que actualizar.",
+                        mpPreapprovalId, mpStatus, tenantId);
+                return;
+            }
+            Tenant tenant = tenantRepository.findById(tenantId).orElse(null);
+            if (tenant == null) {
+                log.warn("Preapproval {} referencia un tenant inexistente {}.", mpPreapprovalId, tenantId);
+                return;
+            }
+            Subscription s = new Subscription();
+            s.setTenant(tenant);
+            s.setStatus("pending_payment"); // autorizada en MP, esperando el primer cobro
+            s.setMpSubscriptionId(mpPreapprovalId);
+            subscriptionRepository.save(s);
+            log.info("Suscripción local creada (pending_payment) para tenant {} por preapproval {} autorizado.",
+                    tenantId, mpPreapprovalId);
             return;
         }
-        String localStatus = mapPreapprovalStatus(mpStatus);
+
+        boolean staleEvent = mpPreapprovalId != null
+                && sub.getMpSubscriptionId() != null
+                && !mpPreapprovalId.equals(sub.getMpSubscriptionId())
+                && !"active".equals(localStatus);
+        if (staleEvent) {
+            log.info("Evento '{}' del preapproval {} IGNORADO: la suscripción vigente del tenant {} es {}.",
+                    mpStatus, mpPreapprovalId, tenantId, sub.getMpSubscriptionId());
+            return;
+        }
+
         sub.setStatus(localStatus);
         if (mpPreapprovalId != null) {
             sub.setMpSubscriptionId(mpPreapprovalId);
@@ -151,6 +201,11 @@ public class SubscriptionBillingService {
     /**
      * Registra un cobro RECHAZADO: guarda el motivo (status_detail de MP) para que el frontend
      * lo muestre, y NO otorga acceso (el tenant queda sin período vigente → bloqueado).
+     *
+     * <p><b>Guardia anti-pisada:</b> un rechazo de un preapproval DISTINTO al vigente es un
+     * evento rezagado de una suscripción vieja (ya cancelada por el anti-duplicado). Aplicarlo
+     * marcaría 'rejected' sobre la suscripción nueva — el cliente que reintentó con otra
+     * tarjeta vería "rechazado" mientras su cobro real sigue procesándose.</p>
      */
     @Transactional
     public void recordRejectedCharge(UUID tenantId, String mpPreapprovalId, String statusDetail) {
@@ -159,12 +214,15 @@ public class SubscriptionBillingService {
             log.info("Cobro rechazado (preapproval {}) sin suscripción local para tenant {}.", mpPreapprovalId, tenantId);
             return;
         }
+        if (mpPreapprovalId != null && sub.getMpSubscriptionId() != null
+                && !mpPreapprovalId.equals(sub.getMpSubscriptionId())) {
+            log.info("Cobro rechazado del preapproval {} IGNORADO: la suscripción vigente del tenant {} es {}.",
+                    mpPreapprovalId, tenantId, sub.getMpSubscriptionId());
+            return;
+        }
         sub.setLastChargeStatus("rejected");
         sub.setLastChargeDetail(statusDetail != null ? statusDetail : "rejected");
         sub.setLastChargeAt(LocalDateTime.now(BUSINESS_ZONE));
-        if (mpPreapprovalId != null) {
-            sub.setMpSubscriptionId(mpPreapprovalId);
-        }
         subscriptionRepository.save(sub);
         log.warn("Cobro RECHAZADO para tenant {} (motivo MP: {}). NO se otorga acceso.", tenantId, statusDetail);
     }

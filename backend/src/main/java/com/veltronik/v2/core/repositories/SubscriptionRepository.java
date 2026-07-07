@@ -33,6 +33,11 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
      *
      * <p>Bulk update: {@code @PreUpdate} NO dispara, por eso seteamos {@code updated_at} a mano.</p>
      *
+     * <p>Respeta la GRACIA: una 'active' con período vencido pero {@code grace_period_ends_at}
+     * futuro está esperando la renovación mensual de MP (la ventana que la policy honra como
+     * IN_GRACE) — expirarla acá le cortaría el acceso antes de tiempo. Solo se normaliza
+     * cuando la gracia también venció (o no existe, caso migrado de V1).</p>
+     *
      * @return cantidad de filas normalizadas.
      */
     @Modifying
@@ -42,6 +47,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
              WHERE s.status = 'active'
                AND s.currentPeriodEnd IS NOT NULL
                AND s.currentPeriodEnd < :now
+               AND (s.gracePeriodEndsAt IS NULL OR s.gracePeriodEndsAt < :now)
             """)
     int markLapsedActiveAsExpired(@Param("now") LocalDateTime now);
 }

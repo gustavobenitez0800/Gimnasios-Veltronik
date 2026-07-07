@@ -18,6 +18,7 @@ import java.util.HexFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests de la firma HMAC-SHA256 de los webhooks de Mercado Pago (isValidSignature,
@@ -135,5 +136,20 @@ class WebhookControllerTest {
         ResponseEntity<String> response = callWebhook("ts=1,v1=invalida", REQUEST_ID);
 
         assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("renovación que no se pudo consultar en MP → 500 (MP reintenta; un 200 la perdería para siempre)")
+    void unresolvableAuthorizedPaymentReturns500() {
+        // Sin secret: se prueba el manejo del evento, no la firma.
+        ReflectionTestUtils.setField(controller, "webhookSecret", "");
+        when(mercadoPagoService.getAuthorizedPayment("ap-123")).thenReturn(null);
+
+        ResponseEntity<String> response = controller.handleWebhook(
+                "{\"type\":\"subscription_authorized_payment\",\"data\":{\"id\":\"ap-123\"}}",
+                null, null, null, "subscription_authorized_payment", null, "ap-123");
+
+        assertEquals(500, response.getStatusCode().value());
+        verifyNoInteractions(billingService); // no se aplicó ni registró nada
     }
 }

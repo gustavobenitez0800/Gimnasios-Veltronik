@@ -101,7 +101,7 @@ class SubscriptionAccessPolicyTest {
         }
 
         @Test
-        @DisplayName("active con período VENCIDO → bloqueo (caso SEKUR migrado)")
+        @DisplayName("active con período VENCIDO y sin gracia → bloqueo (caso SEKUR migrado)")
         void activeExpiredBlocks() {
             assertBlocked(policy.evaluate(tenant, sub("active", now.minusDays(2), null), now), Reason.NO_VALID_ENTITLEMENT);
         }
@@ -110,6 +110,20 @@ class SubscriptionAccessPolicyTest {
         @DisplayName("active con período NULL → bloqueo (cierra la indulgencia del cron viejo)")
         void activeNullPeriodBlocks() {
             assertBlocked(policy.evaluate(tenant, sub("active", null, null), now), Reason.NO_VALID_ENTITLEMENT);
+        }
+
+        @Test
+        @DisplayName("active con período recién vencido pero gracia vigente → acceso (costura de la renovación mensual)")
+        void activeLapsedWithinGraceAllows() {
+            // MP renueva por mes calendario (28-31 días) y el acceso dura 30 fijos: sin la
+            // gracia, cada mes de 31 días bloqueaba al cliente ANTES del cobro de renovación.
+            assertAllowed(policy.evaluate(tenant, sub("active", now.minusHours(6), now.plusDays(2)), now), Reason.IN_GRACE);
+        }
+
+        @Test
+        @DisplayName("active con período y gracia vencidos → bloqueo (la renovación no llegó)")
+        void activeLapsedAfterGraceBlocks() {
+            assertBlocked(policy.evaluate(tenant, sub("active", now.minusDays(5), now.minusDays(2)), now), Reason.NO_VALID_ENTITLEMENT);
         }
     }
 

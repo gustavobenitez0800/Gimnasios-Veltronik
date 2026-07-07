@@ -65,10 +65,9 @@ public class BillingService {
                 .payerEmail(payerEmail)
                 .build();
 
-        // Anti-duplicado: cancelar cualquier suscripción previa del tenant ANTES de crear la nueva,
-        // para no dejar varios preapprovals activos cobrando en paralelo.
-        mercadoPagoService.cancelActivePreapprovals(tenant.getId(), null);
-
+        // Anti-duplicado: acá NO se cancelan las previas. El link nace 'pending' (no cobra) y el
+        // cliente puede abandonar el checkout: cancelar antes lo dejaba sin cobro recurrente sin
+        // saberlo. Cuando la nueva queda 'authorized', el webhook cancela las demás (exceptId).
         try {
             Preapproval preapproval = client.create(request);
             log.info("Link de suscripción creado para Tenant '{}': {}", tenant.getName(), preapproval.getId());
@@ -103,14 +102,24 @@ public class BillingService {
                     s.setTenant(tenant);
                     return s;
                 });
-        sub.setStatus("pending_payment");
+
+        // Carrera con el webhook: si el PRIMER cobro de ESTE preapproval ya entró (MP puede
+        // cobrar en segundos), la suscripción ya está 'active' — pisarla con pending_payment
+        // dejaría al polling del frontend esperando un cobro que ya pasó.
+        boolean chargeAlreadyApplied = pre.preapprovalId() != null
+                && pre.preapprovalId().equals(sub.getMpSubscriptionId())
+                && "approved".equalsIgnoreCase(sub.getLastChargeStatus());
+        if (!chargeAlreadyApplied) {
+            sub.setStatus("pending_payment");
+            sub.setLastChargeStatus(null);   // arranca un ciclo de cobro nuevo
+            sub.setLastChargeDetail(null);
+        }
         sub.setMpPayerEmail(payerEmail);
         sub.setMpSubscriptionId(pre.preapprovalId());
-        sub.setLastChargeStatus(null);   // arranca un ciclo de cobro nuevo
-        sub.setLastChargeDetail(null);
         subscriptionRepository.save(sub);
 
-        log.info("Suscripción con tarjeta creada (PENDING_PAYMENT) Tenant '{}': preapproval={}, statusMP={}. Espera cobro.",
+        log.info("Suscripción con tarjeta creada ({}) Tenant '{}': preapproval={}, statusMP={}.",
+                chargeAlreadyApplied ? "cobro ya aplicado" : "PENDING_PAYMENT, espera cobro",
                 tenant.getName(), pre.preapprovalId(), pre.status());
         return Map.of("ok", true, "state", "processing");
     }
@@ -206,6 +215,12 @@ public class BillingService {
                 log.error("No se pudo cancelar el preapproval en MP (se marca local igual): {}", e.getMessage());
             }
         }
+
+        // Garantía "cancelé = no me cobran más": barrer en MP CUALQUIER preapproval vivo del
+        // tenant, no solo el de registro. Cubre el alta por link cuyo id todavía no se
+        // registró localmente (llega recién con el primer cobro) y duplicados históricos —
+        // sin esto, MP seguía cobrando una suscripción que el cliente creía cancelada.
+        mercadoPagoService.cancelActivePreapprovals(tenant.getId(), null);
 
         subscriptionBillingService.updatePreapprovalStatus(tenant.getId(), sub.getMpSubscriptionId(), "cancelled");
     }

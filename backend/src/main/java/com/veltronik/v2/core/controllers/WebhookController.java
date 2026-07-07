@@ -153,6 +153,14 @@ public class WebhookController {
             return;
         }
         billingService.updatePreapprovalStatus(tenantId, preapprovalId, pre.getStatus());
+
+        // Un preapproval recién AUTORIZADO es la suscripción vigente del tenant: se cancela en MP
+        // cualquier otra que siguiera viva (el alta por link no puede cancelarlas antes — el
+        // cliente podría abandonar el checkout y quedarse sin cobro recurrente). Best-effort y
+        // fuera de transacción (llamadas de red), igual que el resto de este controller.
+        if ("authorized".equalsIgnoreCase(pre.getStatus())) {
+            mercadoPagoService.cancelActivePreapprovals(tenantId, preapprovalId);
+        }
     }
 
     /**
@@ -170,16 +178,21 @@ public class WebhookController {
     private void processAuthorizedPayment(String authorizedPaymentId) throws Exception {
         MercadoPagoService.AuthorizedPaymentInfo info = mercadoPagoService.getAuthorizedPayment(authorizedPaymentId);
         if (info == null) {
-            log.warn("authorized_payment {} no se pudo obtener de MP (Plan B manual).", authorizedPaymentId);
-            return;
+            // NO devolver 200: confirmarle a MP un evento que no pudimos procesar pierde la
+            // RENOVACIÓN para siempre (MP no reintenta lo confirmado) y el cliente queda
+            // bloqueado al vencer su período. Con 500, MP reintenta con backoff.
+            throw new IllegalStateException(
+                    "authorized_payment " + authorizedPaymentId + " no se pudo obtener de MP; se pide reintento.");
         }
         log.info("authorized_payment {} → preapprovalId={}, paymentId={}, status={}, detail={}, amount={}",
                 authorizedPaymentId, info.preapprovalId(), info.paymentId(), info.paymentStatus(), info.paymentStatusDetail(), info.amount());
 
         // Resolvemos el tenant SIEMPRE (sirve tanto para aplicar el cobro como para registrar el rechazo).
         if (info.preapprovalId() == null || info.preapprovalId().isBlank()) {
-            log.warn("authorized_payment {} sin preapproval_id. Imposible resolver tenant.", authorizedPaymentId);
-            return;
+            // Mismo criterio: sin preapproval no podemos resolver el tenant; mejor que MP
+            // reintente (si el dato falta de verdad, MP agota los reintentos y queda el log).
+            throw new IllegalStateException(
+                    "authorized_payment " + authorizedPaymentId + " sin preapproval_id; se pide reintento.");
         }
         Preapproval pre = new PreapprovalClient().get(info.preapprovalId());
         UUID tenantId = parseTenant(pre.getExternalReference());

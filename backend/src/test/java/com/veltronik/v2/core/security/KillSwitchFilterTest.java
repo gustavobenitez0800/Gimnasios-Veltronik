@@ -114,10 +114,23 @@ class KillSwitchFilterTest {
     }
 
     @Test
-    @DisplayName("active con período VENCIDO → 402 (no espera al cron)")
-    void activeWithExpiredPeriodBlocks() throws Exception {
+    @DisplayName("active con período vencido pero gracia vigente → pasa (esperando la renovación de MP)")
+    void activeWithExpiredPeriodWithinGraceAllows() throws Exception {
+        // MP renueva por mes calendario (28-31 días) y el acceso dura 30 fijos: la gracia
+        // cubre la costura para no bloquear al cliente ANTES de que MP intente el cobro.
         givenTenantExists();
         givenSubscription("active", now.minusDays(2), now.plusDays(1));
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertAllowed();
+    }
+
+    @Test
+    @DisplayName("active con período Y gracia vencidos → 402 (no espera al cron)")
+    void activeWithExpiredPeriodAndGraceBlocks() throws Exception {
+        givenTenantExists();
+        givenSubscription("active", now.minusDays(6), now.minusDays(3));
 
         filter.doFilterInternal(request, response, chain);
 
