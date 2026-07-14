@@ -3,6 +3,7 @@ package com.veltronik.v2.fiscal.services;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.fiscal.entities.FiscalConfig;
 import com.veltronik.v2.fiscal.integration.CmsSigner;
+import com.veltronik.v2.fiscal.integration.CsrGenerator;
 import com.veltronik.v2.fiscal.repositories.FiscalConfigRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,8 @@ class FiscalConfigServiceTest {
     private CertificateCrypto crypto;
     @Mock
     private CmsSigner cmsSigner;
+    @Mock
+    private CsrGenerator csrGenerator;
 
     private FiscalConfigService service;
 
@@ -42,7 +45,7 @@ class FiscalConfigServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new FiscalConfigService(configRepository, crypto, cmsSigner);
+        service = new FiscalConfigService(configRepository, crypto, cmsSigner, csrGenerator);
         TenantContextHolder.setTenantId(tenantId);
     }
 
@@ -139,11 +142,61 @@ class FiscalConfigServiceTest {
     }
 
     @Test
-    @DisplayName("upload sin certificado o sin clave → 400")
+    @DisplayName("upload sin certificado → 400; cert sin clave y sin clave guardada → conflicto")
     void missingPemIsRejected() {
+        // Sin certificado → 400 (antes de tocar nada).
         assertThrows(ResponseStatusException.class,
                 () -> service.uploadCredentialsForCurrentTenant("", "KEY-PEM"));
+        // Cert sin clave en el request Y sin clave previamente guardada → hay que generar el CSR primero.
+        givenExistingConfig(); // config sin privateKeyEnc
         assertThrows(ResponseStatusException.class,
                 () -> service.uploadCredentialsForCurrentTenant("CERT-PEM", null));
+    }
+
+    @Test
+    @DisplayName("subir SOLO el certificado (flujo CSR): usa la clave guardada, valida y guarda el cert")
+    void certOnlyUsesStoredKey() {
+        FiscalConfig config = givenExistingConfig();
+        config.setPrivateKeyEnc("enc-key");                 // ya se generó el CSR → la clave está guardada
+        when(crypto.decrypt("enc-key")).thenReturn("KEY-PEM");
+        when(crypto.encrypt("CERT-PEM")).thenReturn("enc-cert");
+        when(configRepository.save(any(FiscalConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.uploadCredentialsForCurrentTenant("CERT-PEM", null);
+
+        verify(cmsSigner).validatePair("CERT-PEM", "KEY-PEM"); // valida el cert contra la clave guardada
+        assertEquals("enc-cert", config.getCertificateEnc());
+        assertEquals("enc-key", config.getPrivateKeyEnc());    // la clave NO se reescribe
+    }
+
+    // ─────────────────────────── generador de CSR ───────────────────────────
+
+    @Test
+    @DisplayName("generar CSR sin CUIT guardado → 409 con mensaje (hay que cargar CUIT primero)")
+    void generateCsrRequiresCuit() {
+        givenExistingConfig(); // sin CUIT
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.generateCsrForCurrentTenant("mi-kiosco"));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("CUIT"));
+    }
+
+    @Test
+    @DisplayName("generar CSR: guarda la clave CIFRADA, borra el cert viejo y devuelve el CSR")
+    void generateCsrStoresKeyAndReturnsCsr() {
+        FiscalConfig config = givenExistingConfig();
+        config.setCuit(20123456786L);
+        config.setRazonSocial("Kiosco Don Pepe");
+        config.setCertificateEnc("cert-viejo");
+        when(csrGenerator.generate(20123456786L, "Kiosco Don Pepe", "mi-kiosco"))
+                .thenReturn(new CsrGenerator.GeneratedCsr("CSR-PEM", "KEY-PEM"));
+        when(crypto.encrypt("KEY-PEM")).thenReturn("enc-key");
+        when(configRepository.save(any(FiscalConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String csr = service.generateCsrForCurrentTenant("mi-kiosco");
+
+        assertEquals("CSR-PEM", csr);
+        assertEquals("enc-key", config.getPrivateKeyEnc());
+        assertNull(config.getCertificateEnc()); // clave nueva → cert viejo borrado
     }
 }

@@ -261,10 +261,19 @@ class KioskService {
     return response.data;
   }
 
-  /** Sube el certificado + clave (PEM). El backend los guarda CIFRADOS. */
+  /** Sube el certificado (PEM). El backend lo guarda CIFRADO. La clave privada es opcional:
+   *  en el flujo del generador de CSR ya está guardada y se omite. */
   async uploadFiscalCertificate(certificatePem, privateKeyPem) {
     const response = await apiClient.post('/fiscal/config/certificate', { certificatePem, privateKeyPem });
     return response.data;
+  }
+
+  /** Genera el keypair + CSR en el server (la clave queda CIFRADA, nunca sale). Devuelve el CSR (PEM). */
+  async generateFiscalCsr(commonName) {
+    const response = await apiClient.post('/fiscal/config/csr', null, {
+      params: commonName ? { commonName } : {},
+    });
+    return response.data.csr;
   }
 
   async getFiscalVouchers() {

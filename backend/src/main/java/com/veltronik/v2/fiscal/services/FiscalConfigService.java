@@ -6,6 +6,7 @@ import com.veltronik.v2.fiscal.entities.FiscalCondicionIva;
 import com.veltronik.v2.fiscal.entities.FiscalConfig;
 import com.veltronik.v2.fiscal.entities.FiscalEnvironment;
 import com.veltronik.v2.fiscal.integration.CmsSigner;
+import com.veltronik.v2.fiscal.integration.CsrGenerator;
 import com.veltronik.v2.fiscal.integration.FiscalCredentials;
 import com.veltronik.v2.fiscal.repositories.FiscalConfigRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,11 +28,14 @@ public class FiscalConfigService {
     private final FiscalConfigRepository configRepository;
     private final CertificateCrypto crypto;
     private final CmsSigner cmsSigner;
+    private final CsrGenerator csrGenerator;
 
-    public FiscalConfigService(FiscalConfigRepository configRepository, CertificateCrypto crypto, CmsSigner cmsSigner) {
+    public FiscalConfigService(FiscalConfigRepository configRepository, CertificateCrypto crypto,
+                               CmsSigner cmsSigner, CsrGenerator csrGenerator) {
         this.configRepository = configRepository;
         this.crypto = crypto;
         this.cmsSigner = cmsSigner;
+        this.csrGenerator = csrGenerator;
     }
 
     // SIN @Transactional a propósito (idempotente y a prueba de carrera): el get-or-create lazy
@@ -88,22 +92,57 @@ public class FiscalConfigService {
         return configRepository.save(c);
     }
 
-    /** Guarda el certificado + clave CIFRADOS. Reciben el PEM en claro; nunca se persiste en claro. */
-    public FiscalConfig uploadCredentialsForCurrentTenant(String certificatePem, String privateKeyPem) {
-        if (certificatePem == null || certificatePem.isBlank() || privateKeyPem == null || privateKeyPem.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta el certificado o la clave privada");
+    /**
+     * Genera el par de claves + el CSR para tramitar el certificado en ARCA (onboarding self-service:
+     * el cliente no toca openssl ni maneja la clave privada). Guarda la clave CIFRADA y borra el
+     * certificado anterior (la clave cambió → el cert viejo ya no corresponde). Devuelve el CSR (PEM)
+     * para que el cliente lo descargue y lo suba a ARCA. Requiere CUIT + razón social ya guardados.
+     */
+    public String generateCsrForCurrentTenant(String commonName) {
+        FiscalConfig c = getOrCreateForCurrentTenant();
+        if (c.getCuit() == null) throw notReady("Cargá y guardá tu CUIT antes de generar el certificado.");
+        if (c.getRazonSocial() == null || c.getRazonSocial().isBlank()) {
+            throw notReady("Cargá y guardá tu razón social antes de generar el certificado.");
         }
-        // Validación en el momento de la carga (onboarding sin sorpresas): PEM parseable,
-        // certificado vigente y clave que corresponde al certificado. El error sale acá con
-        // mensaje claro, no días después como un SOAP fault de ARCA.
+        String cn = (commonName == null || commonName.isBlank()) ? "veltronik" : commonName.trim();
+        CsrGenerator.GeneratedCsr generated = csrGenerator.generate(c.getCuit(), c.getRazonSocial(), cn);
+        c.setPrivateKeyEnc(crypto.encrypt(generated.privateKeyPem()));
+        c.setCertificateEnc(null); // clave nueva → el certificado anterior deja de ser válido
+        configRepository.save(c);
+        return generated.csrPem();
+    }
+
+    /**
+     * Guarda el certificado (CIFRADO). La clave privada es OPCIONAL:
+     * - flujo del generador de CSR → llega null y se usa la clave ya guardada;
+     * - flujo avanzado → llega el PEM de la clave (se pegan cert + clave).
+     * En ambos casos se valida que el cert sea vigente y PAREJA de la clave antes de guardar.
+     */
+    public FiscalConfig uploadCredentialsForCurrentTenant(String certificatePem, String privateKeyPem) {
+        if (certificatePem == null || certificatePem.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta el certificado");
+        }
+        FiscalConfig c = getOrCreateForCurrentTenant();
+        String cert = certificatePem.trim();
+        boolean keyProvided = privateKeyPem != null && !privateKeyPem.isBlank();
+        String key;
+        if (keyProvided) {
+            key = privateKeyPem.trim();                     // avanzado: cert + clave pegados
+        } else if (c.getPrivateKeyEnc() != null) {
+            key = crypto.decrypt(c.getPrivateKeyEnc());     // generador de CSR: la clave ya está guardada
+        } else {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Primero generá el certificado (CSR) o pegá también la clave privada.");
+        }
+        // Validación al cargar (onboarding sin sorpresas): PEM parseable, cert vigente y PAREJA de la
+        // clave. El error sale acá con mensaje claro, no días después como un SOAP fault de ARCA.
         try {
-            cmsSigner.validatePair(certificatePem.trim(), privateKeyPem.trim());
+            cmsSigner.validatePair(cert, key);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
-        FiscalConfig c = getOrCreateForCurrentTenant();
-        c.setCertificateEnc(crypto.encrypt(certificatePem.trim()));
-        c.setPrivateKeyEnc(crypto.encrypt(privateKeyPem.trim()));
+        c.setCertificateEnc(crypto.encrypt(cert));
+        if (keyProvided) c.setPrivateKeyEnc(crypto.encrypt(key));
         return configRepository.save(c);
     }
 

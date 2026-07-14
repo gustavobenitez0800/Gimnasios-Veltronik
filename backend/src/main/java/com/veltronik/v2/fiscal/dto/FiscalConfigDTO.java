@@ -13,4 +13,6 @@ public class FiscalConfigDTO {
     private boolean enabled;
     /** Derivado: ¿ya se subió el certificado? (sin exponerlo). */
     private boolean certificateLoaded;
+    /** Derivado: ¿ya se generó/guardó la clave privada? (flujo del generador de CSR: falta pegar el cert). */
+    private boolean keyLoaded;
 }

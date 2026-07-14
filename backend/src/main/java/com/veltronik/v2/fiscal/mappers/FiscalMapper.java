@@ -18,6 +18,7 @@ public interface FiscalMapper {
 
     @Mapping(target = "certificateLoaded",
             expression = "java(entity.getCertificateEnc() != null && entity.getPrivateKeyEnc() != null)")
+    @Mapping(target = "keyLoaded", expression = "java(entity.getPrivateKeyEnc() != null)")
     FiscalConfigDTO toDto(FiscalConfig entity);
 
     FiscalVoucherDTO toDto(FiscalVoucher entity);

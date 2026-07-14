@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -52,7 +53,17 @@ public class FiscalController {
                 in.getCuit(), in.getRazonSocial(), condicion, environment, in.getDefaultPosNumber(), in.getEnabled())));
     }
 
-    /** Sube el certificado + clave (se guardan cifrados). */
+    /**
+     * Genera el keypair + CSR del lado del servidor para tramitar el certificado en ARCA. La clave
+     * privada se guarda CIFRADA y nunca sale; devuelve solo el CSR (PEM) para descargar y subir a ARCA.
+     * Onboarding self-service: el cliente no usa openssl ni maneja la clave privada.
+     */
+    @PostMapping("/config/csr")
+    public ResponseEntity<Map<String, String>> generateCsr(@RequestParam(required = false) String commonName) {
+        return ResponseEntity.ok(Map.of("csr", configService.generateCsrForCurrentTenant(commonName)));
+    }
+
+    /** Sube el certificado (cifrado). La clave privada es opcional: si ya se generó el CSR, se omite. */
     @PostMapping("/config/certificate")
     public ResponseEntity<FiscalConfigDTO> uploadCertificate(@Valid @RequestBody FiscalCertificateInputDTO in) {
         return ResponseEntity.ok(mapper.toDto(

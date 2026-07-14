@@ -52,6 +52,8 @@ export default function KioskFiscalPage() {
 
   const [cert, setCert] = useState({ certificatePem: '', privateKeyPem: '' });
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [generatingCsr, setGeneratingCsr] = useState(false);
+  const [showAdvancedCert, setShowAdvancedCert] = useState(false);
 
   const loadAll = useCallback(async () => {
     try {
@@ -131,6 +133,46 @@ export default function KioskFiscalPage() {
     }
   };
 
+  // Paso 1 del onboarding self-service: el server genera keypair + CSR (la clave queda CIFRADA acá,
+  // el cliente nunca la maneja), y le descargamos el CSR para que lo suba a ARCA.
+  const handleGenerateCsr = async () => {
+    if (!config?.cuit || !config?.razonSocial) {
+      showToast('Cargá y guardá tu CUIT y razón social arriba primero', 'error'); return;
+    }
+    setGeneratingCsr(true);
+    try {
+      const csr = await kioskService.generateFiscalCsr(config.razonSocial);
+      const url = URL.createObjectURL(new Blob([csr], { type: 'application/x-pem-file' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `veltronik-${config.cuit}.csr`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSR generado y descargado. Subilo a ARCA (paso 2).', 'success');
+      loadAll();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'No se pudo generar el CSR', 'error');
+    } finally {
+      setGeneratingCsr(false);
+    }
+  };
+
+  // Paso 3: subir SOLO el certificado que devolvió ARCA (la clave ya está guardada del paso 1).
+  const handleUploadCertOnly = async (e) => {
+    e.preventDefault();
+    if (!cert.certificatePem.trim()) { showToast('Cargá el certificado que te dio ARCA', 'error'); return; }
+    setUploadingCert(true);
+    try {
+      await kioskService.uploadFiscalCertificate(cert.certificatePem.trim()); // sin clave: usa la guardada
+      showToast('Certificado guardado (cifrado). ¡Facturación lista!', 'success');
+      setCert({ certificatePem: '', privateKeyPem: '' });
+      loadAll();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'No se pudo guardar el certificado', 'error');
+    } finally {
+      setUploadingCert(false);
+    }
+  };
+
   const handleToggleAuto = async (value) => {
     const next = value === 'yes';
     setAutoInvoice(next);
@@ -179,51 +221,107 @@ export default function KioskFiscalPage() {
         </form>
       </div>
 
-      {/* ─── Certificado ─── */}
+      {/* ─── Certificado (onboarding self-service: generá el CSR, subilo a ARCA, pegá el cert) ─── */}
       <div className="card mb-3">
         <h3 style={{ marginTop: 0 }}>
           <Icon name="lock" size="1em" /> Certificado de ARCA{' '}
           <Badge status={config?.certificateLoaded ? 'active' : 'inactive'}
             label={config?.certificateLoaded ? 'Cargado' : 'Sin cargar'} />
         </h3>
-        <p className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>
-          Elegí los archivos que descargaste de ARCA (o pegá su contenido). Se guardan
-          <strong> cifrados</strong> — nunca se muestran ni se descargan. Al subirlos, el sistema
-          verifica que el certificado esté vigente y que la clave corresponda al certificado.
-        </p>
-        <details style={{ marginBottom: '0.75rem' }}>
-          <summary className="text-muted" style={{ cursor: 'pointer', fontSize: '0.8125rem' }}>
-            ¿Cómo consigo el certificado? (3 pasos)
-          </summary>
+
+        {config?.certificateLoaded ? (
+          <p className="text-muted" style={{ fontSize: '0.875rem' }}>
+            <Icon name="checkCircle" size="1em" /> Certificado cargado y verificado. Ya podés emitir comprobantes.
+            Para renovarlo, generá uno nuevo en el paso 1.
+          </p>
+        ) : (
+          <p className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '-0.25rem' }}>
+            No hace falta que manejes archivos ni <code>openssl</code>. El sistema genera tu pedido, vos lo
+            subís a ARCA, y pegás el certificado que te devuelven. La clave privada se genera y guarda
+            <strong> cifrada</strong> acá — nunca la ves ni la manejás.
+          </p>
+        )}
+
+        {/* Paso 1 — generar el CSR */}
+        <div style={{ marginBottom: '1rem' }}>
+          <strong style={{ fontSize: '0.9rem' }}>Paso 1 — Generá tu pedido de certificado</strong>
+          <div style={{ marginTop: '0.5rem' }}>
+            <button type="button" className="btn btn-primary" onClick={handleGenerateCsr}
+              disabled={generatingCsr || !config?.cuit || !config?.razonSocial}>
+              {generatingCsr ? <><span className="spinner" /> Generando...</> : <><Icon name="download" size="1em" /> Generar y descargar CSR</>}
+            </button>
+            {(!config?.cuit || !config?.razonSocial) && (
+              <div className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '0.375rem' }}>
+                Cargá y guardá tu CUIT y razón social arriba primero.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Paso 2 — instrucciones ARCA */}
+        <div style={{ marginBottom: '1rem' }}>
+          <strong style={{ fontSize: '0.9rem' }}>Paso 2 — Subilo a ARCA</strong>
           <ol className="text-muted" style={{ fontSize: '0.8125rem', lineHeight: 1.6, margin: '0.5rem 0 0', paddingLeft: '1.25rem' }}>
-            <li>En el sitio de ARCA (con clave fiscal), entrá a <strong>"Administración de Certificados Digitales"</strong> y creá un alias para tu negocio.</li>
-            <li>Descargá el certificado (<code>.crt</code>). La clave privada (<code>.key</code>) es la que se generó junto con el pedido — si te lo hizo tu contador, pedile los dos archivos.</li>
-            <li>En <strong>"Administrador de Relaciones de Clave Fiscal"</strong>, autorizá el servicio <strong>"Facturación Electrónica" (wsfe)</strong> para ese certificado. Después cargá los archivos acá.</li>
+            <li>Entrá a ARCA con tu clave fiscal → <strong>"Administración de Certificados Digitales"</strong>.</li>
+            <li>Creá un certificado subiendo el archivo <code>.csr</code> que descargaste → descargá el certificado que te da ARCA (<code>.crt</code>/<code>.pem</code>).</li>
+            <li>En <strong>"Administrador de Relaciones"</strong>, autorizá el servicio <strong>"Facturación Electrónica" (wsfe)</strong> para ese certificado.</li>
+            <li>Registrá un <strong>punto de venta</strong> y cargalo arriba en "Punto de venta".</li>
           </ol>
-        </details>
-        <form onSubmit={handleUploadCert}>
-          <div className="modal-form">
-            <div>
-              <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo del certificado (.crt / .pem)</label>
-              <input type="file" accept=".crt,.pem,.cer,.txt" onChange={readFileInto('certificatePem')} />
-            </div>
-            <div>
-              <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo de la clave privada (.key)</label>
-              <input type="file" accept=".key,.pem,.txt" onChange={readFileInto('privateKeyPem')} />
-            </div>
+        </div>
+
+        {/* Paso 3 — pegar el certificado (la clave ya está guardada del paso 1) */}
+        <form onSubmit={handleUploadCertOnly}>
+          <strong style={{ fontSize: '0.9rem' }}>Paso 3 — Cargá el certificado que te dio ARCA</strong>
+          <div style={{ margin: '0.5rem 0' }}>
+            <input type="file" accept=".crt,.pem,.cer,.txt" onChange={readFileInto('certificatePem')} />
           </div>
           <FormField label="Certificado (PEM)" type="textarea" fullWidth
             placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
             value={cert.certificatePem} onChange={(v) => setCert((c) => ({ ...c, certificatePem: v }))} />
-          <FormField label="Clave privada (PEM)" type="textarea" fullWidth
-            placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
-            value={cert.privateKeyPem} onChange={(v) => setCert((c) => ({ ...c, privateKeyPem: v }))} />
-          <div className="modal-actions" style={{ marginTop: '1rem' }}>
-            <button type="submit" className="btn btn-primary" disabled={uploadingCert}>
+          <div className="modal-actions" style={{ marginTop: '0.5rem' }}>
+            <button type="submit" className="btn btn-primary" disabled={uploadingCert || !config?.keyLoaded}>
               {uploadingCert ? <><span className="spinner" /> Subiendo...</> : <><Icon name="lock" size="1em" /> Subir certificado</>}
             </button>
           </div>
+          {!config?.keyLoaded && (
+            <div className="text-muted" style={{ fontSize: '0.8125rem', marginTop: '0.375rem' }}>
+              Generá el pedido (paso 1) antes de subir el certificado.
+            </div>
+          )}
         </form>
+
+        {/* Avanzado — ya tengo cert + clave (por fuera / contador) */}
+        <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border-color, rgba(148,163,184,0.25))', paddingTop: '0.75rem' }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAdvancedCert((s) => !s)}>
+            {showAdvancedCert ? 'Ocultar opción avanzada' : 'Ya tengo el certificado y la clave (avanzado)'}
+          </button>
+          {showAdvancedCert && (
+            <form onSubmit={handleUploadCert} style={{ marginTop: '0.75rem' }}>
+              <p className="text-muted" style={{ fontSize: '0.8125rem' }}>
+                Si ya generaste el certificado por fuera (vos o tu contador), cargá los <strong>dos</strong> archivos.
+              </p>
+              <div className="modal-form">
+                <div>
+                  <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo del certificado (.crt / .pem)</label>
+                  <input type="file" accept=".crt,.pem,.cer,.txt" onChange={readFileInto('certificatePem')} />
+                </div>
+                <div>
+                  <label className="form-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Archivo de la clave privada (.key)</label>
+                  <input type="file" accept=".key,.pem,.txt" onChange={readFileInto('privateKeyPem')} />
+                </div>
+              </div>
+              <FormField label="Certificado (PEM)" type="textarea" fullWidth
+                value={cert.certificatePem} onChange={(v) => setCert((c) => ({ ...c, certificatePem: v }))} />
+              <FormField label="Clave privada (PEM)" type="textarea" fullWidth
+                value={cert.privateKeyPem} onChange={(v) => setCert((c) => ({ ...c, privateKeyPem: v }))} />
+              <div className="modal-actions" style={{ marginTop: '1rem' }}>
+                <button type="submit" className="btn btn-primary" disabled={uploadingCert}>
+                  {uploadingCert ? <><span className="spinner" /> Subiendo...</> : <><Icon name="lock" size="1em" /> Subir certificado + clave</>}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
 
       {/* ─── Facturación automática ─── */}
