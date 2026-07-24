@@ -50,9 +50,6 @@
 /* ─── Restaurant Module ─── */
 @import './styles/restaurant.css';
 
-/* ─── Vertical Canchas (FUTBOL_5): grilla de turnos ─── */
-@import './styles/courts.css';
-
 /* ─── Vertical Kiosco (KIOSCO): POS, productos, caja ─── */
 @import './styles/kiosk.css';
 

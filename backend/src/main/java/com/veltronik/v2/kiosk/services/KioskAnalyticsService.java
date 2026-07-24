@@ -22,8 +22,8 @@ import java.util.*;
 /**
  * Analítica del vertical kiosco (dashboard + reportes). Lecturas agregadas pensadas para el
  * dueño: la <b>rentabilidad</b> (vender con margen, no solo vender), el producto estrella, la
- * hora pico, los medios de pago y el fiado. Mismo enfoque que {@code CourtAnalyticsService}:
- * traer las ventas del período en pocas queries y agregar en memoria.
+ * hora pico, los medios de pago y el fiado. Enfoque: traer las ventas del período en pocas
+ * queries y agregar en memoria.
  *
  * <p>Los métodos son {@code @Transactional(readOnly = true)} a propósito: la app corre con
  * {@code open-in-view=false} y acá se recorren las dos colecciones del agregado (renglones y

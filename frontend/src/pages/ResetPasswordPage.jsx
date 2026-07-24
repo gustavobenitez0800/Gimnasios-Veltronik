@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { authService, errorService } from '../services';
 import CONFIG from '../lib/config';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 import Icon from '../components/Icon';
 
 export default function ResetPasswordPage() {
@@ -20,12 +20,15 @@ export default function ResetPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
 
-  // Al llegar desde el link del email, Supabase crea una sesión de recuperación.
-  // Esperamos a que exista esa sesión (evento PASSWORD_RECOVERY o sesión activa).
+  // Al llegar desde el link del email, la URL trae "?code=..." (PKCE): lo canjeamos
+  // por la sesión de recuperación. Fallbacks: sesión ya activa (Supabase la detectó
+  // solo) o el evento PASSWORD_RECOVERY de links con el formato viejo.
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        const exchanged = await authService.exchangeRecoveryCode().catch(() => false);
+        if (mounted && exchanged) { setSessionReady(true); return; }
         const session = await authService.getSession().catch(() => null);
         if (mounted && session) setSessionReady(true);
       } catch { /* noop */ }

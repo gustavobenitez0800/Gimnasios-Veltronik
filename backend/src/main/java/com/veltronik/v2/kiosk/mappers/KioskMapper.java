@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Mapper MapStruct del módulo Kiosco (entidad → DTO de salida). La ENTRADA usa los
  * {@code *InputDTO} aplicados a mano en los services/controllers (patch parcial, cierra
- * mass-assignment). Nunca expone el tenant. Mismo patrón que {@code CourtsMapper}.
+ * mass-assignment). Nunca expone el tenant.
  */
 @Mapper(componentModel = "spring")
 public interface KioskMapper {

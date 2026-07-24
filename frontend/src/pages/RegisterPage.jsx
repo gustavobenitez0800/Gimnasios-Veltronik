@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
 import { errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';

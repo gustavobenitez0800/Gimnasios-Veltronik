@@ -10,7 +10,7 @@ import { getVertical, roleLabel, getVerticalNav } from '../lib/verticals';
 import { useWorkspace } from '../hooks/useWorkspace';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 
 // Las secciones de navegación por vertical viven en el registry (lib/verticals.js).
 

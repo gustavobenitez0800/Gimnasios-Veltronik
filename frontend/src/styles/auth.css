@@ -339,6 +339,8 @@
   text-align: center;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
+  /* Aire respecto del botón de acción (en Registro venía pegado a "Crear Cuenta"). */
+  margin-top: 1.75rem;
   margin-bottom: 0;
 }
 

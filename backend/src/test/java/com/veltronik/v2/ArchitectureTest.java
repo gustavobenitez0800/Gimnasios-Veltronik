@@ -14,7 +14,7 @@ import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_
  * Reglas de arquitectura "a prueba de juniors" (Codex §5.1): se compilan como tests, así que
  * si alguien acopla dos verticales el build se pone en rojo automáticamente.
  *
- * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym, courts, kiosk,
+ * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym, kiosk,
  * y los que vengan) jamás debe importar clases de otro vertical: se comunican —si hace falta—
  * por el núcleo ({@code core}) y sus fachadas. Y {@code core} es la base: no puede depender de
  * ningún vertical (si lo hiciera, dejaría de ser reutilizable y todo el modelo se rompe).</p>
@@ -25,22 +25,16 @@ class ArchitectureTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.veltronik.v2");
 
-    private static final String[] OTHER_THAN_KIOSK = { "..gym..", "..courts..", "..salon..", "..restaurant.." };
-    private static final String[] OTHER_THAN_COURTS = { "..gym..", "..kiosk..", "..salon..", "..restaurant.." };
-    private static final String[] OTHER_THAN_GYM = { "..courts..", "..kiosk..", "..salon..", "..restaurant.." };
+    // Los paquetes "salon"/"restaurant" no existen todavía: las reglas ya los cubren
+    // para que el día que nazcan arranquen con los límites puestos.
+    private static final String[] OTHER_THAN_KIOSK = { "..gym..", "..salon..", "..restaurant.." };
+    private static final String[] OTHER_THAN_GYM = { "..kiosk..", "..salon..", "..restaurant.." };
 
     @Test
     void kiosk_no_depende_de_otras_verticales() {
         noClasses().that().resideInAPackage("..kiosk..")
                 .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_KIOSK)
                 .because("el vertical Kiosco debe ser autónomo: se apoya solo en core")
-                .check(CLASSES);
-    }
-
-    @Test
-    void courts_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..courts..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_COURTS)
                 .check(CLASSES);
     }
 
@@ -54,7 +48,7 @@ class ArchitectureTest {
     @Test
     void core_no_depende_de_ningun_vertical() {
         noClasses().that().resideInAPackage("..core..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
                 .because("core es la base reutilizable: nada del dominio de un vertical puede filtrarse a core")
                 .check(CLASSES);
     }
@@ -62,7 +56,7 @@ class ArchitectureTest {
     @Test
     void fiscal_no_depende_de_verticales() {
         noClasses().that().resideInAPackage("..fiscal..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..")
                 .because("fiscal es un módulo COMPARTIDO (por debajo de las verticales): las verticales lo usan, no al revés")
                 .check(CLASSES);
     }
@@ -70,14 +64,14 @@ class ArchitectureTest {
     @Test
     void sync_no_depende_de_verticales() {
         noClasses().that().resideInAPackage("..sync..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
                 .because("el sync engine es GENÉRICO a nivel fila: conoce nombres de tablas (SyncTableRegistry), jamás clases de dominio de un vertical")
                 .check(CLASSES);
     }
 
     @Test
     void verticales_no_dependen_de_sync() {
-        noClasses().that().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+        noClasses().that().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
                 .should().dependOnClassesThat().resideInAPackage("..sync..")
                 .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
                 .check(CLASSES);

@@ -17,7 +17,6 @@ import Icon from '../components/Icon';
 // FUTURO: el `icon` puede pasar a un Lordicon animado por rubro.
 const BUSINESS_TYPES = [
   { id: 'GYM', label: 'Gimnasio', desc: 'Socios, cuotas, acceso y clases', icon: <Icon name="dumbbell" />, isImage: false, gradient: 'color-mix(in srgb, var(--primary-500) 14%, transparent)', enabled: true },
-  { id: 'FUTBOL_5', label: 'Cancha de Fútbol', desc: 'Grilla de turnos, señas y turnos fijos', icon: <Icon name="futbol" />, isImage: false, gradient: 'rgba(34, 197, 94, 0.14)', enabled: true },
   { id: 'KIOSCO', label: 'Kiosco / Almacén', desc: 'Punto de venta, stock y caja', icon: <Icon name="package" />, isImage: false, gradient: 'rgba(20, 184, 166, 0.14)', enabled: true },
 ];
 

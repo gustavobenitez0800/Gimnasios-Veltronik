@@ -12,7 +12,6 @@ import java.util.UUID;
 
 /**
  * Configuración del vertical Kiosco (una fila por tenant, creada lazy con defaults).
- * Mismo patrón que {@code CourtSettingsService}.
  */
 @Service
 public class KioskSettingsService {

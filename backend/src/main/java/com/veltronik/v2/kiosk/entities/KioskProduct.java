@@ -27,8 +27,7 @@ public class KioskProduct extends TenantAwareEntity {
     /**
      * Rubro. Opcional (un producto puede no tener categoría). EAGER porque el DTO siempre
      * expone categoría y la app corre con {@code open-in-view=false} (no se puede inicializar
-     * lazy en el mapper); las listas usan JOIN FETCH para no caer en N+1. Mismo criterio que
-     * las asociaciones de {@code CourtBooking}.
+     * lazy en el mapper); las listas usan JOIN FETCH para no caer en N+1.
      */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id")

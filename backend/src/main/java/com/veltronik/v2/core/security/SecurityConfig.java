@@ -50,7 +50,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/webhooks/**").permitAll()
-                    .requestMatchers("/api/public/**").permitAll() // reservas online (sin login; tenant por token)
+                    .requestMatchers("/api/public/**").permitAll() // config pública sin login (ej. payment-config)
                     // Sync headless (ladrillo 4) y consultas de update (ladrillo 7): permitAll a
                     // nivel Security porque la puerta REAL es DeviceCredentialFilter (fail-closed:
                     // sin X-Device-Key válida → 401).

@@ -13,7 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.UUID;
 
-/** CRUD de rubros. Mismo patrón de aislamiento que {@code CourtService}. */
+/** CRUD de rubros. Toda lectura/escritura verifica que la fila pertenezca al tenant en curso. */
 @Service
 public class KioskCategoryService {
 

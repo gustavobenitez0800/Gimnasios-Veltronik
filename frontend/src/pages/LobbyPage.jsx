@@ -15,18 +15,23 @@ import UpdateIndicator from '../components/UpdateIndicator';
 import { getInitials } from '../lib/utils';
 import { getVertical, roleLabel } from '../lib/verticals';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
-import gymLogoSrc from '../assets/VeltronikGym.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
-// Etiqueta y rol salen del registry de verticales (fuente única). Los íconos del
-// modal siguen en este mapa hasta la Etapa 2 (decidir el glifo del gym sin cambiar
-// el look del Lobby). Fallback por si llegara un tipo inesperado.
-const TYPE_ICONS = { GYM: gymLogoSrc, FUTBOL_5: <Icon name="futbol" /> };
-const TYPE_IS_IMAGE = { GYM: true, FUTBOL_5: false };
-const TYPE_BADGES = { GYM: 'badge-success', FUTBOL_5: 'badge-success' };
+/**
+ * Ícono del rubro, leído del registry de verticales (fuente única, lib/verticals.js).
+ * Antes cada card dibujaba SIEMPRE una pesa (hardcodeada) y el modal usaba mapas
+ * locales duplicados — un kiosco aparecía con logo de gimnasio.
+ */
+function VerticalIcon({ orgType, size = '2rem' }) {
+  const icon = getVertical(orgType).icon;
+  if (icon.type === 'image') {
+    return <img src={icon.src} alt="" style={{ width: size, height: size, objectFit: 'contain' }} />;
+  }
+  return <Icon name={icon.name} size={size} />;
+}
 
 // ─── Helpers ───
 
@@ -525,13 +530,12 @@ export default function LobbyPage() {
           </div>
         )}
 
-        {/* Ícono identificador del rubro (gimnasio). FUTURO: reemplazar este Icon por un
-            Lordicon animado (<lord-icon>) cuando se integre la librería. */}
+        {/* Ícono identificador del rubro, según el vertical del negocio. */}
         <div className="lobby-card-icon">
-          <Icon name="dumbbell" size="2rem" />
+          <VerticalIcon orgType={orgType} />
         </div>
         <h3 className="lobby-card-name">{org.name}</h3>
-        <span className={`badge ${TYPE_BADGES[orgType] || 'badge-neutral'}`}>
+        <span className="badge badge-success">
           {getVertical(orgType).label}
         </span>
         <p className="lobby-card-role">
@@ -665,7 +669,7 @@ export default function LobbyPage() {
                   <Icon name="plus" size="2rem" />
                 </div>
                 <h3 className="lobby-card-name">Crear Negocio</h3>
-                <p className="lobby-card-role">Registrá un nuevo gimnasio</p>
+                <p className="lobby-card-role">Registrá tu negocio</p>
               </button>
             </div>
           </>
@@ -705,11 +709,7 @@ export default function LobbyPage() {
 
             {/* Org name */}
             <div className="lobby-blocked-org-badge">
-              {TYPE_IS_IMAGE[blockedOrg.type || 'GYM'] ? (
-                <img src={TYPE_ICONS[blockedOrg.type || 'GYM']} alt="" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-              ) : (
-                <span>{TYPE_ICONS[blockedOrg.type || 'GYM']}</span>
-              )}
+              <VerticalIcon orgType={blockedOrg.type} size="20px" />
               <span>{blockedOrg.name}</span>
             </div>
 

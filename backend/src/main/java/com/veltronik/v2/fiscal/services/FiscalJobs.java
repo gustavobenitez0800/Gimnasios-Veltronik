@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * Motor de contingencia fiscal: reintenta los comprobantes que quedaron en CONTINGENCY porque
  * ARCA no respondió cuando se emitió la venta. Corre SIN contexto de tenant (barre todos); cada
- * reintento resuelve la config del tenant del comprobante. Mismo patrón que {@code CourtBookingJobs}.
+ * reintento resuelve la config del tenant del comprobante.
  */
 @Component
 @Slf4j

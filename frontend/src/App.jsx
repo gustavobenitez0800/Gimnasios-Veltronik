@@ -34,11 +34,6 @@ import SettingsPage from './pages/SettingsPage';
 import MissionControlPage from './pages/MissionControlPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PlansPage from './pages/PlansPage';
-import CourtGridPage from './pages/CourtGridPage';
-import CourtsPage from './pages/CourtsPage';
-import CourtCustomersPage from './pages/CourtCustomersPage';
-import CourtFixedPage from './pages/CourtFixedPage';
-import CourtPublicBookingPage from './pages/CourtPublicBookingPage';
 import PosPage from './pages/PosPage';
 import KioskDashboardPage from './pages/KioskDashboardPage';
 import KioskReportsPage from './pages/KioskReportsPage';
@@ -96,8 +91,6 @@ export default function App() {
               <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />
               <Route path={CONFIG.ROUTES.BLOCKED} element={<BlockedPage />} />
               <Route path={CONFIG.ROUTES.LOBBY} element={<LobbyPage />} />
-              {/* Reservas online: página pública del cliente final (sin login) */}
-              <Route path="/reservar/:token" element={<CourtPublicBookingPage />} />
 
               {/* App pages (with sidebar) */}
               <Route element={<AppLayout />}>
@@ -118,14 +111,6 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
                   <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
                   <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
-                </Route>
-
-                {/* ─── FUTBOL_5-ONLY ROUTES (Vertical Canchas) ─── */}
-                <Route element={<OrgTypeGuard allowedTypes={['FUTBOL_5']} />}>
-                  <Route path={CONFIG.ROUTES.COURT_GRID} element={<CourtGridPage />} />
-                  <Route path={CONFIG.ROUTES.COURTS} element={<CourtsPage />} />
-                  <Route path={CONFIG.ROUTES.COURT_CUSTOMERS} element={<CourtCustomersPage />} />
-                  <Route path={CONFIG.ROUTES.COURT_FIXED} element={<CourtFixedPage />} />
                 </Route>
 
                 {/* ─── KIOSCO-ONLY ROUTES (Vertical Kiosco / Almacén) ─── */}

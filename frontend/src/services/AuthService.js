@@ -3,6 +3,25 @@
 // ============================================
 
 import { supabase } from '../lib/supabase';
+import CONFIG from '../lib/config';
+
+/** ¿La app corre dentro de Electron? (mismo criterio que lib/connection.js) */
+function inElectron() {
+  return typeof window !== 'undefined' && !!window.electronAPI;
+}
+
+/**
+ * Base pública para armar links de retorno (reset password, OAuth).
+ * En la web es el propio origin. En Electron la app se sirve por file:// —
+ * un redirect ahí no existe para el navegador — así que SIEMPRE usamos la
+ * URL web canónica (Vercel): el usuario termina el flujo en el navegador.
+ */
+function publicWebBase() {
+  if (inElectron() || window.location.protocol === 'file:') {
+    return CONFIG.PUBLIC_WEB_URL.replace(/\/+$/, '');
+  }
+  return `${window.location.origin}${window.location.pathname}`.replace(/\/+$/, '');
+}
 
 class AuthService {
   
@@ -32,9 +51,20 @@ class AuthService {
     return data;
   }
 
+  /**
+   * Login con Google (OAuth vía Supabase). SOLO WEB por ahora: en Electron la app
+   * corre por file:// y Google no puede redirigir de vuelta — se necesita un
+   * protocolo custom (pendiente), así que el LoginPage oculta el botón ahí.
+   * redirectTo explícito: sin él, Supabase usa su Site URL por defecto y el
+   * usuario podía terminar en cualquier lado (el "no funciona" reportado).
+   */
   async signInWithGoogle() {
+    if (inElectron()) {
+      throw new Error('El login con Google está disponible en la versión web.');
+    }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: { redirectTo: `${publicWebBase()}/#${CONFIG.ROUTES.LOBBY}` },
     });
     if (error) throw error;
     return data;
@@ -51,12 +81,32 @@ class AuthService {
 
   /**
    * Envía el email de recuperación de contraseña (Supabase Auth).
-   * El link del email lleva a /reset-password, donde el usuario define la nueva clave.
-   * redirectTo apunta al hash router de la app (sirve en web y en el dominio configurado).
+   * El link del email lleva SIEMPRE a la página web de /reset-password (con PKCE,
+   * llega con "?code=..." y la página lo canjea por la sesión de recuperación).
+   * Desde Electron también: el usuario cambia la clave en el navegador y vuelve
+   * a la app a iniciar sesión — un redirect a file:// no existe.
    */
   async resetPassword(email) {
-    const redirectTo = `${window.location.origin}${window.location.pathname}#/reset-password`;
+    const redirectTo = `${publicWebBase()}/#${CONFIG.ROUTES.RESET_PASSWORD}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    return true;
+  }
+
+  /**
+   * Canjea el "?code=..." del link de recuperación (PKCE) por una sesión activa.
+   * Devuelve true si había código y el canje funcionó. Con HashRouter el código
+   * puede venir en el search real o adentro del hash (#/reset-password?code=...).
+   */
+  async exchangeRecoveryCode() {
+    const url = new URL(window.location.href);
+    let code = url.searchParams.get('code');
+    if (!code) {
+      const hashQuery = window.location.hash.split('?')[1];
+      if (hashQuery) code = new URLSearchParams(hashQuery).get('code');
+    }
+    if (!code) return false;
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) throw error;
     return true;
   }

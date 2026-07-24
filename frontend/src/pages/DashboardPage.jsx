@@ -24,24 +24,12 @@ import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
-import CourtDashboardPage from './CourtDashboardPage';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
 export default function DashboardPage() {
   const { gym, orgRole } = useAuth();
-
-  // FUTBOL_5: dueño/admin ven el Dashboard de canchas (ganancias, ocupación, predicción);
-  // staff/reception trabajan en la grilla (el tablero operativo). Va ANTES del redirect
-  // por rol de gym para no caer en el loop con el OrgTypeGuard.
-  const orgTypeCurrent = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  if (orgTypeCurrent === 'FUTBOL_5') {
-    if (orgRole === 'owner' || orgRole === 'admin') {
-      return <CourtDashboardPage />;
-    }
-    return <Navigate to={CONFIG.ROUTES.COURT_GRID} replace />;
-  }
 
   // El backend restringe los KPIs financieros (stats/pagos) a OWNER/ADMIN. Para
   // staff/reception esta página solo produciría 403s: los mandamos a su pantalla

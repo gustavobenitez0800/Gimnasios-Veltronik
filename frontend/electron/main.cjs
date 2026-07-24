@@ -86,7 +86,9 @@ const WINDOW_CONFIG = {
     minWidth: 1024,
     minHeight: 700,
     title: 'Veltronik',
-    icon: path.join(__dirname, '../assets/LogoPrincipalVeltronik.png'),
+    // icon.png = versión CUADRADA del logotipo (1024x1024, padding transparente):
+    // Windows deforma iconos no cuadrados en la barra de tareas.
+    icon: path.join(__dirname, '../assets/icon.png'),
     show: false, // Mostrar cuando esté listo
     webPreferences: {
         nodeIntegration: false,

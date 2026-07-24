@@ -33,7 +33,6 @@ export const VERTICALS = {
   CLUB:     { id: 'CLUB',     label: 'Club Deportivo',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#6366f1', membersLabel: 'Socios' },
   PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos' },
   ACADEMY:  { id: 'ACADEMY',  label: 'Academia',         icon: { type: 'icon', name: 'graduationCap' },  accent: '#8b5cf6', membersLabel: 'Alumnos' },
-  FUTBOL_5: { id: 'FUTBOL_5', label: 'Fútbol 5',         icon: { type: 'icon', name: 'futbol' },         accent: '#22c55e', membersLabel: 'Clientes' },
   KIOSCO:   { id: 'KIOSCO',   label: 'Kiosco / Almacén', icon: { type: 'icon', name: 'store' },          accent: '#14b8a6', membersLabel: 'Clientes' },
   SALON:    { id: 'SALON',    label: 'Belleza',          icon: { type: 'icon', name: 'scissors' },       accent: '#f43f5e', membersLabel: 'Clientes' },
   RESTO:    { id: 'RESTO',    label: 'Restaurante',      icon: { type: 'icon', name: 'utensils' },       accent: '#f97316', membersLabel: 'Clientes' },
@@ -84,33 +83,6 @@ const gymNav = (membersLabel) => [
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
-    ],
-  },
-  {
-    title: 'Plataforma',
-    items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema', module: 'lobby' },
-    ],
-  },
-];
-
-const FUTBOL_NAV = [
-  {
-    title: 'Principal',
-    items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
-      { to: CONFIG.ROUTES.COURT_GRID, icon: 'grid', label: 'Grilla', module: 'courtGrid' },
-      { to: CONFIG.ROUTES.COURT_FIXED, icon: 'calendar', label: 'Turnos Fijos', module: 'courtFixed' },
-      { to: CONFIG.ROUTES.COURT_CUSTOMERS, icon: 'users', label: 'Clientes', module: 'courtCustomers' },
-    ],
-  },
-  {
-    title: 'Administración',
-    items: [
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
-      { to: CONFIG.ROUTES.COURTS, icon: 'futbol', label: 'Canchas', module: 'courts' },
       { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
       { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
@@ -223,7 +195,6 @@ const SALON_NAV = [
 ];
 
 const NAV_BY_ID = {
-  FUTBOL_5: FUTBOL_NAV,
   KIOSCO: KIOSCO_NAV,
   RESTO: RESTO_NAV,
   SALON: SALON_NAV,

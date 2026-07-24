@@ -11,8 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * POST SOAP genérico hacia ARCA (mismo estilo que {@code WhatsAppClient} de courts: HttpClient
- * nativo, timeouts acotados). Un solo lugar con la mecánica HTTP → alta cohesión.
+ * POST SOAP genérico hacia ARCA (HttpClient nativo del JDK, timeouts acotados).
+ * Un solo lugar con la mecánica HTTP → alta cohesión.
  */
 @Component
 public class SoapHttp {

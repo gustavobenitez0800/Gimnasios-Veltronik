@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 
 /**
  * Configuración del vertical Kiosco. UNA fila por tenant (se crea lazy con defaults al
- * primer acceso, igual que {@code CourtSettings}).
+ * primer acceso).
  *
  * <p>Acá vive la diferencia entre un kiosco y otro: recargo por tarjeta, si maneja fiado,
  * si emite factura ARCA automática. Cero código nuevo para variar de negocio.</p>

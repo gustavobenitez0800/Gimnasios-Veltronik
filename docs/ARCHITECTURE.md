@@ -13,7 +13,7 @@
 
 ## Veltronik en una frase
 
-SaaS B2B **multi-tenant** para PyMEs de LATAM (gimnasios, kioscos, canchas), con **verticales activables** sobre un producto único y tarifa plana por sucursal.
+SaaS B2B **multi-tenant** para PyMEs de LATAM (gimnasios, kioscos), con **verticales activables** sobre un producto único y tarifa plana por sucursal.
 
 ## Cómo leer este documento
 
@@ -51,7 +51,7 @@ com.veltronik.v2
 ├── gym/       ← vertical gimnasios: socios, asistencias, pagos de cuota
 ├── kiosk/     ← vertical kioscos: POS, stock, caja, fiado, proveedores, analítica
 ├── fiscal/    ← facturación ARCA (WSAA + WSFEv1, emisión de CAE)
-└── courts/    ← vertical canchas/reservas — ⚠️ MARCADO PARA ELIMINACIÓN (ver Fase 4)
+└── sync/      ← motor de sincronización local↔nube (V3): outbox, watermarks
 ```
 
 Dentro de cada módulo se respetan las capas clásicas: `entities → repositories → services → controllers`.
@@ -224,7 +224,9 @@ veltronik/
 | **1** | Local-first de 1 caja (MVP) | Instalable con monolito local (caja = su propio encargado), sync engine (eventos ↑, config ↓, oportunista), enrolamiento v1, PIN local, web lee lo sincronizado ("última sync hace X"). **Incluye el pipeline de updates por anillos y un Mission Control mínimo ANTES de migrar al primer cliente** | ⚪ Pendiente |
 | **2** | Multi-sucursal | Tenant → N sucursales de punta a punta, dashboard consolidado + drill-down, integridad de enrolamiento (choques, re-etiquetado por DNI de equipo) | ⚪ Pendiente |
 | **3** | Multi-caja | Roles encargado/caja, descubrimiento por LAN, arbitraje de stock, modo degradado, promoción de caja a encargado (failover), cierre de caja consolidado | ⚪ Pendiente |
-| **4** | Endurecimiento | Colas de contingencia ARCA/MP, appliance "Caja Madre" (opcional, upsell), observabilidad completa, **eliminación del vertical `courts`** | ⚪ Pendiente |
+| **4** | Endurecimiento | Colas de contingencia ARCA/MP, appliance "Caja Madre" (opcional, upsell), observabilidad completa | ⚪ Pendiente |
+
+> El vertical `courts` (Fútbol 5) se eliminó por completo en julio 2026 (migración V40): código, UI, rutas y tablas. No tenía clientes reales.
 
 **Por qué este orden:** cada fase es aditiva, shippeable y reversible — hay clientes en producción y nada puede romperse. La higiene (Fase 0) va primero porque construir sobre un proyecto sucio es empezar debiendo; el pipeline de updates va antes del primer cliente migrado porque **no se despliega un cerebro local que no se pueda actualizar y ver remotamente**.
 

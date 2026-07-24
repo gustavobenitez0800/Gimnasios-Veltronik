@@ -12,7 +12,7 @@ import apiClient from '../lib/apiClient';
 import { clearQueryCache } from '../hooks/useQueryCache';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 
 // Exportado para que el shell del modo local (V3, ladrillo 6) pueda proveer un valor
 // mínimo derivado de la sesión del cajero — así las páginas del POS (que llaman useAuth
@@ -329,8 +329,11 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Logged in on public page → redirect to lobby
-    if (user && isPublic) {
+    // Logged in on public page → redirect to lobby.
+    // EXCEPCIÓN reset-password: el link del email crea una sesión de recuperación
+    // (usuario "logueado"); sin esta excepción lo echaríamos al Lobby antes de que
+    // pueda escribir la contraseña nueva.
+    if (user && isPublic && currentPath !== CONFIG.ROUTES.RESET_PASSWORD) {
       navigate(CONFIG.ROUTES.LOBBY, { replace: true });
       return;
     }

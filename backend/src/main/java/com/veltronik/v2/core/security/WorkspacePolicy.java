@@ -28,9 +28,7 @@ public final class WorkspacePolicy {
             "dashboard", "members", "payments", "classes", "access", "retention",
             "reports", "team", "settings", "lobby",
             // Kiosco
-            "pos", "products", "inventory", "customers", "suppliers", "cash", "fiscal",
-            // Canchas
-            "courtGrid", "courtFixed", "courtCustomers", "courts"
+            "pos", "products", "inventory", "customers", "suppliers", "cash", "fiscal"
     );
 
     /**
@@ -43,11 +41,11 @@ public final class WorkspacePolicy {
     );
 
     /**
-     * RECEPCIÓN: el mostrador. Acceso/check-in, la grilla y los clientes de canchas, el
-     * POS y la caja del kiosco, ajustes y el cambio de sistema. (Espejo de allowedPaths.)
+     * RECEPCIÓN: el mostrador. Acceso/check-in, el POS y la caja del kiosco,
+     * ajustes y el cambio de sistema. (Espejo de allowedPaths.)
      */
     private static final Set<String> RECEPTION_ALLOWED = Set.of(
-            "access", "settings", "lobby", "courtGrid", "courtCustomers", "pos", "cash"
+            "access", "settings", "lobby", "pos", "cash"
     );
 
     /** Módulos que el rol puede VER en la navegación. */

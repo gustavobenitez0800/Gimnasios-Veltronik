@@ -9,7 +9,7 @@ import { localAuthService } from '../services/LocalAuthService';
 import { setLocalSession } from '../lib/localSession';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
 const MAX_PIN = 6;
