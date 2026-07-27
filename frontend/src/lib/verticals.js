@@ -16,8 +16,8 @@
 //     ESTILO (cascada CSS).
 //   - `accent` acá es el MISMO color para usos en JS donde no hay un
 //     data-vertical activo (p. ej. el Lobby dibuja varios verticales a la vez).
-//   - La Etapa 3 (manifiesto servido por el backend) colapsa ambos: el backend
-//     manda los tokens y `themeManager` los inyecta. Hasta entonces, mantener el
+//   - FUTURO (manifiesto servido por el backend): el backend mandaría los tokens
+//     y el frontend los inyectaría en runtime. Hasta entonces, mantener el
 //     `accent` en sync con el primary-500 del bloque CSS correspondiente.
 
 import gymLogoSrc from '../assets/VeltronikGym.png';

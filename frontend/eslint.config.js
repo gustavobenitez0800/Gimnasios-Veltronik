@@ -41,4 +41,13 @@ export default defineConfig([
       'react-refresh/only-export-components': 'warn',
     },
   },
+  // Los contexts exportan Provider + hook useX + el Context juntos: es el patrón
+  // idiomático de React (un archivo por contexto). La regla solo protege la
+  // granularidad del Fast Refresh en dev; acá es un falso positivo permanente.
+  {
+    files: ['src/contexts/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

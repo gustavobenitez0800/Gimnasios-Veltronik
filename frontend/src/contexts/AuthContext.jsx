@@ -267,6 +267,41 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
 
+  // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
+  // listener captura una referencia todavía no inicializada del primer render.
+  const logout = async () => {
+    // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
+    // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
+    // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    try {
+      await authService.signOut();
+    } catch {
+      // Force redirect anyway
+    }
+    clearQueryCache();
+    lastLoadedOrgRef.current = null;
+    setUser(null);
+    setProfile(null);
+    setGym(null);
+    setSubscription(null);
+    setIsTrialActive(false);
+    setTrialDaysRemaining(0);
+    trialWarningShownRef.current = false;
+    initCompleteRef.current = false;
+    localStorage.removeItem('current_org_id');
+    localStorage.removeItem('current_org_name');
+
+    // HARD REDIRECT para limpiar el estado en memoria (evita caché retenido tras logout).
+    // OJO Electron: la app usa HashRouter y se sirve por file://. Un `location.href='/'`
+    // apunta a la RAÍZ DEL DISCO (no al index.html) → pantalla en blanco. Hay que
+    // recargar el index.html ACTUAL (location.pathname) y mandar el hash al login.
+    const loginHash = `#${CONFIG.ROUTES.LOGIN || '/'}`;
+    window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
+    window.location.reload();
+  };
+
   useEffect(() => {
     initAuth();
 
@@ -380,39 +415,6 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     trialWarningShownRef.current = false;
     await authService.signInWithGoogle();
-  };
-
-  const logout = async () => {
-    // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
-    // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
-    // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
-    if (loggingOutRef.current) return;
-    loggingOutRef.current = true;
-    try {
-      await authService.signOut();
-    } catch {
-      // Force redirect anyway
-    }
-    clearQueryCache();
-    lastLoadedOrgRef.current = null;
-    setUser(null);
-    setProfile(null);
-    setGym(null);
-    setSubscription(null);
-    setIsTrialActive(false);
-    setTrialDaysRemaining(0);
-    trialWarningShownRef.current = false;
-    initCompleteRef.current = false;
-    localStorage.removeItem('current_org_id');
-    localStorage.removeItem('current_org_name');
-
-    // HARD REDIRECT para limpiar el estado en memoria (evita caché retenido tras logout).
-    // OJO Electron: la app usa HashRouter y se sirve por file://. Un `location.href='/'`
-    // apunta a la RAÍZ DEL DISCO (no al index.html) → pantalla en blanco. Hay que
-    // recargar el index.html ACTUAL (location.pathname) y mandar el hash al login.
-    const loginHash = `#${CONFIG.ROUTES.LOGIN || '/'}`;
-    window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
-    window.location.reload();
   };
 
   const refreshAuth = async () => {

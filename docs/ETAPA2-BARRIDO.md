@@ -43,7 +43,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 
 | # | Módulo | Alcance | Notas |
 |---|---|---|---|
-| 2.1 | `frontend/src/lib` + `hooks` + `contexts` | La base que todos importan | Incluye los warnings de contexts (3 archivos) |
+| ✅ 2.1 | `frontend/src/lib` + `hooks` + `contexts` | **HECHA (2026-07-27)** | 3 archivos muertos afuera (`useDataLoader`, `useFilteredData`, `themeManager`), fix de captura de `logout` en AuthContext, regla react-refresh apagada para contexts (patrón idiomático), lint del scope en 0 |
 | 2.2 | `frontend` componentes compartidos | `components/` | CardCheckout (refs), Update*/ForceUpdate (setState-in-effect) |
 | 2.3 | `frontend` páginas gym | Members/Payments/Classes/Access/Retention/Reports | + warnings de AccessPage/PaymentsPage |
 | 2.4 | `frontend` páginas kiosco | POS + 8 páginas Kiosk* | El grueso de los warnings (7 archivos) |
@@ -51,11 +51,23 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | 2.6 | `backend/gym` + `kiosk` + `fiscal` | Verticales | Ya salieron bastante limpios del diagnóstico |
 | 2.7 | Raíz y build | `electron-builder.yml` (excludes muertos: `api/`, `vercel.json`), scripts, docs | Micro |
 
-## Ya hecho en esta pasada (2026-07-20)
+## Ya hecho
 
+**2026-07-20 (diagnóstico):**
 - [x] Diagnóstico completo (lint, console.log, depcheck, @Value).
 - [x] `mercadopago` (SDK Node sin uso) desinstalado — build verificado.
 - [x] Este mapa.
+
+**2026-07-27 (tanda 2.1 — lib/hooks/contexts):**
+- [x] Código muerto: `hooks/useDataLoader.js`, `hooks/useFilteredData.js` (solo el barrel
+      los re-exportaba) y `lib/themeManager.js` (white-label sin ningún importador) — afuera.
+- [x] `AuthContext`: `logout` declarado antes del effect que lo registra como handler
+      (el listener capturaba una referencia sin inicializar del primer render).
+- [x] `react-refresh/only-export-components` apagada SOLO para `src/contexts/**` con
+      justificación en la config (Provider + hook juntos = patrón idiomático de React).
+- [x] Verificado que `lib/api.js` NO es legacy: sus 3 endpoints existen en `BillingController`.
+- [x] Scan de exports muertos en lib/hooks: cero hallazgos restantes.
+- [x] Lint del scope: 6 warnings → **0**. Build + boot en preview verificados.
 
 ## Reglas del juego (no cambian)
 
