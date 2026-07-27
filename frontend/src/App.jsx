@@ -12,7 +12,6 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppLayout, AuthLayout } from './components/Layout';
 import OrgTypeGuard from './components/OrgTypeGuard';
-import ForceUpdateOverlay from './components/ForceUpdateOverlay';
 import CONFIG from './lib/config';
 import { FITNESS_VERTICALS } from './lib/verticals';
 import { isLocalMode } from './lib/connection';

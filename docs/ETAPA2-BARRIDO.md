@@ -44,7 +44,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | # | Módulo | Alcance | Notas |
 |---|---|---|---|
 | ✅ 2.1 | `frontend/src/lib` + `hooks` + `contexts` | **HECHA (2026-07-27)** | 3 archivos muertos afuera (`useDataLoader`, `useFilteredData`, `themeManager`), fix de captura de `logout` en AuthContext, regla react-refresh apagada para contexts (patrón idiomático), lint del scope en 0 |
-| 2.2 | `frontend` componentes compartidos | `components/` | CardCheckout (refs), Update*/ForceUpdate (setState-in-effect) |
+| ✅ 2.2 | `frontend` componentes compartidos | **HECHA (2026-07-27)** | `ForceUpdateOverlay` estaba importado pero JAMÁS renderizado (mecanismo pre-anillos) → borrado con sus ~234 líneas de CSS; CardCheckout con refs en effect + reset en el handler `retry`; UpdateIndicator con versión web como estado inicial; lint del scope en 0. `ui/` completo verificado vivo |
 | 2.3 | `frontend` páginas gym | Members/Payments/Classes/Access/Retention/Reports | + warnings de AccessPage/PaymentsPage |
 | 2.4 | `frontend` páginas kiosco | POS + 8 páginas Kiosk* | El grueso de los warnings (7 archivos) |
 | 2.5 | `backend/core` | El módulo más grande y crítico | Migrar los 21 `@Value` a constructor donde tenga sentido; después endurecer la regla ArchUnit |
@@ -67,6 +67,20 @@ Cada módulo se limpia en una sesión propia, con este checklist:
       justificación en la config (Provider + hook juntos = patrón idiomático de React).
 - [x] Verificado que `lib/api.js` NO es legacy: sus 3 endpoints existen en `BillingController`.
 - [x] Scan de exports muertos en lib/hooks: cero hallazgos restantes.
+- [x] Lint del scope: 6 warnings → **0**. Build + boot en preview verificados.
+
+**2026-07-27 (tanda 2.2 — components):**
+- [x] **`ForceUpdateOverlay.jsx` era código muerto**: App.jsx lo importaba pero nunca lo
+      renderizaba (era el force-update pre-anillos que consultaba GitHub directo; lo
+      reemplazó electron-updater + rollout por anillos, ADR-007). Borrado el componente,
+      el import y ~234 líneas de CSS huérfano en onboarding.css.
+- [x] `CardCheckout`: refs "latest" sincronizadas en un effect (no durante el render) y
+      reset de estado movido al handler `retry` (donde corresponde) — sin silenciamientos.
+- [x] `UpdateIndicator`: la versión web nace como estado inicial lazy (ya se conoce en
+      build-time), el effect queda solo para el camino async de Electron.
+- [x] `components/ui/` completo verificado vivo (Badge/DataTable/DaySelector/FilterBar/
+      FormField/Modal/Pagination/StatCard: 4-51 usos cada uno). ErrorBoundary y Sidebar
+      vivos (imports relativos que el primer scan no veía).
 - [x] Lint del scope: 6 warnings → **0**. Build + boot en preview verificados.
 
 ## Reglas del juego (no cambian)
