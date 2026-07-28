@@ -1,20 +1,23 @@
 // ============================================
-// VELTRONIK V2 - ACCESS CONTROL PAGE (Refactored)
+// VELTRONIK V2 - CONTROL DE ACCESO (gym)
+// ============================================
+// Mostrador de recepción: buscar al socio, registrar su entrada/salida y ver
+// quién está adentro ahora mismo.
 // ============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { PageHeader } from '../components/Layout';
-import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AccessPage() {
   const { gym } = useAuth();
   const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabel = getVertical(orgType).placeLabel;
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const { showToast } = useToast();
@@ -28,9 +31,10 @@ export default function AccessPage() {
   // Success popup
   const [popup, setPopup] = useState(null);
 
+  // No prende el spinner: `loading` ya nace en true para la carga inicial, y en las
+  // recargas (después de una entrada o una salida) la lista se repinta sin parpadear.
   const loadData = useCallback(async () => {
     try {
-      setLoading(true);
       const [inGym, logs] = await Promise.all([
         accessService.getCurrentlyCheckedIn(),
         accessService.getTodayLogs(),

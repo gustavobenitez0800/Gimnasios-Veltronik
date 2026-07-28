@@ -1,5 +1,8 @@
 // ============================================
-// VELTRONIK V2 - MEMBERS PAGE (Refactored)
+// VELTRONIK V2 - SOCIOS / ALUMNOS (gym)
+// ============================================
+// ABM de socios con búsqueda y paginación server-side, historial de pagos y
+// export a CSV. Cómo se llama al socio en cada rubro lo dice lib/verticals.
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,6 +11,7 @@ import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
@@ -59,13 +63,10 @@ export default function MembersPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { orgRole, gym } = useAuth();
-  const currentRole = orgRole;
   const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const isMemberLabel = (orgType === 'PILATES' || orgType === 'ACADEMY');
-  const memberLabel = isMemberLabel ? 'Alumno' : 'Socio';
-  const membersLabel = isMemberLabel ? 'Alumnos' : 'Socios';
+  const { memberLabel, membersLabel } = getVertical(orgType);
   const membersLabelLower = membersLabel.toLowerCase();
-  const canDelete = currentRole === 'owner' || currentRole === 'admin';
+  const canDelete = orgRole === 'owner' || orgRole === 'admin';
 
   // Controller
   const {
@@ -108,8 +109,9 @@ export default function MembersPage() {
     return filteredMembers.slice(start, start + PAGE_SIZE);
   }, [filteredMembers, statusFilter, pagination.page]);
 
-  // Modal
-  const modal = useModal(INITIAL_FORM);
+  // Modal. Con `?action=new` (atajo "Nuevo socio" del Dashboard) arranca abierto:
+  // se resuelve en el primer render, sin efecto que lo abra después.
+  const modal = useModal(INITIAL_FORM, searchParams.get('action') === 'new');
 
   // Delete confirmation
   const deleteDialog = useConfirmDialog();
@@ -129,14 +131,6 @@ export default function MembersPage() {
   useEffect(() => {
     loadMembers(fetchPage, fetchSize, search);
   }, [fetchPage, fetchSize, search, loadMembers]);
-
-  // Auto-open modal if ?action=new
-  useEffect(() => {
-    if (searchParams.get('action') === 'new') {
-      modal.open();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   // ─── SAVE MEMBER ───
   const handleSave = async (e) => {

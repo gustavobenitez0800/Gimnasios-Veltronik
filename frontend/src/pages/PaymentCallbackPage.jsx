@@ -1,8 +1,10 @@
 // ============================================
-// VELTRONIK - PLACEHOLDER PAGES
+// VELTRONIK - VUELTA DE MERCADO PAGO
 // ============================================
-// Solo contiene páginas que aún no tienen
-// implementación propia completa.
+// Pantalla a la que vuelve el usuario después de pagar. Mercado Pago manda el
+// resultado en la query (`status`/`collection_status`), pero la suscripción la
+// activa el WEBHOOK, que puede tardar unos segundos: por eso el caso aprobado
+// espera y reintenta refrescar la sesión antes de mandar al Lobby.
 // ============================================
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,10 +12,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
-
-// ============================================
-// PAYMENT CALLBACK — Netflix-level checkout flow
-// ============================================
 
 const STEPS = {
   loading:  { icon: 'refresh',     title: 'Verificando pago', color: '#3b82f6' },
@@ -23,7 +21,11 @@ const STEPS = {
   activating: { icon: 'zap',       title: 'Activando tu cuenta', color: '#8b5cf6' },
 };
 
-export function PaymentCallbackPage() {
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export default function PaymentCallbackPage() {
   const navigate = useNavigate();
   const { refreshAuth } = useAuth();
   const [status, setStatus] = useState('loading');
@@ -32,60 +34,23 @@ export function PaymentCallbackPage() {
   const [showCTA, setShowCTA] = useState(false);
   const processed = useRef(false);
 
-  useEffect(() => {
-    if (processed.current) return;
-    processed.current = true;
+  // Siempre volvemos al Lobby: es el único que sabe a dónde mandar al usuario según
+  // cómo quedó su suscripción (y acá el estado nuevo todavía no está en el contexto).
+  const goToLobby = () => navigate(CONFIG.ROUTES.LOBBY, { replace: true });
 
-    // Parse query params from hash-based routing
-    const rawSearch = window.location.search || '';
-    const hashSearch = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
-    const params = new URLSearchParams(rawSearch || hashSearch);
-
-    const paymentStatus = params.get('status') || params.get('collection_status') || '';
-
-    // Smooth progress animation
-    let progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + 2, 90));
-    }, 100);
-
-    const cleanup = () => clearInterval(progressInterval);
-
-    if (paymentStatus === 'approved' || paymentStatus === 'authorized') {
-      handleApproved(cleanup);
-    } else if (paymentStatus === 'pending' || paymentStatus === 'in_process') {
-      handlePending(cleanup);
-    } else if (paymentStatus === 'rejected' || paymentStatus === 'cancelled') {
-      handleRejected(cleanup, paymentStatus);
-    } else {
-      // No status — user navigated here directly or unknown state
-      handleUnknown(cleanup);
-    }
-
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Helper: determine best redirect destination after payment
-  function getPostPaymentRedirect() {
-    // Re-read latest state from AuthContext after refreshAuth()
-    // We can't read React state synchronously after async updates,
-    // so we navigate to Lobby which will handle routing correctly
-    return CONFIG.ROUTES.LOBBY;
-  }
-
-  async function handleApproved(cleanup) {
+  async function handleApproved(stopProgress) {
     setStatus('success');
     setMessage('¡Tu pago fue aprobado exitosamente!');
     setProgress(60);
 
-    // Give webhook 3 seconds to process, then start polling
+    // Le damos aire al webhook antes de empezar a preguntar por la suscripción.
     await delay(2500);
 
     setStatus('activating');
     setMessage('Activando tu suscripción...');
     setProgress(70);
 
-    // Poll auth state to detect when subscription is active
+    // Reintentos hasta ~12s: el webhook de Mercado Pago no es instantáneo.
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
         await refreshAuth();
@@ -94,35 +59,33 @@ export function PaymentCallbackPage() {
       await delay(2000);
     }
 
-    cleanup();
+    stopProgress();
     setProgress(100);
     setMessage('¡Todo listo! Tu cuenta está activa.');
     setStatus('success');
     setShowCTA(true);
 
-    // Auto redirect after showing success — go to Lobby which will
-    // route to Dashboard if access is valid, or show proper state
     await delay(3000);
-    navigate(getPostPaymentRedirect(), { replace: true });
+    goToLobby();
   }
 
-  async function handlePending(cleanup) {
+  async function handlePending(stopProgress) {
     setStatus('pending');
     setMessage('Tu pago está siendo procesado por Mercado Pago. Esto puede demorar unos minutos.');
     setProgress(50);
 
     try { await refreshAuth(); } catch { /* ignore */ }
 
-    cleanup();
+    stopProgress();
     setProgress(100);
     setShowCTA(true);
 
     await delay(6000);
-    navigate(CONFIG.ROUTES.LOBBY, { replace: true });
+    goToLobby();
   }
 
-  async function handleRejected(cleanup, paymentStatus) {
-    cleanup();
+  function handleRejected(stopProgress, paymentStatus) {
+    stopProgress();
     setStatus('error');
     setProgress(100);
 
@@ -135,20 +98,57 @@ export function PaymentCallbackPage() {
     setShowCTA(true);
   }
 
-  async function handleUnknown(cleanup) {
+  // Sin `status` en la URL no sabemos qué pasó (entró de memoria, o Mercado Pago
+  // no lo mandó): preguntamos por la sesión y lo devolvemos al Lobby.
+  async function handleUnknown(stopProgress) {
     setStatus('pending');
     setMessage('Verificando el estado de tu pago...');
     setProgress(50);
 
     try { await refreshAuth(); } catch { /* ignore */ }
 
-    cleanup();
+    stopProgress();
     setProgress(100);
     setShowCTA(true);
 
     await delay(4000);
-    navigate(CONFIG.ROUTES.LOBBY, { replace: true });
+    goToLobby();
   }
+
+  // Flujo de una sola pasada, disparado al montar: lee el resultado del pago y
+  // arranca el camino que corresponda. El ref lo blinda contra el doble montaje
+  // del StrictMode (si no, se dispararían dos veces los reintentos y el redirect).
+  useEffect(() => {
+    if (processed.current) return;
+    processed.current = true;
+
+    // La app corre con HashRouter: la query puede venir antes o después del '#'.
+    const rawSearch = window.location.search || '';
+    const hashSearch = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+    const params = new URLSearchParams(rawSearch || hashSearch);
+    const paymentStatus = params.get('status') || params.get('collection_status') || '';
+
+    // La barra sube sola hasta 90% mientras esperamos; el 100% lo pone cada camino.
+    const progressInterval = setInterval(() => {
+      setProgress(prev => Math.min(prev + 2, 90));
+    }, 100);
+    const stopProgress = () => clearInterval(progressInterval);
+
+    if (paymentStatus === 'approved' || paymentStatus === 'authorized') {
+      handleApproved(stopProgress);
+    } else if (paymentStatus === 'pending' || paymentStatus === 'in_process') {
+      handlePending(stopProgress);
+    } else if (paymentStatus === 'rejected' || paymentStatus === 'cancelled') {
+      handleRejected(stopProgress, paymentStatus);
+    } else {
+      handleUnknown(stopProgress);
+    }
+
+    return stopProgress;
+    // Corre UNA sola vez, al montar: los handlers son de un solo uso y listarlos acá
+    // los volvería a disparar en cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const step = STEPS[status];
 
@@ -211,18 +211,16 @@ export function PaymentCallbackPage() {
                   <Icon name="rotateCw" size="1.1em" /> Intentar con otra tarjeta
                 </button>
                 <button className="btn btn-ghost" style={{ width: '100%' }}
-                  onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
+                  onClick={goToLobby}>
                   Volver al inicio
                 </button>
               </>
             ) : status === 'success' ? (
-              <button className="btn btn-primary" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.LOBBY, { replace: true })}>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={goToLobby}>
                 Continuar <Icon name="arrowRight" size="1.1em" />
               </button>
             ) : (
-              <button className="btn btn-primary" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.LOBBY, { replace: true })}>
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={goToLobby}>
                 Continuar
               </button>
             )}
@@ -236,26 +234,4 @@ export function PaymentCallbackPage() {
       </div>
     </div>
   );
-}
-
-/**
- * Member Portal — portal de autoservicio para socios
- */
-export function MemberPortalPage() {
-  return (
-    <div className="auth-card">
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem', color: 'var(--primary-400)' }}>
-          <Icon name="user" size="3rem" />
-        </div>
-        <h2 className="auth-title">Portal de Socios</h2>
-        <p className="auth-subtitle">Esta función estará disponible próximamente</p>
-      </div>
-    </div>
-  );
-}
-
-// Utility
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }

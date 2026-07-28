@@ -1,119 +1,97 @@
 import { useState, useCallback } from 'react';
 import { memberService } from '../services/MemberService';
-import Member from '../models/Member';
 
 /**
- * Hook Controlador: useMemberController
- * Conectado a la API Java (Fase 4).
+ * Estado + operaciones de la página de Socios.
+ *
+ * Acá vive la traducción entre el DTO del backend (firstName/lastName/document,
+ * `active` booleano) y la forma que dibuja la UI (fullName/dni, `status` de tres
+ * estados). Las páginas no tocan el DTO crudo.
  */
+
+// El backend manda el nombre partido y la baja como booleano; la UI muestra un nombre
+// solo y un estado de tres valores (activo / inactivo / vencido).
+function fromApi(dto) {
+  let attendanceDays = [];
+  if (typeof dto.attendanceDays === 'string') {
+    try { attendanceDays = JSON.parse(dto.attendanceDays); } catch { attendanceDays = []; }
+  } else if (Array.isArray(dto.attendanceDays)) {
+    attendanceDays = dto.attendanceDays;
+  }
+
+  const expired = dto.active && dto.membershipEnd && new Date(dto.membershipEnd) < new Date();
+  const onlyDate = (value) => (value ? value.split('T')[0] : null);
+
+  return {
+    id: dto.id,
+    fullName: `${dto.firstName || ''} ${dto.lastName || ''}`.trim(),
+    dni: dto.document || dto.dni || '',
+    email: dto.email || '',
+    phone: dto.phone || '',
+    birthDate: onlyDate(dto.birthDate),
+    status: expired ? 'expired' : (dto.active ? 'active' : 'inactive'),
+    membershipStart: onlyDate(dto.membershipStart),
+    membershipEnd: onlyDate(dto.membershipEnd),
+    attendanceDays,
+    notes: dto.notes || '',
+  };
+}
+
+function toApi(member) {
+  const [firstName = '', ...rest] = (member.fullName || '').split(' ');
+
+  return {
+    firstName,
+    lastName: rest.join(' '),
+    document: member.dni,
+    email: member.email || '',
+    phone: member.phone,
+    birthDate: member.birthDate || null,
+    // Java espera LocalDateTime: la membresía arranca al abrir el día y vence al cerrarlo.
+    membershipStart: member.membershipStart ? `${member.membershipStart}T00:00:00` : null,
+    membershipEnd: member.membershipEnd ? `${member.membershipEnd}T23:59:59` : null,
+    attendanceDays: JSON.stringify(member.attendanceDays || []),
+    notes: member.notes || '',
+    // El backend solo distingue alta/baja: cualquier estado que no sea 'active'
+    // (inactivo, vencido, suspendido) viaja como baja.
+    active: (member.status || 'active').toLowerCase() === 'active',
+  };
+}
+
 export function useMemberController() {
   const [members, setMembers] = useState([]);
-  const [currentMember, setCurrentMember] = useState(new Member());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [totalRecords, setTotalRecords] = useState(0);
-
-  const mapDTOToModel = (dto) => {
-    let attendance = [];
-    if (typeof dto.attendanceDays === 'string') {
-      try { attendance = JSON.parse(dto.attendanceDays); } catch { attendance = []; }
-    } else if (Array.isArray(dto.attendanceDays)) {
-      attendance = dto.attendanceDays;
-    }
-
-    // Transformar el booleano active a un status visual
-    let statusStr = dto.active ? 'active' : 'inactive';
-    // Si la membresía está vencida, podemos forzar el status visual
-    if (dto.active && dto.membershipEnd && new Date(dto.membershipEnd) < new Date()) {
-      statusStr = 'expired';
-    }
-
-    return new Member({
-      id: dto.id,
-      fullName: `${dto.firstName || ''} ${dto.lastName || ''}`.trim(),
-      dni: dto.document || dto.dni,
-      email: dto.email,
-      phone: dto.phone,
-      birthDate: dto.birthDate ? dto.birthDate.split('T')[0] : null,
-      status: statusStr,
-      membershipStart: dto.membershipStart ? dto.membershipStart.split('T')[0] : null,
-      membershipEnd: dto.membershipEnd ? dto.membershipEnd.split('T')[0] : null,
-      attendanceDays: attendance,
-      notes: dto.notes || '',
-    });
-  };
-
-  // Mapear el Modelo de React al DTO de Java
-  const mapModelToDTO = (model) => {
-    const parts = (model.fullName || '').split(' ');
-    const firstName = parts[0] || '';
-    const lastName = parts.slice(1).join(' ') || '';
-
-    // Convertir estado visual a booleano real de la DB
-    const statusStr = model.status?.toLowerCase() || 'active';
-    const isActive = statusStr === 'active';
-
-    // Formatear fechas para LocalDateTime de Java (agregar hora)
-    const memStart = model.membershipStart ? `${model.membershipStart}T00:00:00` : null;
-    const memEnd = model.membershipEnd ? `${model.membershipEnd}T23:59:59` : null;
-
-    return {
-      firstName: firstName,
-      lastName: lastName,
-      document: model.dni,
-      email: model.email || '',
-      phone: model.phone,
-      birthDate: model.birthDate || null,
-      membershipStart: memStart,
-      membershipEnd: memEnd,
-      attendanceDays: JSON.stringify(model.attendanceDays || []),
-      notes: model.notes || '',
-      active: isActive
-    };
-  };
 
   const loadMembers = useCallback(async (page = 0, pageSize = 50, search = '') => {
     setLoading(true);
-    setError(null);
     try {
       // Paginación + búsqueda en el BACKEND: solo trae la página pedida,
       // no los cientos de socios de una (menos transferencia y memoria).
       const pageData = await memberService.getMembersPaged(page, pageSize, search);
-      const mapped = (pageData.content || []).map(mapDTOToModel);
-
-      setMembers(mapped);
+      setMembers((pageData.content || []).map(fromApi));
       setTotalRecords(pageData.totalElements || 0);
     } catch (err) {
-      console.error("Error loading members:", err);
-      setError(err.message || "Error al cargar los socios.");
+      console.error('Error loading members:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Devuelve el socio guardado, pero NO toca la lista: la página recarga con loadMembers
+  // para que la tabla y el contador queden con lo que realmente hay en la base.
   const saveMember = async (memberData) => {
     setLoading(true);
-    setError(null);
     try {
-      const dto = mapModelToDTO(memberData);
-      let savedDTO;
-
-      if (memberData.id) {
-        savedDTO = await memberService.updateMember(memberData.id, dto);
-      } else {
-        savedDTO = await memberService.createMember(dto);
-      }
-
-      const savedMember = mapDTOToModel(savedDTO);
-
-      // No modificamos la lista aquí, dejamos que MembersPage recargue con loadMembers
-      return savedMember;
+      const dto = toApi(memberData);
+      const saved = memberData.id
+        ? await memberService.updateMember(memberData.id, dto)
+        : await memberService.createMember(dto);
+      return fromApi(saved);
     } catch (err) {
-      console.error("Error saving member:", err);
-      // Extraer mensaje del response del API si existe
-      const msg = err.response?.data?.message || err.message || "Error al guardar socio";
-      setError(msg);
-      throw new Error(msg);
+      console.error('Error saving member:', err);
+      // El backend manda el motivo real (DNI repetido, etc.); sin él el toast dice cualquier cosa.
+      throw new Error(err.response?.data?.message || err.message || 'Error al guardar socio');
     } finally {
       setLoading(false);
     }
@@ -121,36 +99,25 @@ export function useMemberController() {
 
   const deleteMember = async (id) => {
     setLoading(true);
-    setError(null);
     try {
       await memberService.deleteMember(id);
-      // Forzamos actualización local rápida
+      // Saca la fila al toque, sin esperar la recarga.
       setMembers(prev => prev.filter(m => m.id !== id));
-      setTotalRecords(t => t > 0 ? t - 1 : 0);
+      setTotalRecords(t => (t > 0 ? t - 1 : 0));
     } catch (err) {
-      console.error("Error deleting member:", err);
-      const msg = err.response?.data?.message || err.message || "Error al eliminar socio";
-      setError(msg);
-      throw new Error(msg);
+      console.error('Error deleting member:', err);
+      throw new Error(err.response?.data?.message || err.message || 'Error al eliminar socio');
     } finally {
       setLoading(false);
     }
   };
 
-  const prepareCreate = () => setCurrentMember(new Member());
-  const prepareEdit = (memberInstance) => setCurrentMember(memberInstance);
-
   return {
     members,
-    currentMember,
     loading,
-    error,
     totalRecords,
-    setCurrentMember,
     loadMembers,
     saveMember,
     deleteMember,
-    prepareCreate,
-    prepareEdit
   };
 }

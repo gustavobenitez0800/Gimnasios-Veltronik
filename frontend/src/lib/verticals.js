@@ -23,20 +23,26 @@
 import gymLogoSrc from '../assets/VeltronikGym.png';
 import CONFIG from './config';
 
-// Cada entrada: { id, label, icon, accent, membersLabel }
+// Cada entrada: { id, label, icon, accent, membersLabel, memberLabel, placeLabel }
 //   - label: nombre visible (badge del Lobby, subtítulo del Sidebar).
 //   - icon: descriptor renderizable por el consumidor (sin JSX acá, dato puro).
 //   - accent: primary-500 del vertical (debe coincidir con variables.css).
-//   - membersLabel: cómo se llama al "socio" en ese rubro (Socios/Alumnos/Clientes).
+//   - membersLabel / memberLabel: cómo se llama al "socio" en ese rubro, en plural y en
+//     singular (Socios/Socio, Alumnos/Alumno, Clientes/Cliente). El singular es un campo
+//     propio y no un recorte del plural: no todo rubro futuro va a pluralizar con "-s".
+//   - placeLabel: cómo se llama al LOCAL, en minúscula, para meterlo en una frase
+//     ("En el gimnasio", "Nadie en el estudio"). Antes vivía copiado a mano en tres
+//     páginas —y con la clave equivocada 'KIOSK' en vez de 'KIOSCO', así que un kiosco
+//     leía "negocio"—, que es justo el drift que este registry existe para evitar.
 export const VERTICALS = {
-  GYM:      { id: 'GYM',      label: 'Gimnasio',         icon: { type: 'image', src: gymLogoSrc }, accent: '#3b82f6', membersLabel: 'Socios' },
-  CLUB:     { id: 'CLUB',     label: 'Club Deportivo',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#6366f1', membersLabel: 'Socios' },
-  PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos' },
-  ACADEMY:  { id: 'ACADEMY',  label: 'Academia',         icon: { type: 'icon', name: 'graduationCap' },  accent: '#8b5cf6', membersLabel: 'Alumnos' },
-  KIOSCO:   { id: 'KIOSCO',   label: 'Kiosco / Almacén', icon: { type: 'icon', name: 'store' },          accent: '#14b8a6', membersLabel: 'Clientes' },
-  SALON:    { id: 'SALON',    label: 'Belleza',          icon: { type: 'icon', name: 'scissors' },       accent: '#f43f5e', membersLabel: 'Clientes' },
-  RESTO:    { id: 'RESTO',    label: 'Restaurante',      icon: { type: 'icon', name: 'utensils' },       accent: '#f97316', membersLabel: 'Clientes' },
-  OTHER:    { id: 'OTHER',    label: 'Negocio',          icon: { type: 'icon', name: 'building' },        accent: '#64748b', membersLabel: 'Clientes' },
+  GYM:      { id: 'GYM',      label: 'Gimnasio',         icon: { type: 'image', src: gymLogoSrc }, accent: '#3b82f6', membersLabel: 'Socios',   memberLabel: 'Socio',   placeLabel: 'gimnasio' },
+  CLUB:     { id: 'CLUB',     label: 'Club Deportivo',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#6366f1', membersLabel: 'Socios',   memberLabel: 'Socio',   placeLabel: 'club' },
+  PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'estudio' },
+  ACADEMY:  { id: 'ACADEMY',  label: 'Academia',         icon: { type: 'icon', name: 'graduationCap' },  accent: '#8b5cf6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'academia' },
+  KIOSCO:   { id: 'KIOSCO',   label: 'Kiosco / Almacén', icon: { type: 'icon', name: 'store' },          accent: '#14b8a6', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'kiosco' },
+  SALON:    { id: 'SALON',    label: 'Belleza',          icon: { type: 'icon', name: 'scissors' },       accent: '#f43f5e', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'salón' },
+  RESTO:    { id: 'RESTO',    label: 'Restaurante',      icon: { type: 'icon', name: 'utensils' },       accent: '#f97316', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'restaurante' },
+  OTHER:    { id: 'OTHER',    label: 'Negocio',          icon: { type: 'icon', name: 'building' },        accent: '#64748b', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'negocio' },
 };
 
 export const DEFAULT_VERTICAL = VERTICALS.GYM;

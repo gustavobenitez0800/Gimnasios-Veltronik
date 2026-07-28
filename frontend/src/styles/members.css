@@ -4,7 +4,6 @@
 
 /* Modal form grid */
 .member-modal { max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left; }
-.payments-modal { max-width: 600px; max-height: 80vh; text-align: left; }
 
 .modal-form {
   display: grid;

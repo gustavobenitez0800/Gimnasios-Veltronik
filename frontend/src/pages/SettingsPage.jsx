@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { gymService, errorService, deviceService, cashierService } from '../services';
 import { formatCurrency, timeAgo } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
@@ -22,7 +23,7 @@ export default function SettingsPage() {
   const { preference, setTheme } = useTheme();
   const currentRole = orgRole;
   const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabel = getVertical(orgType).placeLabel;
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const [loading, setLoading] = useState(true);

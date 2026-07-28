@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
+import { getVertical } from '../lib/verticals';
 import apiClient from '../lib/apiClient';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
@@ -22,8 +23,6 @@ const FEATURES_BY_TYPE = {
     'Nuevas funciones y actualizaciones gratis',
   ],
 };
-
-const TYPE_LABELS = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' };
 
 export default function PlansPage() {
   const navigate = useNavigate();
@@ -79,7 +78,7 @@ export default function PlansPage() {
 
         {/* Hero */}
         <div className="plans-hero">
-          <h1 className="plans-hero-title">Activá tu {TYPE_LABELS[orgType] || 'negocio'}</h1>
+          <h1 className="plans-hero-title">Activá tu {getVertical(orgType).placeLabel}</h1>
           <p className="plans-hero-subtitle">Suscripción mensual para acceso completo al sistema</p>
         </div>
 

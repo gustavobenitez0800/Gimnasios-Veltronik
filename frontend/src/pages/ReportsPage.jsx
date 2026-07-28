@@ -1,10 +1,12 @@
 // ============================================
-// VELTRONIK V2 - REPORTS PAGE (Refactored to Fetch-on-Demand)
+// VELTRONIK V2 - REPORTES (gym)
+// ============================================
+// Exportador de informes (Excel/PDF) por rango de fecha. Los datos se piden
+// recién al apretar el botón: la página no carga nada al abrirse.
 // ============================================
 
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { useAuth } from '../contexts/AuthContext';
 import { memberService, paymentService, accessService } from '../services';
 import { getStatusLabel, getMethodLabel } from '../lib/utils';
 import { PageHeader } from '../components/Layout';
@@ -82,21 +84,6 @@ async function downloadPDF(title, filename, headers, rows) {
 }
 
 export default function ReportsPage() {
-  const { gym } = useAuth();
-
-  // Si es restaurante, mostrar reportes de restaurante
-  if (gym?.type === 'RESTO') {
-    return (
-      <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando reportes...</div>}>
-        <RestaurantReportsPage />
-      </Suspense>
-    );
-  }
-
-  return <GymReportsPage />;
-}
-
-function GymReportsPage() {
   const { showToast } = useToast();
   
   const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
@@ -129,7 +116,7 @@ function GymReportsPage() {
     setExporting(e => ({ ...e, members: format }));
     try {
       // Fetch-on-demand
-      let members = await memberService.getAll();
+      let members = await memberService.getAllMembers();
       
       if (dateFrom && dateTo) {
         members = (members || []).filter(m => {
@@ -223,7 +210,7 @@ function GymReportsPage() {
       // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
 
       // Socios activos y total
-      const members = await memberService.getAll();
+      const members = await memberService.getAllMembers();
       const active = members.filter(m => deriveMemberStatus(m) === 'active').length;
       const newMembers = members.filter(m => {
         if (!dateFrom || !dateTo || !m.membershipStart) return true;

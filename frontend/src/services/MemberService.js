@@ -11,10 +11,6 @@ class MemberService {
     return response.data;
   }
 
-  async getAll() {
-    return this.getAllMembers();
-  }
-
   /**
    * Página de socios desde el backend (server-side). Devuelve
    * { content, totalElements, totalPages, page, size }.
@@ -44,10 +40,6 @@ class MemberService {
   async deleteMember(id) {
     await apiClient.delete(`/gym/members/${id}`);
     return true;
-  }
-
-  async update(id, data) {
-    return this.updateMember(id, data);
   }
 
   /**

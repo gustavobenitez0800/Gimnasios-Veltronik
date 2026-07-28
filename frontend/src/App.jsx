@@ -1,8 +1,8 @@
 // ============================================
 // VELTRONIK V2 - MAIN APP (React Router)
 // ============================================
-// Routes are protected by OrgTypeGuard to prevent
-// cross-system access (gym vs restaurant).
+// Las rutas exclusivas de un vertical van detrás de OrgTypeGuard: un gimnasio no
+// entra a las del kiosco ni al revés, ni escribiendo la URL a mano.
 // ============================================
 
 import { HashRouter, Routes, Route } from 'react-router-dom';
@@ -44,10 +44,7 @@ import KioskSuppliersPage from './pages/KioskSuppliersPage';
 import KioskFiscalPage from './pages/KioskFiscalPage';
 import BlockedPage from './pages/BlockedPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import {
-  PaymentCallbackPage,
-  MemberPortalPage,
-} from './pages/PlaceholderPages';
+import PaymentCallbackPage from './pages/PaymentCallbackPage';
 
 import './index.css';
 
@@ -83,7 +80,6 @@ export default function App() {
                 <Route path={CONFIG.ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
                 <Route path={CONFIG.ROUTES.ONBOARDING} element={<OnboardingPage />} />
                 <Route path={CONFIG.ROUTES.PAYMENT_CALLBACK} element={<PaymentCallbackPage />} />
-                <Route path={CONFIG.ROUTES.MEMBER_PORTAL} element={<MemberPortalPage />} />
               </Route>
 
               {/* Full screen pages without layout wrappers */}
@@ -96,7 +92,7 @@ export default function App() {
                 {/* Dashboard — shared route, renders correct dashboard by org type internally */}
                 <Route path={CONFIG.ROUTES.DASHBOARD} element={<DashboardPage />} />
 
-                {/* Shared routes (both gym & restaurant use these) */}
+                {/* Rutas compartidas por todos los verticales */}
                 <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />

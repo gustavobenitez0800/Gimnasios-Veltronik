@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useDashboardController } from '../controllers/useDashboardController';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
@@ -46,7 +47,7 @@ export default function DashboardPage() {
 function GymDashboard({ gym }) {
   const { showToast } = useToast();
   const orgType = gym?.type || 'GYM';
-  const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
+  const { membersLabel, memberLabel } = getVertical(orgType);
 
   const {
     dashboardStats,
@@ -344,7 +345,7 @@ function GymDashboard({ gym }) {
           <div className="quick-actions">
             <Link to={`${CONFIG.ROUTES.MEMBERS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="plus" /></span>
-              <span className="quick-action-label">Nuevo {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
+              <span className="quick-action-label">Nuevo {memberLabel}</span>
             </Link>
             <Link to={`${CONFIG.ROUTES.PAYMENTS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="wallet" /></span>
@@ -352,7 +353,7 @@ function GymDashboard({ gym }) {
             </Link>
             <Link to={CONFIG.ROUTES.MEMBERS} className="quick-action">
               <span className="quick-action-icon"><Icon name="search" /></span>
-              <span className="quick-action-label">Buscar {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
+              <span className="quick-action-label">Buscar {memberLabel}</span>
             </Link>
             <Link to={CONFIG.ROUTES.SETTINGS} className="quick-action">
               <span className="quick-action-icon"><Icon name="settings" /></span>

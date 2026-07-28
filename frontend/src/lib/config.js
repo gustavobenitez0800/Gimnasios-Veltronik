@@ -64,7 +64,6 @@ const CONFIG = {
     RETENTION: '/retention',
     RESET_PASSWORD: '/reset-password',
     LOBBY: '/lobby',
-    MEMBER_PORTAL: '/member-portal',
     TEAM: '/team',
     // ─── Vertical Kiosco (KIOSCO) ───
     POS: '/pos',
