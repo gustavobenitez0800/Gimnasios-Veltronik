@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
+import { hasAccess } from '../lib/access';
 import { getVertical } from '../lib/verticals';
 import apiClient from '../lib/apiClient';
 import Icon from '../components/Icon';
@@ -27,17 +28,27 @@ const FEATURES_BY_TYPE = {
 export default function PlansPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { gym, subscription, isActiveSubscription } = useAuth();
+  const { gym, subscription } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
 
   const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const price = 80000; // Tarifa plana inamovible (Kill Switch V2)
   const features = FEATURES_BY_TYPE[orgType] || FEATURES_BY_TYPE.GYM;
 
-  // Si ya tiene suscripción activa, no debería estar acá
-  if (isActiveSubscription(subscription)) {
-    navigate(CONFIG.ROUTES.DASHBOARD, { replace: true });
-  }
+  // Esta página NUNCA mete a nadie al sistema sola. Antes hacía
+  // `if (isActiveSubscription(subscription)) navigate(DASHBOARD)`, con dos problemas:
+  // el criterio miraba solo `status === 'active'` (ignoraba si el período pago venció) y
+  // corría contra el contexto que hubiera cargado en ese instante — que al llegar desde el
+  // muro de pago era el de OTRA sucursal. Resultado: el que venía a pagar entraba gratis.
+  // Si ya está al día se lo decimos y que entre haciendo click; el riesgo de equivocarse
+  // ahora es "un cliente al día ve la página de pago", no "un moroso entra sin pagar".
+  const alDia = hasAccess(gym, subscription);
+
+  // Sin sucursal elegida no hay a quién cobrarle: el backend resuelve el tenant del header
+  // X-Tenant-ID y respondería "No hay gimnasio en la sesión" DESPUÉS de que el cliente cargó
+  // la tarjeta. Mejor decirlo antes que hacerle pagar en el aire. (Pasa con un F5 acá: /plans
+  // es una ruta que no exige contexto de negocio.)
+  const sucursalElegida = gym?.id || localStorage.getItem('current_org_id');
 
   const handleSubscribe = async () => {
     setSubscribing(true);
@@ -82,6 +93,24 @@ export default function PlansPage() {
           <p className="plans-hero-subtitle">Suscripción mensual para acceso completo al sistema</p>
         </div>
 
+        {/* Ya está al día: se lo decimos y entra con un click. No lo redirigimos solos. */}
+        {alDia && (
+          <div className="plans-uptodate">
+            <div className="plans-uptodate-head">
+              <Icon name="checkCircle" size="1.2em" />
+              <strong>Tu suscripción está al día</strong>
+            </div>
+            <p className="plans-uptodate-text">
+              No hace falta que pagues de nuevo. Si querés cambiar la tarjeta, podés hacerlo
+              desde Ajustes.
+            </p>
+            <button className="btn btn-primary" style={{ width: '100%' }}
+              onClick={() => navigate(CONFIG.ROUTES.DASHBOARD)}>
+              Entrar al sistema <Icon name="arrowRight" size="1em" />
+            </button>
+          </div>
+        )}
+
         {/* Card de precio */}
         <div className="plans-card">
           <div className="plans-card-badge">Veltronik Premium</div>
@@ -110,18 +139,37 @@ export default function PlansPage() {
             ))}
           </ul>
 
-          {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
-          <CardCheckout amount={price} onSuccess={handleSuccess} />
+          {sucursalElegida ? (
+            <>
+              {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
+              <CardCheckout amount={price} onSuccess={handleSuccess} />
 
-          {/* Respaldo: link clásico de Mercado Pago */}
-          <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
-            {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
-          </button>
+              {/* Respaldo: link clásico de Mercado Pago */}
+              <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
+                {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
+              </button>
 
-          <div className="plans-secure">
-            <Icon name="lock" size="0.9em" />
-            <span>Pago seguro procesado por Mercado Pago</span>
-          </div>
+              <div className="plans-secure">
+                <Icon name="lock" size="0.9em" />
+                <span>Pago seguro procesado por Mercado Pago</span>
+              </div>
+            </>
+          ) : (
+            <div className="plans-uptodate">
+              <div className="plans-uptodate-head">
+                <Icon name="alertTriangle" size="1.2em" />
+                <strong>Elegí primero qué negocio querés activar</strong>
+              </div>
+              <p className="plans-uptodate-text">
+                El cobro se hace sobre una sucursal en particular. Volvé al Lobby y entrá por
+                la que querés activar para que el pago quede asociado a ella.
+              </p>
+              <button className="btn btn-primary" style={{ width: '100%' }}
+                onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
+                Ir al Lobby <Icon name="arrowRight" size="1em" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

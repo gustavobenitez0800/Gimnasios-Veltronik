@@ -47,6 +47,29 @@
 }
 .plans-hero-subtitle { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0; }
 
+/* Aviso "ya estás al día": la página de pago no expulsa a nadie, avisa y deja entrar
+   con un click (ver el comentario de PlansPage: nunca redirigir solos desde acá). */
+.plans-uptodate {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: var(--border-radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+.plans-uptodate-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--success-500);
+  margin-bottom: 0.4rem;
+}
+.plans-uptodate-text {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0 0 1rem;
+}
+
 .plans-card {
   position: relative;
   /* Mismo lenguaje glass que el login: vidrio translúcido + blur + halo del acento +
