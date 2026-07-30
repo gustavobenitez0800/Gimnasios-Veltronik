@@ -13,6 +13,8 @@ import { formatCurrency } from '../lib/utils';
 
 const VOUCHER_LABELS = { FACTURA_A: 'Factura A', FACTURA_B: 'Factura B', FACTURA_C: 'Factura C' };
 
+// Propia, y NO la de lib/kioskFormat: el ticket impreso lleva año y hora en 24h (es el
+// comprobante que se guarda), mientras que las tablas de pantalla muestran "31/07 14:35".
 const pad = (n, w) => String(n).padStart(w, '0');
 function fmtDateTime(iso) {
   const d = iso ? new Date(iso) : new Date();

@@ -6,16 +6,15 @@
 // costo de cada producto — el backend hace ambas cosas.
 // ============================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { money, date } from '../lib/kioskFormat';
+import { toLocalDateString } from '../lib/utils';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
-
-const fmtMoney = (v) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString('es-AR')}`);
-const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('es-AR') : '—');
-const today = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_SUPPLIER = { name: '', phone: '', cuit: '', notes: '', active: 'yes' };
 const EMPTY_LINE = { productId: '', quantity: '', unitCost: '' };
@@ -26,7 +25,6 @@ export default function KioskSuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(EMPTY_SUPPLIER);
@@ -35,28 +33,20 @@ export default function KioskSuppliersPage() {
   const [toDelete, setToDelete] = useState(null);
 
   const [buyModal, setBuyModal] = useState(false);
-  const [buy, setBuy] = useState({ supplierId: '', purchaseDate: today(), notes: '' });
+  const [buy, setBuy] = useState({ supplierId: '', purchaseDate: toLocalDateString(), notes: '' });
   const [lines, setLines] = useState([{ ...EMPTY_LINE }]);
   const [buying, setBuying] = useState(false);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const [sups, prods, purchs] = await Promise.all([
-        kioskService.getSuppliers(),
-        kioskService.getActiveProducts(),
-        kioskService.getPurchases(),
-      ]);
-      setSuppliers(sups);
-      setProducts(prods.filter((p) => !p.service));
-      setPurchases(purchs);
-    } catch (err) {
-      showToast(err.message || 'Error al cargar proveedores', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    const [sups, prods, purchs] = await Promise.all([
+      kioskService.getSuppliers(),
+      kioskService.getActiveProducts(),
+      kioskService.getPurchases(),
+    ]);
+    setSuppliers(sups);
+    setProducts(prods.filter((p) => !p.service));
+    setPurchases(purchs);
+  }, 'Error al cargar proveedores');
 
   const buyTotal = useMemo(
     () => lines.reduce((acc, l) => acc + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0),
@@ -78,17 +68,17 @@ export default function KioskSuppliersPage() {
       const payload = { name: form.name.trim(), phone: form.phone.trim() || null, cuit: form.cuit.trim() || null, notes: form.notes.trim() || null, active: form.active === 'yes' };
       if (editing) { await kioskService.updateSupplier(editing.id, payload); showToast('Proveedor actualizado', 'success'); }
       else { await kioskService.createSupplier(payload); showToast('Proveedor creado', 'success'); }
-      setModal(false); loadAll();
+      setModal(false); reload();
     } catch (err) { showToast(err?.response?.data?.message || 'Error al guardar', 'error'); }
     finally { setSaving(false); }
   };
   const handleDelete = async () => {
-    try { await kioskService.deleteSupplier(toDelete.id); showToast('Proveedor eliminado', 'success'); setToDelete(null); loadAll(); }
+    try { await kioskService.deleteSupplier(toDelete.id); showToast('Proveedor eliminado', 'success'); setToDelete(null); reload(); }
     catch (err) { showToast(err?.response?.data?.message || 'No se pudo eliminar', 'error'); }
   };
 
   // ─── Compras ───
-  const openBuy = () => { setBuy({ supplierId: '', purchaseDate: today(), notes: '' }); setLines([{ ...EMPTY_LINE }]); setBuyModal(true); };
+  const openBuy = () => { setBuy({ supplierId: '', purchaseDate: toLocalDateString(), notes: '' }); setLines([{ ...EMPTY_LINE }]); setBuyModal(true); };
   const setLine = (i, patch) => setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   const addLine = () => setLines((ls) => [...ls, { ...EMPTY_LINE }]);
   const removeLine = (i) => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls));
@@ -108,7 +98,7 @@ export default function KioskSuppliersPage() {
         items,
       });
       showToast('Compra registrada (stock y costos actualizados)', 'success');
-      setBuyModal(false); loadAll();
+      setBuyModal(false); reload();
     } catch (err) { showToast(err?.response?.data?.message || 'No se pudo registrar la compra', 'error'); }
     finally { setBuying(false); }
   };
@@ -164,10 +154,10 @@ export default function KioskSuppliersPage() {
             <h3 style={{ marginTop: 0 }}><Icon name="package" size="1em" /> Compras recientes</h3>
             <DataTable
               columns={[
-                { key: 'date', label: 'Fecha', render: (p) => fmtDate(p.purchaseDate) },
+                { key: 'date', label: 'Fecha', render: (p) => date(p.purchaseDate) },
                 { key: 'supplier', label: 'Proveedor', render: (p) => p.supplierName || '—' },
                 { key: 'items', label: 'Items', render: (p) => (p.items ? p.items.length : 0) },
-                { key: 'total', label: 'Total', render: (p) => fmtMoney(p.total) },
+                { key: 'total', label: 'Total', render: (p) => money(p.total) },
                 { key: 'notes', label: 'Nota', render: (p) => p.notes || '—' },
               ]}
               data={purchases}
@@ -220,7 +210,7 @@ export default function KioskSuppliersPage() {
           <FormField label="Nota" placeholder="Remito / factura" fullWidth value={buy.notes} onChange={(v) => setBuy((b) => ({ ...b, notes: v }))} />
 
           <div style={{ gridColumn: '1 / -1', textAlign: 'right', fontWeight: 700, fontSize: '1.1rem' }}>
-            Total: {fmtMoney(buyTotal)}
+            Total: {money(buyTotal)}
           </div>
           <ModalActions onCancel={() => setBuyModal(false)} saving={buying} submitText="Registrar compra" />
         </ModalForm>

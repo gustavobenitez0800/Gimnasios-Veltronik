@@ -31,10 +31,20 @@ export default defineConfig([
       // suelto en producción — el debug pasa por el logger condicional de lib/utils.js
       // (gateado por CONFIG.DEBUG). warn/error quedan permitidos: reportan problemas reales.
       'no-console': ['error', { allow: ['warn', 'error'] }],
-      // Reglas nuevas (react-hooks v6+) sobre patrones de efectos: son consejos de
-      // performance/estilo, no bugs. Quedan como warning para verlas sin romper el lint
-      // (refactorizarlas en una app en producción es un cambio de comportamiento aparte).
-      'react-hooks/set-state-in-effect': 'warn',
+      // ─── set-state-in-effect: APAGADA a conciencia (etapa 2.4, 2026-07-27) ───
+      // La regla no distingue un setState sincrónico de uno que ocurre DESPUÉS de un await,
+      // que es lo único que hay acá (traer datos al montar). Comprobado con dos casos mínimos:
+      //
+      //   useEffect(() => { load(); }, [load]);        // load = async, setState post-await → LA MARCA
+      //   useEffect(() => { (async () => { … })(); });  // el MISMO código, inline           → no la marca
+      //
+      // Mismo comportamiento en runtime, misma cantidad de renders; solo cambia la sintaxis.
+      // Se auditaron los 15 avisos uno por uno antes de apagarla: 11 eran de esa forma, y los
+      // 4 sincrónicos de verdad se corrigieron (estado inicial lazy en PosPage) o son
+      // deliberados (el spinner del reintento en KioskDashboard, el flujo de PaymentCallback).
+      // El patrón vive en UN lugar, `hooks/useLoadOnMount.js`: si algún día hay que revisarlo,
+      // se revisa ahí y no en trece páginas.
+      'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'warn',
       'react-hooks/refs': 'warn',
       'react-hooks/exhaustive-deps': 'warn',

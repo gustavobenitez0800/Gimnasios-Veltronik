@@ -7,9 +7,11 @@
 // lo que el backend devuelve (stock, margen son sus datos).
 // ============================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { money, qty } from '../lib/kioskFormat';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
@@ -25,8 +27,6 @@ const EMPTY_PRODUCT = {
   stockQuantity: '', minStock: '', service: 'no', weighable: 'no', ivaRate: '21', active: 'yes',
 };
 
-const fmtMoney = (v) => (v === null || v === undefined || v === '' ? '—' : `$${Number(v).toLocaleString('es-AR')}`);
-const fmtQty = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('es-AR'));
 const margin = (sale, cost) => {
   if (!cost || Number(cost) <= 0 || sale === null || sale === undefined) return '—';
   return `${Math.round(((Number(sale) - Number(cost)) / Number(cost)) * 100)}%`;
@@ -37,7 +37,6 @@ export default function KioskProductsPage() {
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(EMPTY_PRODUCT);
@@ -48,22 +47,14 @@ export default function KioskProductsPage() {
   const [newCategory, setNewCategory] = useState('');
   const [catToDelete, setCatToDelete] = useState(null);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const [prods, cats] = await Promise.all([
-        kioskService.getProducts(),
-        kioskService.getCategories(),
-      ]);
-      setProducts(prods);
-      setCategories(cats);
-    } catch (err) {
-      showToast(err.message || 'Error al cargar productos', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    const [prods, cats] = await Promise.all([
+      kioskService.getProducts(),
+      kioskService.getCategories(),
+    ]);
+    setProducts(prods);
+    setCategories(cats);
+  }, 'Error al cargar productos');
 
   const catName = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c.name])), [categories]);
 
@@ -113,7 +104,7 @@ export default function KioskProductsPage() {
         showToast('Producto creado', 'success');
       }
       setModal(false);
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || err.message || 'Error al guardar', 'error');
     } finally {
@@ -126,7 +117,7 @@ export default function KioskProductsPage() {
       await kioskService.deleteProduct(toDelete.id);
       showToast('Producto eliminado', 'success');
       setToDelete(null);
-      loadAll();
+      reload();
     } catch (err) {
       // El backend bloquea el borrado si el producto tiene historial → mensaje claro.
       showToast(err?.response?.data?.message || 'No se pudo eliminar', 'error');
@@ -139,7 +130,7 @@ export default function KioskProductsPage() {
     try {
       await kioskService.createCategory({ name: newCategory.trim() });
       setNewCategory('');
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err.message || 'No se pudo crear el rubro', 'error');
     }
@@ -149,7 +140,7 @@ export default function KioskProductsPage() {
     try {
       await kioskService.deleteCategory(catToDelete.id);
       setCatToDelete(null);
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err.message || 'No se pudo eliminar el rubro', 'error');
     }
@@ -213,11 +204,11 @@ export default function KioskProductsPage() {
                       </div>
                     </div>
                   ) },
-                  { key: 'salePrice', label: 'Venta', render: (p) => fmtMoney(p.salePrice) },
+                  { key: 'salePrice', label: 'Venta', render: (p) => money(p.salePrice) },
                   { key: 'margin', label: 'Margen', render: (p) => margin(p.salePrice, p.costPrice) },
                   { key: 'stock', label: 'Stock', render: (p) => (
                     p.service ? <span className="text-muted">servicio</span>
-                      : <span className={p.lowStock ? 'kiosk-stock-low' : ''}>{fmtQty(p.stockQuantity)}</span>
+                      : <span className={p.lowStock ? 'kiosk-stock-low' : ''}>{qty(p.stockQuantity)}</span>
                   ) },
                   { key: 'active', label: 'Estado', render: (p) => (
                     <Badge status={p.active ? 'active' : 'inactive'} label={p.active ? 'Activo' : 'Inactivo'} />

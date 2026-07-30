@@ -12,50 +12,32 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
-import { formatCurrency } from '../lib/utils';
+import { toLocalDateString } from '../lib/utils';
+import { downloadExcel, downloadPDF } from '../lib/reportExport';
+import { money } from '../lib/kioskFormat';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
-
-const pad = (n) => String(n).padStart(2, '0');
-const fmtLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 function getQuickDates(period) {
   const today = new Date();
   let from, to;
   switch (period) {
-    case 'today': from = to = fmtLocal(today); break;
+    case 'today': from = to = toLocalDateString(today); break;
     case 'week': {
       const ws = new Date(today); ws.setDate(today.getDate() - today.getDay() + 1);
-      from = fmtLocal(ws); to = fmtLocal(today); break;
+      from = toLocalDateString(ws); to = toLocalDateString(today); break;
     }
-    case 'month': from = fmtLocal(new Date(today.getFullYear(), today.getMonth(), 1)); to = fmtLocal(today); break;
-    case 'year': from = fmtLocal(new Date(today.getFullYear(), 0, 1)); to = fmtLocal(today); break;
+    case 'month': from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1)); to = toLocalDateString(today); break;
+    case 'year': from = toLocalDateString(new Date(today.getFullYear(), 0, 1)); to = toLocalDateString(today); break;
     default: break;
   }
   return { from, to };
 }
 
-async function downloadExcel(filename, headers, rows) {
-  const XLSX = await import('xlsx');
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-  XLSX.writeFile(wb, filename);
-}
-
-async function downloadPDF(title, filename, headers, rows) {
-  const { default: jsPDF } = await import('jspdf');
-  const { default: autoTable } = await import('jspdf-autotable');
-  const doc = new jsPDF();
-  doc.setFontSize(16); doc.text(title, 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, 14, 22);
-  autoTable(doc, { head: [headers], body: rows, startY: 28, styles: { fontSize: 8 }, headStyles: { fillColor: [99, 102, 241] } });
-  doc.save(filename);
-}
-
-const money = (v) => formatCurrency(v || 0);
+// En un reporte, un importe que el backend no mandó es 0 —vendiste cero— y no un dato
+// faltante: así viaja al Excel, donde un guion no se podría sumar.
+const amount = (v) => money(v || 0);
 
 export default function KioskReportsPage() {
   const { orgRole } = useAuth();
@@ -87,10 +69,10 @@ export default function KioskReportsPage() {
     const headers = ['Producto', 'Rubro', 'Unidades', 'Vendido', 'Costo', 'Ganancia', 'Margen'];
     const rows = (rep.products || []).map((r) => [
       r.name, r.category, Number(r.units).toLocaleString('es-AR'),
-      money(r.revenue), money(r.cost), money(r.profit), `${r.marginPct}%`,
+      amount(r.revenue), amount(r.cost), amount(r.profit), `${r.marginPct}%`,
     ]);
     rows.push(['', '', '', '', '', '', '']);
-    rows.push(['TOTAL', '', '', money(rep.totalRevenue), money(rep.totalCogs), money(rep.grossProfit), `${rep.marginPct}%`]);
+    rows.push(['TOTAL', '', '', amount(rep.totalRevenue), amount(rep.totalCogs), amount(rep.grossProfit), `${rep.marginPct}%`]);
     const fn = format === 'excel' ? downloadExcel : (n, h, r) => downloadPDF('Rentabilidad por producto', n, h, r);
     await fn(`rentabilidad_${dateFrom}_${dateTo}.${format === 'excel' ? 'xlsx' : 'pdf'}`, headers, rows);
     showToast(`Rentabilidad exportada (${rep.products?.length || 0} productos)`, 'success');
@@ -99,9 +81,9 @@ export default function KioskReportsPage() {
   const exportSales = (format) => run('sales', async () => {
     const rep = await kioskService.getReport(dateFrom, dateTo);
     const headers = ['Fecha', 'Hora', 'Ítems', 'Total', 'Pago', 'Cliente'];
-    const rows = (rep.sales || []).map((r) => [r.date, r.time, r.items, money(r.total), r.methods, r.customer]);
+    const rows = (rep.sales || []).map((r) => [r.date, r.time, r.items, amount(r.total), r.methods, r.customer]);
     rows.push(['', '', '', '', '', '']);
-    rows.push(['', '', '', money(rep.totalRevenue), 'TOTAL', `${rep.salesCount} ventas`]);
+    rows.push(['', '', '', amount(rep.totalRevenue), 'TOTAL', `${rep.salesCount} ventas`]);
     const fn = format === 'excel' ? downloadExcel : (n, h, r) => downloadPDF('Detalle de ventas', n, h, r);
     await fn(`ventas_${dateFrom}_${dateTo}.${format === 'excel' ? 'xlsx' : 'pdf'}`, headers, rows);
     showToast(`Ventas exportadas (${rep.sales?.length || 0})`, 'success');
@@ -113,16 +95,16 @@ export default function KioskReportsPage() {
     const rows = [
       ['Período', `${rep.from} a ${rep.to}`],
       ['Ventas', rep.salesCount],
-      ['Facturación', money(rep.totalRevenue)],
-      ['Costo de la mercadería', money(rep.totalCogs)],
-      ['Ganancia bruta', money(rep.grossProfit)],
+      ['Facturación', amount(rep.totalRevenue)],
+      ['Costo de la mercadería', amount(rep.totalCogs)],
+      ['Ganancia bruta', amount(rep.grossProfit)],
       ['Margen', `${rep.marginPct}%`],
       ['— CÓMO TE PAGARON —', ''],
-      ['Efectivo', money(rep.totalCash)],
-      ['Tarjeta', money(rep.totalCard)],
-      ['Transferencia', money(rep.totalTransfer)],
-      ['Mercado Pago', money(rep.totalMp)],
-      ['Fiado (cuenta corriente)', money(rep.totalCuentaCorriente)],
+      ['Efectivo', amount(rep.totalCash)],
+      ['Tarjeta', amount(rep.totalCard)],
+      ['Transferencia', amount(rep.totalTransfer)],
+      ['Mercado Pago', amount(rep.totalMp)],
+      ['Fiado (cuenta corriente)', amount(rep.totalCuentaCorriente)],
     ];
     if (rep.itemsWithoutCost > 0) {
       rows.push(['— NOTA —', '']);

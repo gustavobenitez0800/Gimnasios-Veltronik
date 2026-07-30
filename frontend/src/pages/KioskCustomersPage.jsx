@@ -6,16 +6,16 @@
 // El saldo lo computa el backend (Σ movimientos).
 // ============================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { money, dateTime } from '../lib/kioskFormat';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
 
-const fmtMoney = (v) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString('es-AR')}`);
-const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const MOV_LABELS = { DEBT: 'Fiado', PAYMENT: 'Pago' };
 
 const EMPTY_CUSTOMER = { fullName: '', phone: '', dniCuit: '', creditLimit: '', active: 'yes' };
@@ -26,7 +26,6 @@ export default function KioskCustomersPage() {
   const canManage = orgRole === 'owner' || orgRole === 'admin';
 
   const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(EMPTY_CUSTOMER);
@@ -42,17 +41,9 @@ export default function KioskCustomersPage() {
   const [movsFor, setMovsFor] = useState(null);
   const [movs, setMovs] = useState([]);
 
-  const loadAll = useCallback(async () => {
-    try {
-      setCustomers(await kioskService.getCustomers());
-    } catch (err) {
-      showToast(err.message || 'Error al cargar los clientes', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    setCustomers(await kioskService.getCustomers());
+  }, 'Error al cargar los clientes');
 
   const totalDebt = useMemo(() => customers.reduce((acc, c) => acc + Math.max(0, Number(c.balance || 0)), 0), [customers]);
   const debtors = useMemo(() => customers.filter((c) => Number(c.balance || 0) > 0).length, [customers]);
@@ -78,7 +69,7 @@ export default function KioskCustomersPage() {
       };
       if (editing) { await kioskService.updateCustomer(editing.id, payload); showToast('Cliente actualizado', 'success'); }
       else { await kioskService.createCustomer(payload); showToast('Cliente creado', 'success'); }
-      setModal(false); loadAll();
+      setModal(false); reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'Error al guardar', 'error');
     } finally { setSaving(false); }
@@ -87,7 +78,7 @@ export default function KioskCustomersPage() {
   const handleDelete = async () => {
     try {
       await kioskService.deleteCustomer(toDelete.id);
-      showToast('Cliente eliminado', 'success'); setToDelete(null); loadAll();
+      showToast('Cliente eliminado', 'success'); setToDelete(null); reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo eliminar', 'error');
     }
@@ -100,7 +91,7 @@ export default function KioskCustomersPage() {
     setPaying(true);
     try {
       await kioskService.registerCustomerPayment(payFor.id, Number(payAmount), payNotes.trim() || null);
-      showToast('Pago registrado', 'success'); setPayFor(null); loadAll();
+      showToast('Pago registrado', 'success'); setPayFor(null); reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo registrar el pago', 'error');
     } finally { setPaying(false); }
@@ -127,7 +118,7 @@ export default function KioskCustomersPage() {
         <>
           <div className="card mb-3">
             <div className="kiosk-stat-row">
-              <div className="kiosk-stat"><span className="kiosk-stat-label">Total adeudado</span><span className="kiosk-stat-value kiosk-stock-low">{fmtMoney(totalDebt)}</span></div>
+              <div className="kiosk-stat"><span className="kiosk-stat-label">Total adeudado</span><span className="kiosk-stat-value kiosk-stock-low">{money(totalDebt)}</span></div>
               <div className="kiosk-stat"><span className="kiosk-stat-label">Clientes con deuda</span><span className="kiosk-stat-value">{debtors}</span></div>
               <div className="kiosk-stat"><span className="kiosk-stat-label">Clientes</span><span className="kiosk-stat-value">{customers.length}</span></div>
             </div>
@@ -147,9 +138,9 @@ export default function KioskCustomersPage() {
                       <div className="text-muted" style={{ fontSize: '0.7rem' }}>{[c.phone, c.dniCuit].filter(Boolean).join(' · ') || '—'}</div>
                     </div>
                   ) },
-                  { key: 'limit', label: 'Límite', render: (c) => (Number(c.creditLimit) > 0 ? fmtMoney(c.creditLimit) : 'Sin límite') },
+                  { key: 'limit', label: 'Límite', render: (c) => (Number(c.creditLimit) > 0 ? money(c.creditLimit) : 'Sin límite') },
                   { key: 'balance', label: 'Debe', render: (c) => (
-                    Number(c.balance) > 0 ? <span className="kiosk-stock-low">{fmtMoney(c.balance)}</span> : <span className="text-muted">Al día</span>
+                    Number(c.balance) > 0 ? <span className="kiosk-stock-low">{money(c.balance)}</span> : <span className="text-muted">Al día</span>
                   ) },
                   { key: 'state', label: 'Estado', render: (c) => <Badge status={c.active ? 'active' : 'inactive'} label={c.active ? 'Activo' : 'Inactivo'} /> },
                   { key: 'actions', label: '', render: (c) => (
@@ -188,7 +179,7 @@ export default function KioskCustomersPage() {
       <Modal isOpen={!!payFor} onClose={() => setPayFor(null)} title={`Cobrar a ${payFor?.fullName || ''}`}>
         <ModalForm onSubmit={handlePay}>
           <p className="text-muted" style={{ fontSize: '0.8125rem', margin: 0 }}>
-            Debe <strong className="kiosk-stock-low">{fmtMoney(payFor?.balance)}</strong>. Ingresá cuánto paga.
+            Debe <strong className="kiosk-stock-low">{money(payFor?.balance)}</strong>. Ingresá cuánto paga.
           </p>
           <FormField label="Monto del pago" type="number" min="0" required value={payAmount} onChange={setPayAmount} fullWidth />
           <FormField label="Nota" placeholder="Opcional" value={payNotes} onChange={setPayNotes} fullWidth />
@@ -200,11 +191,11 @@ export default function KioskCustomersPage() {
       <Modal isOpen={!!movsFor} onClose={() => setMovsFor(null)} title={`Cuenta de ${movsFor?.fullName || ''}`}>
         <DataTable
           columns={[
-            { key: 'date', label: 'Fecha', render: (m) => fmtDateTime(m.createdAt) },
+            { key: 'date', label: 'Fecha', render: (m) => dateTime(m.createdAt) },
             { key: 'type', label: 'Tipo', render: (m) => <Badge status={m.type === 'PAYMENT' ? 'active' : 'pending'} label={MOV_LABELS[m.type] || m.type} /> },
             { key: 'amount', label: 'Monto', render: (m) => (
               <span className={m.type === 'PAYMENT' ? 'kiosk-stock-up' : 'kiosk-stock-low'}>
-                {m.type === 'PAYMENT' ? '−' : '+'}{fmtMoney(m.amount)}
+                {m.type === 'PAYMENT' ? '−' : '+'}{money(m.amount)}
               </span>
             ) },
             { key: 'notes', label: 'Nota', render: (m) => m.notes || '—' },

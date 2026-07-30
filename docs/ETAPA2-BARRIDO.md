@@ -51,7 +51,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | ✅ 2.1 | `frontend/src/lib` + `hooks` + `contexts` | **HECHA (2026-07-27)** | 3 archivos muertos afuera (`useDataLoader`, `useFilteredData`, `themeManager`), fix de captura de `logout` en AuthContext, regla react-refresh apagada para contexts (patrón idiomático), lint del scope en 0 |
 | ✅ 2.2 | `frontend` componentes compartidos | **HECHA (2026-07-27)** | `ForceUpdateOverlay` estaba importado pero JAMÁS renderizado (mecanismo pre-anillos) → borrado con sus ~234 líneas de CSS; CardCheckout con refs en effect + reset en el handler `retry`; UpdateIndicator con versión web como estado inicial; lint del scope en 0. `ui/` completo verificado vivo |
 | ✅ 2.3 | `frontend` páginas gym + su capa de datos | **HECHA (2026-07-27)** | Members/Payments/Classes/Access/Retention/Reports + PaymentCallback, sus 3 controllers, MemberService/PaymentService y `models/`. Detalle abajo |
-| 2.4 | `frontend` páginas kiosco | POS + 8 páginas Kiosk* | El grueso de los warnings (7 archivos). **Acá se decide el patrón `fetch-on-mount`** (ver abajo) |
+| ✅ 2.4 | `frontend` páginas kiosco | **HECHA (2026-07-27)** | POS + 8 páginas Kiosk* + KioskService. Se resolvió el patrón `fetch-on-mount`. Detalle abajo |
 | 2.5 | `frontend` páginas de plataforma | Lobby, Dashboard, Team, Settings, MissionControl, auth (Login/Register/Reset/Onboarding/Blocked/Plans) | **Faltaban en el mapa original.** Settings (40 KB) y Lobby (31 KB) son los dos monstruos |
 | 2.6 | `backend/core` | El módulo más grande y crítico | Migrar los 21 `@Value` a constructor donde tenga sentido; después endurecer la regla ArchUnit |
 | 2.7 | `backend/gym` + `kiosk` + `fiscal` | Verticales | Ya salieron bastante limpios del diagnóstico |
@@ -136,18 +136,65 @@ Cada módulo se limpia en una sesión propia, con este checklist:
       Build verde y las 6 páginas verificadas renderizando en el navegador (incluidos los
       modales por deep-link y el flujo de pago rechazado).
 
-## Decisiones abiertas (para las tandas que vienen)
+**2026-07-27 (tanda 2.4 — páginas kiosco + su capa de datos):**
+- [x] **Resuelta la decisión del `fetch-on-mount`** (ver abajo): la regla se apagó con
+      fundamento y el patrón quedó en un solo lugar. Lint del proyecto: 24 → **7**, y los 7
+      que quedan son todos de `useDashboardController` (tanda 2.5).
+- [x] **`hooks/useLoadOnMount.js` nuevo**: seis páginas tenían el MISMO `useCallback` +
+      `try/catch/finally` + `useEffect`, cambiando solo el texto del error. Ahora es una
+      línea por página. El hook se queda con el `loading` y el aviso de error; los datos
+      siguen siendo de la página (varias piden tres cosas en paralelo y las reparten en tres
+      estados). Usa "latest ref" para que la función de carga no necesite `useCallback`:
+      así no hay forma de olvidarse y colgar la app en un bucle de fetch.
+- [x] **`lib/kioskFormat.js` nuevo**: `fmtMoney` estaba escrita SEIS veces y en **tres
+      variantes distintas** (una devolvía `$0` para un valor vacío, otra `—`, otra `—`
+      también para string vacío); `fmtQty`, `fmtDateTime` y `fmtDate` estaban dos veces cada
+      una. Todo eso es ahora `money`/`qty`/`date`/`dateTime`/`time`.
+- [x] **Bug de visualización arreglado**: los medios de pago vivían en dos listas separadas
+      —el POS tenía cinco y la Caja un mapa de cuatro—, así que una venta fiada aparecía como
+      `CUENTA_CORRIENTE` crudo en la tabla de ventas del día. Ahora salen de `PAYMENT_METHODS`
+      + `paymentLabel()`, que es una sola lista.
+- [x] **Bug de zona horaria arreglado** (el mismo que ya había mordido en los pagos del
+      gimnasio): la fecha por defecto de una compra usaba `toISOString()`, que convierte a UTC
+      primero → **una compra registrada después de las 21:00 quedaba fechada mañana**. Ahora
+      hay un solo `toLocalDateString()` en `lib/utils` y lo usan las cuatro pantallas que
+      necesitan "hoy" (Proveedores, los dos Reportes y Pagos, donde de paso apareció la misma
+      falla en "marcar como pagado", que la tanda 2.3 no había visto).
+- [x] **`lib/reportExport.js` nuevo**: `downloadExcel` era idéntica en Reportes del gimnasio y
+      del kiosco, y `downloadPDF` solo cambiaba el color del encabezado. Una sola copia.
+- [x] **Código muerto afuera**: 6 métodos de `KioskService` sin un solo llamador
+      (`getActiveCategories`, `updateCategory`, `getCustomersWithDebt`, `getProductMovements`,
+      `getActiveSuppliers`, `getSale`). Los invitaba el propio comentario de la clase, que
+      prometía "mapear 1:1 los endpoints del backend": se corrigió a "acá vive solo lo que
+      alguna pantalla usa; el catálogo de endpoints es el backend".
+- [x] `PosPage`: el contador de ventas en cola nace leyendo la cola (estado inicial lazy) en vez
+      de setearse desde un efecto — si quedaron ventas sin enviar, el aviso está en el primer
+      render. `KioskDashboard`: dos KPIs se llamaban igual ("Ventas del mes", uno con plata y
+      otro con la cantidad); el segundo pasó a "Cantidad de ventas".
+- [x] Verificado en el navegador: las 9 páginas del kiosco montan sin errores, y el hook nuevo
+      probado en sus dos caminos — con datos (2 renders, sin cascada) y con el backend caído
+      (libera el spinner y muestra el mensaje del backend por sobre el genérico).
 
-**1. `react-hooks/set-state-in-effect` es UN patrón, no 13 bugs.** Los 20 warnings que quedan
-salen casi todos de la misma línea repetida: `useEffect(() => { cargarDatos(); }, [cargarDatos])`
-(Acceso, las 8 del kiosco, Lobby, MissionControl, POS, Ajustes). No es un error: es "traer
-datos al montar". Se decide UNA vez, en 2.4, y se aplica a todos:
-  - (a) unificar en `useQueryCache` (ya existe y ya lo usa Retención), o
-  - (b) aceptar el patrón y apagar la regla con justificación, como se hizo con
-    `react-refresh` en `contexts/**`.
-  Arreglarlo página por página garantiza 13 soluciones distintas para el mismo problema.
+## Decisiones tomadas
 
-**2. Verticales fantasma RESTO y SALON → ~~abierta~~ RESUELTA: baja total** (ver abajo).
+**1. `react-hooks/set-state-in-effect`: APAGADA, con fundamento (tanda 2.4).**
+La regla no distingue un `setState` sincrónico de uno que corre DESPUÉS de un `await`.
+Comprobado con dos casos mínimos, mismo comportamiento en runtime:
+
+```js
+useEffect(() => { load(); }, [load]);          // load async, setState post-await → LA MARCA
+useEffect(() => { (async () => { … })(); });   // el mismo código, inline         → no la marca
+```
+
+Solo cambia la sintaxis. Antes de apagarla se auditaron **los 15 avisos uno por uno**: 11 eran
+de esa forma (falsos positivos) y los 4 sincrónicos de verdad se corrigieron (estado inicial
+lazy en el POS) o son deliberados (el spinner del reintento del dashboard, el flujo de
+PaymentCallback). Lo que compra el cambio: el patrón vive en `useLoadOnMount` y se revisa en un
+solo archivo. Lo que cuesta: si mañana alguien escribe un `setState` sincrónico de verdad, el
+lint no lo va a cantar. Se aceptó a cambio de que el patrón esté centralizado. La justificación
+completa está en `eslint.config.js`, al lado de la regla.
+
+**2. Verticales fantasma RESTO y SALON → RESUELTA: baja total** (ver abajo).
 
 ## Baja de los verticales fantasma RESTO y SALON (2026-07-27)
 

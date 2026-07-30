@@ -7,15 +7,15 @@
 // el conteo físico para que el backend registre el ajuste.
 // ============================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { qty, dateTime } from '../lib/kioskFormat';
 import { PageHeader } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
 
-const fmtQty = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('es-AR'));
-const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const TYPE_LABELS = { SALE: 'Venta', PURCHASE: 'Compra', ADJUSTMENT: 'Ajuste', RETURN: 'Devolución', LOSS: 'Merma' };
 const TYPE_STATUS = { SALE: 'inactive', LOSS: 'inactive', PURCHASE: 'active', RETURN: 'active', ADJUSTMENT: 'pending' };
 
@@ -25,30 +25,21 @@ export default function KioskInventoryPage() {
   const [lowStock, setLowStock] = useState([]);
   const [movements, setMovements] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ productId: '', countedQuantity: '', reason: '' });
   const [saving, setSaving] = useState(false);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const [low, moves, prods] = await Promise.all([
-        kioskService.getLowStock(),
-        kioskService.getMovements(),
-        kioskService.getActiveProducts(),
-      ]);
-      setLowStock(low);
-      setMovements(moves);
-      setProducts(prods.filter((p) => !p.service));
-    } catch (err) {
-      showToast(err.message || 'Error al cargar el inventario', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    const [low, moves, prods] = await Promise.all([
+      kioskService.getLowStock(),
+      kioskService.getMovements(),
+      kioskService.getActiveProducts(),
+    ]);
+    setLowStock(low);
+    setMovements(moves);
+    setProducts(prods.filter((p) => !p.service));
+  }, 'Error al cargar el inventario');
 
   const handleAdjust = async (e) => {
     e.preventDefault();
@@ -64,7 +55,7 @@ export default function KioskInventoryPage() {
       showToast('Stock ajustado', 'success');
       setModal(false);
       setForm({ productId: '', countedQuantity: '', reason: '' });
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo ajustar', 'error');
     } finally {
@@ -102,8 +93,8 @@ export default function KioskInventoryPage() {
               <DataTable
                 columns={[
                   { key: 'name', label: 'Producto', render: (p) => p.name },
-                  { key: 'stock', label: 'Stock', render: (p) => <span className="kiosk-stock-low">{fmtQty(p.stockQuantity)}</span> },
-                  { key: 'min', label: 'Mínimo', render: (p) => fmtQty(p.minStock) },
+                  { key: 'stock', label: 'Stock', render: (p) => <span className="kiosk-stock-low">{qty(p.stockQuantity)}</span> },
+                  { key: 'min', label: 'Mínimo', render: (p) => qty(p.minStock) },
                 ]}
                 data={lowStock}
                 emptyMessage=""
@@ -116,12 +107,12 @@ export default function KioskInventoryPage() {
             <h3 style={{ marginTop: 0 }}><Icon name="list" size="1em" /> Movimientos recientes</h3>
             <DataTable
               columns={[
-                { key: 'date', label: 'Fecha', render: (m) => fmtDateTime(m.createdAt) },
+                { key: 'date', label: 'Fecha', render: (m) => dateTime(m.createdAt) },
                 { key: 'product', label: 'Producto', render: (m) => m.productName },
                 { key: 'type', label: 'Tipo', render: (m) => <Badge status={TYPE_STATUS[m.type] || 'inactive'} label={TYPE_LABELS[m.type] || m.type} /> },
                 { key: 'qty', label: 'Cantidad', render: (m) => (
                   <span className={Number(m.quantity) < 0 ? 'kiosk-stock-low' : 'kiosk-stock-up'}>
-                    {Number(m.quantity) > 0 ? '+' : ''}{fmtQty(m.quantity)}
+                    {Number(m.quantity) > 0 ? '+' : ''}{qty(m.quantity)}
                   </span>
                 ) },
                 { key: 'reason', label: 'Motivo', render: (m) => m.reason || '—' },
@@ -142,7 +133,7 @@ export default function KioskInventoryPage() {
           </p>
           <FormField label="Producto" type="select" required
             value={form.productId} onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
-            options={[{ value: '', label: 'Elegí un producto' }, ...products.map((p) => ({ value: p.id, label: `${p.name} (stock: ${fmtQty(p.stockQuantity)})` }))]} />
+            options={[{ value: '', label: 'Elegí un producto' }, ...products.map((p) => ({ value: p.id, label: `${p.name} (stock: ${qty(p.stockQuantity)})` }))]} />
           <FormField label="Cantidad contada" type="number" min="0" required placeholder="Ej: 12"
             value={form.countedQuantity} onChange={(v) => setForm((f) => ({ ...f, countedQuantity: v }))} />
           <FormField label="Motivo" placeholder="Ej: recuento mensual, rotura" fullWidth

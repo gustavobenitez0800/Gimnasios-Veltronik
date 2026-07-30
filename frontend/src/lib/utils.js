@@ -51,6 +51,21 @@ export function formatCurrency(amount, currency = 'ARS') {
 }
 
 /**
+ * Fecha 'YYYY-MM-DD' en la zona del NAVEGADOR (la del negocio), no en UTC.
+ *
+ * `new Date().toISOString().slice(0, 10)` parece hacer lo mismo y NO lo hace: convierte a UTC
+ * primero, así que en Argentina (-03) todo lo que pase después de las 21:00 se guarda con la
+ * fecha de MAÑANA. Ya nos mordió en los pagos del gimnasio y en la fecha por defecto de una
+ * compra. Toda fecha "de hoy" que viaje al backend sale de acá.
+ */
+export function toLocalDateString(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Tiempo relativo en castellano ("hace 5 min", "hace 2 h", "recién").
  * Usado por el web-espejo (V3): que el dueño vea la frescura de cada equipo/sync.
  */

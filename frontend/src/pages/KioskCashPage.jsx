@@ -7,17 +7,15 @@
 // y dibuja el resultado.
 // ============================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { money, time, paymentLabel } from '../lib/kioskFormat';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { Modal, ModalForm, ModalActions, FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
-
-const fmtMoney = (v) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString('es-AR')}`);
-const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '—');
-const METHOD_LABELS = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', MP: 'Mercado Pago' };
 
 export default function KioskCashPage() {
   const { showToast } = useToast();
@@ -28,7 +26,6 @@ export default function KioskCashPage() {
   const [session, setSession] = useState(null);
   const [sales, setSales] = useState([]);
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [openingAmount, setOpeningAmount] = useState('');
   const [opening, setOpening] = useState(false);
@@ -39,24 +36,16 @@ export default function KioskCashPage() {
 
   const [toVoid, setToVoid] = useState(null);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const [cur, todaySales, hist] = await Promise.all([
-        kioskService.getCurrentCash(),
-        kioskService.getTodaySales(),
-        kioskService.getCashHistory(),
-      ]);
-      setSession(cur);
-      setSales(todaySales);
-      setHistory(hist);
-    } catch (err) {
-      showToast(err.message || 'Error al cargar la caja', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    const [cur, todaySales, hist] = await Promise.all([
+      kioskService.getCurrentCash(),
+      kioskService.getTodaySales(),
+      kioskService.getCashHistory(),
+    ]);
+    setSession(cur);
+    setSales(todaySales);
+    setHistory(hist);
+  }, 'Error al cargar la caja');
 
   // Totales del día (agregación de datos del backend, solo para mostrar).
   const totals = useMemo(() => {
@@ -72,7 +61,7 @@ export default function KioskCashPage() {
       await kioskService.openCash(openingAmount === '' ? 0 : Number(openingAmount));
       showToast('Caja abierta', 'success');
       setOpeningAmount('');
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo abrir la caja', 'error');
     } finally {
@@ -87,12 +76,12 @@ export default function KioskCashPage() {
       const closed = await kioskService.closeCash(closingDeclared === '' ? 0 : Number(closingDeclared));
       const diff = Number(closed.difference || 0);
       const msg = diff === 0 ? 'Caja cerrada: cuadró exacto.'
-        : diff > 0 ? `Caja cerrada: sobran ${fmtMoney(diff)}.`
-        : `Caja cerrada: faltan ${fmtMoney(Math.abs(diff))}.`;
+        : diff > 0 ? `Caja cerrada: sobran ${money(diff)}.`
+        : `Caja cerrada: faltan ${money(Math.abs(diff))}.`;
       showToast(msg, diff === 0 ? 'success' : 'info');
       setCloseModal(false);
       setClosingDeclared('');
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo cerrar la caja', 'error');
     } finally {
@@ -105,7 +94,7 @@ export default function KioskCashPage() {
       await kioskService.voidSale(toVoid.id);
       showToast('Venta anulada (stock devuelto)', 'success');
       setToVoid(null);
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo anular', 'error');
     }
@@ -146,7 +135,7 @@ export default function KioskCashPage() {
                     <Icon name="dollarSign" size="1em" /> Caja abierta <Badge status="active" label="Abierta" />
                   </h3>
                   <div className="text-muted" style={{ fontSize: '0.8125rem' }}>
-                    Fondo: {fmtMoney(session.openingAmount)} · Abrió {fmtTime(session.openedAt)}
+                    Fondo: {money(session.openingAmount)} · Abrió {time(session.openedAt)}
                   </div>
                 </div>
                 <button className="btn btn-primary" onClick={() => setCloseModal(true)}>
@@ -155,7 +144,7 @@ export default function KioskCashPage() {
               </div>
               <div className="kiosk-stat-row" style={{ marginTop: '1rem' }}>
                 <div className="kiosk-stat"><span className="kiosk-stat-label">Ventas del turno</span><span className="kiosk-stat-value">{totals.count}</span></div>
-                <div className="kiosk-stat"><span className="kiosk-stat-label">Total vendido</span><span className="kiosk-stat-value">{fmtMoney(totals.sum)}</span></div>
+                <div className="kiosk-stat"><span className="kiosk-stat-label">Total vendido</span><span className="kiosk-stat-value">{money(totals.sum)}</span></div>
               </div>
             </div>
           )}
@@ -165,10 +154,10 @@ export default function KioskCashPage() {
             <h3 style={{ marginTop: 0 }}><Icon name="list" size="1em" /> Ventas de hoy</h3>
             <DataTable
               columns={[
-                { key: 'time', label: 'Hora', render: (s) => fmtTime(s.createdAt) },
+                { key: 'time', label: 'Hora', render: (s) => time(s.createdAt) },
                 { key: 'items', label: 'Items', render: (s) => (s.items ? s.items.length : 0) },
-                { key: 'pay', label: 'Pago', render: (s) => (s.payments || []).map((p) => METHOD_LABELS[p.method] || p.method).join(', ') || '—' },
-                { key: 'total', label: 'Total', render: (s) => fmtMoney(s.total) },
+                { key: 'pay', label: 'Pago', render: (s) => (s.payments || []).map((p) => paymentLabel(p.method)).join(', ') || '—' },
+                { key: 'total', label: 'Total', render: (s) => money(s.total) },
                 { key: 'status', label: 'Estado', render: (s) => (
                   <Badge status={s.status === 'VOIDED' ? 'inactive' : 'active'} label={s.status === 'VOIDED' ? 'Anulada' : 'OK'} />
                 ) },
@@ -188,13 +177,13 @@ export default function KioskCashPage() {
             <h3 style={{ marginTop: 0 }}><Icon name="clock" size="1em" /> Cierres anteriores</h3>
             <DataTable
               columns={[
-                { key: 'opened', label: 'Apertura', render: (s) => `${new Date(s.openedAt).toLocaleDateString('es-AR')} ${fmtTime(s.openedAt)}` },
-                { key: 'opening', label: 'Fondo', render: (s) => fmtMoney(s.openingAmount) },
-                { key: 'expected', label: 'Esperado', render: (s) => fmtMoney(s.closingExpected) },
-                { key: 'declared', label: 'Contado', render: (s) => fmtMoney(s.closingDeclared) },
+                { key: 'opened', label: 'Apertura', render: (s) => `${new Date(s.openedAt).toLocaleDateString('es-AR')} ${time(s.openedAt)}` },
+                { key: 'opening', label: 'Fondo', render: (s) => money(s.openingAmount) },
+                { key: 'expected', label: 'Esperado', render: (s) => money(s.closingExpected) },
+                { key: 'declared', label: 'Contado', render: (s) => money(s.closingDeclared) },
                 { key: 'diff', label: 'Diferencia', render: (s) => (
                   s.difference === null || s.difference === undefined ? '—'
-                    : <span className={Number(s.difference) < 0 ? 'kiosk-stock-low' : ''}>{fmtMoney(s.difference)}</span>
+                    : <span className={Number(s.difference) < 0 ? 'kiosk-stock-low' : ''}>{money(s.difference)}</span>
                 ) },
                 { key: 'status', label: '', render: (s) => <Badge status={s.status === 'OPEN' ? 'active' : 'inactive'} label={s.status === 'OPEN' ? 'Abierta' : 'Cerrada'} /> },
               ]}

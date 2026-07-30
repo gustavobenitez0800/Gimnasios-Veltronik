@@ -3,10 +3,13 @@ import apiClient from '../lib/apiClient';
 /**
  * Servicio del vertical Kiosco / Almacén (KIOSCO).
  *
- * Mapea 1:1 los endpoints del módulo `kiosk` del backend. DTOs en camelCase, consumidos tal cual.
  * Regla de oro: el front NO calcula plata ni stock — el backend es la autoridad (total de venta,
  * arqueo de caja, stock). Acá solo se envían intención (qué producto, cuánto, cómo se paga) y se
- * dibuja lo que el backend devuelve.
+ * dibuja lo que el backend devuelve. DTOs en camelCase, consumidos tal cual.
+ *
+ * Acá vive SOLO lo que alguna pantalla usa hoy. La versión anterior de este comentario decía
+ * "mapea 1:1 los endpoints del backend", y esa promesa dejó seis métodos que no llamaba nadie:
+ * el catálogo completo de endpoints es el backend, no este archivo.
  */
 class KioskService {
   // ─── Productos ───
@@ -54,18 +57,8 @@ class KioskService {
     return Array.isArray(response.data) ? response.data : [];
   }
 
-  async getActiveCategories() {
-    const response = await apiClient.get('/kiosk/categories/active');
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
   async createCategory(category) {
     const response = await apiClient.post('/kiosk/categories', category);
-    return response.data;
-  }
-
-  async updateCategory(id, updates) {
-    const response = await apiClient.put(`/kiosk/categories/${id}`, updates);
     return response.data;
   }
 
@@ -83,11 +76,6 @@ class KioskService {
 
   async getActiveCustomers() {
     const response = await apiClient.get('/kiosk/customers/active');
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
-  async getCustomersWithDebt() {
-    const response = await apiClient.get('/kiosk/customers/with-debt');
     return Array.isArray(response.data) ? response.data : [];
   }
 
@@ -124,11 +112,6 @@ class KioskService {
     return Array.isArray(response.data) ? response.data : [];
   }
 
-  async getProductMovements(productId) {
-    const response = await apiClient.get(`/kiosk/inventory/movements/product/${productId}`);
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
   /** Ajuste por recuento: { productId, countedQuantity, reason }. */
   async adjustStock(adjustment) {
     const response = await apiClient.post('/kiosk/inventory/adjust', adjustment);
@@ -139,11 +122,6 @@ class KioskService {
 
   async getSuppliers() {
     const response = await apiClient.get('/kiosk/suppliers');
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
-  async getActiveSuppliers() {
-    const response = await apiClient.get('/kiosk/suppliers/active');
     return Array.isArray(response.data) ? response.data : [];
   }
 
@@ -211,11 +189,6 @@ class KioskService {
   async getTodaySales() {
     const response = await apiClient.get('/kiosk/sales/today');
     return Array.isArray(response.data) ? response.data : [];
-  }
-
-  async getSale(id) {
-    const response = await apiClient.get(`/kiosk/sales/${id}`);
-    return response.data;
   }
 
   async voidSale(id) {

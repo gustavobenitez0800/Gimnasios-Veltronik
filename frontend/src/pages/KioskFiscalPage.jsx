@@ -7,9 +7,11 @@
 // lo que el backend (módulo fiscal) computa y devuelve.
 // ============================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
+import { useLoadOnMount } from '../hooks';
+import { money, date } from '../lib/kioskFormat';
 import { PageHeader } from '../components/Layout';
 import { FormField, Badge, DataTable } from '../components/ui';
 import Icon from '../components/Icon';
@@ -34,9 +36,6 @@ const STATUS = {
   REJECTED: { label: 'Rechazado', status: 'inactive' },
 };
 
-const fmtMoney = (v) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString('es-AR')}`);
-const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('es-AR') : '—');
-
 const EMPTY_CFG = { cuit: '', razonSocial: '', condicionIva: 'MONOTRIBUTO', environment: 'HOMOLOGACION', defaultPosNumber: '', enabled: 'no' };
 
 export default function KioskFiscalPage() {
@@ -45,7 +44,6 @@ export default function KioskFiscalPage() {
   const [config, setConfig] = useState(null);
   const [vouchers, setVouchers] = useState([]);
   const [autoInvoice, setAutoInvoice] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   const [cfgForm, setCfgForm] = useState(EMPTY_CFG);
   const [savingCfg, setSavingCfg] = useState(false);
@@ -55,32 +53,24 @@ export default function KioskFiscalPage() {
   const [generatingCsr, setGeneratingCsr] = useState(false);
   const [showAdvancedCert, setShowAdvancedCert] = useState(false);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const [cfg, vs, settings] = await Promise.all([
-        kioskService.getFiscalConfig(),
-        kioskService.getFiscalVouchers(),
-        kioskService.getSettings(),
-      ]);
-      setConfig(cfg);
-      setVouchers(vs);
-      setAutoInvoice(!!settings.autoInvoice);
-      setCfgForm({
-        cuit: cfg.cuit ?? '',
-        razonSocial: cfg.razonSocial ?? '',
-        condicionIva: cfg.condicionIva ?? 'MONOTRIBUTO',
-        environment: cfg.environment ?? 'HOMOLOGACION',
-        defaultPosNumber: cfg.defaultPosNumber ?? '',
-        enabled: cfg.enabled ? 'yes' : 'no',
-      });
-    } catch (err) {
-      showToast(err.message || 'Error al cargar la facturación', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
+  const { loading, reload } = useLoadOnMount(async () => {
+    const [cfg, vs, settings] = await Promise.all([
+      kioskService.getFiscalConfig(),
+      kioskService.getFiscalVouchers(),
+      kioskService.getSettings(),
+    ]);
+    setConfig(cfg);
+    setVouchers(vs);
+    setAutoInvoice(!!settings.autoInvoice);
+    setCfgForm({
+      cuit: cfg.cuit ?? '',
+      razonSocial: cfg.razonSocial ?? '',
+      condicionIva: cfg.condicionIva ?? 'MONOTRIBUTO',
+      environment: cfg.environment ?? 'HOMOLOGACION',
+      defaultPosNumber: cfg.defaultPosNumber ?? '',
+      enabled: cfg.enabled ? 'yes' : 'no',
+    });
+  }, 'Error al cargar la facturación');
 
   const handleSaveCfg = async (e) => {
     e.preventDefault();
@@ -95,7 +85,7 @@ export default function KioskFiscalPage() {
         enabled: cfgForm.enabled === 'yes',
       });
       showToast('Configuración fiscal guardada', 'success');
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'Error al guardar', 'error');
     } finally {
@@ -125,7 +115,7 @@ export default function KioskFiscalPage() {
       await kioskService.uploadFiscalCertificate(cert.certificatePem.trim(), cert.privateKeyPem.trim());
       showToast('Certificado guardado (cifrado)', 'success');
       setCert({ certificatePem: '', privateKeyPem: '' });
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo guardar el certificado', 'error');
     } finally {
@@ -148,7 +138,7 @@ export default function KioskFiscalPage() {
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       showToast('CSR generado y descargado. Subilo a ARCA (paso 2).', 'success');
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo generar el CSR', 'error');
     } finally {
@@ -165,7 +155,7 @@ export default function KioskFiscalPage() {
       await kioskService.uploadFiscalCertificate(cert.certificatePem.trim()); // sin clave: usa la guardada
       showToast('Certificado guardado (cifrado). ¡Facturación lista!', 'success');
       setCert({ certificatePem: '', privateKeyPem: '' });
-      loadAll();
+      reload();
     } catch (err) {
       showToast(err?.response?.data?.message || 'No se pudo guardar el certificado', 'error');
     } finally {
@@ -342,10 +332,10 @@ export default function KioskFiscalPage() {
           columns={[
             { key: 'type', label: 'Tipo', render: (v) => VOUCHER_LABELS[v.voucherType] || v.voucherType },
             { key: 'number', label: 'Número', render: (v) => (v.number ? `${String(v.pointOfSale).padStart(4, '0')}-${String(v.number).padStart(8, '0')}` : '—') },
-            { key: 'date', label: 'Fecha', render: (v) => fmtDate(v.voucherDate) },
-            { key: 'total', label: 'Total', render: (v) => fmtMoney(v.totalAmount) },
+            { key: 'date', label: 'Fecha', render: (v) => date(v.voucherDate) },
+            { key: 'total', label: 'Total', render: (v) => money(v.totalAmount) },
             { key: 'cae', label: 'CAE', render: (v) => v.cae || '—' },
-            { key: 'vto', label: 'Vto CAE', render: (v) => fmtDate(v.caeExpiration) },
+            { key: 'vto', label: 'Vto CAE', render: (v) => date(v.caeExpiration) },
             { key: 'status', label: 'Estado', render: (v) => {
               const s = STATUS[v.status] || { label: v.status, status: 'inactive' };
               return <Badge status={s.status} label={s.label} />;

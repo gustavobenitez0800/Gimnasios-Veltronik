@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../contexts/ToastContext';
 import { kioskService } from '../services';
+import { money, PAYMENT_METHODS, paymentLabel } from '../lib/kioskFormat';
 import { Modal, ModalForm, ModalActions, FormField } from '../components/ui';
 import Icon from '../components/Icon';
 import PosTicket from '../components/PosTicket';
@@ -21,14 +22,6 @@ import {
   enqueueSale, flushQueuedSales, queuedCount, cacheCatalog, getCachedCatalog, isNetworkError,
 } from '../lib/offlineQueue';
 
-const fmtMoney = (v) => `$${Number(v || 0).toLocaleString('es-AR')}`;
-const PAYMENT_METHODS = [
-  { value: 'CASH', label: 'Efectivo' },
-  { value: 'CARD', label: 'Tarjeta' },
-  { value: 'TRANSFER', label: 'Transferencia' },
-  { value: 'MP', label: 'Mercado Pago' },
-  { value: 'CUENTA_CORRIENTE', label: 'Cuenta corriente (fiado)' },
-];
 const VOUCHER_LABELS = { FACTURA_A: 'Factura A', FACTURA_B: 'Factura B', FACTURA_C: 'Factura C' };
 const voucherNumber = (v) => `${String(v.pointOfSale).padStart(4, '0')}-${String(v.number).padStart(8, '0')}`;
 
@@ -56,7 +49,9 @@ export default function PosPage() {
   const [fiscalVoucher, setFiscalVoucher] = useState(null);
   const [fiscalPolling, setFiscalPolling] = useState(false); // true mientras se espera el CAE
   const [offline, setOffline] = useState(false);             // sin conexión al backend
-  const [pendingCount, setPendingCount] = useState(0);       // ventas en cola esperando reenvío
+  // Arranca leyendo la cola guardada: si quedaron ventas de una sesión anterior sin conexión,
+  // el aviso ya tiene que estar en el primer render (antes se seteaba desde el efecto).
+  const [pendingCount, setPendingCount] = useState(queuedCount);
   const saleRef = useRef(null); // venta que se está mostrando/poleando (ignora resultados viejos)
 
   const loadAll = useCallback(async () => {
@@ -108,7 +103,6 @@ export default function PosPage() {
         loadAll(); // refrescá stock/caja con la realidad del backend
       }
     };
-    setPendingCount(queuedCount());
     flush();
     window.addEventListener('online', flush);
     const id = setInterval(flush, 30000);
@@ -309,7 +303,7 @@ export default function PosPage() {
           {filtered.map((p) => (
             <button key={p.id} className="pos-product-card" onClick={() => addToCart(p)} type="button">
               <span className="pos-product-name">{p.name}</span>
-              <span className="pos-product-price">{fmtMoney(p.salePrice)}</span>
+              <span className="pos-product-price">{money(p.salePrice)}</span>
               {!p.service && p.lowStock && <span className="pos-product-low">stock bajo</span>}
             </button>
           ))}
@@ -341,10 +335,10 @@ export default function PosPage() {
           {receipt && cart.length === 0 && (
             <div className="pos-receipt">
               <div className="pos-receipt-check"><Icon name="check" /></div>
-              <div className="pos-receipt-total">{fmtMoney(receipt.total)}</div>
-              <div className="text-muted">{PAYMENT_METHODS.find((m) => m.value === receipt.method)?.label}</div>
+              <div className="pos-receipt-total">{money(receipt.total)}</div>
+              <div className="text-muted">{paymentLabel(receipt.method)}</div>
               {receipt.change !== null && receipt.change >= 0 && (
-                <div className="pos-receipt-change">Vuelto: <strong>{fmtMoney(receipt.change)}</strong></div>
+                <div className="pos-receipt-change">Vuelto: <strong>{money(receipt.change)}</strong></div>
               )}
 
               {/* Venta offline: todavía no llegó al backend; se reenvía sola al reconectar. */}
@@ -390,7 +384,7 @@ export default function PosPage() {
                 businessName={localStorage.getItem('current_org_name')}
                 receipt={receipt}
                 fiscalVoucher={fiscalVoucher}
-                methodLabel={PAYMENT_METHODS.find((m) => m.value === receipt.method)?.label}
+                methodLabel={paymentLabel(receipt.method)}
               />
             </div>
           )}
@@ -404,7 +398,7 @@ export default function PosPage() {
                 value={c.quantity}
                 onChange={(e) => setQty(c.productId, e.target.value)}
               />
-              <div className="pos-cart-row-total">{fmtMoney(Number(c.salePrice) * c.quantity)}</div>
+              <div className="pos-cart-row-total">{money(Number(c.salePrice) * c.quantity)}</div>
               <button className="pos-cart-x" onClick={() => removeFromCart(c.productId)} title="Quitar"><Icon name="x" size="0.9em" /></button>
             </div>
           ))}
@@ -413,7 +407,7 @@ export default function PosPage() {
         <div className="pos-cart-footer">
           <div className="pos-total-row">
             <span>Total</span>
-            <span className="pos-total-value">{fmtMoney(total)}</span>
+            <span className="pos-total-value">{money(total)}</span>
           </div>
           <button className="btn btn-primary pos-pay-btn" disabled={cart.length === 0} onClick={openPay}>
             <Icon name="dollarSign" size="1em" /> Cobrar
@@ -422,14 +416,14 @@ export default function PosPage() {
       </div>
 
       {/* ─── Modal cobro ─── */}
-      <Modal isOpen={payModal} onClose={() => setPayModal(false)} title={`Cobrar ${fmtMoney(total)}`}>
+      <Modal isOpen={payModal} onClose={() => setPayModal(false)} title={`Cobrar ${money(total)}`}>
         <ModalForm onSubmit={confirmSale}>
           <FormField label="Medio de pago" type="select"
             value={method} onChange={setMethod} options={PAYMENT_METHODS} />
           {method === 'CUENTA_CORRIENTE' && (
             <FormField label="Cliente" type="select" value={customerId} onChange={setCustomerId}
               options={[{ value: '', label: 'Elegí un cliente' }, ...customers.map((c) => ({
-                value: c.id, label: c.fullName + (Number(c.balance) > 0 ? ` (debe ${fmtMoney(c.balance)})` : ''),
+                value: c.id, label: c.fullName + (Number(c.balance) > 0 ? ` (debe ${money(c.balance)})` : ''),
               }))]}
               hint={customers.length === 0 ? 'No hay clientes cargados (creá uno en Clientes / Fiado)' : undefined} />
           )}
@@ -438,12 +432,12 @@ export default function PosPage() {
               value={tendered} onChange={setTendered} />
           )}
           {change !== null && change >= 0 && (
-            <div className="pos-change-hint">Vuelto: <strong>{fmtMoney(change)}</strong></div>
+            <div className="pos-change-hint">Vuelto: <strong>{money(change)}</strong></div>
           )}
           {change !== null && change < 0 && (
-            <div className="pos-change-hint pos-change-short">Faltan {fmtMoney(Math.abs(change))}</div>
+            <div className="pos-change-hint pos-change-short">Faltan {money(Math.abs(change))}</div>
           )}
-          <ModalActions onCancel={() => setPayModal(false)} saving={paying} submitText={`Confirmar ${fmtMoney(total)}`} />
+          <ModalActions onCancel={() => setPayModal(false)} saving={paying} submitText={`Confirmar ${money(total)}`} />
         </ModalForm>
       </Modal>
     </div>

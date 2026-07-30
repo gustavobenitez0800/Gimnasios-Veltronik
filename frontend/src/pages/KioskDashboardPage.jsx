@@ -93,7 +93,7 @@ export default function KioskDashboardPage() {
       <div className="stats-grid">
         <StatCard icon="dollarSign" label="Ventas del mes" value={formatCurrency(data.monthRevenue)} color="success" />
         <StatCard icon="trendingUp" label={`Ganancia (margen ${data.monthMarginPct}%)`} value={formatCurrency(data.monthGrossProfit)} color="primary" />
-        <StatCard icon="creditCard" label="Ventas del mes" value={data.monthSalesCount} color="accent" />
+        <StatCard icon="creditCard" label="Cantidad de ventas" value={data.monthSalesCount} color="accent" />
         <StatCard icon="wallet" label="Ticket promedio" value={formatCurrency(data.avgTicket)} color="warning" />
       </div>
 

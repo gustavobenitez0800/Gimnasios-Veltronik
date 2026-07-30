@@ -10,55 +10,45 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString } from '../lib/utils';
 import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
-// Fecha local YYYY-MM-DD SIN pasar por UTC. `toISOString()` corre el día en husos al oeste
-// (AR es -03): de tarde devolvía el día SIGUIENTE → descuadraba el filtro de fechas y la
-// fecha de los pagos nuevos. Esto usa los componentes locales y queda exacto.
-function toLocalDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 // Suma 1 mes a una fecha 'YYYY-MM-DD' (mediodía para evitar saltos por DST), devuelve local.
 function addOneMonth(dateStr) {
   const d = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
   d.setMonth(d.getMonth() + 1);
-  return toLocalDate(d);
+  return toLocalDateString(d);
 }
 
 function getQuickDates(period) {
   const today = new Date();
   let from, to;
   switch (period) {
-    case 'today': from = to = toLocalDate(today); break;
+    case 'today': from = to = toLocalDateString(today); break;
     case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
-      from = toLocalDate(ws);
-      to = toLocalDate(today);
+      from = toLocalDateString(ws);
+      to = toLocalDateString(today);
       break;
     }
     case 'month':
-      from = toLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
-      to = toLocalDate(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
+      to = toLocalDateString(today); break;
     case 'year':
-      from = toLocalDate(new Date(today.getFullYear(), 0, 1));
-      to = toLocalDate(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), 0, 1));
+      to = toLocalDateString(today); break;
     default: break;
   }
   return { from, to };
 }
 
 function getInitialForm() {
-  const today = toLocalDate(new Date());
+  const today = toLocalDateString(new Date());
   return {
     member_id: '',
     amount: '',
@@ -191,7 +181,7 @@ export default function PaymentsPage() {
         dni: member.dni || member.document || '',
       });
       // El período nuevo arranca donde termina la membresía vigente (o hoy si no tiene).
-      const startStr = (member.membershipEnd || toLocalDate(new Date())).split('T')[0];
+      const startStr = (member.membershipEnd || toLocalDateString(new Date())).split('T')[0];
       openModal({ id: null }, () => ({
         ...initialForm,
         member_id: deepLink.memberId,
@@ -303,7 +293,9 @@ export default function PaymentsPage() {
       await savePayment({
         ...payment,
         status: 'paid',
-        paymentDate: new Date().toISOString().split('T')[0]
+        // Fecha LOCAL: con toISOString(), un pago cobrado después de las 21:00 quedaba
+        // registrado con la fecha de mañana (y desaparecía del filtro del día).
+        paymentDate: toLocalDateString(),
       });
       showToast('Pago marcado como pagado', 'success');
 
