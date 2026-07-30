@@ -5,11 +5,11 @@ import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preapproval.PreapprovalClient;
 import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preapproval.Preapproval;
+import com.veltronik.v2.core.config.MercadoPagoProperties;
 import com.veltronik.v2.core.services.MercadoPagoService;
 import com.veltronik.v2.core.services.SubscriptionBillingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,18 +49,7 @@ public class WebhookController {
 
     private final SubscriptionBillingService billingService;
     private final MercadoPagoService mercadoPagoService;
-
-    @Value("${mercadopago.webhook.secret:}")
-    private String webhookSecret;
-
-    /**
-     * Válvula de seguridad para el lanzamiento. Si por algún desajuste de formato la
-     * firma fallara, poniendo {@code mercadopago.webhook.enforce-signature=false} (env var)
-     * se procesan los eventos igual, sin esperar un redeploy. SEGURO POR DEFAULT (true);
-     * volver a true apenas se valide la firma en producción.
-     */
-    @Value("${mercadopago.webhook.enforce-signature:true}")
-    private boolean enforceSignature;
+    private final MercadoPagoProperties mercadoPago;
 
     @PostMapping
     public ResponseEntity<String> handleWebhook(
@@ -85,10 +74,11 @@ public class WebhookController {
         final String resourceId = firstNonBlank(dataIdParam, id, extractDataId(payload));
 
         // 3) FIRMA: si hay secret configurado, es OBLIGATORIA y debe ser válida.
+        final String webhookSecret = mercadoPago.getWebhookSecret();
         if (webhookSecret != null && !webhookSecret.isBlank()) {
             boolean validSignature = xSignature != null && isValidSignature(xSignature, xRequestId, resourceId, rawBody);
             if (!validSignature) {
-                if (enforceSignature) {
+                if (mercadoPago.isEnforceSignature()) {
                     log.warn("Webhook RECHAZADO: firma ausente o inválida. x-request-id={}", xRequestId);
                     return ResponseEntity.status(401).body("Firma inválida");
                 }
@@ -272,7 +262,7 @@ public class WebhookController {
                     (xRequestId != null ? xRequestId : "") + ";ts:" + ts + ";";
 
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(mercadoPago.getWebhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] hash = mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8));
             byte[] expected = HexFormat.of().formatHex(hash).getBytes(StandardCharsets.UTF_8);
             byte[] received = v1.toLowerCase().getBytes(StandardCharsets.UTF_8);

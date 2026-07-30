@@ -1,6 +1,5 @@
 package com.veltronik.v2.core.security;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,19 +28,30 @@ import java.util.List;
 @Profile("!local")   // el cerebro local usa LocalSecurityConfig (sin Supabase/JWKS). La nube, esta.
 @EnableWebSecurity
 @EnableMethodSecurity   // habilita @PreAuthorize para control de acceso por rol a nivel de método
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final TenantContextFilter tenantContextFilter;
     private final KillSwitchFilter killSwitchFilter;
     private final DeviceCredentialFilter deviceCredentialFilter;
     private final Environment environment;
+    private final String jwksUri;
+    private final String allowedOrigins;
 
-    @Value("${veltronik.jwt.jwks-uri}")
-    private String jwksUri;
-
-    @Value("${FRONTEND_URL:http://localhost:5173}")
-    private String allowedOrigins;
+    // Constructor a mano (y no @RequiredArgsConstructor) porque dos dependencias son valores de
+    // configuración: Lombok no sabe ponerles @Value a los parámetros que genera.
+    public SecurityConfig(TenantContextFilter tenantContextFilter,
+                          KillSwitchFilter killSwitchFilter,
+                          DeviceCredentialFilter deviceCredentialFilter,
+                          Environment environment,
+                          @Value("${veltronik.jwt.jwks-uri}") String jwksUri,
+                          @Value("${FRONTEND_URL:http://localhost:5173}") String allowedOrigins) {
+        this.tenantContextFilter = tenantContextFilter;
+        this.killSwitchFilter = killSwitchFilter;
+        this.deviceCredentialFilter = deviceCredentialFilter;
+        this.environment = environment;
+        this.jwksUri = jwksUri;
+        this.allowedOrigins = allowedOrigins;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

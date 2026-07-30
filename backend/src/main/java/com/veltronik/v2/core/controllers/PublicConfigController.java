@@ -1,12 +1,12 @@
 package com.veltronik.v2.core.controllers;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.veltronik.v2.core.config.BillingProperties;
+import com.veltronik.v2.core.config.MercadoPagoProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -33,22 +33,21 @@ import java.util.Map;
 @RequestMapping("/api/public")
 public class PublicConfigController {
 
-    private final String mpPublicKey;
-    private final BigDecimal monthlyPrice;
+    private final MercadoPagoProperties mercadoPago;
+    private final BillingProperties billing;
 
-    public PublicConfigController(
-            @Value("${mercadopago.public.key:}") String mpPublicKey,
-            @Value("${veltronik.billing.monthly-price:80000}") BigDecimal monthlyPrice) {
-        this.mpPublicKey = mpPublicKey;
-        this.monthlyPrice = monthlyPrice;
+    public PublicConfigController(MercadoPagoProperties mercadoPago, BillingProperties billing) {
+        this.mercadoPago = mercadoPago;
+        this.billing = billing;
     }
 
     @GetMapping("/payment-config")
     public ResponseEntity<Map<String, Object>> paymentConfig() {
+        String publicKey = mercadoPago.getPublicKey();
         return ResponseEntity.ok(Map.of(
-                "mpPublicKey", mpPublicKey != null ? mpPublicKey : "",
+                "mpPublicKey", publicKey != null ? publicKey : "",
                 "currency", "ARS",
-                "monthlyPrice", monthlyPrice
+                "monthlyPrice", billing.getMonthlyPrice()
         ));
     }
 }

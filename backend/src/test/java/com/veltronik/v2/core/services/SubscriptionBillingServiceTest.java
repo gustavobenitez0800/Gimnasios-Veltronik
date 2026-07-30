@@ -1,5 +1,6 @@
 package com.veltronik.v2.core.services;
 
+import com.veltronik.v2.core.config.BillingProperties;
 import com.veltronik.v2.core.entities.Subscription;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.entities.TenantPayment;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -48,6 +50,15 @@ class SubscriptionBillingServiceTest {
     private TenantPaymentRepository tenantPaymentRepository;
     @Mock
     private SubscriptionRepository subscriptionRepository;
+
+    /**
+     * Config real (no mock): son valores, no colaboradores. Mockearlos sería pedirle a un test
+     * que finja cuánto sale el sistema. Con el bean real, el centinela de montos anómalos se
+     * ejercita de verdad.
+     */
+    @Spy
+    private BillingProperties billing =
+            new BillingProperties(new BigDecimal("80000"), 14, "https://app.veltronik.test");
 
     @InjectMocks
     private SubscriptionBillingService service;

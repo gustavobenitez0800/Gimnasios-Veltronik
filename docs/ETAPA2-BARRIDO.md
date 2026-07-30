@@ -53,7 +53,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | ✅ 2.3 | `frontend` páginas gym + su capa de datos | **HECHA (2026-07-27)** | Members/Payments/Classes/Access/Retention/Reports + PaymentCallback, sus 3 controllers, MemberService/PaymentService y `models/`. Detalle abajo |
 | ✅ 2.4 | `frontend` páginas kiosco | **HECHA (2026-07-27)** | POS + 8 páginas Kiosk* + KioskService. Se resolvió el patrón `fetch-on-mount`. Detalle abajo |
 | ✅ 2.5 | `frontend` páginas de plataforma | **HECHA (2026-07-27)** | Lobby, Dashboard, Settings, Team, MissionControl, auth + `useDashboardController`. **Lint del frontend en CERO.** Detalle abajo |
-| 2.6 | `backend/core` | El módulo más grande y crítico | Migrar los 21 `@Value` a constructor donde tenga sentido; después endurecer la regla ArchUnit |
+| ✅ 2.6 | `backend/core` | **HECHA (2026-07-27)** | `@Value` en campo migrado a constructor y **regla de ArchUnit encendida**. 178 tests verdes. Detalle abajo |
 | 2.7 | `backend/gym` + `kiosk` + `fiscal` | Verticales | Ya salieron bastante limpios del diagnóstico |
 | 2.8 | Raíz y build | `electron-builder.yml` (excludes muertos: `api/`, `vercel.json`), scripts, docs | Micro |
 
@@ -207,6 +207,34 @@ Cada módulo se limpia en una sesión propia, con este checklist:
       Dejar de exportar `VERTICALS` además cierra la puerta a `VERTICALS[type]` suelto, que es
       la línea que rompe cuando llega un tipo inesperado (`getVertical()` nunca devuelve undefined).
 - [x] Verificado en el navegador: las 12 páginas de plataforma montan sin errores.
+
+**2026-07-27 (tanda 2.6 — backend/core):**
+- [x] **La regla primero, la limpieza después.** El objetivo era migrar los `@Value` en campo a
+      constructor y recién ahí endurecer ArchUnit. Salió mejor al revés: al encender la regla
+      **encontró dos campos que ningún `grep` había visto**, porque estaban escritos con el nombre
+      largo (`@org.springframework.beans.factory.annotation.Value`). Moraleja para las tandas que
+      quedan: la regla automática no es el premio por limpiar, es la herramienta para encontrar.
+- [x] **El precio del sistema estaba escrito en CUATRO clases**, cada una con su propio valor por
+      defecto (`PublicConfigController`, `BillingService`, `MercadoPagoService` y
+      `SubscriptionBillingService`), y la URL del frontend en dos. Cambiar el precio obligaba a
+      acordarse de los cuatro; el que se olvidara quedaba **cobrando distinto de lo que la app le
+      muestra al cliente**. Ahora hay `BillingProperties` y `MercadoPagoProperties`: un bean por
+      concepto, el default una sola vez, y todos los demás lo piden por constructor.
+- [x] **Bug de cobro encontrado de paso** (el tercero de la serie): la URL a la que Mercado Pago
+      devuelve al cliente después de pagar se armaba como `frontendUrl + "/payment-callback"`,
+      **sin el `#`** que necesita el HashRouter del frontend — y apuntando a un dominio
+      (`veltronik.com`) que no es el de la app, porque la propiedad `cors.frontend-url` **no está
+      definida en ningún lado** y caía siempre en el default del código. El cliente pagaba, MP lo
+      devolvía a una URL que la app no resuelve, no veía la pantalla de "pago confirmado" y volvía
+      a intentar el pago. Ahora la arma `BillingProperties.paymentCallbackUrl()` (con `#`, mismo
+      formato que ya usaba el mail de recuperar contraseña) y la base sale de una cadena de
+      respaldo: `cors.frontend-url` → `FRONTEND_URL` → la URL pública real. **Tiene un test propio**
+      para que no vuelva a romperse en silencio.
+- [x] `SecurityConfig` pasó a constructor explícito (Lombok no sabe ponerle `@Value` a los
+      parámetros que genera) y se documentó por qué.
+- [x] Los tests dejaron de necesitar `ReflectionTestUtils.setField` para armar el `WebhookController`:
+      con la config en el constructor, se construye como cualquier objeto.
+- [x] **178 tests verdes** (174 + 4 nuevos: la regla de ArchUnit y los 3 de la URL de vuelta).
 
 ## Decisiones tomadas
 

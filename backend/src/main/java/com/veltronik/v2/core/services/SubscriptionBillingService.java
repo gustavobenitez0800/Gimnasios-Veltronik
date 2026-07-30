@@ -1,5 +1,6 @@
 package com.veltronik.v2.core.services;
 
+import com.veltronik.v2.core.config.BillingProperties;
 import com.veltronik.v2.core.entities.Subscription;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.entities.TenantPayment;
@@ -35,16 +36,15 @@ import java.util.UUID;
 @Slf4j
 public class SubscriptionBillingService {
 
-    /** Precio mensual esperado: centinela de cobros por montos anómalos (solo log, no bloquea). */
-    @org.springframework.beans.factory.annotation.Value("${veltronik.billing.monthly-price:80000}")
-    private BigDecimal monthlyPrice;
-
     /** Días de acceso que otorga cada cobro mensual aprobado. */
     private static final int ACCESS_DAYS_PER_CYCLE = 30;
     /** Gracia extra tras el fin de período antes de bloquear (colchón ante demoras de webhook). */
     private static final int GRACE_DAYS = 3;
     /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
+    /** Precio mensual esperado: centinela de cobros por montos anómalos (solo log, no bloquea). */
+    private final BillingProperties billing;
 
     private final TenantRepository tenantRepository;
     private final TenantPaymentRepository tenantPaymentRepository;
@@ -74,6 +74,7 @@ public class SubscriptionBillingService {
         // Centinela de ingresos: un cobro aprobado por MENOS del precio mensual no debería
         // existir (el preapproval se crea por el precio completo). Se aplica igual — bloquear
         // acá castigaría un cambio de precio legítimo — pero queda la alarma en los logs.
+        BigDecimal monthlyPrice = billing.getMonthlyPrice();
         if (amount != null && monthlyPrice != null && amount.compareTo(monthlyPrice) < 0) {
             log.warn("Cobro {} del tenant {} por ${} — MENOR al precio mensual (${}). Revisar en MP.",
                     mpPaymentId, tenantId, amount, monthlyPrice);

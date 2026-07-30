@@ -101,12 +101,33 @@ class ArchitectureTest {
     /**
      * Inyección por constructor, nunca @Autowired en campos: dependencias explícitas,
      * finales y testeables sin reflection. (Idioma del proyecto: Lombok @RequiredArgsConstructor.)
-     * Nota: @Value en campo queda permitido por ahora — hay ~17 usos legados; migrarlos es limpieza aparte.
      */
     @Test
     void prohibida_inyeccion_por_campo_con_autowired() {
         noFields().should().beAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
                 .because("la inyección va por constructor (@RequiredArgsConstructor): explícita, final y testeable")
+                .check(CLASSES);
+    }
+
+    /**
+     * Lo mismo para la configuración: {@code @Value} va en el PARÁMETRO del constructor (o del
+     * método {@code @Bean}), nunca en un campo.
+     *
+     * <p>No es cosmético. Con @Value en campo, el valor se inyecta DESPUÉS de construir el objeto:
+     * el campo no puede ser final y está en null durante el constructor. Peor, invita a que cada
+     * clase lea la misma propiedad por su cuenta con su propio valor por defecto — así llegamos a
+     * tener el precio mensual escrito en tres clases distintas. Con la propiedad en el constructor,
+     * el compilador obliga a pasar por un bean de configuración compartido
+     * ({@link com.veltronik.v2.core.config.BillingProperties},
+     * {@link com.veltronik.v2.core.config.MercadoPagoProperties}).</p>
+     *
+     * <p>Esta regla se pudo activar recién en la etapa 2.6, cuando se migraron los 10 campos que
+     * quedaban. Si alguien vuelve a escribir uno, el build se pone en rojo.</p>
+     */
+    @Test
+    void prohibida_configuracion_por_campo_con_value() {
+        noFields().should().beAnnotatedWith("org.springframework.beans.factory.annotation.Value")
+                .because("la configuración entra por el constructor: campos finales y un solo lugar por propiedad")
                 .check(CLASSES);
     }
 }
