@@ -343,7 +343,7 @@ en courts §4).
 | `App.jsx` | Bloque `<OrgTypeGuard allowedTypes={['KIOSCO']}>` (idéntico al de `FUTBOL_5` en `App.jsx:98`) |
 | `components/Sidebar.jsx` | + `KIOSCO_NAV` (POS · Productos · Inventario · Clientes/Fiado · Caja · Proveedores(F2) · Facturación · Reportes · Equipo · Ajustes) + `case 'KIOSCO'`. **Reconciliar:** `Sidebar.jsx:225` ya tiene `KIOSK:'Kiosco'` pero el enum será `KIOSCO` → cambiar la clave |
 | `pages/OnboardingPage.jsx` | Card "🏪 Kiosco / Almacén", `desc: 'Punto de venta, stock, fiado y facturación'`, `enabled: true` |
-| `styles/layout.css` | Tema `[data-vertical="kiosco"]`: **turquesa/teal** (libre: GYM azul, SALON rosa, RESTO naranja, FUTBOL verde) |
+| `styles/layout.css` | Tema `[data-vertical="kiosco"]`: **turquesa/teal** (GYM se queda con el azul del default) |
 | `styles/kiosk.css` | Nuevo, análogo a `courts.css` (POS + grilla de productos) |
 
 **Páginas nuevas:** `PosPage` (el corazón: scanner con foco permanente, carrito, pago mixto, vuelto),

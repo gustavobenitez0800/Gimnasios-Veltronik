@@ -20,7 +20,7 @@ import CONFIG from '../lib/config';
  * of the allowed types. If not, redirects to dashboard.
  *
  * @param {{ allowedTypes: string[] }} props
- *   allowedTypes — array of ORG_TYPES, e.g. ['GYM'] or ['RESTO']
+ *   allowedTypes — array de ids de vertical, p. ej. FITNESS_VERTICALS o ['KIOSCO']
  */
 export default function OrgTypeGuard({ allowedTypes }) {
   const { gym, loading } = useAuth();

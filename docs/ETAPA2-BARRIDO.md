@@ -129,7 +129,10 @@ Cada módulo se limpia en una sesión propia, con este checklist:
       vieja que llegaba tarde pisaba a la búsqueda nueva.
 - [x] Encabezados de archivo: `(Refactored)`, `(Optimized & Cached)`, `(Refactored for Scale
       & Cache)` reemplazados por dos líneas que dicen qué hace la página.
-- [x] Lint del scope: 8 warnings → **1** (el que queda es el patrón compartido de abajo).
+- [x] Lint del scope: 8 warnings → **2**, y los 2 que quedan son el patrón compartido de abajo
+      (Acceso y PaymentCallback). Ojo con el de PaymentCallback: al declarar los handlers antes
+      del efecto, el analizador **pasó a poder rastrearlos** y cambió 4 avisos de `immutability`
+      por 1 de `set-state-in-effect`. Es el mismo aviso que el resto, no uno nuevo.
       Build verde y las 6 páginas verificadas renderizando en el navegador (incluidos los
       modales por deep-link y el flujo de pago rechazado).
 
@@ -144,13 +147,43 @@ datos al montar". Se decide UNA vez, en 2.4, y se aplica a todos:
     `react-refresh` en `contexts/**`.
   Arreglarlo página por página garantiza 13 soluciones distintas para el mismo problema.
 
-**2. Verticales fantasma: RESTO y SALON.** El registry (`lib/verticals.js`) tiene navegación
-completa para Restaurante y Belleza, y `styles/restaurant.css` (6,8 KB) se importa siempre.
-Pero `BusinessType` del backend solo conoce `GYM` y `KIOSCO`: ningún negocio puede tener ese
-tipo. Encima esos menús apuntan a rutas que no existen en `CONFIG.ROUTES` (`TABLES`, `MENU`,
-`KITCHEN`, `SALON_*`) → `<NavLink to={undefined}>`. **Es el mismo caso que Fútbol 5 en la
-Etapa 1 y merece la misma decisión explícita del dueño**: darlos de baja o dejarlos anotados
-como roadmap. No se tocó nada en esta tanda.
+**2. Verticales fantasma RESTO y SALON → ~~abierta~~ RESUELTA: baja total** (ver abajo).
+
+## Baja de los verticales fantasma RESTO y SALON (2026-07-27)
+
+Decisión del dueño, misma que con Fútbol 5 en la Etapa 1. **No hubo migración Flyway ni riesgo
+de datos**: a diferencia de Fútbol 5, estos dos nunca existieron en el enum `BusinessType`, así
+que ningún negocio pudo tener ese tipo jamás. Era andamio puro, y andamio *roto*: los dos menús
+apuntaban a rutas que no existen en `CONFIG.ROUTES` (`TABLES`, `MENU`, `KITCHEN`, `SALON_*`) →
+`<NavLink to={undefined}>`.
+
+- [x] `lib/verticals.js`: entradas `RESTO` y `SALON` + `RESTO_NAV` + `SALON_NAV` (69 líneas de
+      navegación inalcanzable). `NAV_BY_ID` queda con `KIOSCO` y un comentario que explica que
+      el que no está ahí usa la del gym.
+- [x] CSS: `styles/restaurant.css` entero (nunca lo pisó un cliente) y su `@import`; los bloques
+      `[data-vertical="salon"|"resto"]` de `variables.css` (paletas + overrides de modo claro),
+      `layout.css` (sidebar flotante y layout espejado para zurdos), `pages.css` y `responsive.css`.
+      Los verticales que quedan se renumeraron 1..5. **Bundle CSS: 111,75 KB → 102,60 KB (−8%).**
+- [x] **Dos fuentes que sí se estaban bajando de Google**: Playfair Display y Quicksand vivían en
+      el `@import` de `variables.css` y solo las usaban Salón y Restaurante. Afuera, con un
+      comentario que ata cada familia a su `font-family` para que no vuelva a pasar.
+- [x] Íconos huérfanos de `Icon.jsx`: `scissors`, `utensils`, `grid`, `clipboard`, `fire` (0 usos
+      fuera de los menús borrados). Sobrevivieron `list` y `package`, que usa el kiosco.
+- [x] **Tercera aparición del bug `KIOSK`/`KIOSCO`**: `SettingsPage` armaba el nombre del plan con
+      `{GYM:…, RESTO:…, KIOSK:…}` → un kiosco leía "Veltronik Business" en vez de "Veltronik
+      Kiosco". Corregido junto con la baja de la clave `RESTO`.
+- [x] Comentarios que mentían: `Tenant.java` decía `/** Tipo de vertical: GYM, SALON, RESTAURANT,
+      OTHER */` (el enum tiene GYM y KIOSCO), `OrgTypeGuard` ponía `['RESTO']` de ejemplo, y el
+      `<meta name="description">` de `index.html` le vendía "mesas, pedidos" a Google.
+- [x] `VELTRONIK_CODEX.md`: el árbol de paquetes listaba `salon/` y `restaurant/` (que nunca
+      existieron) y omitía `kiosk/` y `fiscal/` (que sí); los temas por vertical y el ERD hablaban
+      de SALON/RESTO. Se agregó una **regla de honestidad** al documento: solo se describen
+      verticales que existen en el código; lo demás va al roadmap.
+
+Lo que **no** se tocó, a propósito: los javadoc de `core` que usan "Gym, Salon, Resto, Ferretería"
+como ejemplos de extensibilidad (ilustran el patrón, no prometen un módulo) y los guardas de
+ArchUnit sobre `..salon..`/`..restaurant..` (son preventivos para paquetes que no existen y su
+propio comentario lo aclara).
 
 ## Reglas del juego (no cambian)
 

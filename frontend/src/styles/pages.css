@@ -224,9 +224,6 @@
   margin-bottom: 1.5rem;
 }
 
-[data-vertical="salon"] .empty-state-icon { background: rgba(244, 63, 94, 0.1); color: var(--primary-500); }
-[data-vertical="resto"] .empty-state-icon { background: rgba(249, 115, 22, 0.1); color: var(--primary-500); }
-
 .empty-state-title {
   font-size: var(--font-size-xl);
   font-weight: 700;

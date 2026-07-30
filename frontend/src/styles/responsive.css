@@ -168,11 +168,6 @@ button, a, input, select, textarea, [role="button"] {
   .sidebar-user-info { display: none; }
 
   .page-content { padding: 1.75rem; }
-
-  /* Verticales con sidebar especial vuelven al riel estándar */
-  [data-vertical="salon"] .sidebar { left: 0; top: 0; bottom: 0; height: 100vh; border-radius: 0; }
-  [data-vertical="salon"] .main-content { margin-left: var(--sidebar-collapsed); }
-  [data-vertical="resto"] .main-content { margin-right: var(--sidebar-collapsed); margin-left: 0; }
 }
 
 /* ────────────────────────────────────────────
@@ -492,18 +487,6 @@ button, a, input, select, textarea, [role="button"] {
 
   /* ── Acceso: lista de presentes con altura propia ── */
   .checked-in-list { max-height: 320px; }
-
-  /* ── Verticales con layout especial vuelven al estándar en mobile ── */
-  [data-vertical="salon"] .sidebar {
-    left: 0; top: 0; bottom: 0;
-    height: 100vh; height: 100dvh;
-    border-radius: 0;
-    border: none;
-  }
-  [data-vertical="salon"] .main-content { margin-left: 0; }
-  [data-vertical="resto"] .app-layout { flex-direction: column; }
-  [data-vertical="resto"] .sidebar { left: 0; right: auto; border-left: none; }
-  [data-vertical="resto"] .main-content { margin-right: 0; }
 }
 
 @keyframes sheetUp {

@@ -40,8 +40,6 @@ export const VERTICALS = {
   PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'estudio' },
   ACADEMY:  { id: 'ACADEMY',  label: 'Academia',         icon: { type: 'icon', name: 'graduationCap' },  accent: '#8b5cf6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'academia' },
   KIOSCO:   { id: 'KIOSCO',   label: 'Kiosco / Almacén', icon: { type: 'icon', name: 'store' },          accent: '#14b8a6', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'kiosco' },
-  SALON:    { id: 'SALON',    label: 'Belleza',          icon: { type: 'icon', name: 'scissors' },       accent: '#f43f5e', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'salón' },
-  RESTO:    { id: 'RESTO',    label: 'Restaurante',      icon: { type: 'icon', name: 'utensils' },       accent: '#f97316', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'restaurante' },
   OTHER:    { id: 'OTHER',    label: 'Negocio',          icon: { type: 'icon', name: 'building' },        accent: '#64748b', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'negocio' },
 };
 
@@ -131,79 +129,9 @@ const KIOSCO_NAV = [
   },
 ];
 
-const RESTO_NAV = [
-  {
-    title: 'Restaurante',
-    items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.TABLES, icon: 'grid', label: 'Mesas' },
-      { to: CONFIG.ROUTES.MENU, icon: 'list', label: 'Menú' },
-      { to: CONFIG.ROUTES.ORDERS, icon: 'clipboard', label: 'Pedidos' },
-      { to: CONFIG.ROUTES.KITCHEN, icon: 'fire', label: 'Cocina' },
-    ],
-  },
-  {
-    title: 'Gestión',
-    items: [
-      { to: CONFIG.ROUTES.CASH_REGISTER, icon: 'wallet', label: 'Caja' },
-      { to: CONFIG.ROUTES.INVENTORY, icon: 'package', label: 'Inventario' },
-      { to: CONFIG.ROUTES.RESERVATIONS, icon: 'calendar', label: 'Reservas' },
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
-    ],
-  },
-  {
-    title: 'Administración',
-    items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
-    ],
-  },
-  {
-    title: 'Plataforma',
-    items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
-    ],
-  },
-];
-
-const SALON_NAV = [
-  {
-    title: 'Salón',
-    items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard' },
-      { to: CONFIG.ROUTES.SALON_AGENDA, icon: 'calendar', label: 'Agenda' },
-      { to: CONFIG.ROUTES.SALON_CLIENTS, icon: 'users', label: 'Clientes' },
-      { to: CONFIG.ROUTES.SALON_SERVICES, icon: 'list', label: 'Servicios' },
-      { to: CONFIG.ROUTES.SALON_STYLISTS, icon: 'userCog', label: 'Estilistas' },
-    ],
-  },
-  {
-    title: 'Gestión',
-    items: [
-      { to: CONFIG.ROUTES.SALON_CASH, icon: 'wallet', label: 'Caja' },
-      { to: CONFIG.ROUTES.SALON_PRODUCTS, icon: 'package', label: 'Productos' },
-      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes' },
-    ],
-  },
-  {
-    title: 'Administración',
-    items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes' },
-    ],
-  },
-  {
-    title: 'Plataforma',
-    items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema' },
-    ],
-  },
-];
-
+// Verticales con navegación propia. El que no está acá usa la del gym.
 const NAV_BY_ID = {
   KIOSCO: KIOSCO_NAV,
-  RESTO: RESTO_NAV,
-  SALON: SALON_NAV,
 };
 
 // Verticales de la familia "fitness": comparten el módulo gym, su navegación y sus
