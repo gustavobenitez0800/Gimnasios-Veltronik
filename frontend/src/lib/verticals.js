@@ -34,7 +34,10 @@ import CONFIG from './config';
 //     ("En el gimnasio", "Nadie en el estudio"). Antes vivía copiado a mano en tres
 //     páginas —y con la clave equivocada 'KIOSK' en vez de 'KIOSCO', así que un kiosco
 //     leía "negocio"—, que es justo el drift que este registry existe para evitar.
-export const VERTICALS = {
+// Sin `export`: afuera nadie elige un vertical a mano, se pide con getVertical(orgType)
+// —que nunca devuelve undefined—. Exportar el mapa invitaba a `VERTICALS[type]` suelto,
+// que es justo la línea que rompía cuando llegaba un tipo inesperado.
+const VERTICALS = {
   GYM:      { id: 'GYM',      label: 'Gimnasio',         icon: { type: 'image', src: gymLogoSrc }, accent: '#3b82f6', membersLabel: 'Socios',   memberLabel: 'Socio',   placeLabel: 'gimnasio' },
   CLUB:     { id: 'CLUB',     label: 'Club Deportivo',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#6366f1', membersLabel: 'Socios',   memberLabel: 'Socio',   placeLabel: 'club' },
   PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'estudio' },
@@ -43,7 +46,7 @@ export const VERTICALS = {
   OTHER:    { id: 'OTHER',    label: 'Negocio',          icon: { type: 'icon', name: 'building' },        accent: '#64748b', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'negocio' },
 };
 
-export const DEFAULT_VERTICAL = VERTICALS.GYM;
+const DEFAULT_VERTICAL = VERTICALS.GYM;
 
 // Etiquetas de rol — estaban duplicadas tal cual en Sidebar y en Lobby.
 export const ROLE_LABELS = {

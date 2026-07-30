@@ -13,20 +13,6 @@ export function log(...args) {
   if (CONFIG.DEBUG) console.log(...args);
 }
 
-export function logWarn(...args) {
-  if (CONFIG.DEBUG) console.warn(...args);
-}
-
-/**
- * Escape HTML to prevent XSS
- */
-export function escapeHtml(text) {
-  if (text === null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
-}
-
 /**
  * Get initials from a full name
  */
@@ -165,17 +151,6 @@ export async function copyToClipboard(text) {
     return true;
   } catch {
     return false;
-  }
-}
-
-/**
- * Safely parse JSON
- */
-export function safeJsonParse(jsonString, fallback = null) {
-  try {
-    return JSON.parse(jsonString);
-  } catch {
-    return fallback;
   }
 }
 

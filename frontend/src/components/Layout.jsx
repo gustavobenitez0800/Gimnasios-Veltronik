@@ -185,7 +185,7 @@ export function AuthLayout() {
 /**
  * Full-screen loading
  */
-export function LoadingScreen({ message = 'Cargando...' }) {
+function LoadingScreen({ message = 'Cargando...' }) {
   return (
     <div className="loading-overlay loading-show">
       <div className="loading-content">

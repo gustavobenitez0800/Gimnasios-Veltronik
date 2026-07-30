@@ -1,5 +1,10 @@
 // ============================================
-// VELTRONIK V2 - SETTINGS PAGE (Fixed & Enhanced)
+// VELTRONIK V2 - AJUSTES
+// ============================================
+// Datos del negocio, suscripción (cambiar tarjeta, verificar con MP, cancelar),
+// tema, y las dos secciones de la Fase 1 local: Equipos (enrolamiento por rol)
+// y Cajeros con PIN. Las tres cargas son independientes a propósito: si falla
+// la de equipos o la de cajeros, Ajustes sigue funcionando.
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -35,7 +40,7 @@ export default function SettingsPage() {
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
     plan: 'Veltronik Pro', status: 'active', nextPayment: '--', amount: '--',
-    payerEmail: '', hasSubscription: false
+    hasSubscription: false
   });
 
   // Action states
@@ -82,7 +87,6 @@ export default function SettingsPage() {
 
       // Subscription info
       let nextPaymentText = '--';
-      let payerEmail = '';
       let hasSubscription = false;
 
       // Si el tenant está activo y tiene trialEndsAt en el futuro → está en período válido
@@ -98,8 +102,8 @@ export default function SettingsPage() {
         // Sin suscripción MP activa — puede estar en trial
       }
 
-      // Fallback: trialEndsAt
-      if (!hasSubscription && nextPaymentText === '--' && gymData.trialEndsAt) {
+      // Sin suscripción de MP, el "próximo cobro" es el fin de la prueba gratis.
+      if (!hasSubscription && gymData.trialEndsAt) {
         const trialEnd = new Date(gymData.trialEndsAt);
         const diffDays = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
         const dateStr = trialEnd.toLocaleDateString('es-AR');
@@ -108,12 +112,11 @@ export default function SettingsPage() {
           : `${dateStr} (período de prueba finalizado)`;
       }
 
-      // Load billing history
-      let billingHistory = [];
-
-      // Precio siempre desde CONFIG (precio plano $80.000 para todos los tipos)
-      const orgType = gymData.type || 'GYM';
-      const amount = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
+      // Precio siempre desde CONFIG (precio plano $80.000 para todos los tipos).
+      // Ojo: `gymType` es el del dato recién traído; el `orgType` de arriba es el del
+      // contexto/localStorage. Se llamaban igual y uno tapaba al otro.
+      const gymType = gymData.type || 'GYM';
+      const amount = CONFIG.PRICES_BY_TYPE[gymType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
 
       const planNameMap = { GYM: 'Veltronik Pro', KIOSCO: 'Veltronik Kiosco', OTHER: 'Veltronik Business' };
 
@@ -121,13 +124,11 @@ export default function SettingsPage() {
       // de visualización desde la fuente real para no depender de un campo inexistente.
       const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
-        plan: planNameMap[orgType] || 'Veltronik Pro',
+        plan: planNameMap[gymType] || 'Veltronik Pro',
         status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
-        payerEmail,
         hasSubscription,
-        billingHistory,
       });
 
     } catch (error) {
@@ -472,13 +473,6 @@ export default function SettingsPage() {
               <span className="info-label">Monto mensual</span>
               <span className="info-value">{subscriptionInfo.amount}</span>
             </div>
-            {subscriptionInfo.payerEmail && (
-              <div className="info-row">
-                <span className="info-label">Email de pago</span>
-                <span className="info-value">{subscriptionInfo.payerEmail}</span>
-              </div>
-            )}
-
             {/* Payment Method Actions */}
             {subscriptionInfo.hasSubscription && (
               <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -503,7 +497,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
-            {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
+            {subscriptionInfo.hasSubscription && (
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
                 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
                 Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
@@ -523,31 +517,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Billing History */}
-            {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Icon name="fileText" size="1em" /> Historial de Facturación
-                </h3>
-                <div className="billing-history-list">
-                  {subscriptionInfo.billingHistory.map((p, i) => (
-                    <div key={p.id || i} className="billing-history-item">
-                      <div className="billing-history-left">
-                        <span className="billing-history-date">
-                          {new Date(p.paymentDate || p.created_at).toLocaleDateString('es-AR')}
-                        </span>
-                        <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
-                          {p.status === 'approved' ? <><Icon name="check" size="0.75em" /> Aprobado</> : p.status === 'rejected' ? <><Icon name="x" size="0.75em" /> Rechazado</> : <><Icon name="clock" size="0.75em" /> Pendiente</>}
-                        </span>
-                      </div>
-                      <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
-                        {formatCurrency(p.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 

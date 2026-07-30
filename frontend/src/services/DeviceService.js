@@ -14,12 +14,6 @@ export const deviceService = {
     return res.data?.data || [];
   },
 
-  /** Estado de ESTE equipo (para decidir si ofrecer el bautizo). */
-  async me() {
-    const res = await apiClient.get('/core/devices/me');
-    return res.data?.data || null;
-  },
-
   /**
    * El bautizo: enrola ESTE equipo a la sucursal en curso.
    * @param {{role: 'CAJA'|'ENCARGADO', displayName: string, replaceActiveManager?: boolean}} payload

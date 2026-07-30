@@ -19,10 +19,6 @@ function write(list) {
   try { localStorage.setItem(QUEUE_KEY, JSON.stringify(list)); } catch { /* almacenamiento lleno: best-effort */ }
 }
 
-export function getQueuedSales() {
-  return read();
-}
-
 export function queuedCount() {
   return read().length;
 }

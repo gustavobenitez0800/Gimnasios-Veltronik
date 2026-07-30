@@ -100,6 +100,3 @@ export function getApiBase() {
   return state.apiBase;
 }
 
-export function getLocalTenantId() {
-  return state.tenantId;
-}

@@ -52,7 +52,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | ✅ 2.2 | `frontend` componentes compartidos | **HECHA (2026-07-27)** | `ForceUpdateOverlay` estaba importado pero JAMÁS renderizado (mecanismo pre-anillos) → borrado con sus ~234 líneas de CSS; CardCheckout con refs en effect + reset en el handler `retry`; UpdateIndicator con versión web como estado inicial; lint del scope en 0. `ui/` completo verificado vivo |
 | ✅ 2.3 | `frontend` páginas gym + su capa de datos | **HECHA (2026-07-27)** | Members/Payments/Classes/Access/Retention/Reports + PaymentCallback, sus 3 controllers, MemberService/PaymentService y `models/`. Detalle abajo |
 | ✅ 2.4 | `frontend` páginas kiosco | **HECHA (2026-07-27)** | POS + 8 páginas Kiosk* + KioskService. Se resolvió el patrón `fetch-on-mount`. Detalle abajo |
-| 2.5 | `frontend` páginas de plataforma | Lobby, Dashboard, Team, Settings, MissionControl, auth (Login/Register/Reset/Onboarding/Blocked/Plans) | **Faltaban en el mapa original.** Settings (40 KB) y Lobby (31 KB) son los dos monstruos |
+| ✅ 2.5 | `frontend` páginas de plataforma | **HECHA (2026-07-27)** | Lobby, Dashboard, Settings, Team, MissionControl, auth + `useDashboardController`. **Lint del frontend en CERO.** Detalle abajo |
 | 2.6 | `backend/core` | El módulo más grande y crítico | Migrar los 21 `@Value` a constructor donde tenga sentido; después endurecer la regla ArchUnit |
 | 2.7 | `backend/gym` + `kiosk` + `fiscal` | Verticales | Ya salieron bastante limpios del diagnóstico |
 | 2.8 | Raíz y build | `electron-builder.yml` (excludes muertos: `api/`, `vercel.json`), scripts, docs | Micro |
@@ -174,6 +174,39 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 - [x] Verificado en el navegador: las 9 páginas del kiosco montan sin errores, y el hook nuevo
       probado en sus dos caminos — con datos (2 renders, sin cascada) y con el backend caído
       (libera el spinner y muestra el mensaje del backend por sobre el genérico).
+
+**2026-07-27 (tanda 2.5 — páginas de plataforma):**
+- [x] **Lint del frontend: 7 → CERO.** Los 7 eran el mismo problema real en
+      `useDashboardController`: `data?.membersData || []` creaba un array NUEVO en cada render
+      mientras los datos no estaban, y como los cinco `useMemo` de insights dependen de esas
+      listas, ninguno memorizaba: los cinco cálculos se rehacían en cada render. Se arregla con
+      una constante `EMPTY` compartida (la regla tenía razón).
+- [x] **`services/storageService.js` borrado entero**: subía archivos a ninguna parte —devolvía
+      una URL de `dummyimage.com` y avisaba por consola "temporarily disabled during Java
+      migration"— y no lo llamaba nadie.
+- [x] **Dos secciones de UI inalcanzables en Ajustes**: `payerEmail` y `billingHistory` se
+      declaraban, nunca se llenaban y se guardaban en el estado igual, así que el "Email de
+      pago" y todo el bloque "Historial de Facturación" (24 líneas) no se dibujaban nunca.
+      **Y escondían un bug**: el texto que explica los botones "Cambiar Tarjeta" y "Verificar
+      Estado con MP" estaba condicionado a `payerEmail` —siempre vacío—, así que ningún cliente
+      con suscripción lo vio jamás. Ahora se muestra con los botones.
+- [x] `GroupService`: 4 métodos de escritura sin llamadores afuera. **Hallazgo para decidir**:
+      la feature está a medio terminar — el backend la tiene completa (V18 + `TenantGroupController`)
+      pero no hay ninguna pantalla para crear un grupo, así que `getMyGroups()` devuelve vacío
+      para todo el mundo y el agrupado del Lobby no se dibuja nunca. Queda anotado en el propio
+      servicio; construir esa UI es una feature, no limpieza.
+- [x] Lobby: un `try/catch` que se asignaba a sí mismo el mismo valor con el comentario
+      "Stubbed payerEmail logic"; y la card "Crear Negocio", duplicada, donde **una de las dos
+      copias le decía "Registrá un nuevo gimnasio" a un dueño de kiosco**.
+- [x] **Barrido global de exports muertos en todo `src`** (no solo el scope de la tanda): 5
+      funciones borradas (`logWarn`, `escapeHtml`, `safeJsonParse`, `getLocalTenantId`,
+      `getQueuedSales`) y 4 que se usaban solo puertas adentro dejaron de exportarse
+      (`VERTICALS`, `DEFAULT_VERTICAL`, `LoadingScreen`, `getLocalToken`). Ojo: la tanda 2.1
+      había anotado "scan de exports muertos: cero hallazgos" — **su scan era más flojo que
+      este**, que compara cada export contra todos los archivos que no sean el propio.
+      Dejar de exportar `VERTICALS` además cierra la puerta a `VERTICALS[type]` suelto, que es
+      la línea que rompe cuando llega un tipo inesperado (`getVertical()` nunca devuelve undefined).
+- [x] Verificado en el navegador: las 12 páginas de plataforma montan sin errores.
 
 ## Decisiones tomadas
 

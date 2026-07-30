@@ -15,7 +15,6 @@ export { accessService } from './AccessService';
 export { teamService } from './TeamService';
 export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
-export { storageService } from './storageService';
 export { deviceService } from './DeviceService';
 export { cashierService } from './CashierService';
 

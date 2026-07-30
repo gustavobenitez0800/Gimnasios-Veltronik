@@ -1,8 +1,10 @@
 // ============================================
-// VELTRONIK - LOBBY PAGE (v2 — Per-Org Validation)
+// VELTRONIK - LOBBY (selector de negocio)
 // ============================================
-// Each organization card shows its payment status.
-// Blocked orgs show an in-page modal instead of navigating.
+// La puerta de entrada: el dueño elige a cuál de sus sucursales entrar. Cada card
+// muestra el estado de cobro de ESA sucursal (activa, en prueba, en gracia, vencida),
+// que se calcula acá y lo vuelve a validar el backend en cada request.
+// Una sucursal bloqueada no navega: abre el muro de pago sin salir de esta pantalla.
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -432,13 +434,9 @@ export default function LobbyPage() {
     if (!blockedOrg) return;
 
     const gymId = blockedOrg.id;
-    let payerEmail = profile?.email;
-
-    // Try to get the payer email from the subscription
-    try {
-      // Stubbed payerEmail logic
-      payerEmail = profile?.email;
-    } catch { /* use fallback email */ }
+    // El email del pagador es el de la cuenta. (Acá había un try/catch que se asignaba
+    // a sí mismo el mismo valor, con un comentario que decía "stubbed": ceremonia vacía.)
+    const payerEmail = profile?.email;
 
     if (!gymId || !payerEmail) {
       showToast('No se encontraron los datos necesarios', 'error');
@@ -593,6 +591,21 @@ export default function LobbyPage() {
   })();
   const hasGroups = groups.length > 0;
 
+  // La card de "Crear Negocio" cierra las dos vistas (agrupada y plana). Estaba escrita dos
+  // veces, y una de las dos todavía decía "Registrá un nuevo gimnasio" a dueños de kioscos.
+  const createOrgCard = (
+    <button
+      className="lobby-card lobby-card-create card-hover"
+      onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
+    >
+      <div className="lobby-card-icon create-icon">
+        <Icon name="plus" size="2rem" />
+      </div>
+      <h3 className="lobby-card-name">Crear Negocio</h3>
+      <p className="lobby-card-role">Registrá tu negocio</p>
+    </button>
+  );
+
   // ─── Render ───
   return (
     <div className="lobby-wrapper">
@@ -660,35 +673,13 @@ export default function LobbyPage() {
                 </div>
               </div>
             )}
-            <div className="lobby-grid">
-              <button
-                className="lobby-card lobby-card-create card-hover"
-                onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
-              >
-                <div className="lobby-card-icon create-icon">
-                  <Icon name="plus" size="2rem" />
-                </div>
-                <h3 className="lobby-card-name">Crear Negocio</h3>
-                <p className="lobby-card-role">Registrá tu negocio</p>
-              </button>
-            </div>
+            <div className="lobby-grid">{createOrgCard}</div>
           </>
         ) : (
           /* Vista PLANA (sin grupos definidos): idéntica al comportamiento anterior */
           <div className="lobby-grid">
             {orgs.map(renderOrgCard)}
-
-            {/* Create new business card */}
-            <button
-              className="lobby-card lobby-card-create card-hover"
-              onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
-            >
-              <div className="lobby-card-icon create-icon">
-                <Icon name="plus" size="2rem" />
-              </div>
-              <h3 className="lobby-card-name">Crear Negocio</h3>
-              <p className="lobby-card-role">Registrá un nuevo gimnasio</p>
-            </button>
+            {createOrgCard}
           </div>
         )}
       </div>

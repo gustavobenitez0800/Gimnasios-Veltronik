@@ -8,7 +8,7 @@
 const TOKEN_KEY = 'veltronik_local_token';
 const CASHIER_KEY = 'veltronik_local_cashier';
 
-export function getLocalToken() {
+function getLocalToken() {
   try { return localStorage.getItem(TOKEN_KEY) || null; } catch { return null; }
 }
 
