@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS;
@@ -74,6 +75,26 @@ class ArchitectureTest {
         noClasses().that().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
                 .should().dependOnClassesThat().resideInAPackage("..sync..")
                 .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
+                .check(CLASSES);
+    }
+
+    /**
+     * <b>La regla que protege la plata de los clientes.</b> Toda entidad de un vertical tiene que
+     * heredar de {@link TenantAwareEntity}: ahí vive el {@code tenant_id} obligatorio y el
+     * {@code @Filter} de Hibernate que agrega {@code WHERE tenant_id = ?} a TODAS las consultas.
+     *
+     * <p>Sin eso, una entidad nueva arranca sin aislamiento y un negocio puede terminar viendo
+     * los datos de otro. No es un error que se note en un test funcional —la tabla anda, las
+     * consultas devuelven filas— y por eso justamente tiene que cazarlo el compilador. Hoy las
+     * 22 entidades de gym/kiosk/fiscal cumplen; esta regla es para que la número 23 también.</p>
+     */
+    @Test
+    void toda_entidad_de_un_vertical_lleva_aislamiento_por_tenant() {
+        classes().that().areAnnotatedWith(jakarta.persistence.Entity.class)
+                .and().resideInAnyPackage("..gym..", "..kiosk..", "..fiscal..")
+                .should().beAssignableTo(com.veltronik.v2.core.entities.TenantAwareEntity.class)
+                .because("sin heredar de TenantAwareEntity la entidad queda SIN el filtro por tenant: "
+                        + "un negocio podría leer datos de otro")
                 .check(CLASSES);
     }
 

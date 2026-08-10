@@ -54,7 +54,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | ✅ 2.4 | `frontend` páginas kiosco | **HECHA (2026-07-27)** | POS + 8 páginas Kiosk* + KioskService. Se resolvió el patrón `fetch-on-mount`. Detalle abajo |
 | ✅ 2.5 | `frontend` páginas de plataforma | **HECHA (2026-07-27)** | Lobby, Dashboard, Settings, Team, MissionControl, auth + `useDashboardController`. **Lint del frontend en CERO.** Detalle abajo |
 | ✅ 2.6 | `backend/core` | **HECHA (2026-07-27)** | `@Value` en campo migrado a constructor y **regla de ArchUnit encendida**. 178 tests verdes. Detalle abajo |
-| 2.7 | `backend/gym` + `kiosk` + `fiscal` | Verticales | Ya salieron bastante limpios del diagnóstico |
+| ✅ 2.7 | `backend/gym` + `kiosk` + `fiscal` | **HECHA (2026-07-27)** | Salieron limpios, como decía el diagnóstico: lo que apareció fue **una regla nueva que protege el aislamiento entre negocios**. 179 tests verdes |
 | 2.8 | Raíz y build | `electron-builder.yml` (excludes muertos: `api/`, `vercel.json`), scripts, docs | Micro |
 
 ## Ya hecho
@@ -235,6 +235,32 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 - [x] Los tests dejaron de necesitar `ReflectionTestUtils.setField` para armar el `WebhookController`:
       con la config en el constructor, se construye como cualquier objeto.
 - [x] **178 tests verdes** (174 + 4 nuevos: la regla de ArchUnit y los 3 de la URL de vuelta).
+
+**2026-07-27 (tanda 2.7 — verticales gym / kiosk / fiscal):**
+- [x] **Regla nueva: toda entidad de un vertical DEBE heredar de `TenantAwareEntity`.** Es el
+      invariante que sostiene el negocio entero —ahí viven el `tenant_id` obligatorio y el
+      `@Filter` de Hibernate que agrega `WHERE tenant_id = ?` a todas las consultas— y hasta hoy
+      no lo cuidaba nadie. Una entidad nueva que se olvide de heredar arranca **sin aislamiento**:
+      la tabla anda, las consultas devuelven filas, y un negocio puede terminar viendo los datos
+      de otro. No se nota en un test funcional; por eso tiene que cazarlo el build. Las 22
+      entidades actuales ya cumplían: la regla es para la número 23.
+- [x] Código muerto: la entidad `FiscalPointOfSale` + su repositorio (multi-punto-de-venta que
+      nunca se cableó; la facturación usa `FiscalConfig.defaultPosNumber`, un solo número) y tres
+      consultas de repositorio sin llamadores (`AccessLogRepository.countTodayAccesses`,
+      `KioskSaleRepository.findByCashSessionIdOrderByCreatedAtDesc`,
+      `GymBookingRepository.findByTenantIdAndGymClassId` + un `findByTenantId` que tapaba al del
+      resto de los repos).
+      **La tabla `fiscal_point_of_sale` NO se tocó**: está vacía y borrarla pide una migración
+      nueva; con `ddl-auto=validate` una tabla de más no molesta. Queda como limpieza opcional.
+- [x] **Segunda feature a medio terminar encontrada** (después de los grupos de sucursales): las
+      **reservas de clases**. El backend está completo —entidad, servicio y `GymBookingController`
+      con listar/reservar/cancelar— pero **ninguna pantalla lo usa**. No es código muerto: anda y
+      está testeado, le falta la mitad de arriba. Anotado en el propio repositorio para que nadie
+      le sume métodos antes de construir la pantalla.
+- [x] Verificado que **ningún controller devuelve entidades JPA** (todos devuelven DTOs): el
+      riesgo real era filtrar el esquema —o campos sensibles como el certificado cifrado de
+      `FiscalConfig`— en una respuesta. Se comprobó, no hizo falta corregir nada.
+- [x] **179 tests verdes.**
 
 ## Decisiones tomadas
 

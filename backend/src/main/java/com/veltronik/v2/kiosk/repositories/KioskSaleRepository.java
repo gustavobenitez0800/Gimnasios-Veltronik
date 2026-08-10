@@ -19,8 +19,6 @@ public interface KioskSaleRepository extends JpaRepository<KioskSale, UUID> {
     /** Idempotencia: ¿esta venta (client_uuid) ya se registró? Replay seguro de la cola offline. */
     Optional<KioskSale> findByTenantIdAndClientUuid(UUID tenantId, UUID clientUuid);
 
-    /** Ventas de una sesión de caja (resumen; los items se cargan solo en el detalle). */
-    List<KioskSale> findByCashSessionIdOrderByCreatedAtDesc(UUID cashSessionId);
 
     /** Ventas del tenant en una ventana de fechas (reportes / listado del día). */
     List<KioskSale> findByTenantIdAndCreatedAtBetweenOrderByCreatedAtDesc(
