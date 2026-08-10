@@ -1,5 +1,17 @@
 # Etapa 2 — Barrido de limpieza módulo por módulo
 
+> ## ✅ ETAPA 2 COMPLETA (2026-07-27) — las 8 tandas
+> **Lint del frontend en CERO. 179 tests verdes en el backend.**
+>
+> Lo que más valió no fue el código borrado, sino **cuatro bugs de plata** que aparecieron
+> barriendo: el muro de pago que dejaba entrar sin pagar, el cobro que salía contra la sucursal
+> equivocada, la vuelta de Mercado Pago a una URL que la app no resuelve, y el precio del sistema
+> escrito en cuatro clases distintas. Ninguno se buscaba.
+>
+> Y **cinco reglas nuevas que impiden volver atrás**: sin `@Autowired` ni `@Value` en campos, sin
+> `System.out`, sin `java.util.logging`, y toda entidad de un vertical con aislamiento por tenant.
+> El principio quedó probado en la 2.6: *encender la regla encontró lo que ningún `grep` vio*.
+
 > **Objetivo:** que cualquier junior entienda el código a nivel arquitectura e ingeniería.
 > Bajo acoplamiento, alta cohesión, cero código muerto, comentarios que digan la verdad.
 > **Método:** un módulo por sesión, con CI verde al final de cada uno. Nada de big-bang.
@@ -55,7 +67,7 @@ Cada módulo se limpia en una sesión propia, con este checklist:
 | ✅ 2.5 | `frontend` páginas de plataforma | **HECHA (2026-07-27)** | Lobby, Dashboard, Settings, Team, MissionControl, auth + `useDashboardController`. **Lint del frontend en CERO.** Detalle abajo |
 | ✅ 2.6 | `backend/core` | **HECHA (2026-07-27)** | `@Value` en campo migrado a constructor y **regla de ArchUnit encendida**. 178 tests verdes. Detalle abajo |
 | ✅ 2.7 | `backend/gym` + `kiosk` + `fiscal` | **HECHA (2026-07-27)** | Salieron limpios, como decía el diagnóstico: lo que apareció fue **una regla nueva que protege el aislamiento entre negocios**. 179 tests verdes |
-| 2.8 | Raíz y build | `electron-builder.yml` (excludes muertos: `api/`, `vercel.json`), scripts, docs | Micro |
+| ✅ 2.8 | Raíz y build | **HECHA (2026-07-27)** | Excludes muertos, el comentario que decía "jlink" cuando ya no se usa, y docs desactualizadas. **Cierra la Etapa 2** |
 
 ## Ya hecho
 
@@ -261,6 +273,29 @@ Cada módulo se limpia en una sesión propia, con este checklist:
       riesgo real era filtrar el esquema —o campos sensibles como el certificado cifrado de
       `FiscalConfig`— en una respuesta. Se comprobó, no hizo falta corregir nada.
 - [x] **179 tests verdes.**
+
+**2026-07-27 (tanda 2.8 — raíz y build): CIERRA LA ETAPA 2.**
+- [x] `electron-builder.yml`: cuatro excludes que no excluían nada porque esas rutas ya no
+      existen (`api/`, `.github/`, `vercel.json`, `.vercelignore`). Un exclude de algo borrado
+      no es inofensivo: hace creer que la carpeta sigue ahí.
+- [x] **Comentario que mentía en el build del instalador**: decía "JRE jlink + fat jar" cuando
+      jlink se abandonó en el ADR-011 (el runtime que arma jlink queda sin firma y hay máquinas
+      con antivirus que lo bloquean; hoy se usa la JRE de Microsoft OpenJDK 17 firmada por el
+      fabricante). Es el comentario que lee quien toque el empaquetado.
+- [x] `ci.yml`: el comentario listaba las reglas de ArchUnit y quedó viejo con las dos nuevas
+      (`@Value` en campos y el aislamiento por tenant).
+- [x] `DATA-CLASSIFICATION.md`: seguía teniendo una sección "courts — fuera del alcance del sync"
+      y una nota "no confundir con courts, que se elimina" — Fútbol 5 se eliminó en la Etapa 1.
+      Se actualizó también la fila de `GymBooking` (backend sin pantalla) y la de `FiscalConfig`.
+
+### Lo que se dejó a propósito (con motivo)
+
+- **`vercel` como devDependency + el script `deploy-api`** (9 MB de CLI). El script apunta a una
+  carpeta `api/` que ya no existe, así que su nombre miente; pero no hay forma de verificar desde
+  el repo cómo se despliega hoy el frontend (no hay `vercel.json` ni workflow), y borrarlo podría
+  romper un camino de deploy manual. **No cuesta nada en producción** (es dev-only, no viaja en el
+  bundle). Queda para que lo confirme el dueño.
+- **La tabla `fiscal_point_of_sale`**: ver tanda 2.7.
 
 ## Decisiones tomadas
 

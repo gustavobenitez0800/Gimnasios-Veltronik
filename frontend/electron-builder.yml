@@ -8,18 +8,17 @@ files:
   - "dist/**/*"
   - "assets/**/*"
   - "package.json"
+  # Lo que NO va adentro del instalador. Solo se listan rutas que EXISTEN: había
+  # cuatro excludes de carpetas borradas hace rato (api/, .github/, vercel.json,
+  # .vercelignore) que no excluían nada y hacían pensar que seguían existiendo.
   - "!src/**/*"
   - "!public/**/*"
-  - "!api/**/*"
   - "!.git/**/*"
-  - "!.github/**/*"
   - "!.env"
   - "!.env.*"
   - "!*.md"
   - "!vite.config.js"
   - "!eslint.config.js"
-  - "!vercel.json"
-  - "!.vercelignore"
 
 # Incluir dependencias de producción automáticamente
 asar: true
@@ -28,9 +27,12 @@ asar: true
 extraResources:
   - from: "assets/"
     to: "assets/"
-  # El cerebro embebido (ADR-009): JRE jlink + fat jar del monolito, producidos
-  # por build-tools/build-backend.ps1 ANTES de electron-builder (ver release.yml).
+  # El cerebro embebido (ADR-009): JRE + fat jar del monolito, producidos por
+  # build-tools/build-backend.ps1 ANTES de electron-builder (ver release.yml).
   # backend-runtime.cjs los lanza desde process.resourcesPath/backend/.
+  # La JRE es la de Microsoft OpenJDK 17, FIRMADA por el fabricante — no jlink
+  # (ADR-011): el runtime que arma jlink queda sin firma y hay máquinas con
+  # antivirus que directamente lo bloquean.
   - from: "resources/backend/"
     to: "backend/"
 

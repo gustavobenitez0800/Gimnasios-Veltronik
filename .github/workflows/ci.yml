@@ -7,8 +7,10 @@ name: CI
 # Backend: mvn verify corre los tests completos, incluyendo:
 #   - ApplicationBootTest: arranque real con Postgres embebido (binarios linux
 #     ya declarados en el pom) → aplica TODAS las migraciones Flyway + validate.
-#   - ArchitectureTest: límites de módulos + higiene (sin System.out, sin
-#     java.util.logging, sin @Autowired en campos). El build se pone rojo solo.
+#   - ArchitectureTest: límites entre módulos + higiene (sin System.out, sin
+#     java.util.logging, sin @Autowired ni @Value en campos) + la regla que exige
+#     que toda entidad de un vertical herede de TenantAwareEntity (el aislamiento
+#     entre negocios). El build se pone rojo solo.
 # Frontend: lint (no-console y demás reglas) + build de Vite.
 
 on:
