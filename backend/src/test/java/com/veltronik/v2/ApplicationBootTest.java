@@ -64,7 +64,7 @@ class ApplicationBootTest {
     @Test
     void contextLoadsAndAllMigrationsApply() {
         // Llegar acá significa: Flyway aplicó V1→V28 en una DB limpia, Hibernate validó TODAS las
-        // entidades (kiosk + fiscal + gym + core) contra el esquema, y todos los beans
+        // entidades (gym + core) contra el esquema, y todos los beans
         // cablearon. Es la prueba de que el push a main arranca sano.
     }
 }

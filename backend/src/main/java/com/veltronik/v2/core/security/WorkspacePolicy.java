@@ -22,30 +22,24 @@ public final class WorkspacePolicy {
 
     private WorkspacePolicy() {}
 
-    /** Todas las claves de módulo conocidas (la unión de todos los verticales). */
+    /** Todas las claves de módulo conocidas (hoy solo gym + compartidos). */
     public static final Set<String> ALL_MODULES = Set.of(
-            // Compartidos / gym
             "dashboard", "members", "payments", "classes", "access", "retention",
-            "reports", "team", "settings", "lobby",
-            // Kiosco
-            "pos", "products", "inventory", "customers", "suppliers", "cash", "fiscal"
+            "reports", "team", "settings", "lobby"
     );
 
     /**
-     * STAFF: operación diaria. Sin equipo ni analítica/finanzas, ni el catálogo/compras
-     * del kiosco. (Espejo exacto de los blockedPaths que tenía el Sidebar.)
+     * STAFF: operación diaria. Sin equipo ni analítica/finanzas, ni analítica/finanzas. (Espejo exacto de los blockedPaths que tenía el Sidebar.)
      */
     private static final Set<String> STAFF_BLOCKED = Set.of(
-            "team", "dashboard", "payments", "retention", "reports",
-            "products", "inventory", "suppliers", "fiscal"
+            "team", "dashboard", "payments", "retention", "reports"
     );
 
     /**
-     * RECEPCIÓN: el mostrador. Acceso/check-in, el POS y la caja del kiosco,
-     * ajustes y el cambio de sistema. (Espejo de allowedPaths.)
+     * RECEPCIÓN: el mostrador. Acceso/check-in, ajustes y el cambio de sistema. (Espejo de allowedPaths.)
      */
     private static final Set<String> RECEPTION_ALLOWED = Set.of(
-            "access", "settings", "lobby", "pos", "cash"
+            "access", "settings", "lobby"
     );
 
     /** Módulos que el rol puede VER en la navegación. */
