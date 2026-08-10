@@ -54,26 +54,29 @@ class SyncEngineIntegrationTest {
         // ── Semilla: un tenant y una sesión de caja (tabla piloto del registro) ──
         UUID tenantId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Test Sync', 'KIOSCO', true)", tenantId);
-        jdbc.update("INSERT INTO kiosk_cash_session (id, created_at, updated_at, tenant_id, status, opening_amount, opened_at) "
-                + "VALUES (?, now(), now(), ?, 'OPEN', 0, now())", sessionId, tenantId);
+                + "VALUES (?, now(), now(), 'Gimnasio Test Sync', 'GYM', true)", tenantId);
+        jdbc.update("INSERT INTO gym_members (id, created_at, updated_at, tenant_id, first_name, last_name, is_active) "
+                + "VALUES (?, now(), now(), ?, 'Socio', 'De Prueba', true)", memberId, tenantId);
+        jdbc.update("INSERT INTO access_log (id, created_at, updated_at, tenant_id, member_id, check_in_at) "
+                + "VALUES (?, now(), now(), ?, ?, now())", sessionId, tenantId, memberId);
 
         // ── 1. El trigger capturó la fila exacta en el outbox ──
         Map<String, Object> captured = jdbc.queryForMap(
                 "SELECT table_name, op, payload::text AS payload FROM sync_outbox WHERE row_id = ?", sessionId);
-        assertThat(captured.get("table_name")).isEqualTo("kiosk_cash_session");
+        assertThat(captured.get("table_name")).isEqualTo("access_log");
         assertThat(captured.get("op")).isEqualTo("INSERT");
 
         // ── 2. Simular la base receptora: la fila original no existe ──
-        jdbc.update("DELETE FROM kiosk_cash_session WHERE id = ?", sessionId);
+        jdbc.update("DELETE FROM access_log WHERE id = ?", sessionId);
 
         // ── 3. Aplicar el payload — con un tenant FALSO adentro, que la guardia debe pisar ──
         ObjectNode row = (ObjectNode) mapper.readTree((String) captured.get("payload"));
         row.put("tenant_id", UUID.randomUUID().toString()); // payload malicioso/errado
         SyncChange change = new SyncChange();
-        change.setTable("kiosk_cash_session");
+        change.setTable("access_log");
         change.setOp("INSERT");
         change.setRowId(sessionId);
         change.setRow(row);
@@ -84,7 +87,7 @@ class SyncEngineIntegrationTest {
 
         // La fila renació y el tenant es el del EQUIPO AUTENTICADO, no el del payload.
         UUID landedTenant = jdbc.queryForObject(
-                "SELECT tenant_id FROM kiosk_cash_session WHERE id = ?", UUID.class, sessionId);
+                "SELECT tenant_id FROM access_log WHERE id = ?", UUID.class, sessionId);
         assertThat(landedTenant).isEqualTo(tenantId);
 
         // ── 4. Idempotencia: el mismo lote otra vez = cero duplicados ──
@@ -92,7 +95,7 @@ class SyncEngineIntegrationTest {
         assertThat(second.applied()).isZero();
         assertThat(second.skipped()).isEqualTo(1);
         Integer count = jdbc.queryForObject(
-                "SELECT count(*) FROM kiosk_cash_session WHERE id = ?", Integer.class, sessionId);
+                "SELECT count(*) FROM access_log WHERE id = ?", Integer.class, sessionId);
         assertThat(count).isEqualTo(1);
 
         // ── 5. La whitelist manda: una tabla fuera del registro se rechaza ──
@@ -115,35 +118,35 @@ class SyncEngineIntegrationTest {
     void maestros_capturan_updates_y_se_aplican_como_upsert() throws Exception {
         UUID tenantId = UUID.randomUUID();
         UUID deviceId = UUID.randomUUID();
-        UUID categoryId = UUID.randomUUID();
+        UUID memberRowId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Maestros', 'KIOSCO', true)", tenantId);
+                + "VALUES (?, now(), now(), 'Gimnasio Maestros', 'GYM', true)", tenantId);
 
         // Insert + update de un maestro: el trigger captura AMBOS (INSERT OR UPDATE)
-        jdbc.update("INSERT INTO kiosk_category (id, created_at, updated_at, tenant_id, name, display_order, is_active) "
-                + "VALUES (?, now(), now(), ?, 'Golosinas', 0, true)", categoryId, tenantId);
-        jdbc.update("UPDATE kiosk_category SET name = 'Golosinas y Snacks' WHERE id = ?", categoryId);
+        jdbc.update("INSERT INTO gym_members (id, created_at, updated_at, tenant_id, first_name, last_name, is_active) "
+                + "VALUES (?, now(), now(), ?, 'Ana', 'Perez', true)", memberRowId, tenantId);
+        jdbc.update("UPDATE gym_members SET last_name = 'Gomez' WHERE id = ?", memberRowId);
 
         List<Map<String, Object>> captured = jdbc.queryForList(
-                "SELECT op, payload::text AS payload FROM sync_outbox WHERE row_id = ? ORDER BY id", categoryId);
+                "SELECT op, payload::text AS payload FROM sync_outbox WHERE row_id = ? ORDER BY id", memberRowId);
         assertThat(captured).hasSize(2);
         assertThat(captured.get(0).get("op")).isEqualTo("INSERT");
         assertThat(captured.get(1).get("op")).isEqualTo("UPDATE");
 
         // Simular la base receptora: aplicar INSERT y luego UPDATE (upsert en ambos casos)
-        jdbc.update("DELETE FROM kiosk_category WHERE id = ?", categoryId);
+        jdbc.update("DELETE FROM gym_members WHERE id = ?", memberRowId);
 
-        SyncChange insert = changeFor("kiosk_category", "INSERT", categoryId, (String) captured.get(0).get("payload"));
-        SyncChange update = changeFor("kiosk_category", "UPDATE", categoryId, (String) captured.get(1).get("payload"));
+        SyncChange insert = changeFor("gym_members", "INSERT", memberRowId, (String) captured.get(0).get("payload"));
+        SyncChange update = changeFor("gym_members", "UPDATE", memberRowId, (String) captured.get(1).get("payload"));
 
         applyService.apply(tenantId, deviceId, List.of(insert));
-        assertThat(jdbc.queryForObject("SELECT name FROM kiosk_category WHERE id = ?", String.class, categoryId))
-                .isEqualTo("Golosinas");
+        assertThat(jdbc.queryForObject("SELECT last_name FROM gym_members WHERE id = ?", String.class, memberRowId))
+                .isEqualTo("Perez");
 
         applyService.apply(tenantId, deviceId, List.of(update));
-        assertThat(jdbc.queryForObject("SELECT name FROM kiosk_category WHERE id = ?", String.class, categoryId))
-                .isEqualTo("Golosinas y Snacks");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM kiosk_category WHERE id = ?", Integer.class, categoryId))
+        assertThat(jdbc.queryForObject("SELECT last_name FROM gym_members WHERE id = ?", String.class, memberRowId))
+                .isEqualTo("Gomez");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM gym_members WHERE id = ?", Integer.class, memberRowId))
                 .isEqualTo(1);
     }
 
@@ -151,7 +154,7 @@ class SyncEngineIntegrationTest {
     void la_config_baja_por_pull_con_watermark_honesto() throws Exception {
         UUID tenantId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Pull', 'KIOSCO', true)", tenantId);
+                + "VALUES (?, now(), now(), 'Gimnasio Pull', 'GYM', true)", tenantId);
 
         // Primer pull (desde el principio de los tiempos): baja la fila del tenant
         SyncPullService.PullResult first = pullService.pull(tenantId, SyncPullService.EPOCH);
@@ -161,10 +164,10 @@ class SyncEngineIntegrationTest {
 
         // El apply local materializa el cambio (el dueño renombró el negocio en la web)
         var row = (com.fasterxml.jackson.databind.node.ObjectNode) first.changes().get(0).getRow();
-        row.put("name", "Kiosco Pull Renombrado");
+        row.put("name", "Gimnasio Pull Renombrado");
         applyService.applyConfig(List.of(first.changes().get(0)));
         assertThat(jdbc.queryForObject("SELECT name FROM tenant WHERE id = ?", String.class, tenantId))
-                .isEqualTo("Kiosco Pull Renombrado");
+                .isEqualTo("Gimnasio Pull Renombrado");
 
         // Segundo pull desde el watermark: nada nuevo que bajar
         SyncPullService.PullResult second = pullService.pull(tenantId, first.watermark());

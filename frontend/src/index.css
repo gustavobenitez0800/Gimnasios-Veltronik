@@ -48,7 +48,6 @@
 @import './styles/onboarding.css';
 
 /* ─── Vertical Kiosco (KIOSCO): POS, productos, caja ─── */
-@import './styles/kiosk.css';
 
 /* ─── Responsive / Adaptativo ───
    SIEMPRE AL FINAL: sus reglas deben ganar la cascada contra los estilos base de

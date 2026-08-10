@@ -118,7 +118,7 @@ export default function SettingsPage() {
       const gymType = gymData.type || 'GYM';
       const amount = CONFIG.PRICES_BY_TYPE[gymType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
 
-      const planNameMap = { GYM: 'Veltronik Pro', KIOSCO: 'Veltronik Kiosco', OTHER: 'Veltronik Business' };
+      const planNameMap = { GYM: 'Veltronik Pro', OTHER: 'Veltronik Business' };
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
       // de visualización desde la fuente real para no depender de un campo inexistente.

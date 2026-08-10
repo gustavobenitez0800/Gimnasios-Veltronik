@@ -77,7 +77,7 @@ class TenantDeleteIntegrationTest {
         // Un negocio con las DOS tablas hijas sin ON DELETE CASCADE que rompían el borrado:
         // cashier (V36, el caso real del 409) y tenant_membership (V1).
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type) VALUES (?,?,?,?,?)",
-                tenantId, now, now, "Negocio de prueba", "KIOSCO");
+                tenantId, now, now, "Negocio de prueba", "GYM");
         // app_user sin password_hash: V11 la eliminó al delegar la autenticación a Supabase.
         jdbc.update("INSERT INTO app_user (id, created_at, updated_at, email) VALUES (?,?,?,?)",
                 userId, now, now, "test-delete@veltronik.com");

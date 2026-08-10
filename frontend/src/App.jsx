@@ -1,8 +1,8 @@
 // ============================================
 // VELTRONIK V2 - MAIN APP (React Router)
 // ============================================
-// Las rutas exclusivas de un vertical van detrás de OrgTypeGuard: un gimnasio no
-// entra a las del kiosco ni al revés, ni escribiendo la URL a mano.
+// Las rutas del gimnasio van detrás de OrgTypeGuard. Hoy Veltronik tiene un solo
+// vertical (GYM), pero el guard se queda: es la puerta que ya existe el día que haya dos.
 // ============================================
 
 import { HashRouter, Routes, Route } from 'react-router-dom';
@@ -14,8 +14,6 @@ import { AppLayout, AuthLayout } from './components/Layout';
 import OrgTypeGuard from './components/OrgTypeGuard';
 import CONFIG from './lib/config';
 import { FITNESS_VERTICALS } from './lib/verticals';
-import { isLocalMode } from './lib/connection';
-import LocalApp from './components/LocalApp';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -33,15 +31,6 @@ import SettingsPage from './pages/SettingsPage';
 import MissionControlPage from './pages/MissionControlPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PlansPage from './pages/PlansPage';
-import PosPage from './pages/PosPage';
-import KioskDashboardPage from './pages/KioskDashboardPage';
-import KioskReportsPage from './pages/KioskReportsPage';
-import KioskProductsPage from './pages/KioskProductsPage';
-import KioskInventoryPage from './pages/KioskInventoryPage';
-import KioskCashPage from './pages/KioskCashPage';
-import KioskCustomersPage from './pages/KioskCustomersPage';
-import KioskSuppliersPage from './pages/KioskSuppliersPage';
-import KioskFiscalPage from './pages/KioskFiscalPage';
 import BlockedPage from './pages/BlockedPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import PaymentCallbackPage from './pages/PaymentCallbackPage';
@@ -58,14 +47,6 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  // MODO LOCAL (V3, ladrillo 6): en un equipo enrolado con cerebro local, la app
-  // es una CAJA — PIN + POS contra el backend embebido, sin Supabase. Bifurca acá
-  // antes de armar el app de la nube. isLocalMode() ya está resuelto (main.jsx lo
-  // esperó); para el 100% de los clientes de hoy es false → app normal.
-  if (isLocalMode()) {
-    return <LocalApp />;
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <HashRouter>
@@ -108,18 +89,6 @@ export default function App() {
                   <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
                 </Route>
 
-                {/* ─── KIOSCO-ONLY ROUTES (Vertical Kiosco / Almacén) ─── */}
-                <Route element={<OrgTypeGuard allowedTypes={['KIOSCO']} />}>
-                  <Route path={CONFIG.ROUTES.POS} element={<PosPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_DASHBOARD} element={<KioskDashboardPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_REPORTS} element={<KioskReportsPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_PRODUCTS} element={<KioskProductsPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_INVENTORY} element={<KioskInventoryPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_CASH} element={<KioskCashPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_CUSTOMERS} element={<KioskCustomersPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_SUPPLIERS} element={<KioskSuppliersPage />} />
-                  <Route path={CONFIG.ROUTES.KIOSK_FISCAL} element={<KioskFiscalPage />} />
-                </Route>
               </Route>
 
               {/* Fallback: redirige rutas desconocidas al login */}

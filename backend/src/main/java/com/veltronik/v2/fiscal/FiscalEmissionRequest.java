@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * Pedido de emisión de un comprobante. <b>Contrato público del módulo fiscal</b>: lo arma la
- * vertical que factura (kiosk hoy) sin conocer las entidades JPA de fiscal — bajo acoplamiento.
+ * vertical que factura sin conocer las entidades JPA de fiscal — bajo acoplamiento.
  *
  * <p>El origen es genérico ({@code sourceType}+{@code sourceId}); el módulo fiscal no sabe qué es
  * una venta de kiosco.</p>

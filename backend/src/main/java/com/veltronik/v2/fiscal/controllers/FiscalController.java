@@ -23,7 +23,7 @@ import java.util.function.Function;
 
 /**
  * API de facturación ARCA. Es gestión sensible (CUIT, certificado, comprobantes) → solo OWNER/ADMIN.
- * Vive en {@code /api/fiscal} (no en kiosk) porque el módulo es compartido por las verticales.
+ * Vive en {@code /api/fiscal} (no dentro de un vertical) porque el módulo es compartido por las verticales.
  */
 @RestController
 @RequestMapping("/api/fiscal")

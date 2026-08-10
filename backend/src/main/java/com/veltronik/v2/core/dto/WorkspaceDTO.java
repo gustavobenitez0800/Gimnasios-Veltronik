@@ -21,7 +21,7 @@ public class WorkspaceDTO {
     /** Negocio (tenant) al que corresponde este manifiesto. */
     private UUID tenantId;
 
-    /** Vertical del negocio (BusinessType.name(): GYM, KIOSCO, …). */
+    /** Vertical del negocio (BusinessType.name(): hoy solo GYM). */
     private String orgType;
 
     /** Rol del usuario en este negocio, en minúscula (owner/admin/staff/reception). */

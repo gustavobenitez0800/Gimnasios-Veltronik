@@ -18,7 +18,7 @@ import java.util.UUID;
  *
  * <p><b>Desacople:</b> el origen del comprobante se referencia genéricamente
  * ({@code sourceType} + {@code sourceId}), sin FK a la tabla de ninguna vertical. Así el módulo
- * fiscal sirve a kiosk hoy y a cualquier vertical futura sin tocar el esquema.</p>
+ * fiscal no depende de ningun vertical: sirve al que facture, sin tocar el esquema.</p>
  */
 @Entity
 @Table(name = "fiscal_voucher")

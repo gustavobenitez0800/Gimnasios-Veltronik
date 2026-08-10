@@ -42,7 +42,6 @@ const VERTICALS = {
   CLUB:     { id: 'CLUB',     label: 'Club Deportivo',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#6366f1', membersLabel: 'Socios',   memberLabel: 'Socio',   placeLabel: 'club' },
   PILATES:  { id: 'PILATES',  label: 'Pilates & Yoga',   icon: { type: 'icon', name: 'dumbbell' },       accent: '#14b8a6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'estudio' },
   ACADEMY:  { id: 'ACADEMY',  label: 'Academia',         icon: { type: 'icon', name: 'graduationCap' },  accent: '#8b5cf6', membersLabel: 'Alumnos',  memberLabel: 'Alumno',  placeLabel: 'academia' },
-  KIOSCO:   { id: 'KIOSCO',   label: 'Kiosco / Almacén', icon: { type: 'icon', name: 'store' },          accent: '#14b8a6', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'kiosco' },
   OTHER:    { id: 'OTHER',    label: 'Negocio',          icon: { type: 'icon', name: 'building' },        accent: '#64748b', membersLabel: 'Clientes', memberLabel: 'Cliente', placeLabel: 'negocio' },
 };
 
@@ -102,41 +101,6 @@ const gymNav = (membersLabel) => [
   },
 ];
 
-const KIOSCO_NAV = [
-  {
-    title: 'Principal',
-    items: [
-      { to: CONFIG.ROUTES.KIOSK_DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
-      { to: CONFIG.ROUTES.POS, icon: 'wallet', label: 'Punto de Venta', module: 'pos' },
-      { to: CONFIG.ROUTES.KIOSK_PRODUCTS, icon: 'package', label: 'Productos', module: 'products' },
-      { to: CONFIG.ROUTES.KIOSK_INVENTORY, icon: 'list', label: 'Inventario', module: 'inventory' },
-      { to: CONFIG.ROUTES.KIOSK_CUSTOMERS, icon: 'users', label: 'Clientes / Fiado', module: 'customers' },
-      { to: CONFIG.ROUTES.KIOSK_SUPPLIERS, icon: 'store', label: 'Proveedores', module: 'suppliers' },
-      { to: CONFIG.ROUTES.KIOSK_CASH, icon: 'dollarSign', label: 'Caja', module: 'cash' },
-      { to: CONFIG.ROUTES.KIOSK_REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
-      { to: CONFIG.ROUTES.KIOSK_FISCAL, icon: 'fileText', label: 'Facturación', module: 'fiscal' },
-    ],
-  },
-  {
-    title: 'Administración',
-    items: [
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
-      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
-    ],
-  },
-  {
-    title: 'Plataforma',
-    items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sistema', module: 'lobby' },
-    ],
-  },
-];
-
-// Verticales con navegación propia. El que no está acá usa la del gym.
-const NAV_BY_ID = {
-  KIOSCO: KIOSCO_NAV,
-};
-
 // Verticales de la familia "fitness": comparten el módulo gym, su navegación y sus
 // rutas exclusivas (socios, pagos, clases, acceso, retención). Lo consume el
 // OrgTypeGuard en App.jsx (antes era un array a mano que podía driftear).
@@ -145,5 +109,5 @@ export const FITNESS_VERTICALS = ['GYM', 'PILATES', 'CLUB', 'ACADEMY'];
 /** Secciones de navegación del vertical, SIN filtrar por rol (eso lo hace el Sidebar). */
 export function getVerticalNav(orgType) {
   const v = getVertical(orgType);
-  return NAV_BY_ID[v.id] || gymNav(v.membersLabel);
+  return gymNav(v.membersLabel);
 }

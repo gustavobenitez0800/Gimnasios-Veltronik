@@ -65,7 +65,7 @@ class LocalAuthIntegrationTest {
     void el_cajero_entra_por_PIN_y_recibe_un_token_valido() {
         // El tenant baja por sync; acá lo insertamos como si ya hubiera bajado.
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Local', 'KIOSCO', true) ON CONFLICT (id) DO NOTHING", TENANT_ID);
+                + "VALUES (?, now(), now(), 'Gimnasio Local', 'GYM', true) ON CONFLICT (id) DO NOTHING", TENANT_ID);
         Cashier marta = cashierService.create(TENANT_ID, "Marta", "4321", Cashier.Role.CAJERO);
 
         // ── PIN correcto → 200 + token ──
@@ -94,7 +94,7 @@ class LocalAuthIntegrationTest {
     @Test
     void la_cadena_local_exige_token_y_respeta_el_rol_del_cajero() throws Exception {
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type, is_active) "
-                + "VALUES (?, now(), now(), 'Kiosco Local', 'KIOSCO', true) ON CONFLICT (id) DO NOTHING", TENANT_ID);
+                + "VALUES (?, now(), now(), 'Gimnasio Local', 'GYM', true) ON CONFLICT (id) DO NOTHING", TENANT_ID);
         Cashier pos = cashierService.create(TENANT_ID, "Pos", "5678", Cashier.Role.CAJERO);
         String token = sessionService.issue(new LocalPrincipal(pos.getId(), TENANT_ID, pos.getRole(), pos.getName()));
 

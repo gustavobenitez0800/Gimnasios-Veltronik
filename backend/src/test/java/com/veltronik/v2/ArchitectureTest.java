@@ -15,7 +15,7 @@ import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_
  * Reglas de arquitectura "a prueba de juniors" (Codex §5.1): se compilan como tests, así que
  * si alguien acopla dos verticales el build se pone en rojo automáticamente.
  *
- * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym, kiosk,
+ * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym
  * y los que vengan) jamás debe importar clases de otro vertical: se comunican —si hace falta—
  * por el núcleo ({@code core}) y sus fachadas. Y {@code core} es la base: no puede depender de
  * ningún vertical (si lo hiciera, dejaría de ser reutilizable y todo el modelo se rompe).</p>
@@ -26,30 +26,18 @@ class ArchitectureTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.veltronik.v2");
 
-    // Los paquetes "salon"/"restaurant" no existen todavía: las reglas ya los cubren
-    // para que el día que nazcan arranquen con los límites puestos.
-    private static final String[] OTHER_THAN_KIOSK = { "..gym..", "..salon..", "..restaurant.." };
-    private static final String[] OTHER_THAN_GYM = { "..kiosk..", "..salon..", "..restaurant.." };
 
-    @Test
-    void kiosk_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..kiosk..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_KIOSK)
-                .because("el vertical Kiosco debe ser autónomo: se apoya solo en core")
-                .check(CLASSES);
-    }
-
-    @Test
-    void gym_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..gym..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_GYM)
-                .check(CLASSES);
-    }
+    // NOTA (2026-07-27): la regla "un vertical no importa clases de otro" se quedó sin
+    // contraparte cuando el kiosco se dio de baja (V41) y quedó GYM solo. No se reemplaza por
+    // una versión falsa —gym SÍ puede usar `fiscal`, que es compartido y está por debajo— y
+    // vuelve tal cual el día que nazca el segundo vertical. Mientras tanto, la arquitectura la
+    // sostienen las dos reglas de abajo: core no depende de nadie, y fiscal no depende de
+    // ningún vertical.
 
     @Test
     void core_no_depende_de_ningun_vertical() {
         noClasses().that().resideInAPackage("..core..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..fiscal..")
                 .because("core es la base reutilizable: nada del dominio de un vertical puede filtrarse a core")
                 .check(CLASSES);
     }
@@ -57,7 +45,7 @@ class ArchitectureTest {
     @Test
     void fiscal_no_depende_de_verticales() {
         noClasses().that().resideInAPackage("..fiscal..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..")
                 .because("fiscal es un módulo COMPARTIDO (por debajo de las verticales): las verticales lo usan, no al revés")
                 .check(CLASSES);
     }
@@ -65,14 +53,14 @@ class ArchitectureTest {
     @Test
     void sync_no_depende_de_verticales() {
         noClasses().that().resideInAPackage("..sync..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..fiscal..")
                 .because("el sync engine es GENÉRICO a nivel fila: conoce nombres de tablas (SyncTableRegistry), jamás clases de dominio de un vertical")
                 .check(CLASSES);
     }
 
     @Test
     void verticales_no_dependen_de_sync() {
-        noClasses().that().resideInAnyPackage("..gym..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+        noClasses().that().resideInAnyPackage("..gym..", "..fiscal..")
                 .should().dependOnClassesThat().resideInAPackage("..sync..")
                 .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
                 .check(CLASSES);
@@ -86,12 +74,12 @@ class ArchitectureTest {
      * <p>Sin eso, una entidad nueva arranca sin aislamiento y un negocio puede terminar viendo
      * los datos de otro. No es un error que se note en un test funcional —la tabla anda, las
      * consultas devuelven filas— y por eso justamente tiene que cazarlo el compilador. Hoy las
-     * 22 entidades de gym/kiosk/fiscal cumplen; esta regla es para que la número 23 también.</p>
+     * entidades de gym/fiscal cumplen; esta regla es para que la número 23 también.</p>
      */
     @Test
     void toda_entidad_de_un_vertical_lleva_aislamiento_por_tenant() {
         classes().that().areAnnotatedWith(jakarta.persistence.Entity.class)
-                .and().resideInAnyPackage("..gym..", "..kiosk..", "..fiscal..")
+                .and().resideInAnyPackage("..gym..", "..fiscal..")
                 .should().beAssignableTo(com.veltronik.v2.core.entities.TenantAwareEntity.class)
                 .because("sin heredar de TenantAwareEntity la entidad queda SIN el filtro por tenant: "
                         + "un negocio podría leer datos de otro")

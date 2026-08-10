@@ -2,7 +2,7 @@ package com.veltronik.v2.fiscal;
 
 /**
  * <b>Fachada interna</b> del módulo fiscal (regla del Codex §5.3): el único punto de entrada para
- * que otra vertical emita comprobantes. Kiosk (y mañana gym) dependen SOLO de esta interfaz,
+ * que otra vertical emita comprobantes. El vertical que facture depende SOLO de esta interfaz,
  * nunca de los repos ni del cliente ARCA → módulos desacoplados.
  */
 public interface FiscalFacade {

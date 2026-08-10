@@ -18,9 +18,6 @@ export { errorService } from './ErrorService';
 export { deviceService } from './DeviceService';
 export { cashierService } from './CashierService';
 
-// Vertical Kiosco (KIOSCO)
-export { kioskService } from './KioskService';
-
 // Analytics
 import InsightsService from './InsightsService';
 export const insightsService = new InsightsService();

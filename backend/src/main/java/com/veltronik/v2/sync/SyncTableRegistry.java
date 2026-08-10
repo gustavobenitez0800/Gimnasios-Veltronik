@@ -44,25 +44,25 @@ public class SyncTableRegistry {
 
     /**
      * Tablas que SUBEN (push), EN ORDEN de aplicación: maestros primero (los eventos los
-     * referencian), padres antes que hijos (kiosk_sale exige cash_session).
+     * referencian), padres antes que hijos.
+     *
+     * <p>Este registro nació apuntando al kiosco, que era el vertical transaccional. Con la
+     * baja del kiosco (2026-07-27, V41) el motor quedó apuntado al GIMNASIO, que es el único
+     * vertical: el socio es el maestro que se edita en el mostrador, y los cobros y las
+     * asistencias son los eventos que se generan ahí aunque no haya internet.</p>
      */
     private static final List<SyncTable> PUSH_TABLES = List.of(
             // Maestros locales (dueño = la sucursal; la web los lee)
-            new SyncTable("kiosk_category", Kind.MASTER),
-            new SyncTable("kiosk_supplier", Kind.MASTER),
-            new SyncTable("kiosk_customer", Kind.MASTER),
-            new SyncTable("kiosk_product", Kind.MASTER),
+            new SyncTable("gym_members", Kind.MASTER),
+            new SyncTable("gym_class", Kind.MASTER),
             // Eventos (append-only)
-            new SyncTable("kiosk_cash_session", Kind.EVENT),
-            new SyncTable("kiosk_sale", Kind.EVENT),
-            new SyncTable("kiosk_sale_item", Kind.EVENT),
-            new SyncTable("kiosk_sale_payment", Kind.EVENT)
+            new SyncTable("gym_payments", Kind.EVENT),
+            new SyncTable("access_log", Kind.EVENT)
     );
 
     /** Tablas que BAJAN (pull): config cuya fuente de verdad es la nube. */
     private static final List<SyncTable> CONFIG_TABLES = List.of(
             new SyncTable("tenant", Kind.CONFIG, "id"),
-            new SyncTable("kiosk_settings", Kind.CONFIG),
             // Cajeros con PIN (ladrillo 5): bajan los hashes → el login diario es offline.
             new SyncTable("cashier", Kind.CONFIG)
     );

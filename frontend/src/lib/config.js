@@ -37,7 +37,6 @@ const CONFIG = {
   PRICES_BY_TYPE: {
     GYM: 80000,
     CLUB: 80000,
-    KIOSCO: 80000,
     OTHER: 80000,
   },
 
@@ -65,16 +64,6 @@ const CONFIG = {
     RESET_PASSWORD: '/reset-password',
     LOBBY: '/lobby',
     TEAM: '/team',
-    // ─── Vertical Kiosco (KIOSCO) ───
-    POS: '/pos',
-    KIOSK_DASHBOARD: '/kiosk-dashboard',
-    KIOSK_REPORTS: '/kiosk-reports',
-    KIOSK_PRODUCTS: '/kiosk-products',
-    KIOSK_INVENTORY: '/kiosk-inventory',
-    KIOSK_CASH: '/kiosk-cash',
-    KIOSK_CUSTOMERS: '/kiosk-customers',
-    KIOSK_SUPPLIERS: '/kiosk-suppliers',
-    KIOSK_FISCAL: '/kiosk-fiscal',
   }),
 
   // Gym Status
@@ -105,7 +94,6 @@ const CONFIG = {
   ORG_TYPES: Object.freeze({
     GYM: 'GYM',
     CLUB: 'CLUB',
-    KIOSCO: 'KIOSCO',
     OTHER: 'OTHER',
   }),
 };
