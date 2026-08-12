@@ -113,37 +113,39 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- 10.b PostgreSQL embebida (in-process, SIN Docker). Nació como red de seguridad de
-             tests (ApplicationBootTest) y desde el ladrillo 3 de la V3 (ADR-009) es también el
-             MOTOR DE PRODUCCIÓN del runtime local: bajo el perfil `local`, el monolito arranca
-             su propia Postgres con data dir persistente (LocalEmbeddedPostgresConfig).
-             Por eso zonky + binarios de WINDOWS van en scope runtime (viajan en el jar del
-             instalable); los de LINUX quedan test-only (el CI corre en ubuntu; la nube JAMÁS
-             usa Postgres embebida — el perfil `local` no se activa en Railway). -->
+        <!-- 10.b PostgreSQL embebida (in-process, SIN Docker): red de seguridad de los tests.
+             ApplicationBootTest arranca una base virgen, corre TODAS las migraciones y valida el
+             mapeo de las entidades — por eso una migración rota se cae en el build y no en prod.
+             TODO test-only: llegó a ser motor de producción del cerebro local (ADR-009), pero el
+             circuito offline se dio de baja (V43) y la nube nunca usó Postgres embebida. -->
         <dependency>
             <groupId>io.zonky.test</groupId>
             <artifactId>embedded-postgres</artifactId>
             <version>2.0.7</version>
+            <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.zonky.test.postgres</groupId>
-            <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
-            <version>16.2.0</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- Los dos binarios en scope test: linux para el CI (ubuntu), windows para correr la
+             suite en la máquina de desarrollo. Si no se declara el de windows explícito, zonky
+             arrastra su default (14.10.1) y el build offline se cae buscándolo. -->
         <dependency>
             <groupId>io.zonky.test.postgres</groupId>
             <artifactId>embedded-postgres-binaries-linux-amd64</artifactId>
             <version>16.2.0</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
+            <version>16.2.0</version>
+            <scope>test</scope>
+        </dependency>
         <!-- commons-compress (de zonky) requiere commons-io >= 2.16; el classpath traía 2.11.0
-             transitivo (NoSuchMethodError en la extracción del binario). Con zonky en runtime,
-             la extracción también ocurre en los kioscos → scope compile. -->
+             transitivo (NoSuchMethodError al extraer el binario de Postgres). -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.16.1</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- 11. Spring Actuator: Health check para Railway y monitoreo -->

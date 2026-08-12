@@ -78,26 +78,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // ============================================
-    // CEREBRO LOCAL (V3 — ladrillos 3 y 4)
-    // ============================================
-
-    localBrain: {
-        /**
-         * Persistir la identidad del sync tras el bautizo (cloudUrl, deviceId,
-         * deviceKey, role). El cerebro local la lee en su próximo tick.
-         * @returns {Promise<{ok: boolean, error?: string}>}
-         */
-        setSyncIdentity: (identity) => ipcRenderer.invoke('local-brain:set-sync-identity', identity),
-
-        /**
-         * ¿Este equipo debería tener cerebro local (enrolado o forzado)? Permite al
-         * renderer re-probar el modo local si el cerebro todavía estaba booteando.
-         * @returns {Promise<boolean>}
-         */
-        isEnabled: () => ipcRenderer.invoke('local-brain:is-enabled'),
-    },
-
-    // ============================================
     // DIÁLOGOS NATIVOS
     // ============================================
 

@@ -16,7 +16,6 @@ export { teamService } from './TeamService';
 export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
 export { deviceService } from './DeviceService';
-export { cashierService } from './CashierService';
 
 // Analytics
 import InsightsService from './InsightsService';

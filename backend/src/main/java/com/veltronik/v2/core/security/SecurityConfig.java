@@ -3,9 +3,6 @@ package com.veltronik.v2.core.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -25,7 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 
 @Configuration
-@Profile("!local")   // el cerebro local usa LocalSecurityConfig (sin Supabase/JWKS). La nube, esta.
 @EnableWebSecurity
 @EnableMethodSecurity   // habilita @PreAuthorize para control de acceso por rol a nivel de método
 public class SecurityConfig {
@@ -33,7 +29,6 @@ public class SecurityConfig {
     private final TenantContextFilter tenantContextFilter;
     private final KillSwitchFilter killSwitchFilter;
     private final DeviceCredentialFilter deviceCredentialFilter;
-    private final Environment environment;
     private final String jwksUri;
     private final String allowedOrigins;
 
@@ -42,13 +37,11 @@ public class SecurityConfig {
     public SecurityConfig(TenantContextFilter tenantContextFilter,
                           KillSwitchFilter killSwitchFilter,
                           DeviceCredentialFilter deviceCredentialFilter,
-                          Environment environment,
                           @Value("${veltronik.jwt.jwks-uri}") String jwksUri,
                           @Value("${FRONTEND_URL:http://localhost:5173}") String allowedOrigins) {
         this.tenantContextFilter = tenantContextFilter;
         this.killSwitchFilter = killSwitchFilter;
         this.deviceCredentialFilter = deviceCredentialFilter;
-        this.environment = environment;
         this.jwksUri = jwksUri;
         this.allowedOrigins = allowedOrigins;
     }
@@ -61,19 +54,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/webhooks/**").permitAll()
                     .requestMatchers("/api/public/**").permitAll() // config pública sin login (ej. payment-config)
-                    // Sync headless (ladrillo 4) y consultas de update (ladrillo 7): permitAll a
+                    // Consultas de update del auto-updater: permitAll a
                     // nivel Security porque la puerta REAL es DeviceCredentialFilter (fail-closed:
                     // sin X-Device-Key válida → 401).
-                    .requestMatchers("/api/sync/**").permitAll()
                     .requestMatchers("/api/updates/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll();
-                // SOLO en modo local (ADR-009): Electron apaga el backend embebido con
-                // POST /actuator/shutdown para que zonky detenga Postgres prolijamente.
-                // Seguro: en local el server escucha solo en 127.0.0.1. En la nube este
-                // matcher no existe y el endpoint además está deshabilitado.
-                if (environment.acceptsProfiles(Profiles.of("local"))) {
-                    auth.requestMatchers("/actuator/shutdown").permitAll();
-                }
                 auth.anyRequest().authenticated();
             })
             .sessionManagement(sess -> sess
@@ -82,7 +67,7 @@ public class SecurityConfig {
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.decoder(jwtDecoder()))
             )
-            // Credencial de equipo ANTES del BearerTokenFilter: /api/sync/** no trae JWT
+            // Credencial de equipo ANTES del BearerTokenFilter: /api/updates/** no trae JWT
             .addFilterBefore(deviceCredentialFilter, BearerTokenAuthenticationFilter.class)
             // Agregar nuestro filtro de Tenant DESPUES del BearerTokenFilter (que valida el JWT)
             .addFilterAfter(tenantContextFilter, BearerTokenAuthenticationFilter.class)

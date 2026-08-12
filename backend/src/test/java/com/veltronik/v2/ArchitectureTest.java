@@ -31,29 +31,13 @@ class ArchitectureTest {
     // contraparte cuando el kiosco (V41) y el módulo fiscal (V42) se dieron de baja y quedó GYM
     // solo. No se reemplaza por una versión falsa: vuelve tal cual el día que nazca el segundo
     // vertical. Mientras tanto la sostienen las reglas de abajo — core no depende de ningún
-    // vertical, y el sync engine tampoco.
+    // vertical. (Las dos reglas del sync engine se fueron con él en la V43.)
 
     @Test
     void core_no_depende_de_ningun_vertical() {
         noClasses().that().resideInAPackage("..core..")
                 .should().dependOnClassesThat().resideInAnyPackage("..gym..")
                 .because("core es la base reutilizable: nada del dominio de un vertical puede filtrarse a core")
-                .check(CLASSES);
-    }
-
-    @Test
-    void sync_no_depende_de_verticales() {
-        noClasses().that().resideInAPackage("..sync..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..")
-                .because("el sync engine es GENÉRICO a nivel fila: conoce nombres de tablas (SyncTableRegistry), jamás clases de dominio de un vertical")
-                .check(CLASSES);
-    }
-
-    @Test
-    void verticales_no_dependen_de_sync() {
-        noClasses().that().resideInAnyPackage("..gym..")
-                .should().dependOnClassesThat().resideInAPackage("..sync..")
-                .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
                 .check(CLASSES);
     }
 

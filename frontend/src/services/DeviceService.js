@@ -5,7 +5,6 @@
 // El DNI de ESTE equipo viaja solo en cada request (X-Device-Id, apiClient).
 
 import apiClient from '../lib/apiClient';
-import { getDeviceId } from '../lib/deviceId';
 
 export const deviceService = {
   /** Equipos de la sucursal en curso (enrolados o vistos operándola). */
@@ -22,28 +21,12 @@ export const deviceService = {
    */
   async enroll({ role, displayName, replaceActiveManager = false }) {
     const res = await apiClient.post('/core/devices/enroll', { role, displayName, replaceActiveManager });
-    // Credencial de equipo (ladrillo 4): viaja UNA sola vez en el enroll.
+    // Credencial de equipo: viaja UNA sola vez, en la respuesta del enroll.
+    // (Antes también se le pasaba al proceso principal de Electron para que el cerebro
+    // local la usara; el circuito offline se dio de baja en la V43.)
     const deviceKey = res.data?.deviceKey;
     if (deviceKey) {
       try { localStorage.setItem('veltronik_device_key', deviceKey); } catch { /* sin storage: se re-enrola */ }
-
-      // El cableado del bautizo: en Electron, la identidad aterriza en el proceso
-      // principal (sync-identity.json) y el cerebro local la toma en su próximo tick.
-      // Fire-and-forget: el enroll nunca falla por esto.
-      const setIdentity = window.electronAPI?.localBrain?.setSyncIdentity;
-      if (typeof setIdentity === 'function') {
-        const cloudUrl = String(import.meta.env.VITE_API_BASE_URL || '')
-          .replace(/\/+$/, '')
-          .replace(/\/api$/, '');
-        setIdentity({
-          cloudUrl,
-          deviceId: getDeviceId(),
-          deviceKey,
-          // La sucursal enrolada = la org activa. El login local por PIN la usa (ladrillo 6).
-          tenantId: localStorage.getItem('current_org_id') || undefined,
-          role: res.data?.data?.role,
-        }).catch(() => { /* mejor esfuerzo: se puede re-enrolar */ });
-      }
     }
     return res.data?.data;
   },

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * un negocio desde el Lobby.
  *
  * <p><b>El bug:</b> {@code TenantService.delete} borraba una lista FIJA de tablas hijas.
- * La tabla {@code cashier} (V36) referencia {@code tenant} sin {@code ON DELETE CASCADE}
+ * Hubo tablas que referenciaban {@code tenant} sin {@code ON DELETE CASCADE}
  * y no estaba en la lista → la FK rechazaba el borrado → 409 para el cliente. Cada tabla
  * nueva con {@code tenant_id} podía reintroducir el mismo bug.</p>
  *
@@ -75,7 +75,7 @@ class TenantDeleteIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
 
         // Un negocio con las DOS tablas hijas sin ON DELETE CASCADE que rompían el borrado:
-        // cashier (V36, el caso real del 409) y tenant_membership (V1).
+        // tenant_membership (V1).
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type) VALUES (?,?,?,?,?)",
                 tenantId, now, now, "Negocio de prueba", "GYM");
         // app_user sin password_hash: V11 la eliminó al delegar la autenticación a Supabase.
@@ -83,13 +83,10 @@ class TenantDeleteIntegrationTest {
                 userId, now, now, "test-delete@veltronik.com");
         jdbc.update("INSERT INTO tenant_membership (id, created_at, updated_at, user_id, tenant_id, role) VALUES (?,?,?,?,?,?)",
                 UUID.randomUUID(), now, now, userId, tenantId, "OWNER");
-        jdbc.update("INSERT INTO cashier (id, created_at, updated_at, tenant_id, name, pin_hash, role) VALUES (?,?,?,?,?,?,?)",
-                UUID.randomUUID(), now, now, tenantId, "Cajero Uno", "$2a$10$hashfalso", "CAJERO");
 
         tenantService.delete(tenantId);
 
         assertThat(count("tenant", "id", tenantId)).isZero();
-        assertThat(count("cashier", "tenant_id", tenantId)).isZero();
         assertThat(count("tenant_membership", "tenant_id", tenantId)).isZero();
         // El usuario NO se borra: puede ser dueño de otros negocios.
         assertThat(count("app_user", "id", userId)).isEqualTo(1);
