@@ -35,13 +35,10 @@ function getNavSections(orgType, role, allowedModules) {
   // restringe a OWNER/ADMIN. Mostrarlos a staff/reception solo producía pantallas
   // rotas con 403 ("el frontend solo dibuja lo que el backend permite").
   if (role === 'reception') {
-    // Recepción: check-in/acceso y ajustes (solo lectura para su rol).
-    // En canchas, la grilla y los clientes SON el mostrador → permitidos.
+    // Recepción: el mostrador del gimnasio — check-in/acceso, ajustes y cambiar de sucursal.
+    // Espejo exacto de RECEPTION_ALLOWED en WorkspacePolicy (backend).
     const allowedPaths = [
       CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
-      CONFIG.ROUTES.COURT_GRID, CONFIG.ROUTES.COURT_CUSTOMERS,
-      // Kiosco: el mostrador (POS) y la caja SON la tarea de recepción/cajero.
-      CONFIG.ROUTES.POS, CONFIG.ROUTES.KIOSK_CASH,
     ];
     return sections.map(section => ({
       ...section,
@@ -51,20 +48,13 @@ function getNavSections(orgType, role, allowedModules) {
 
   if (role === 'staff') {
     // Staff: operación diaria (socios, clases, acceso) sin equipo ni analítica financiera.
+    // Espejo exacto de STAFF_BLOCKED en WorkspacePolicy (backend).
     const blockedPaths = [
       CONFIG.ROUTES.TEAM,
       CONFIG.ROUTES.DASHBOARD,
       CONFIG.ROUTES.PAYMENTS,
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
-      // Kiosco: catálogo, inventario, facturación y la analítica (dashboard/reportes) son gestión
-      // (dueño/admin). El backend los bloquea con @PreAuthorize → el front no dibuja lo que daría 403.
-      CONFIG.ROUTES.KIOSK_DASHBOARD,
-      CONFIG.ROUTES.KIOSK_REPORTS,
-      CONFIG.ROUTES.KIOSK_PRODUCTS,
-      CONFIG.ROUTES.KIOSK_INVENTORY,
-      CONFIG.ROUTES.KIOSK_SUPPLIERS,
-      CONFIG.ROUTES.KIOSK_FISCAL,
     ];
     return sections.map(section => ({
       ...section,
