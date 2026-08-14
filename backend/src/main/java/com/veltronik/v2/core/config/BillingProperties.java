@@ -40,7 +40,7 @@ public class BillingProperties {
             // no está definida en application.properties, así que si nadie la setea caía SIEMPRE
             // en el default del código. FRONTEND_URL sí se usa (CORS), así que sirve de segunda
             // opción antes de recurrir al valor fijo.
-            @Value("${cors.frontend-url:${FRONTEND_URL:https://gimnasio-veltronik-veltroniks-projects.vercel.app}}") String frontendUrl) {
+            @Value("${cors.frontend-url:${FRONTEND_URL:https://veltronik-v2.vercel.app}}") String frontendUrl) {
         this.monthlyPrice = monthlyPrice;
         this.trialDays = trialDays;
         this.frontendUrl = trimTrailingSlash(frontendUrl);

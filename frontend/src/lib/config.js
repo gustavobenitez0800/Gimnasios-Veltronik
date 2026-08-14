@@ -26,7 +26,7 @@ const CONFIG = {
 
   // URL web pública del frontend (para armar el link de reservas online que el dueño comparte).
   // En el build web se usa el propio origin; este fallback sirve cuando se mira desde Electron.
-  PUBLIC_WEB_URL: import.meta.env.VITE_PUBLIC_WEB_URL || 'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
+  PUBLIC_WEB_URL: import.meta.env.VITE_PUBLIC_WEB_URL || 'https://veltronik-v2.vercel.app',
 
   // Debug mode
   DEBUG: import.meta.env.DEV,
