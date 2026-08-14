@@ -1,15 +1,17 @@
 // ============================================
-// VELTRONIK V2 - REPORTS PAGE (Refactored to Fetch-on-Demand)
+// VELTRONIK V2 - REPORTES (gym)
+// ============================================
+// Exportador de informes (Excel/PDF) por rango de fecha. Los datos se piden
+// recién al apretar el botón: la página no carga nada al abrirse.
 // ============================================
 
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { useAuth } from '../contexts/AuthContext';
 import { memberService, paymentService, accessService } from '../services';
-import { getStatusLabel, getMethodLabel } from '../lib/utils';
+import { getStatusLabel, getMethodLabel, toLocalDateString } from '../lib/utils';
+import { downloadExcel, downloadPDF } from '../lib/reportExport';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
-import CourtReportsPage from './CourtReportsPage';
 
 // El DTO de socios de V2 trae `active` (boolean) + membershipEnd, NO un campo `status`.
 // Derivamos el estado real para que los reportes no muestren estado vacío/erróneo.
@@ -21,88 +23,28 @@ function deriveMemberStatus(m) {
 
 function getQuickDates(period) {
   const today = new Date();
-  const formatLocal = (d) => {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
   let from, to;
   switch (period) {
-    case 'today': from = to = formatLocal(today); break;
+    case 'today': from = to = toLocalDateString(today); break;
     case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
-      from = formatLocal(ws);
-      to = formatLocal(today);
+      from = toLocalDateString(ws);
+      to = toLocalDateString(today);
       break;
     }
     case 'month':
-      from = formatLocal(new Date(today.getFullYear(), today.getMonth(), 1));
-      to = formatLocal(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
+      to = toLocalDateString(today); break;
     case 'year':
-      from = formatLocal(new Date(today.getFullYear(), 0, 1));
-      to = formatLocal(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), 0, 1));
+      to = toLocalDateString(today); break;
     default: break;
   }
   return { from, to };
 }
 
-async function downloadExcel(filename, headers, rows) {
-  // Dynamic import para no bloquear el bundle principal
-  const XLSX = await import('xlsx');
-  const data = [headers, ...rows];
-  const worksheet = XLSX.utils.aoa_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte");
-  XLSX.writeFile(workbook, filename);
-}
-
-async function downloadPDF(title, filename, headers, rows) {
-  // Dynamic imports
-  const { default: jsPDF } = await import('jspdf');
-  const { default: autoTable } = await import('jspdf-autotable');
-  
-  const doc = new jsPDF();
-  
-  doc.setFontSize(16);
-  doc.text(title, 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Generado el: ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}`, 14, 22);
-
-  autoTable(doc, {
-    head: [headers],
-    body: rows,
-    startY: 28,
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [41, 128, 185] },
-  });
-
-  doc.save(filename);
-}
-
 export default function ReportsPage() {
-  const { gym } = useAuth();
-
-  // Canchas: reportes propios del vertical (ingresos, no-shows, caja Z).
-  if (gym?.type === 'FUTBOL_5') {
-    return <CourtReportsPage />;
-  }
-
-  // Si es restaurante, mostrar reportes de restaurante
-  if (gym?.type === 'RESTO') {
-    return (
-      <Suspense fallback={<div className="dashboard-loading"><span className="spinner" /> Cargando reportes...</div>}>
-        <RestaurantReportsPage />
-      </Suspense>
-    );
-  }
-
-  return <GymReportsPage />;
-}
-
-function GymReportsPage() {
   const { showToast } = useToast();
   
   const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
@@ -135,7 +77,7 @@ function GymReportsPage() {
     setExporting(e => ({ ...e, members: format }));
     try {
       // Fetch-on-demand
-      let members = await memberService.getAll();
+      let members = await memberService.getAllMembers();
       
       if (dateFrom && dateTo) {
         members = (members || []).filter(m => {
@@ -229,7 +171,7 @@ function GymReportsPage() {
       // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
 
       // Socios activos y total
-      const members = await memberService.getAll();
+      const members = await memberService.getAllMembers();
       const active = members.filter(m => deriveMemberStatus(m) === 'active').length;
       const newMembers = members.filter(m => {
         if (!dateFrom || !dateTo || !m.membershipStart) return true;

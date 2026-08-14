@@ -10,13 +10,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services';
 import apiClient from '../lib/apiClient';
 import { clearQueryCache } from '../hooks/useQueryCache';
+import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 
-// Exportado para que el shell del modo local (V3, ladrillo 6) pueda proveer un valor
-// mínimo derivado de la sesión del cajero — así las páginas del POS (que llaman useAuth
-// solo para el rol) funcionan sin el AuthProvider de Supabase.
+// Se exporta el Context crudo (no solo el Provider) para poder proveer un valor mínimo
+// sin Supabase: lo usaba el shell del modo local del POS, y hoy lo usan los tests que
+// renderizan una página con un contexto de mentira.
 export const AuthContext = createContext(null);
 
 export function useAuth() {
@@ -36,7 +37,6 @@ const NO_ORG_ROUTES = [
   CONFIG.ROUTES.PLANS,
   CONFIG.ROUTES.PAYMENT_CALLBACK,
   CONFIG.ROUTES.BLOCKED,
-  CONFIG.ROUTES.MEMBER_PORTAL,
 ];
 
 export function AuthProvider({ children }) {
@@ -80,32 +80,14 @@ export function AuthProvider({ children }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, []);
 
-  // Helper: is subscription active
-  const isActiveSubscription = useCallback((sub) => {
-    return sub?.status === 'active';
-  }, []);
-
-  // Helper: does user have valid access (active trial OR active subscription)
-  // Nota: el DTO del backend manda camelCase (currentPeriodEnd, gracePeriodEndsAt);
-  // toleramos snake_case por compatibilidad. Y una sub 'active' solo da acceso si su
-  // período no venció (igual criterio que el KillSwitch del backend).
-  const hasValidAccess = useCallback((gymData, sub) => {
-    const now = new Date();
-    const periodEndRaw = sub?.currentPeriodEnd ?? sub?.current_period_end;
-    const graceEndRaw = sub?.gracePeriodEndsAt ?? sub?.grace_period_ends_at;
-    const periodEnd = periodEndRaw ? new Date(periodEndRaw) : null;
-    const graceEnd = graceEndRaw ? new Date(graceEndRaw) : null;
-
-    // Active subscription grants access only if the period hasn't expired
-    if (sub?.status === 'active' && (!periodEnd || periodEnd > now)) return true;
-    // Active trial grants access
-    if (gymData?.trialEndsAt && now < new Date(gymData.trialEndsAt)) return true;
-    // Past_due with grace period still grants access
-    if (sub?.status === 'past_due' && graceEnd && now < graceEnd) return true;
-    // Canceled but current period hasn't ended
-    if (sub?.status === 'canceled' && periodEnd && now < periodEnd) return true;
-    return false;
-  }, []);
+  // ¿Esta sucursal puede entrar? Delega en lib/access, que es la ÚNICA fuente del
+  // frontend (la misma que dibuja el estado de cada card del Lobby).
+  //
+  // Antes esta función tenía su propia copia del criterio y era MÁS PERMISIVA que la del
+  // Lobby en un caso: daba acceso a una suscripción 'active' SIN período pago registrado
+  // (`!periodEnd`). O sea que el Lobby mostraba el muro de pago y el guard de rutas dejaba
+  // pasar. Ahora las dos preguntan lo mismo, y lo mismo que corta el KillSwitch del backend.
+  const hasValidAccess = useCallback((gymData, sub) => hasAccess(gymData, sub), []);
 
   /**
    * Load the gym (org) data for a specific org ID via Java API.
@@ -154,6 +136,16 @@ export function AuthProvider({ children }) {
    */
   const refreshOrgContext = useCallback(async (orgId) => {
     if (!orgId) return;
+
+    // ⚠️ PRIMERA línea, y antes de cualquier await: `current_org_id` es de dónde saca el
+    // apiClient el header X-Tenant-ID, y de ese header sale el `currentTenant()` del
+    // backend. Si no se escribe acá, TODO lo que se pida mientras esta función está en
+    // vuelo viaja con la sucursal ANTERIOR.
+    // Así se rompía el cobro: el muro de pago llamaba a refreshOrgContext(sucursalBloqueada)
+    // y navegaba sin esperar, con lo cual la suscripción se creaba contra OTRA sucursal
+    // (o contra ninguna). Se escribía en un solo lugar de toda la app —el click normal de
+    // una card del Lobby—, así que entrar andaba y pagar no.
+    localStorage.setItem('current_org_id', orgId);
 
     // Limpiar la caché SOLO al cambiar de negocio (previene fugas cross-org). Antes se
     // limpiaba siempre: al re-entrar al MISMO negocio tiraba los datos recién cargados
@@ -267,6 +259,41 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
 
+  // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
+  // listener captura una referencia todavía no inicializada del primer render.
+  const logout = async () => {
+    // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
+    // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
+    // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    try {
+      await authService.signOut();
+    } catch {
+      // Force redirect anyway
+    }
+    clearQueryCache();
+    lastLoadedOrgRef.current = null;
+    setUser(null);
+    setProfile(null);
+    setGym(null);
+    setSubscription(null);
+    setIsTrialActive(false);
+    setTrialDaysRemaining(0);
+    trialWarningShownRef.current = false;
+    initCompleteRef.current = false;
+    localStorage.removeItem('current_org_id');
+    localStorage.removeItem('current_org_name');
+
+    // HARD REDIRECT para limpiar el estado en memoria (evita caché retenido tras logout).
+    // OJO Electron: la app usa HashRouter y se sirve por file://. Un `location.href='/'`
+    // apunta a la RAÍZ DEL DISCO (no al index.html) → pantalla en blanco. Hay que
+    // recargar el index.html ACTUAL (location.pathname) y mandar el hash al login.
+    const loginHash = `#${CONFIG.ROUTES.LOGIN || '/'}`;
+    window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
+    window.location.reload();
+  };
+
   useEffect(() => {
     initAuth();
 
@@ -329,8 +356,11 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Logged in on public page → redirect to lobby
-    if (user && isPublic) {
+    // Logged in on public page → redirect to lobby.
+    // EXCEPCIÓN reset-password: el link del email crea una sesión de recuperación
+    // (usuario "logueado"); sin esta excepción lo echaríamos al Lobby antes de que
+    // pueda escribir la contraseña nueva.
+    if (user && isPublic && currentPath !== CONFIG.ROUTES.RESET_PASSWORD) {
       navigate(CONFIG.ROUTES.LOBBY, { replace: true });
       return;
     }
@@ -379,39 +409,6 @@ export function AuthProvider({ children }) {
     await authService.signInWithGoogle();
   };
 
-  const logout = async () => {
-    // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
-    // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
-    // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
-    if (loggingOutRef.current) return;
-    loggingOutRef.current = true;
-    try {
-      await authService.signOut();
-    } catch {
-      // Force redirect anyway
-    }
-    clearQueryCache();
-    lastLoadedOrgRef.current = null;
-    setUser(null);
-    setProfile(null);
-    setGym(null);
-    setSubscription(null);
-    setIsTrialActive(false);
-    setTrialDaysRemaining(0);
-    trialWarningShownRef.current = false;
-    initCompleteRef.current = false;
-    localStorage.removeItem('current_org_id');
-    localStorage.removeItem('current_org_name');
-
-    // HARD REDIRECT para limpiar el estado en memoria (evita caché retenido tras logout).
-    // OJO Electron: la app usa HashRouter y se sirve por file://. Un `location.href='/'`
-    // apunta a la RAÍZ DEL DISCO (no al index.html) → pantalla en blanco. Hay que
-    // recargar el index.html ACTUAL (location.pathname) y mandar el hash al login.
-    const loginHash = `#${CONFIG.ROUTES.LOGIN || '/'}`;
-    window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
-    window.location.reload();
-  };
-
   const refreshAuth = async () => {
     setLoading(true);
     await initAuth();
@@ -442,7 +439,6 @@ export function AuthProvider({ children }) {
     loading,
     isTrialActive,
     trialDaysRemaining,
-    isActiveSubscription,
     hasValidAccess,
     orgRole,
     orgName,

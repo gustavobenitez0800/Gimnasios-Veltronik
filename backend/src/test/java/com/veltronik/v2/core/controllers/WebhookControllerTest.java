@@ -1,5 +1,6 @@
 package com.veltronik.v2.core.controllers;
 
+import com.veltronik.v2.core.config.MercadoPagoProperties;
 import com.veltronik.v2.core.services.MercadoPagoService;
 import com.veltronik.v2.core.services.SubscriptionBillingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -48,10 +48,10 @@ class WebhookControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new WebhookController(billingService, mercadoPagoService);
-        ReflectionTestUtils.setField(controller, "webhookSecret", SECRET);
-        // En el test unitario el default del @Value no se aplica: hay que fijarlo explícito.
-        ReflectionTestUtils.setField(controller, "enforceSignature", true);
+        // La config entra por constructor (etapa 2.6): ya no hace falta inyectar campos por
+        // reflection para armar el controller en un test.
+        var mercadoPago = new MercadoPagoProperties("token-de-prueba", "clave-publica", SECRET, true);
+        controller = new WebhookController(billingService, mercadoPagoService, mercadoPago);
     }
 
     /** Replica el cálculo de la spec de MP: HMAC-SHA256(secret, manifest) en hex. */
@@ -131,7 +131,8 @@ class WebhookControllerTest {
     @Test
     @DisplayName("válvula de lanzamiento: enforce-signature=false procesa aun con firma inválida")
     void enforcementValveAllowsInvalidSignature() {
-        ReflectionTestUtils.setField(controller, "enforceSignature", false);
+        controller = new WebhookController(billingService, mercadoPagoService,
+                new MercadoPagoProperties("token-de-prueba", "clave-publica", SECRET, false));
 
         ResponseEntity<String> response = callWebhook("ts=1,v1=invalida", REQUEST_ID);
 
@@ -142,7 +143,8 @@ class WebhookControllerTest {
     @DisplayName("renovación que no se pudo consultar en MP → 500 (MP reintenta; un 200 la perdería para siempre)")
     void unresolvableAuthorizedPaymentReturns500() {
         // Sin secret: se prueba el manejo del evento, no la firma.
-        ReflectionTestUtils.setField(controller, "webhookSecret", "");
+        controller = new WebhookController(billingService, mercadoPagoService,
+                new MercadoPagoProperties("token-de-prueba", "clave-publica", "", true));
         when(mercadoPagoService.getAuthorizedPayment("ap-123")).thenReturn(null);
 
         ResponseEntity<String> response = controller.handleWebhook(

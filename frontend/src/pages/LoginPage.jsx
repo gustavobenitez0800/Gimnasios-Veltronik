@@ -7,10 +7,14 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogoPrincipalVeltronik.png';
+import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
 import { authService, errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
+
+// Google necesita un redirect de vuelta que file:// no puede recibir: en Electron
+// el botón se oculta (el login con email funciona igual en los dos envases).
+const IS_ELECTRON = typeof window !== 'undefined' && !!window.electronAPI;
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -136,6 +140,8 @@ export default function LoginPage() {
         </button>
       </form>
 
+      {/* Google: solo web (ver IS_ELECTRON arriba) */}
+      {!IS_ELECTRON && (<>
       {/* Divider */}
       <div className="auth-divider">o continúa con</div>
 
@@ -151,6 +157,7 @@ export default function LoginPage() {
           Continuar con Google
         </button>
       </div>
+      </>)}
 
       {/* Register Link */}
       <p className="auth-links">

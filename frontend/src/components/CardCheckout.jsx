@@ -42,10 +42,16 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
   const [message, setMessage] = useState('');
   const [attempt, setAttempt] = useState(0); // re-monta el Brick al reintentar
   const propsRef = useRef({ amount, onSuccess, onError });
-  propsRef.current = { amount, onSuccess, onError };
   const pollRef = useRef(null);
   const statusRef = useRef(status);
-  statusRef.current = status;
+
+  // Patrón "latest ref": los callbacks async (polling, onSubmit del Brick) leen
+  // siempre los valores vigentes sin re-suscribirse. Se sincronizan en un effect
+  // (no durante el render) y ANTES del effect del Brick, que los consume.
+  useEffect(() => {
+    propsRef.current = { amount, onSuccess, onError };
+    statusRef.current = status;
+  });
 
   // Polling del estado REAL del cobro en el backend.
   const startPolling = () => {
@@ -78,12 +84,12 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
     }, POLL_INTERVAL_MS);
   };
 
-  // Montaje del Brick (se re-monta cuando cambia `attempt`).
+  // Montaje del Brick (se re-monta cuando cambia `attempt`). El estado ya nace
+  // en LOADING (useState inicial) y `retry` lo resetea en el handler — acá no
+  // hay setState sincrónico que dispare renders en cascada.
   useEffect(() => {
     let controller = null;
     let cancelled = false;
-    setStatus(S.LOADING);
-    setMessage('');
 
     (async () => {
       try {
@@ -151,10 +157,11 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
       try { controller?.unmount?.(); } catch { /* noop */ }
       if (pollRef.current) clearInterval(pollRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
-  const retry = () => { setMessage(''); setAttempt((a) => a + 1); };
+  // El reset del estado vive acá (handler), no en el effect: al reintentar, el
+  // Brick se re-monta con la UI ya en "Cargando" en el mismo commit.
+  const retry = () => { setStatus(S.LOADING); setMessage(''); setAttempt((a) => a + 1); };
 
   const showBrick = status === S.LOADING || status === S.READY;
 

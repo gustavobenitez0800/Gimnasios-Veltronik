@@ -26,7 +26,7 @@ const CONFIG = {
 
   // URL web pública del frontend (para armar el link de reservas online que el dueño comparte).
   // En el build web se usa el propio origin; este fallback sirve cuando se mira desde Electron.
-  PUBLIC_WEB_URL: import.meta.env.VITE_PUBLIC_WEB_URL || 'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
+  PUBLIC_WEB_URL: import.meta.env.VITE_PUBLIC_WEB_URL || 'https://veltronik-v2.vercel.app',
 
   // Debug mode
   DEBUG: import.meta.env.DEV,
@@ -37,8 +37,6 @@ const CONFIG = {
   PRICES_BY_TYPE: {
     GYM: 80000,
     CLUB: 80000,
-    FUTBOL_5: 80000,
-    KIOSCO: 80000,
     OTHER: 80000,
   },
 
@@ -65,23 +63,7 @@ const CONFIG = {
     RETENTION: '/retention',
     RESET_PASSWORD: '/reset-password',
     LOBBY: '/lobby',
-    MEMBER_PORTAL: '/member-portal',
     TEAM: '/team',
-    // ─── Vertical Canchas (FUTBOL_5) ───
-    COURT_GRID: '/court-grid',
-    COURTS: '/courts',
-    COURT_CUSTOMERS: '/court-customers',
-    COURT_FIXED: '/court-fixed',
-    // ─── Vertical Kiosco (KIOSCO) ───
-    POS: '/pos',
-    KIOSK_DASHBOARD: '/kiosk-dashboard',
-    KIOSK_REPORTS: '/kiosk-reports',
-    KIOSK_PRODUCTS: '/kiosk-products',
-    KIOSK_INVENTORY: '/kiosk-inventory',
-    KIOSK_CASH: '/kiosk-cash',
-    KIOSK_CUSTOMERS: '/kiosk-customers',
-    KIOSK_SUPPLIERS: '/kiosk-suppliers',
-    KIOSK_FISCAL: '/kiosk-fiscal',
   }),
 
   // Gym Status
@@ -112,8 +94,6 @@ const CONFIG = {
   ORG_TYPES: Object.freeze({
     GYM: 'GYM',
     CLUB: 'CLUB',
-    FUTBOL_5: 'FUTBOL_5',
-    KIOSCO: 'KIOSCO',
     OTHER: 'OTHER',
   }),
 };

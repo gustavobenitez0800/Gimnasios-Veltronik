@@ -49,7 +49,7 @@ el problema que juramos evitar. Si algún día hace falta, será una decisión e
 | `GymPayment` | EVENTO ↑ | Cobro de cuota hecho en recepción |
 | `GymMember` | MAESTRO LOCAL ↑ | Se da de alta/edita en recepción. ✅ El drift de esquema que tenía `gym_members` ya fue reconciliado por `V29__Reconcile_Gym_Members_Drift.sql` (esquema 100% en Flyway) |
 | `GymClass` | MAESTRO LOCAL ↑ | La grilla de clases la arma el local |
-| `GymBooking` | EVENTO ↑ | Reserva de cupo en clase. (No confundir con `courts`, que se elimina) |
+| `GymBooking` | EVENTO ↑ | Reserva de cupo en clase. ⚠️ El backend está completo pero **todavía no hay pantalla** que lo use (etapa 2.7) |
 
 ### kiosk
 
@@ -69,14 +69,8 @@ el problema que juramos evitar. Si algún día hace falta, será una decisión e
 
 | Entidad | Categoría | Notas |
 |---|---|---|
-| `FiscalConfig` / `FiscalPointOfSale` | CONFIG PLATAFORMA ↓ | ⚠️ Contiene el certificado ARCA cifrado. **Decisión pendiente (Fase 4):** ¿el cert baja al local para emitir CAE desde ahí, o la emisión se delega a la nube? Impacta seguridad y contingencia |
+| `FiscalConfig` | CONFIG PLATAFORMA ↓ | ⚠️ Contiene el certificado ARCA cifrado. **Decisión pendiente (Fase 4):** ¿el cert baja al local para emitir CAE desde ahí, o la emisión se delega a la nube? Impacta seguridad y contingencia. (`FiscalPointOfSale` se dio de baja en la etapa 2.7: el punto de venta es un número en `FiscalConfig`) |
 | `FiscalVoucher` / `FiscalVoucherItem` | EVENTO ↑ | 🏆 **La cola de contingencia YA EXISTE**: `FiscalVoucherStatus.CONTINGENCY` cuando ARCA no responde. Es la semilla del patrón de Fase 4 |
-
-### courts — fuera del alcance del sync
-
-El vertical se **elimina en Fase 4** (decisión del fundador). No se clasifica ni se migra a
-local-first: queda cloud-only hasta su eliminación. Ninguna pieza del sync engine debe
-contemplarlo.
 
 ---
 

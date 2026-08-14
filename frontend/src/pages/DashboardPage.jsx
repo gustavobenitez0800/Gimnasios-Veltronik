@@ -20,28 +20,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useDashboardController } from '../controllers/useDashboardController';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
-import CourtDashboardPage from './CourtDashboardPage';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
 
 export default function DashboardPage() {
   const { gym, orgRole } = useAuth();
-
-  // FUTBOL_5: dueño/admin ven el Dashboard de canchas (ganancias, ocupación, predicción);
-  // staff/reception trabajan en la grilla (el tablero operativo). Va ANTES del redirect
-  // por rol de gym para no caer en el loop con el OrgTypeGuard.
-  const orgTypeCurrent = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  if (orgTypeCurrent === 'FUTBOL_5') {
-    if (orgRole === 'owner' || orgRole === 'admin') {
-      return <CourtDashboardPage />;
-    }
-    return <Navigate to={CONFIG.ROUTES.COURT_GRID} replace />;
-  }
 
   // El backend restringe los KPIs financieros (stats/pagos) a OWNER/ADMIN. Para
   // staff/reception esta página solo produciría 403s: los mandamos a su pantalla
@@ -58,7 +47,7 @@ export default function DashboardPage() {
 function GymDashboard({ gym }) {
   const { showToast } = useToast();
   const orgType = gym?.type || 'GYM';
-  const membersLabel = (orgType === 'PILATES' || orgType === 'ACADEMY') ? 'Alumnos' : 'Socios';
+  const { membersLabel, memberLabel } = getVertical(orgType);
 
   const {
     dashboardStats,
@@ -356,7 +345,7 @@ function GymDashboard({ gym }) {
           <div className="quick-actions">
             <Link to={`${CONFIG.ROUTES.MEMBERS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="plus" /></span>
-              <span className="quick-action-label">Nuevo {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
+              <span className="quick-action-label">Nuevo {memberLabel}</span>
             </Link>
             <Link to={`${CONFIG.ROUTES.PAYMENTS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="wallet" /></span>
@@ -364,7 +353,7 @@ function GymDashboard({ gym }) {
             </Link>
             <Link to={CONFIG.ROUTES.MEMBERS} className="quick-action">
               <span className="quick-action-icon"><Icon name="search" /></span>
-              <span className="quick-action-label">Buscar {membersLabel === 'Alumnos' ? 'Alumno' : 'Socio'}</span>
+              <span className="quick-action-label">Buscar {memberLabel}</span>
             </Link>
             <Link to={CONFIG.ROUTES.SETTINGS} className="quick-action">
               <span className="quick-action-icon"><Icon name="settings" /></span>

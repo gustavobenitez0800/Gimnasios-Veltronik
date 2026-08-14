@@ -1,61 +1,54 @@
 // ============================================
-// VELTRONIK V2 - PAYMENTS PAGE (Refactored for Scale & Cache)
+// VELTRONIK V2 - PAGOS (gym)
+// ============================================
+// Cobro de cuotas: alta/edición de pagos filtrados por rango de fecha, con el
+// período de membresía que se renueva solo al registrar el pago.
 // ============================================
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString } from '../lib/utils';
 import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
-// Fecha local YYYY-MM-DD SIN pasar por UTC. `toISOString()` corre el día en husos al oeste
-// (AR es -03): de tarde devolvía el día SIGUIENTE → descuadraba el filtro de fechas y la
-// fecha de los pagos nuevos. Esto usa los componentes locales y queda exacto.
-function toLocalDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 // Suma 1 mes a una fecha 'YYYY-MM-DD' (mediodía para evitar saltos por DST), devuelve local.
 function addOneMonth(dateStr) {
   const d = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
   d.setMonth(d.getMonth() + 1);
-  return toLocalDate(d);
+  return toLocalDateString(d);
 }
 
 function getQuickDates(period) {
   const today = new Date();
   let from, to;
   switch (period) {
-    case 'today': from = to = toLocalDate(today); break;
+    case 'today': from = to = toLocalDateString(today); break;
     case 'week': {
       const ws = new Date(today);
       ws.setDate(today.getDate() - today.getDay() + 1);
-      from = toLocalDate(ws);
-      to = toLocalDate(today);
+      from = toLocalDateString(ws);
+      to = toLocalDateString(today);
       break;
     }
     case 'month':
-      from = toLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
-      to = toLocalDate(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
+      to = toLocalDateString(today); break;
     case 'year':
-      from = toLocalDate(new Date(today.getFullYear(), 0, 1));
-      to = toLocalDate(today); break;
+      from = toLocalDateString(new Date(today.getFullYear(), 0, 1));
+      to = toLocalDateString(today); break;
     default: break;
   }
   return { from, to };
 }
 
 function getInitialForm() {
-  const today = toLocalDate(new Date());
+  const today = toLocalDateString(new Date());
   return {
     member_id: '',
     amount: '',
@@ -111,29 +104,38 @@ export default function PaymentsPage() {
   const [memberSearch, setMemberSearch] = useState('');
   const [filteredMembers, setFilteredMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null); // Local state for modal
-  const memberSearchRef = useRef(null);
 
-  // Async member search
+  // Búsqueda de socios con debounce. `cancelled` descarta la respuesta de una búsqueda
+  // vieja que llegue tarde: si tarda más que el debounce, pisaba a la búsqueda nueva.
   useEffect(() => {
-    if (memberSearch.length < 2) {
-      setFilteredMembers([]);
-      return;
-    }
+    let cancelled = false;
     const timer = setTimeout(async () => {
+      if (memberSearch.length < 2) { setFilteredMembers([]); return; }
       try {
         const results = await memberService.searchForAccess(memberSearch);
-        setFilteredMembers(results);
+        if (!cancelled) setFilteredMembers(results);
       } catch (e) {
         console.error(e);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [memberSearch]);
 
   // Modal & Dialog
-  const modal = useModal(getInitialForm());
+  // El form inicial se congela al montar: recalcularlo en cada render le cambiaba la
+  // identidad a los callbacks de useModal (que dependen de él) render por medio.
+  const [initialForm] = useState(getInitialForm);
+  // Deep-link desde Socios ("Cobrar cuota") o del Dashboard: ?action=new[&member_id=…].
+  // Se lee UNA sola vez, al montar: es un parámetro de entrada, no un estado que cambie.
+  const [deepLink] = useState(() => ({
+    wantsNew: searchParams.get('action') === 'new',
+    memberId: searchParams.get('member_id') || '',
+  }));
+  // Sin socio en la URL el modal ya puede abrir en el primer render; con socio abre
+  // recién cuando llega el fetch de abajo, para nacer con el período calculado.
+  const modal = useModal(initialForm, deepLink.wantsNew && !deepLink.memberId);
+  const openModal = modal.open;
   const deleteDialog = useConfirmDialog();
-  const autoOpenHandled = useRef(false);
 
   // ─── CONTROLLER ───
   const {
@@ -161,44 +163,39 @@ export default function PaymentsPage() {
     };
   }, [payments]);
 
-  // Auto-open modal with pre-selected member
+  // Deep-link con socio: lo trae por ID y abre el modal ya preseleccionado.
   useEffect(() => {
-    if (autoOpenHandled.current) return;
-    if (searchParams.get('action') !== 'new') return;
-
-    autoOpenHandled.current = true;
-    const memberId = searchParams.get('member_id');
-
-    if (memberId) {
-      // Traemos el socio por ID directo. (Antes se usaba searchForAccess(memberId), que busca
-      // por nombre/DNI/email: un UUID nunca matchea → el socio NO quedaba preseleccionado.)
-      memberService.getMemberById(memberId).then(member => {
-        if (!member) return;
-        const normalized = {
-          ...member,
-          fullName: member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim(),
-          dni: member.dni || member.document || '',
-        };
-        setSelectedMember(normalized);
-        const startStr = (member.membershipEnd || toLocalDate(new Date())).split('T')[0];
-        const preFilledForm = {
-          ...getInitialForm(),
-          member_id: memberId,
-          periodStart: startStr,
-          periodEnd: addOneMonth(startStr),
-        };
-        modal.open({ id: null }, () => preFilledForm);
-      }).catch(err => {
-        console.error('No se pudo cargar el socio para el pago:', err);
-        showToast('No se pudo cargar el socio seleccionado', 'error');
-        modal.open();
-      });
-    } else {
-      setSelectedMember(null);
-      modal.open();
-    }
+    if (!deepLink.wantsNew) return;
+    // La URL se limpia siempre, incluso sin socio: un F5 no debe reabrir el modal.
     setSearchParams({}, { replace: true });
-  }, [searchParams, modal, setSearchParams]);
+    if (!deepLink.memberId) return;
+
+    let cancelled = false;
+    // Por ID directo. (Antes se usaba searchForAccess(memberId), que busca por
+    // nombre/DNI/email: un UUID nunca matchea → el socio NO quedaba preseleccionado.)
+    memberService.getMemberById(deepLink.memberId).then(member => {
+      if (cancelled || !member) return;
+      setSelectedMember({
+        ...member,
+        fullName: member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim(),
+        dni: member.dni || member.document || '',
+      });
+      // El período nuevo arranca donde termina la membresía vigente (o hoy si no tiene).
+      const startStr = (member.membershipEnd || toLocalDateString(new Date())).split('T')[0];
+      openModal({ id: null }, () => ({
+        ...initialForm,
+        member_id: deepLink.memberId,
+        periodStart: startStr,
+        periodEnd: addOneMonth(startStr),
+      }));
+    }).catch(err => {
+      if (cancelled) return;
+      console.error('No se pudo cargar el socio para el pago:', err);
+      showToast('No se pudo cargar el socio seleccionado', 'error');
+      openModal();
+    });
+    return () => { cancelled = true; };
+  }, [deepLink, initialForm, openModal, setSearchParams, showToast]);
 
   // Form change handler with auto-period calculation
   const handleFormChange = (field, value) => {
@@ -263,7 +260,7 @@ export default function PaymentsPage() {
 
       if (!modal.editingId && data.periodEnd && data.member_id && data.status === 'paid') {
         try {
-          await memberService.update(data.member_id, {
+          await memberService.updateMember(data.member_id, {
             membershipEnd: `${data.periodEnd}T23:59:59`,
             status: 'active',
           });
@@ -296,13 +293,15 @@ export default function PaymentsPage() {
       await savePayment({
         ...payment,
         status: 'paid',
-        paymentDate: new Date().toISOString().split('T')[0]
+        // Fecha LOCAL: con toISOString(), un pago cobrado después de las 21:00 quedaba
+        // registrado con la fecha de mañana (y desaparecía del filtro del día).
+        paymentDate: toLocalDateString(),
       });
       showToast('Pago marcado como pagado', 'success');
 
       if (payment.periodEnd && payment.member_id) {
         try {
-          await memberService.update(payment.member_id, {
+          await memberService.updateMember(payment.member_id, {
             membershipEnd: `${payment.periodEnd}T23:59:59`,
             status: 'active',
           });
@@ -322,7 +321,6 @@ export default function PaymentsPage() {
         icon="wallet"
         actions={
           <button className="btn btn-primary" onClick={() => {
-            autoOpenHandled.current = true;
             setMemberSearch('');
             setSelectedMember(null);
             modal.open();
@@ -494,7 +492,6 @@ export default function PaymentsPage() {
               ) : (
                 <div className="member-search-container">
                   <input
-                    ref={memberSearchRef}
                     type="text"
                     className="form-input"
                     placeholder="Buscar socio por nombre o DNI (mínimo 2 letras)..."

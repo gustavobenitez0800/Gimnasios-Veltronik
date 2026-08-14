@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_ACCESS_STANDARD_STREAMS;
@@ -14,7 +15,7 @@ import static com.tngtech.archunit.library.GeneralCodingRules.NO_CLASSES_SHOULD_
  * Reglas de arquitectura "a prueba de juniors" (Codex §5.1): se compilan como tests, así que
  * si alguien acopla dos verticales el build se pone en rojo automáticamente.
  *
- * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym, courts, kiosk,
+ * <p><b>Mandamiento #2 — Escalabilidad a prueba de balas.</b> Un vertical (gym
  * y los que vengan) jamás debe importar clases de otro vertical: se comunican —si hace falta—
  * por el núcleo ({@code core}) y sus fachadas. Y {@code core} es la base: no puede depender de
  * ningún vertical (si lo hiciera, dejaría de ser reutilizable y todo el modelo se rompe).</p>
@@ -25,61 +26,38 @@ class ArchitectureTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.veltronik.v2");
 
-    private static final String[] OTHER_THAN_KIOSK = { "..gym..", "..courts..", "..salon..", "..restaurant.." };
-    private static final String[] OTHER_THAN_COURTS = { "..gym..", "..kiosk..", "..salon..", "..restaurant.." };
-    private static final String[] OTHER_THAN_GYM = { "..courts..", "..kiosk..", "..salon..", "..restaurant.." };
 
-    @Test
-    void kiosk_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..kiosk..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_KIOSK)
-                .because("el vertical Kiosco debe ser autónomo: se apoya solo en core")
-                .check(CLASSES);
-    }
-
-    @Test
-    void courts_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..courts..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_COURTS)
-                .check(CLASSES);
-    }
-
-    @Test
-    void gym_no_depende_de_otras_verticales() {
-        noClasses().that().resideInAPackage("..gym..")
-                .should().dependOnClassesThat().resideInAnyPackage(OTHER_THAN_GYM)
-                .check(CLASSES);
-    }
+    // NOTA (2026-07-27): la regla "un vertical no importa clases de otro" se quedó sin
+    // contraparte cuando el kiosco (V41) y el módulo fiscal (V42) se dieron de baja y quedó GYM
+    // solo. No se reemplaza por una versión falsa: vuelve tal cual el día que nazca el segundo
+    // vertical. Mientras tanto la sostienen las reglas de abajo — core no depende de ningún
+    // vertical. (Las dos reglas del sync engine se fueron con él en la V43.)
 
     @Test
     void core_no_depende_de_ningun_vertical() {
         noClasses().that().resideInAPackage("..core..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
+                .should().dependOnClassesThat().resideInAnyPackage("..gym..")
                 .because("core es la base reutilizable: nada del dominio de un vertical puede filtrarse a core")
                 .check(CLASSES);
     }
 
+    /**
+     * <b>La regla que protege la plata de los clientes.</b> Toda entidad de un vertical tiene que
+     * heredar de {@link TenantAwareEntity}: ahí vive el {@code tenant_id} obligatorio y el
+     * {@code @Filter} de Hibernate que agrega {@code WHERE tenant_id = ?} a TODAS las consultas.
+     *
+     * <p>Sin eso, una entidad nueva arranca sin aislamiento y un negocio puede terminar viendo
+     * los datos de otro. No es un error que se note en un test funcional —la tabla anda, las
+     * consultas devuelven filas— y por eso justamente tiene que cazarlo el compilador. Hoy las
+     * entidades de gym cumplen; esta regla es para que la número 23 también.</p>
+     */
     @Test
-    void fiscal_no_depende_de_verticales() {
-        noClasses().that().resideInAPackage("..fiscal..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..")
-                .because("fiscal es un módulo COMPARTIDO (por debajo de las verticales): las verticales lo usan, no al revés")
-                .check(CLASSES);
-    }
-
-    @Test
-    void sync_no_depende_de_verticales() {
-        noClasses().that().resideInAPackage("..sync..")
-                .should().dependOnClassesThat().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
-                .because("el sync engine es GENÉRICO a nivel fila: conoce nombres de tablas (SyncTableRegistry), jamás clases de dominio de un vertical")
-                .check(CLASSES);
-    }
-
-    @Test
-    void verticales_no_dependen_de_sync() {
-        noClasses().that().resideInAnyPackage("..gym..", "..courts..", "..kiosk..", "..salon..", "..restaurant..", "..fiscal..")
-                .should().dependOnClassesThat().resideInAPackage("..sync..")
-                .because("los verticales no saben que existe la sincronización: escriben su dominio y los triggers capturan")
+    void toda_entidad_de_un_vertical_lleva_aislamiento_por_tenant() {
+        classes().that().areAnnotatedWith(jakarta.persistence.Entity.class)
+                .and().resideInAnyPackage("..gym..")
+                .should().beAssignableTo(com.veltronik.v2.core.entities.TenantAwareEntity.class)
+                .because("sin heredar de TenantAwareEntity la entidad queda SIN el filtro por tenant: "
+                        + "un negocio podría leer datos de otro")
                 .check(CLASSES);
     }
 
@@ -107,12 +85,33 @@ class ArchitectureTest {
     /**
      * Inyección por constructor, nunca @Autowired en campos: dependencias explícitas,
      * finales y testeables sin reflection. (Idioma del proyecto: Lombok @RequiredArgsConstructor.)
-     * Nota: @Value en campo queda permitido por ahora — hay ~17 usos legados; migrarlos es limpieza aparte.
      */
     @Test
     void prohibida_inyeccion_por_campo_con_autowired() {
         noFields().should().beAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
                 .because("la inyección va por constructor (@RequiredArgsConstructor): explícita, final y testeable")
+                .check(CLASSES);
+    }
+
+    /**
+     * Lo mismo para la configuración: {@code @Value} va en el PARÁMETRO del constructor (o del
+     * método {@code @Bean}), nunca en un campo.
+     *
+     * <p>No es cosmético. Con @Value en campo, el valor se inyecta DESPUÉS de construir el objeto:
+     * el campo no puede ser final y está en null durante el constructor. Peor, invita a que cada
+     * clase lea la misma propiedad por su cuenta con su propio valor por defecto — así llegamos a
+     * tener el precio mensual escrito en tres clases distintas. Con la propiedad en el constructor,
+     * el compilador obliga a pasar por un bean de configuración compartido
+     * ({@link com.veltronik.v2.core.config.BillingProperties},
+     * {@link com.veltronik.v2.core.config.MercadoPagoProperties}).</p>
+     *
+     * <p>Esta regla se pudo activar recién en la etapa 2.6, cuando se migraron los 10 campos que
+     * quedaban. Si alguien vuelve a escribir uno, el build se pone en rojo.</p>
+     */
+    @Test
+    void prohibida_configuracion_por_campo_con_value() {
+        noFields().should().beAnnotatedWith("org.springframework.beans.factory.annotation.Value")
+                .because("la configuración entra por el constructor: campos finales y un solo lugar por propiedad")
                 .check(CLASSES);
     }
 }

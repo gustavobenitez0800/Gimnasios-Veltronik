@@ -1,13 +1,19 @@
 // ============================================
-// VELTRONIK V2 - SETTINGS PAGE (Fixed & Enhanced)
+// VELTRONIK V2 - AJUSTES
+// ============================================
+// Datos del negocio, suscripción (cambiar tarjeta, verificar con MP, cancelar),
+// tema, y la sección de Equipos (qué computadora está enrolada a esta sucursal).
+// Las dos cargas son independientes a propósito: si falla la de equipos, Ajustes
+// sigue funcionando.
 // ============================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { gymService, errorService, deviceService, cashierService } from '../services';
+import { gymService, errorService, deviceService } from '../services';
 import { formatCurrency, timeAgo } from '../lib/utils';
+import { getVertical } from '../lib/verticals';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
@@ -22,7 +28,7 @@ export default function SettingsPage() {
   const { preference, setTheme } = useTheme();
   const currentRole = orgRole;
   const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = { GYM: 'gimnasio', PILATES: 'estudio', CLUB: 'club', ACADEMY: 'academia', RESTO: 'restaurante', KIOSK: 'kiosco', OTHER: 'negocio' }[orgType] || 'negocio';
+  const orgLabel = getVertical(orgType).placeLabel;
   const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
 
   const [loading, setLoading] = useState(true);
@@ -34,7 +40,7 @@ export default function SettingsPage() {
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
     plan: 'Veltronik Pro', status: 'active', nextPayment: '--', amount: '--',
-    payerEmail: '', hasSubscription: false
+    hasSubscription: false
   });
 
   // Action states
@@ -56,14 +62,6 @@ export default function SettingsPage() {
   const [revokeTarget, setRevokeTarget] = useState(null);
   const thisDevice = devices.find((d) => d.id === thisDeviceId);
 
-  // Cajeros con PIN (Fase 1, ladrillo 5 — el login local del ladrillo 6)
-  const [cashiers, setCashiers] = useState([]);
-  const [cashierForm, setCashierForm] = useState({ name: '', pin: '', role: 'CAJERO' });
-  const [cashierBusy, setCashierBusy] = useState(false);
-  const [pinResetTarget, setPinResetTarget] = useState(null); // { id, name }
-  const [pinResetValue, setPinResetValue] = useState('');
-  const [cashierToggleTarget, setCashierToggleTarget] = useState(null);
-
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
@@ -81,7 +79,6 @@ export default function SettingsPage() {
 
       // Subscription info
       let nextPaymentText = '--';
-      let payerEmail = '';
       let hasSubscription = false;
 
       // Si el tenant está activo y tiene trialEndsAt en el futuro → está en período válido
@@ -97,8 +94,8 @@ export default function SettingsPage() {
         // Sin suscripción MP activa — puede estar en trial
       }
 
-      // Fallback: trialEndsAt
-      if (!hasSubscription && nextPaymentText === '--' && gymData.trialEndsAt) {
+      // Sin suscripción de MP, el "próximo cobro" es el fin de la prueba gratis.
+      if (!hasSubscription && gymData.trialEndsAt) {
         const trialEnd = new Date(gymData.trialEndsAt);
         const diffDays = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
         const dateStr = trialEnd.toLocaleDateString('es-AR');
@@ -107,26 +104,23 @@ export default function SettingsPage() {
           : `${dateStr} (período de prueba finalizado)`;
       }
 
-      // Load billing history
-      let billingHistory = [];
+      // Precio siempre desde CONFIG (precio plano $80.000 para todos los tipos).
+      // Ojo: `gymType` es el del dato recién traído; el `orgType` de arriba es el del
+      // contexto/localStorage. Se llamaban igual y uno tapaba al otro.
+      const gymType = gymData.type || 'GYM';
+      const amount = CONFIG.PRICES_BY_TYPE[gymType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
 
-      // Precio siempre desde CONFIG (precio plano $80.000 para todos los tipos)
-      const orgType = gymData.type || 'GYM';
-      const amount = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
-
-      const planNameMap = { GYM: 'Veltronik Pro', RESTO: 'Veltronik Restaurante', KIOSK: 'Veltronik Kiosco', OTHER: 'Veltronik Business' };
+      const planNameMap = { GYM: 'Veltronik Pro', OTHER: 'Veltronik Business' };
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
       // de visualización desde la fuente real para no depender de un campo inexistente.
       const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
-        plan: planNameMap[orgType] || 'Veltronik Pro',
+        plan: planNameMap[gymType] || 'Veltronik Pro',
         status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
-        payerEmail,
         hasSubscription,
-        billingHistory,
       });
 
     } catch (error) {
@@ -201,64 +195,6 @@ export default function SettingsPage() {
       await loadDevices();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
-    }
-  };
-
-  // ── Cajeros con PIN (ladrillo 5) ──────────────────────────────────
-  const loadCashiers = useCallback(async () => {
-    if (!canManageDevices) return;
-    try {
-      setCashiers(await cashierService.list());
-    } catch {
-      // Silencioso: la sección de cajeros nunca debe romper Ajustes.
-    }
-  }, [canManageDevices]);
-
-  useEffect(() => { loadCashiers(); }, [loadCashiers]);
-
-  const handleCreateCashier = async () => {
-    setCashierBusy(true);
-    try {
-      await cashierService.create({
-        name: cashierForm.name.trim(),
-        pin: cashierForm.pin.trim(),
-        role: cashierForm.role,
-      });
-      showToast('Cajero creado. Su PIN queda guardado de forma segura (no se puede volver a ver).', 'success');
-      setCashierForm({ name: '', pin: '', role: 'CAJERO' });
-      await loadCashiers();
-    } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
-    } finally {
-      setCashierBusy(false);
-    }
-  };
-
-  const handleResetPin = async () => {
-    if (!pinResetTarget) return;
-    setCashierBusy(true);
-    try {
-      await cashierService.resetPin(pinResetTarget.id, pinResetValue.trim());
-      showToast(`PIN de ${pinResetTarget.name} actualizado`, 'success');
-      setPinResetTarget(null);
-      setPinResetValue('');
-    } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
-    } finally {
-      setCashierBusy(false);
-    }
-  };
-
-  const handleToggleCashier = async () => {
-    if (!cashierToggleTarget) return;
-    try {
-      await cashierService.setActive(cashierToggleTarget.id, !cashierToggleTarget.active);
-      showToast(cashierToggleTarget.active ? 'Cajero desactivado' : 'Cajero reactivado', 'success');
-      await loadCashiers();
-    } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
-    } finally {
-      setCashierToggleTarget(null);
     }
   };
 
@@ -471,13 +407,6 @@ export default function SettingsPage() {
               <span className="info-label">Monto mensual</span>
               <span className="info-value">{subscriptionInfo.amount}</span>
             </div>
-            {subscriptionInfo.payerEmail && (
-              <div className="info-row">
-                <span className="info-label">Email de pago</span>
-                <span className="info-value">{subscriptionInfo.payerEmail}</span>
-              </div>
-            )}
-
             {/* Payment Method Actions */}
             {subscriptionInfo.hasSubscription && (
               <div className="subscription-actions" style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -502,7 +431,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
-            {subscriptionInfo.hasSubscription && subscriptionInfo.payerEmail && (
+            {subscriptionInfo.hasSubscription && (
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
                 Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
                 Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
@@ -522,31 +451,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Billing History */}
-            {subscriptionInfo.billingHistory && subscriptionInfo.billingHistory.length > 0 && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Icon name="fileText" size="1em" /> Historial de Facturación
-                </h3>
-                <div className="billing-history-list">
-                  {subscriptionInfo.billingHistory.map((p, i) => (
-                    <div key={p.id || i} className="billing-history-item">
-                      <div className="billing-history-left">
-                        <span className="billing-history-date">
-                          {new Date(p.paymentDate || p.created_at).toLocaleDateString('es-AR')}
-                        </span>
-                        <span className={`billing-history-badge badge-${p.status === 'approved' ? 'success' : p.status === 'rejected' ? 'error' : 'warning'}`}>
-                          {p.status === 'approved' ? <><Icon name="check" size="0.75em" /> Aprobado</> : p.status === 'rejected' ? <><Icon name="x" size="0.75em" /> Rechazado</> : <><Icon name="clock" size="0.75em" /> Pendiente</>}
-                        </span>
-                      </div>
-                      <span className="billing-history-amount" style={{ color: p.status === 'approved' ? 'var(--success-500)' : 'var(--text-muted)' }}>
-                        {formatCurrency(p.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -652,84 +556,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Cajeros con PIN (Fase 1: ladrillo 5) */}
-        {canManageDevices && (
-          <div className="settings-section">
-            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size="1.1em" /> Cajeros</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
-              Operadores del mostrador que entran con un PIN (sin email ni Google). El PIN se guarda cifrado y no se puede volver a ver — si se olvida, asignale uno nuevo.
-            </p>
-
-            {cashiers.length > 0 && (
-              <div style={{ marginBottom: '1rem' }}>
-                {cashiers.map((c) => (
-                  <div key={c.id} className="info-row" style={{ alignItems: 'center' }}>
-                    <span className="info-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Icon name="user" size="1em" />
-                      <span style={{ opacity: c.active ? 1 : 0.5 }}>{c.name}</span>
-                    </span>
-                    <span className="info-value" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <span style={{ fontWeight: 600 }}>{c.role === 'ENCARGADO' ? 'Encargado' : 'Cajero'}</span>
-                      {!c.active && <span style={{ color: 'var(--text-muted)' }}>inactivo</span>}
-                      {pinResetTarget?.id === c.id ? (
-                        <>
-                          <input className="form-input" type="password" inputMode="numeric" maxLength={6}
-                            placeholder="Nuevo PIN" autoFocus
-                            style={{ width: '110px' }}
-                            value={pinResetValue}
-                            onChange={(e) => setPinResetValue(e.target.value.replace(/\D/g, ''))} />
-                          <button className="btn-primary" disabled={cashierBusy || pinResetValue.length < 4}
-                            onClick={handleResetPin}>Guardar</button>
-                          <button className="btn-outline-secondary" onClick={() => { setPinResetTarget(null); setPinResetValue(''); }}>Cancelar</button>
-                        </>
-                      ) : (
-                        <>
-                          {c.active && (
-                            <button className="btn-outline-secondary" onClick={() => { setPinResetTarget(c); setPinResetValue(''); }}>Nuevo PIN</button>
-                          )}
-                          <button className={c.active ? 'btn-outline-danger' : 'btn-outline-secondary'}
-                            onClick={() => setCashierToggleTarget(c)}>
-                            {c.active ? 'Desactivar' : 'Reactivar'}
-                          </button>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: '1 1 200px' }}>
-                <label className="form-label">Nombre</label>
-                <input className="form-input" placeholder="Ej: Marta" maxLength={120}
-                  value={cashierForm.name}
-                  onChange={(e) => setCashierForm((f) => ({ ...f, name: e.target.value }))} />
-              </div>
-              <div>
-                <label className="form-label">PIN (4-6 dígitos)</label>
-                <input className="form-input" type="password" inputMode="numeric" maxLength={6}
-                  placeholder="••••" style={{ width: '120px' }}
-                  value={cashierForm.pin}
-                  onChange={(e) => setCashierForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))} />
-              </div>
-              <div>
-                <label className="form-label">Rol</label>
-                <select className="form-input" value={cashierForm.role}
-                  onChange={(e) => setCashierForm((f) => ({ ...f, role: e.target.value }))}>
-                  <option value="CAJERO">Cajero</option>
-                  <option value="ENCARGADO">Encargado</option>
-                </select>
-              </div>
-              <button className="btn-primary"
-                disabled={cashierBusy || !cashierForm.name.trim() || cashierForm.pin.length < 4}
-                onClick={handleCreateCashier}>
-                Agregar cajero
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Appearance */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
@@ -805,15 +631,6 @@ export default function SettingsPage() {
         icon="alertTriangle" confirmText="Revocar" confirmClass="btn-danger"
         onConfirm={handleRevoke} onCancel={() => setRevokeTarget(null)} />
 
-      <ConfirmDialog open={!!cashierToggleTarget}
-        title={cashierToggleTarget?.active ? 'Desactivar cajero' : 'Reactivar cajero'}
-        message={cashierToggleTarget?.active
-          ? `¿Desactivar a "${cashierToggleTarget?.name}"? No podrá entrar con su PIN, pero su historial se conserva y podés reactivarlo cuando quieras.`
-          : `¿Reactivar a "${cashierToggleTarget?.name}"? Volverá a poder entrar con su PIN.`}
-        icon={cashierToggleTarget?.active ? 'alertTriangle' : 'user'}
-        confirmText={cashierToggleTarget?.active ? 'Desactivar' : 'Reactivar'}
-        confirmClass={cashierToggleTarget?.active ? 'btn-danger' : 'btn-primary'}
-        onConfirm={handleToggleCashier} onCancel={() => setCashierToggleTarget(null)} />
     </div>
   );
 }

@@ -9,9 +9,12 @@ import { useState, useCallback } from 'react';
 
 /**
  * @param {object} initialForm — Estado inicial del formulario
+ * @param {boolean} initiallyOpen — Arranca abierto. Lo usan las páginas que se abren por
+ *   deep-link (`?action=new`): decidirlo acá evita el efecto-que-abre-el-modal, que
+ *   costaba un render extra y un ref para no reabrirlo en cada cambio de URL.
  */
-export function useModal(initialForm = {}) {
-  const [isOpen, setIsOpen] = useState(false);
+export function useModal(initialForm = {}, initiallyOpen = false) {
+  const [isOpen, setIsOpen] = useState(initiallyOpen);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);

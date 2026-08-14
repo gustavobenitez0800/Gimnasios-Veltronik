@@ -22,10 +22,10 @@ const http = require('http');
 // no puede leer un archivo que vive dentro del app.asar; el NativeImage sí resuelve.
 function loadVeltronikIcon() {
     // 1) Adentro del asar (dev y prod): nativeImage sabe leer dentro del asar.
-    let img = nativeImage.createFromPath(path.join(__dirname, '../assets/LogoPrincipalVeltronik.png'));
+    let img = nativeImage.createFromPath(path.join(__dirname, '../assets/LogotipoSecundario.png'));
     // 2) Fallback a la copia real en resources/assets (extraResources del builder) por si fallara.
     if ((!img || img.isEmpty()) && process.resourcesPath) {
-        img = nativeImage.createFromPath(path.join(process.resourcesPath, 'assets', 'LogoPrincipalVeltronik.png'));
+        img = nativeImage.createFromPath(path.join(process.resourcesPath, 'assets', 'LogotipoSecundario.png'));
     }
     return img;
 }

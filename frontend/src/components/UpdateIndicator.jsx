@@ -21,19 +21,20 @@ const STATE = {
 };
 
 export default function UpdateIndicator() {
-  const [version, setVersion] = useState('');
+  // Web: la versión ya se conoce en build-time (Vite define __APP_VERSION__) →
+  // nace como estado inicial, sin pasar por un effect. Electron la resuelve
+  // async (IPC) en el effect de abajo.
+  const [version, setVersion] = useState(() =>
+    !isElectron && typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''
+  );
   const [state, setState] = useState(STATE.IDLE);
   const [newVersion, setNewVersion] = useState('');
   const [progress, setProgress] = useState(0);
   const [restarting, setRestarting] = useState(false);
 
-  // Carga inicial: versión + estado actual (por si ya había una descarga lista).
+  // Carga inicial (solo Electron): versión + estado actual (por si ya había una descarga lista).
   useEffect(() => {
-    if (!isElectron) {
-      // Web: versión inyectada en build-time por Vite (define __APP_VERSION__).
-      try { setVersion(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''); } catch { /* noop */ }
-      return;
-    }
+    if (!isElectron) return;
     let mounted = true;
     (async () => {
       try {

@@ -93,19 +93,7 @@ public class DeviceRegistryService {
         return deviceRepository.findById(deviceId);
     }
 
-    /**
-     * Marca que el equipo empujó datos por sync recién (ladrillo 7). Señal honesta de
-     * frescura para el web-espejo. Telemetría: nunca rompe el sync (try/catch en el caller).
-     */
-    @Transactional
-    public void recordSync(UUID deviceId) {
-        if (deviceId == null) return;
-        deviceRepository.findById(deviceId).ifPresent(device -> {
-            device.setLastSyncAt(LocalDateTime.now());
-            deviceRepository.save(device);
-        });
-    }
-
+    
     /** Asigna el anillo de update de un equipo de la sucursal (ladrillo 7, rollout escalonado). */
     @Transactional
     public void setRing(UUID tenantId, UUID deviceId, Short ring) {
@@ -180,7 +168,7 @@ public class DeviceRegistryService {
     }
 
     /**
-     * Autentica un equipo por su credencial (el filtro de /api/sync/** la usa).
+     * Autentica un equipo por su credencial (el filtro de /api/updates/** la usa).
      * Devuelve el equipo solo si: existe, está ACTIVO, enrolado a una sucursal,
      * y el hash de la clave coincide (comparación en tiempo constante).
      */

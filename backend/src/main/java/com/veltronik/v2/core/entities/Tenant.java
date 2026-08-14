@@ -34,7 +34,7 @@ public class Tenant extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
-    /** Tipo de vertical: GYM, SALON, RESTAURANT, OTHER. */
+    /** Vertical del negocio. Ver {@link BusinessType} para los valores soportados. */
     @Enumerated(EnumType.STRING)
     @Column(name = "business_type", nullable = false, length = 20)
     private BusinessType businessType;

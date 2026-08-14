@@ -29,9 +29,8 @@ public class SetupController {
     private final AppUserRepository userRepository;
     private final TenantMapper tenantMapper;
 
-    /** Días de prueba de la primera sucursal. Configurable (application.properties / env TRIAL_DAYS). */
-    @org.springframework.beans.factory.annotation.Value("${veltronik.billing.trial-days:14}")
-    private int trialDays;
+    /** Días de prueba de la primera sucursal y demás datos de cobro (fuente única). */
+    private final com.veltronik.v2.core.config.BillingProperties billing;
 
     /** Zona del negocio (Argentina): el trial se calcula en hora AR, no la del server. */
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
@@ -59,7 +58,7 @@ public class SetupController {
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         if (isFirstBranch) {
             // Primera sucursal: período de prueba configurable (por defecto 14 días).
-            tenant.setTrialEndsAt(now.plusDays(trialDays));
+            tenant.setTrialEndsAt(now.plusDays(billing.getTrialDays()));
         } else {
             // Sucursal adicional: NO tiene período de prueba → trialEndsAt = null.
             // El Kill Switch la bloquea (sin trial ni suscripción) hasta que se active con un

@@ -5,6 +5,11 @@ import { memberService } from '../services/MemberService';
 import { paymentService } from '../services/PaymentService';
 import { insightsService } from '../services';
 
+// Una sola lista vacía compartida. Con `data?.x || []` se creaba un array NUEVO en cada
+// render mientras los datos no estaban: como los useMemo de abajo dependen de esas listas,
+// ninguno memorizaba nada y los cinco cálculos de insights se rehacían en cada render.
+const EMPTY = [];
+
 export function useDashboardController(gym) {
   // El id del negocio sale del contexto O del localStorage (que el Lobby setea ANTES de
   // navegar; `gym` se hidrata en background y llega DESPUÉS). Antes, al entrar desde el
@@ -66,8 +71,8 @@ export function useDashboardController(gym) {
   );
 
   const stats = data?.dashStats;
-  const members = data?.membersData || [];
-  const payments = data?.paymentsData || [];
+  const members = data?.membersData || EMPTY;
+  const payments = data?.paymentsData || EMPTY;
 
   const handleRefreshStats = useCallback(async () => {
     try {

@@ -11,7 +11,6 @@ const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require('electron
 const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
 const deviceManager = require('./device-manager.cjs');
-const backendRuntime = require('./backend-runtime.cjs');
 
 // ============================================
 // MENÚ DE APLICACIÓN PERSONALIZADO
@@ -86,7 +85,9 @@ const WINDOW_CONFIG = {
     minWidth: 1024,
     minHeight: 700,
     title: 'Veltronik',
-    icon: path.join(__dirname, '../assets/LogoPrincipalVeltronik.png'),
+    // icon.png = versión CUADRADA del logotipo (1024x1024, padding transparente):
+    // Windows deforma iconos no cuadrados en la barra de tareas.
+    icon: path.join(__dirname, '../assets/icon.png'),
     show: false, // Mostrar cuando esté listo
     webPreferences: {
         nodeIntegration: false,
@@ -177,16 +178,6 @@ app.whenReady().then(() => {
 
     createWindow();
 
-    // El cerebro embebido (ADR-009): se prende solo si el equipo está ENROLADO
-    // (sync-identity.json completo); VELTRONIK_LOCAL_BRAIN=1/0 fuerza/apaga (escape hatch).
-    // Fire-and-forget: la UI no espera al backend local (arranca contra la nube y el
-    // renderer decide a quién hablar según el enrolamiento).
-    if (backendRuntime.isEnabled() && !isDev()) {
-        backendRuntime.start().catch((e) => {
-            console.error('[Main] El cerebro local no arrancó:', e.message);
-        });
-    }
-
     // macOS: recrear ventana al hacer clic en el dock
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -199,19 +190,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
-    }
-});
-
-// Apagado PROLIJO del cerebro local antes de salir: actuator/shutdown deja que
-// la JVM corra sus hooks y zonky detenga Postgres (un kill duro dejaría un
-// postgres.exe huérfano bloqueando el pgdata). Patrón preventDefault + exit.
-let backendStopped = false;
-app.on('will-quit', (event) => {
-    if (backendRuntime.isRunning() && !backendStopped) {
-        event.preventDefault();
-        backendRuntime.stop()
-            .catch(() => { /* mejor esfuerzo: el log ya lo cuenta */ })
-            .finally(() => { backendStopped = true; app.quit(); });
     }
 });
 
@@ -245,25 +223,3 @@ ipcMain.handle('restart-for-update', () => {
     quitAndInstall();
 });
 
-// El cableado del bautizo (ladrillo 4): el renderer enrola contra la nube y le pasa
-// la credencial al proceso principal, que la persiste para el cerebro local.
-ipcMain.handle('local-brain:set-sync-identity', (event, identity) => {
-    try {
-        return backendRuntime.saveSyncIdentity(identity);
-    } catch (e) {
-        console.error('[Main] No se pudo guardar la identidad de sync:', e.message);
-        return { ok: false, error: e.message };
-    }
-});
-
-// ¿Este equipo debería tener cerebro local? (enrolado o forzado por env). Lo consulta el
-// renderer para saber si vale la pena RE-probar el modo local cuando el probe inicial
-// falló (el cerebro tarda en bootear más que la app; sin esto, un arranque sin internet
-// quedaba clavado en modo nube hasta reiniciar la app).
-ipcMain.handle('local-brain:is-enabled', () => {
-    try {
-        return backendRuntime.isEnabled();
-    } catch {
-        return false;
-    }
-});

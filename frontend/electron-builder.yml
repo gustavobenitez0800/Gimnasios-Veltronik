@@ -8,18 +8,17 @@ files:
   - "dist/**/*"
   - "assets/**/*"
   - "package.json"
+  # Lo que NO va adentro del instalador. Solo se listan rutas que EXISTEN: había
+  # cuatro excludes de carpetas borradas hace rato (api/, .github/, vercel.json,
+  # .vercelignore) que no excluían nada y hacían pensar que seguían existiendo.
   - "!src/**/*"
   - "!public/**/*"
-  - "!api/**/*"
   - "!.git/**/*"
-  - "!.github/**/*"
   - "!.env"
   - "!.env.*"
   - "!*.md"
   - "!vite.config.js"
   - "!eslint.config.js"
-  - "!vercel.json"
-  - "!.vercelignore"
 
 # Incluir dependencias de producción automáticamente
 asar: true
@@ -28,11 +27,6 @@ asar: true
 extraResources:
   - from: "assets/"
     to: "assets/"
-  # El cerebro embebido (ADR-009): JRE jlink + fat jar del monolito, producidos
-  # por build-tools/build-backend.ps1 ANTES de electron-builder (ver release.yml).
-  # backend-runtime.cjs los lanza desde process.resourcesPath/backend/.
-  - from: "resources/backend/"
-    to: "backend/"
 
 # Directorio de salida (instaladores). Relativo: el build de producción corre en
 # GitHub Actions (runner Windows limpio), donde no existe el lock de Defender/OneDrive
@@ -57,7 +51,9 @@ publish:
 # WINDOWS
 # ============================================
 win:
-  icon: assets/LogoPrincipalVeltronik.png
+  # icon.png: versión cuadrada 1024x1024 del Logotipo Secundario (el builder la
+  # convierte a .ico multi-resolución; un PNG no cuadrado se deformaría).
+  icon: assets/icon.png
   target:
     - target: nsis
       arch:
@@ -95,13 +91,13 @@ mac:
       arch:
         - x64
         - arm64
-  icon: assets/LogoPrincipalVeltronik.png
+  icon: assets/icon.png
   artifactName: "Veltronik-${version}-${arch}.${ext}"
   category: public.app-category.business
 
 dmg:
   title: Veltronik Platform
-  icon: assets/LogoPrincipalVeltronik.png
+  icon: assets/icon.png
 
 # ============================================
 # LINUX
@@ -114,7 +110,7 @@ linux:
     - target: deb
       arch:
         - x64
-  icon: assets/LogoPrincipalVeltronik.png
+  icon: assets/icon.png
   artifactName: "Veltronik-${version}.${ext}"
   category: Office
   maintainer: veltronikcompany@gmail.com

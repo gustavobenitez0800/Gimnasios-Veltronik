@@ -13,20 +13,6 @@ export function log(...args) {
   if (CONFIG.DEBUG) console.log(...args);
 }
 
-export function logWarn(...args) {
-  if (CONFIG.DEBUG) console.warn(...args);
-}
-
-/**
- * Escape HTML to prevent XSS
- */
-export function escapeHtml(text) {
-  if (text === null || text === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = String(text);
-  return div.innerHTML;
-}
-
 /**
  * Get initials from a full name
  */
@@ -48,6 +34,21 @@ export function formatCurrency(amount, currency = 'ARS') {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+/**
+ * Fecha 'YYYY-MM-DD' en la zona del NAVEGADOR (la del negocio), no en UTC.
+ *
+ * `new Date().toISOString().slice(0, 10)` parece hacer lo mismo y NO lo hace: convierte a UTC
+ * primero, así que en Argentina (-03) todo lo que pase después de las 21:00 se guarda con la
+ * fecha de MAÑANA. Ya nos mordió en los pagos del gimnasio y en la fecha por defecto de una
+ * compra. Toda fecha "de hoy" que viaje al backend sale de acá.
+ */
+export function toLocalDateString(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 /**
@@ -150,17 +151,6 @@ export async function copyToClipboard(text) {
     return true;
   } catch {
     return false;
-  }
-}
-
-/**
- * Safely parse JSON
- */
-export function safeJsonParse(jsonString, fallback = null) {
-  try {
-    return JSON.parse(jsonString);
-  } catch {
-    return fallback;
   }
 }
 

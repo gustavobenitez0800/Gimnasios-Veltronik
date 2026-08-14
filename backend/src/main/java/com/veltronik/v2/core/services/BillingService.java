@@ -5,15 +5,14 @@ import com.mercadopago.client.preapproval.PreapprovalClient;
 import com.mercadopago.client.preapproval.PreapprovalCreateRequest;
 import com.mercadopago.client.preapproval.PreapprovalUpdateRequest;
 import com.mercadopago.resources.preapproval.Preapproval;
+import com.veltronik.v2.core.config.BillingProperties;
 import com.veltronik.v2.core.entities.Subscription;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.repositories.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -28,12 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BillingService {
 
-    @Value("${veltronik.billing.monthly-price:80000}")
-    private BigDecimal monthlyPrice;
-
-    @Value("${cors.frontend-url:https://veltronik.com}")
-    private String frontendUrl;
-
+    private final BillingProperties billing;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionBillingService subscriptionBillingService;
     private final MercadoPagoService mercadoPagoService;
@@ -53,14 +47,14 @@ public class BillingService {
         PreApprovalAutoRecurringCreateRequest autoRecurring = PreApprovalAutoRecurringCreateRequest.builder()
                 .frequency(1)
                 .frequencyType("months")
-                .transactionAmount(monthlyPrice)
+                .transactionAmount(billing.getMonthlyPrice())
                 .currencyId("ARS")
                 .build();
 
         PreapprovalCreateRequest request = PreapprovalCreateRequest.builder()
                 .reason("Suscripción Veltronik V2 - " + tenant.getName())
                 .autoRecurring(autoRecurring)
-                .backUrl(frontendUrl + "/payment-callback")
+                .backUrl(billing.paymentCallbackUrl())
                 .externalReference(tenant.getId().toString())
                 .payerEmail(payerEmail)
                 .build();

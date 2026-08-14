@@ -4,7 +4,6 @@ import { paymentService } from '../services/PaymentService';
 export function usePaymentController() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const mapPaymentDTOToModel = useCallback((dto) => {
     const member = dto.member ? {
@@ -48,7 +47,6 @@ export function usePaymentController() {
     // El apiClient inyecta el X-Tenant-ID igual, así que la query queda acotada al negocio.
     if (!localStorage.getItem('current_org_id')) return;
     setLoading(true);
-    setError(null);
     try {
       // El rango de fecha lo filtra el BACKEND (params from/to). search/method/status
       // se aplican sobre el resultado (filtros livianos de UI sobre el set ya acotado).
@@ -68,7 +66,6 @@ export function usePaymentController() {
       setPayments(mappedData);
     } catch (err) {
       console.error("Error loading payments:", err);
-      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +76,6 @@ export function usePaymentController() {
   // (antes recargaba SIN filtro → "aparecían todos" solo tras registrar un pago).
   const savePayment = async (paymentData) => {
     setLoading(true);
-    setError(null);
     try {
       const dto = mapPaymentModelToDTO(paymentData);
       let saved;
@@ -91,7 +87,6 @@ export function usePaymentController() {
       return saved;
     } catch (err) {
       console.error("Error saving payment:", err);
-      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -100,13 +95,11 @@ export function usePaymentController() {
 
   const deletePayment = async (id) => {
     setLoading(true);
-    setError(null);
     try {
       await paymentService.deletePayment(id);
       setPayments(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error("Error deleting payment:", err);
-      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -116,7 +109,6 @@ export function usePaymentController() {
   return {
     payments,
     loading,
-    error,
     loadPayments,
     savePayment,
     deletePayment

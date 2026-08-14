@@ -1,5 +1,8 @@
 // ============================================
-// VELTRONIK V2 - RETENTION PAGE (Optimized & Cached)
+// VELTRONIK V2 - RETENCIÓN (gym)
+// ============================================
+// Quién se está por ir: membresías que vencen esta semana y socios sin pagos en
+// 30+ días, con el botón de WhatsApp para salir a buscarlos.
 // ============================================
 
 import { useCallback } from 'react';

@@ -1,5 +1,9 @@
 // ============================================
-// VELTRONIK V2 - CLASSES PAGE (Refactored)
+// VELTRONIK V2 - CLASES (gym)
+// ============================================
+// Grilla semanal de clases fijas: se definen por día de la semana, así que la
+// misma clase se repite todas las semanas (navegar el calendario cambia las
+// fechas del encabezado, no las clases).
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,6 +12,7 @@ import { errorService } from '../services';
 import { useClassController } from '../controllers/useClassController';
 import { formatTime, getDayName } from '../lib/utils';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
+import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import DaySelector from '../components/ui/DaySelector';
 
@@ -250,103 +255,106 @@ export default function ClassesPage() {
       )}
 
       {/* Class CRUD Modal */}
-      {modalOpen && (
-        <div className="modal-overlay modal-show" onClick={() => setModalOpen(false)}>
-          <div className="modal-container member-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>{editingId ? 'Editar Clase' : 'Nueva Clase'}</h2>
-              <button type="button" onClick={() => setModalOpen(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? 'Editar Clase' : 'Nueva Clase'}
+      >
+        <form onSubmit={handleSave}>
+          <div className="modal-form">
+            <div className="form-group full-width">
+              <label className="form-label">Nombre *</label>
+              <input type="text" className="form-input" placeholder="Ej: Spinning, Yoga"
+                value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
             </div>
-            <form onSubmit={handleSave}>
-              <div className="modal-form">
-                <div className="form-group full-width">
-                  <label className="form-label">Nombre *</label>
-                  <input type="text" className="form-input" placeholder="Ej: Spinning, Yoga"
-                    value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Instructor</label>
-                  <input type="text" className="form-input" value={form.instructor}
-                    onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))} />
-                </div>
-                {editingId ? (
-                  <div className="form-group">
-                    <label className="form-label">Día de la semana *</label>
-                    <select className="form-select" value={form.day_of_week}
-                      onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))} required>
-                      <option value="">Seleccionar...</option>
-                      <option value="1">Lunes</option>
-                      <option value="2">Martes</option>
-                      <option value="3">Miércoles</option>
-                      <option value="4">Jueves</option>
-                      <option value="5">Viernes</option>
-                      <option value="6">Sábado</option>
-                      <option value="0">Domingo</option>
-                    </select>
-                  </div>
-                ) : (
-                  <div className="form-group full-width">
-                    <label className="form-label">Días de la semana *</label>
-                    <DaySelector
-                      selectedDays={form.days_of_week || []}
-                      onChange={(days) => setForm(f => ({ ...f, days_of_week: days }))}
-                    />
-                  </div>
-                )}
-                <div className="form-group">
-                  <label className="form-label">Hora inicio *</label>
-                  <input type="time" className="form-input" value={form.start_time}
-                    onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Hora fin *</label>
-                  <input type="time" className="form-input" value={form.end_time}
-                    onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Capacidad</label>
-                  <input type="number" className="form-input" min="1" max="100" value={form.capacity}
-                    onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Sala/Lugar</label>
-                  <input type="text" className="form-input" value={form.room}
-                    onChange={e => setForm(f => ({ ...f, room: e.target.value }))} />
-                </div>
-                <div className="form-group full-width">
-                  <label className="form-label">Color</label>
-                  <div className="class-color-picker">
-                    {COLORS.map(c => (
-                      <div key={c} className={`color-option ${form.color === c ? 'selected' : ''}`}
-                        style={{ background: c }} onClick={() => setForm(f => ({ ...f, color: c }))} />
-                    ))}
-                  </div>
-                </div>
-                <div className="form-group full-width">
-                  <label className="form-label">Descripción</label>
-                  <textarea className="form-textarea" rows="2" value={form.description}
-                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-                </div>
+            <div className="form-group">
+              <label className="form-label">Instructor</label>
+              <input type="text" className="form-input" value={form.instructor}
+                onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))} />
+            </div>
+            {editingId ? (
+              <div className="form-group">
+                <label className="form-label">Día de la semana *</label>
+                <select className="form-select" value={form.day_of_week}
+                  onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))} required>
+                  <option value="">Seleccionar...</option>
+                  <option value="1">Lunes</option>
+                  <option value="2">Martes</option>
+                  <option value="3">Miércoles</option>
+                  <option value="4">Jueves</option>
+                  <option value="5">Viernes</option>
+                  <option value="6">Sábado</option>
+                  <option value="0">Domingo</option>
+                </select>
               </div>
-              <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar'}
-                </button>
+            ) : (
+              <div className="form-group full-width">
+                <label className="form-label">Días de la semana *</label>
+                <DaySelector
+                  selectedDays={form.days_of_week || []}
+                  onChange={(days) => setForm(f => ({ ...f, days_of_week: days }))}
+                />
               </div>
-            </form>
+            )}
+            <div className="form-group">
+              <label className="form-label">Hora inicio *</label>
+              <input type="time" className="form-input" value={form.start_time}
+                onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Hora fin *</label>
+              <input type="time" className="form-input" value={form.end_time}
+                onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Capacidad</label>
+              <input type="number" className="form-input" min="1" max="100" value={form.capacity}
+                onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Sala/Lugar</label>
+              <input type="text" className="form-input" value={form.room}
+                onChange={e => setForm(f => ({ ...f, room: e.target.value }))} />
+            </div>
+            <div className="form-group full-width">
+              <label className="form-label">Color</label>
+              <div className="class-color-picker">
+                {COLORS.map(c => (
+                  <div key={c} className={`color-option ${form.color === c ? 'selected' : ''}`}
+                    style={{ background: c }} onClick={() => setForm(f => ({ ...f, color: c }))} />
+                ))}
+              </div>
+            </div>
+            <div className="form-group full-width">
+              <label className="form-label">Descripción</label>
+              <textarea className="form-textarea" rows="2" value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
           </div>
-        </div>
-      )}
+          <ModalActions onCancel={() => setModalOpen(false)} saving={saving} />
+        </form>
+      </Modal>
 
       {/* Detail Modal */}
-      {detailModal && selectedClass && (
-        <div className="modal-overlay modal-show" onClick={() => setDetailModal(false)}>
-          <div className="modal-container member-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title" style={{ textAlign: 'left' }}>
-              <span style={{ width: 14, height: 14, borderRadius: '50%', background: selectedClass.color, display: 'inline-block', marginRight: 8 }} />
-              {selectedClass.name}
-            </h2>
+      <Modal
+        isOpen={detailModal && !!selectedClass}
+        onClose={() => setDetailModal(false)}
+        title={selectedClass && (
+          <>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: selectedClass.color, display: 'inline-block', marginRight: 8 }} />
+            {selectedClass.name}
+          </>
+        )}
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setDetailModal(false)}>Cerrar</button>
+            <button className="btn btn-primary" onClick={() => { setDetailModal(false); openEdit(selectedClass); }}>Editar</button>
+            <button className="btn btn-danger" onClick={() => setDeleteId(selectedClass.id)}>Eliminar</button>
+          </>
+        }
+      >
+        {selectedClass && (
+          <>
             <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="calendar" size="1em" /> {getDayName(selectedClass.day_of_week)} · {formatTime(selectedClass.start_time)} - {formatTime(selectedClass.end_time)}</p>
               <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="user" size="1em" /> {selectedClass.instructor || 'Sin instructor'}</p>
@@ -355,14 +363,9 @@ export default function ClassesPage() {
             {selectedClass.description && (
               <p className="text-muted" style={{ marginTop: 0, marginBottom: '1rem' }}>{selectedClass.description}</p>
             )}
-            <div className="modal-actions" style={{ marginTop: '1rem' }}>
-              <button className="btn btn-secondary" onClick={() => setDetailModal(false)}>Cerrar</button>
-              <button className="btn btn-primary" onClick={() => { setDetailModal(false); openEdit(selectedClass); }}>Editar</button>
-              <button className="btn btn-danger" onClick={() => { setDeleteId(selectedClass.id); }}>Eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       <ConfirmDialog open={!!deleteId} title="Eliminar Clase" message="¿Estás seguro de eliminar esta clase?"
         icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />

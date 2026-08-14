@@ -26,4 +26,14 @@ const resilientFetch = createResilientFetch({
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: { fetch: resilientFetch },
+  auth: {
+    // PKCE: el link de recuperación y el OAuth vuelven con "?code=..." (query param)
+    // en vez de tokens en el fragmento "#...". Clave con HashRouter: el flujo implícito
+    // metía los tokens en el mismo "#" que usa el router y la sesión de recuperación
+    // nunca se creaba → "me llega el mail pero no puedo poner la contraseña nueva".
+    flowType: 'pkce',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
 });

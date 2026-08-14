@@ -4,12 +4,13 @@ import com.mercadopago.client.preapproval.PreapprovalClient;
 import com.mercadopago.client.preapproval.PreapprovalCreateRequest;
 import com.mercadopago.client.preapproval.PreApprovalAutoRecurringCreateRequest;
 import com.mercadopago.resources.preapproval.Preapproval;
+import com.veltronik.v2.core.config.BillingProperties;
+import com.veltronik.v2.core.config.MercadoPagoProperties;
 import com.veltronik.v2.core.entities.Tenant;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,15 +35,10 @@ import java.util.UUID;
 @Slf4j
 public class MercadoPagoService {
 
-    @Value("${veltronik.billing.monthly-price:80000}")
-    private BigDecimal subscriptionPrice;
+    private final BillingProperties billing;
 
-    @Value("${cors.frontend-url:https://veltronik.com}")
-    private String frontendUrl;
-
-    /** Token de MP. Lo usa la llamada HTTP a authorized_payments (recurso que el SDK no expone). */
-    @Value("${mercadopago.access.token:}")
-    private String accessToken;
+    /** Token de MP: lo usa la llamada HTTP a authorized_payments (recurso que el SDK no expone). */
+    private final MercadoPagoProperties mercadoPago;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String MP_API = "https://api.mercadopago.com";
@@ -65,7 +61,7 @@ public class MercadoPagoService {
             PreApprovalAutoRecurringCreateRequest autoRecurring = PreApprovalAutoRecurringCreateRequest.builder()
                     .frequency(1)
                     .frequencyType("months")
-                    .transactionAmount(subscriptionPrice)
+                    .transactionAmount(billing.getMonthlyPrice())
                     .currencyId("ARS")
                     .build();
 
@@ -77,7 +73,7 @@ public class MercadoPagoService {
                     .externalReference(tenant.getId().toString())
                     .payerEmail(payerEmail)
                     .autoRecurring(autoRecurring)
-                    .backUrl(frontendUrl + "/payment-callback")
+                    .backUrl(billing.paymentCallbackUrl())
                     .build();
 
             Preapproval preapproval = client.create(request);
@@ -114,7 +110,7 @@ public class MercadoPagoService {
             java.util.Map<String, Object> autoRecurring = new java.util.LinkedHashMap<>();
             autoRecurring.put("frequency", 1);
             autoRecurring.put("frequency_type", "months");
-            autoRecurring.put("transaction_amount", subscriptionPrice);
+            autoRecurring.put("transaction_amount", billing.getMonthlyPrice());
             autoRecurring.put("currency_id", "ARS");
 
             java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
@@ -124,14 +120,14 @@ public class MercadoPagoService {
             payload.put("card_token_id", cardToken);   // tarjeta ya tokenizada por el Brick
             payload.put("status", "authorized");        // cobro directo, sin checkout/redirección
             payload.put("auto_recurring", autoRecurring);
-            payload.put("back_url", frontendUrl + "/payment-callback");
+            payload.put("back_url", billing.paymentCallbackUrl());
 
             String json = MAPPER.writeValueAsString(payload);
 
             HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(MP_API + "/preapproval"))
-                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Authorization", "Bearer " + mercadoPago.getAccessToken())
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(20))
                     .POST(HttpRequest.BodyPublishers.ofString(json))
@@ -177,7 +173,7 @@ public class MercadoPagoService {
      * @return los datos del cobro, o {@code null} si no se pudo obtener (se loguea el detalle).
      */
     public AuthorizedPaymentInfo getAuthorizedPayment(String authorizedPaymentId) {
-        if (accessToken == null || accessToken.isBlank()) {
+        if (!mercadoPago.hasAccessToken()) {
             log.error("MP access token no configurado: imposible consultar authorized_payment {}.", authorizedPaymentId);
             return null;
         }
@@ -187,7 +183,7 @@ public class MercadoPagoService {
                     .build();
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(MP_API + "/authorized_payments/" + authorizedPaymentId))
-                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Authorization", "Bearer " + mercadoPago.getAccessToken())
                     .timeout(Duration.ofSeconds(10))
                     .GET()
                     .build();
@@ -233,7 +229,7 @@ public class MercadoPagoService {
      * @param exceptId preapproval a CONSERVAR (null = cancelar todos; usar antes de crear uno nuevo).
      */
     public void cancelActivePreapprovals(UUID tenantId, String exceptId) {
-        if (accessToken == null || accessToken.isBlank()) {
+        if (!mercadoPago.hasAccessToken()) {
             log.error("MP access token no configurado: no se pueden cancelar preapprovals previos del tenant {}.", tenantId);
             return;
         }
@@ -241,7 +237,7 @@ public class MercadoPagoService {
             HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
             HttpRequest searchReq = HttpRequest.newBuilder()
                     .uri(URI.create(MP_API + "/preapproval/search?external_reference=" + tenantId))
-                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Authorization", "Bearer " + mercadoPago.getAccessToken())
                     .timeout(Duration.ofSeconds(15))
                     .GET()
                     .build();
@@ -281,7 +277,7 @@ public class MercadoPagoService {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(MP_API + "/preapproval/" + preapprovalId))
-                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Authorization", "Bearer " + mercadoPago.getAccessToken())
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(15))
                     .method("PUT", HttpRequest.BodyPublishers.ofString("{\"status\":\"cancelled\"}"))

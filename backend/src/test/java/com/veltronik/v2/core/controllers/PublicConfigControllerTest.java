@@ -1,5 +1,7 @@
 package com.veltronik.v2.core.controllers;
 
+import com.veltronik.v2.core.config.BillingProperties;
+import com.veltronik.v2.core.config.MercadoPagoProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PublicConfigControllerTest {
 
+    private static MercadoPagoProperties mpProps(String publicKey) {
+        return new MercadoPagoProperties("token-de-prueba", publicKey, "secreto", true);
+    }
+
+    private static BillingProperties billingProps() {
+        return new BillingProperties(new BigDecimal("80000"), 14, "https://app.veltronik.test");
+    }
+
     @Test
     @DisplayName("devuelve la clave pública de MP configurada en el backend")
     void returnsConfiguredPublicKey() {
-        var controller = new PublicConfigController("APP_USR-test-key", new BigDecimal("80000"));
+        var controller = new PublicConfigController(mpProps("APP_USR-test-key"), billingProps());
 
         ResponseEntity<Map<String, Object>> res = controller.paymentConfig();
 
@@ -31,7 +41,7 @@ class PublicConfigControllerTest {
     @Test
     @DisplayName("clave ausente → string vacío (el frontend cae al fallback de build), nunca null")
     void missingKeyReturnsEmptyString() {
-        var controller = new PublicConfigController("", new BigDecimal("80000"));
+        var controller = new PublicConfigController(mpProps(""), billingProps());
 
         ResponseEntity<Map<String, Object>> res = controller.paymentConfig();
 

@@ -10,7 +10,9 @@
 
 ## 📌 1. Visión del Producto y Modelo de Negocio
 
-**Veltronik** es un **SaaS B2B multiplataforma** diseñado para digitalizar, administrar y automatizar PyMEs en LATAM. Nació enfocado en Gimnasios, pero su ADN es ser el sistema operativo para múltiples verticales (Salones, Restaurantes, Pilates, Canchas, y cualquier rubro futuro).
+**Veltronik** es un **SaaS B2B multiplataforma** diseñado para digitalizar, administrar y automatizar PyMEs en LATAM. Nació enfocado en Gimnasios, pero su ADN es ser el sistema operativo para múltiples verticales: hoy están **en producción Gimnasio (y su familia: Pilates, Club, Academia) y Kiosco/Almacén**, y la arquitectura está hecha para sumar rubros nuevos sin tocar los que ya andan.
+
+> **Regla de honestidad de este documento:** acá solo se describen verticales que EXISTEN en el código. Un rubro que "se va a hacer algún día" va al roadmap, no al plano. Ya pasó al revés: Fútbol 5, Salón y Restaurante quedaron a medio construir en el registry, el CSS y los menús durante meses, y uno de esos restos (`RestaurantReportsPage`) era una pantalla en blanco esperando a un cliente.
 
 ### 1.1 Omnicanalidad
 *   **Desktop (Electron):** Para la recepción física del local (control de acceso, caja registradora).
@@ -58,9 +60,9 @@ com.veltronik.v2
 │   ├── repositories/
 │   ├── services/
 │   └── controllers/
-├── gym/           ← Clases, Rutinas, Control de Acceso
-├── salon/         ← Agenda, Estilistas, Comisiones
-├── restaurant/    ← Mesas, Comandas, Cocina
+├── gym/           ← Socios, Clases, Pagos, Control de Acceso
+├── kiosk/         ← POS, Stock, Caja, Fiado, Proveedores
+├── fiscal/        ← Facturación ARCA (compartido entre verticales)
 └── security/      ← Filtros JWT, Configuración Spring Security
 ```
 
@@ -80,7 +82,7 @@ Analizando el sistema `sistema-sig-jee7` (`PaisFacade`, `@SessionScoped`, `Abstr
 ### 2.4 Aislamiento Multitenant
 *   Cada entidad de negocio llevará un `tenant_id` obligatorio.
 *   Un filtro de Hibernate (`@FilterDef`) inyectará `WHERE tenant_id = ?` automáticamente en todas las consultas, activado por un `OncePerRequestFilter` que lee el JWT.
-*   **Resultado:** Es físicamente imposible que un Gimnasio vea datos de una Peluquería.
+*   **Resultado:** Es físicamente imposible que un Gimnasio vea datos de un Kiosco (ni de otra sucursal del mismo dueño).
 
 ---
 
@@ -90,22 +92,23 @@ El Frontend (React + Vite) actúa como un **consumidor independiente** de la API
 
 ### 3.1 Sistema de Diseño
 *   CSS Vanilla modularizado con variables CSS (`variables.css`). Cero dependencia de Bootstrap.
-*   Tipografía: Inter (default), Playfair Display (Salones), Quicksand (Restaurantes).
+*   Tipografía: Inter (única cargada en `index.html`; los verticales que pidan otra fuente tienen que agregarla ahí, o el `font-family` no aplica).
 *   Glassmorphism, animaciones con curvas de resorte (`cubic-bezier`), modo oscuro premium.
 
 ### 3.2 Temas Multi-Verticales
-El diseño muta dinámicamente con el atributo `[data-vertical]`:
-*   **GYM:** Azul eléctrico, bordes rectos, gradientes.
-*   **SALON:** Rosa/ámbar, pill buttons, sombras difusas suaves.
-*   **RESTO:** Naranja cálido, diseño flat, bordes gruesos.
-*   El JWT enviará el `business_type` y React cambiará la piel completa en milisegundos.
+El diseño muta dinámicamente con el atributo `[data-vertical]` (= `org.type` en minúscula):
+*   **GYM:** Azul eléctrico, glassmorphism, gradientes. Es el default de `:root`.
+*   **PILATES / CLUB / ACADEMY:** Familia fitness — teal, indigo y violeta sobre el mismo layout.
+*   **KIOSCO:** Turquesa, layout de mostrador/punto de venta.
+*   La paleta completa vive en `variables.css`; el `accent` para usos en JS, en `lib/verticals.js`.
+    **Los dos tienen que moverse juntos** (el registry es la fuente única de los metadatos).
 
 ---
 
 ## 🏗️ 4. Diseño Detallado (Planos Micro)
 
 ### 4.1 Modelo de Dominio Core (ERD)
-La base es la entidad `Tenant` (con su `business_type`: GYM, SALON, RESTO). De ella cuelgan:
+La base es la entidad `Tenant` (con su `business_type`: ver el enum `BusinessType`). De ella cuelgan:
 *   `AppUser` (usuario del sistema).
 *   `UserRole` (OWNER, ADMIN, STAFF).
 *   `Subscription` (estado de pago con MercadoPago).
@@ -127,9 +130,9 @@ Está **terminantemente prohibido** devolver entidades `@Entity` al frontend. Se
 
 ## 🛡️ 5. Arquitectura "A Prueba de Juniors" (Escalabilidad)
 
-Para garantizar que añadir un módulo nuevo (Ferreterías, Canchas) sea tan sencillo que un Junior pueda hacerlo sin romper nada:
+Para garantizar que añadir un módulo nuevo sea tan sencillo que un Junior pueda hacerlo sin romper nada:
 
-1.  **ArchUnit (Tests de Arquitectura):** Reglas compiladas que impiden que `gym` importe clases de `salon`. Si alguien lo intenta, **el proyecto no compila**.
+1.  **ArchUnit (Tests de Arquitectura):** Reglas compiladas que impiden que `gym` importe clases de `kiosk` (y al revés). Si alguien lo intenta, **el proyecto no compila**.
 2.  **Spring Events (Desacoplamiento):** Los módulos no se llaman entre sí directamente. Emiten eventos (`MemberJoinedEvent`) y los interesados los escuchan. Si un módulo falla, los demás sobreviven.
 3.  **Fachadas Internas:** Si un módulo necesita datos de otro, lo hace a través de una interfaz pública (`CoreFacade`), nunca accediendo a sus repositorios directamente.
 
@@ -144,7 +147,7 @@ Para garantizar que añadir un módulo nuevo (Ferreterías, Canchas) sea tan sen
 | **1. Preparación** | 1 | Entorno listo: Spring Boot, React (Vite), Supabase en blanco. |
 | **2. El Cerebro** | 2–4 | Entidades Core (`Tenant`, `AppUser`), Spring Security, API REST Core. |
 | **3. La Nueva Cara** | 5–8 | Frontend React Premium conectado a la API de Java. |
-| **4. Verticales** | 9–11 | Módulos aislados: Gym, Salon, Restaurant. |
+| **4. Verticales** | 9–11 | Módulos aislados: Gym y Kiosco (+ `fiscal` compartido). |
 | **5. ETL + Staging** | 12 | Script Java que migra datos de Supabase V1 → Supabase V2. Pruebas. |
 | **6. Lanzamiento** | 13 | DNS apunta al sistema nuevo. Se apaga el viejo. |
 
