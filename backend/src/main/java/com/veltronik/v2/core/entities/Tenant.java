@@ -51,9 +51,21 @@ public class Tenant extends BaseEntity {
     @Column(length = 150)
     private String email;
 
-    /** URL del logo del negocio (almacenado en Supabase Storage). */
-    @Column(name = "logo_url")
+    /**
+     * Logo del gimnasio, guardado como data URI (imagen ya recortada y comprimida por
+     * el navegador). Es {@code TEXT} —no VARCHAR(255)— porque un data URI de 256px
+     * ronda los 30-60 KB; la columna original solo entraba una URL corta, que era el
+     * diseño de cuando el plan era subir el archivo a un bucket aparte.
+     */
+    @Column(name = "logo_url", columnDefinition = "text")
     private String logoUrl;
+
+    /**
+     * Emoji que el dueño eligió como identidad cuando no sube una imagen. Es
+     * excluyente con {@link #logoUrl}: elegir uno borra el otro.
+     */
+    @Column(name = "logo_emoji", length = 16)
+    private String logoEmoji;
 
     /** Fecha en que finaliza el período de prueba gratuita de 30 días. */
     @Column(name = "trial_ends_at")

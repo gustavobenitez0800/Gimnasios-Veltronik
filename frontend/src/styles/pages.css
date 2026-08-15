@@ -430,12 +430,48 @@
   gap: 1.5rem;
 }
 
-/* ─── Indicador de actualizaciones (lobby) ─── */
 .lobby-header-actions {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-shrink: 0;
 }
+
+/* Salir: tiene que LEERSE como botón sobre el fondo oscuro y sin depender del hover
+   (en un teléfono no hay hover). Antes era .btn-ghost —transparente y gris— y en la
+   práctica el dueño no encontraba cómo cerrar sesión. */
+.lobby-logout-btn {
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  border: 1px solid var(--border-color-hover);
+  color: var(--text-primary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.lobby-logout-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error-500) 12%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--error-500) 45%, transparent);
+  color: var(--text-primary);
+}
+
+.lobby-logout-btn:active { transform: scale(0.97); }
+
+/* ─── Indicador de actualizaciones (esquina inferior del lobby) ─── */
+
+/* Contenedor fijo. `pointer-events: none` para que la franja invisible de la esquina
+   no le robe taps a la última card; el chip de adentro sí los recibe. */
+.lobby-version-footer {
+  position: fixed;
+  right: calc(0.85rem + env(safe-area-inset-right));
+  bottom: calc(0.6rem + env(safe-area-inset-bottom));
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  justify-content: flex-end;
+  max-width: min(92vw, 420px);
+}
+
+.lobby-version-footer > * { pointer-events: auto; }
 
 .update-indicator {
   display: inline-flex;
@@ -451,6 +487,20 @@
 }
 
 .update-indicator .icon { color: var(--text-muted); }
+
+/* Estado "al día": marca de agua, no notificación. Sin caja, sin borde y translúcido;
+   se aclara al acercar el mouse por si alguien la está buscando para dar soporte. */
+.update-indicator-idle {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  opacity: 0.38;
+  transition: opacity var(--transition-fast);
+}
+
+.update-indicator-idle:hover { opacity: 0.85; }
 
 .update-indicator-text {
   display: flex;
@@ -584,6 +634,14 @@
   justify-content: center;
   color: var(--primary-400);
   margin-bottom: 0.5rem;
+}
+
+/* La marca del gimnasio en la card. El componente GymLogo trae su propia caja
+   (fondo, radio, recorte), así que este wrapper solo aporta el aire de abajo — si
+   además pintara fondo se verían dos cajas encimadas. */
+.lobby-card-logo {
+  margin-bottom: 0.5rem;
+  line-height: 0;
 }
 
 .lobby-card-create .lobby-card-icon,
@@ -734,6 +792,54 @@
   justify-content: center;
   padding: 1.5rem;
   animation: fadeIn 0.2s ease;
+}
+
+/* ─── Diálogo de ELIMINAR ───
+   Overlay propio, distinto del muro de pago, porque este es el único que pide teclado.
+
+   `top`/`height` salen de window.visualViewport (hook useVisualViewport): son el
+   pedazo de pantalla que el teclado NO tapa. Centrar dentro de eso es lo que hace
+   que, al abrirse el teclado, el diálogo suba solo en vez de quedar debajo.
+   Sin soporte de visualViewport, los fallback dejan el comportamiento de siempre. */
+.lobby-delete-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vv-offset-top, 0px);
+  height: var(--vv-height, 100dvh);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+  /* SIN transition sobre `top`/`height`, a propósito. Tentaba poner una para que el
+     diálogo "viajara" al abrirse el teclado, pero (a) el sistema operativo ya está
+     animando el teclado y una segunda animación de 200ms encima se siente elástica, y
+     (b) es una animación de LAYOUT sobre un overlay de pantalla completa, recalculada
+     en cada frame del teclado. Seguir al visualViewport al instante se ve mejor y
+     cuesta menos. */
+}
+
+.lobby-delete-modal {
+  max-width: 440px;
+  width: 100%;
+  /* Con el teclado abierto quedan ~250px útiles: el diálogo scrollea por dentro y
+     el campo + los botones siempre son alcanzables. */
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.lobby-delete-confirm { margin: 1.25rem 0; }
+
+.lobby-delete-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  /* Objetivo táctil generoso: tocar el texto enfoca el campo (label + htmlFor). */
+  cursor: pointer;
 }
 
 .lobby-blocked-modal {

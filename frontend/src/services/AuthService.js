@@ -150,7 +150,6 @@ class AuthService {
     localStorage.removeItem('current_org_id');
     localStorage.removeItem('current_org_role');
     localStorage.removeItem('current_org_name');
-    localStorage.removeItem('current_org_type');
   }
 }
 

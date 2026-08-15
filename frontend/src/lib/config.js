@@ -31,14 +31,11 @@ const CONFIG = {
   // Debug mode
   DEBUG: import.meta.env.DEV,
 
-  // Subscription Prices by org type (ARS)
+  // Precio de la suscripción (ARS). Tarifa plana por sucursal: un solo producto,
+  // un solo precio. (Antes había además un PRICES_BY_TYPE con un precio por rubro;
+  // los tres valores eran 80000 y el rubro ya no existe.)
   SUBSCRIPTION_PRICE: 80000,
   SUBSCRIPTION_CURRENCY: 'ARS',
-  PRICES_BY_TYPE: {
-    GYM: 80000,
-    CLUB: 80000,
-    OTHER: 80000,
-  },
 
   // App Configuration
   APP_NAME: 'Veltronik',
@@ -88,13 +85,6 @@ const CONFIG = {
     STAFF: 'staff',
     RECEPTION: 'reception',
     MEMBER: 'member',
-  }),
-
-  // Organization Types
-  ORG_TYPES: Object.freeze({
-    GYM: 'GYM',
-    CLUB: 'CLUB',
-    OTHER: 'OTHER',
   }),
 };
 

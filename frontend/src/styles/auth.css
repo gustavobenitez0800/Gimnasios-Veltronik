@@ -31,7 +31,12 @@
 .auth-wrapper::before,
 .auth-wrapper::after {
   content: '';
-  position: absolute;
+  /* `fixed` y no `absolute`: los orbes se animan hasta 35vh fuera de su lugar, y como
+     hijos absolutos ESO CUENTA como contenido. En mobile, donde el wrapper pasó a ser
+     el contenedor de scroll, eso le agregaba ~67px de scroll fantasma: la pantalla de
+     login se podía arrastrar hacia abajo para descubrir... nada. Fijos al viewport
+     quedan exactamente donde estaban a la vista, pero no ocupan lugar. */
+  position: fixed;
   border-radius: 50%;
   filter: blur(80px);
   opacity: 0.6;

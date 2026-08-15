@@ -1,27 +1,53 @@
 // ============================================
-// VELTRONIK - SIDEBAR COMPONENT (Multi-vertical)
+// VELTRONIK - SIDEBAR COMPONENT
 // ============================================
 
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
-import { getVertical, roleLabel, getVerticalNav } from '../lib/verticals';
+import { GYM, roleLabel } from '../lib/gym';
 import { useWorkspace } from '../hooks/useWorkspace';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
 import logoSrc from '../assets/LogotipoSecundario.png';
 
-// Las secciones de navegación por vertical viven en el registry (lib/verticals.js).
+// Navegación del sistema. Antes vivía en el registry de verticales, que la generaba
+// por rubro; con un solo rubro esa indirección solo escondía la lista. Es estática y
+// vive donde se dibuja.
+const NAV_SECTIONS = [
+  {
+    title: 'Principal',
+    items: [
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
+      { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: GYM.membersLabel, module: 'members' },
+      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos', module: 'payments' },
+      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases', module: 'classes' },
+      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso', module: 'access' },
+      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención', module: 'retention' },
+      { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
+    ],
+  },
+  {
+    title: 'Administración',
+    items: [
+      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
+      { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sucursal', module: 'lobby' },
+    ],
+  },
+];
 
-function getNavSections(orgType, role, allowedModules) {
-  // Las secciones salen del registry (fuente única).
-  const sections = getVerticalNav(orgType);
-
+function getNavSections(role, allowedModules) {
   // Preferencia: el backend dicta qué módulos se ven (fuente única de la política).
   // El front SOLO dibuja lo permitido. (Items sin `module` pasan, por las dudas.)
   if (allowedModules) {
-    return sections
+    return NAV_SECTIONS
       .map(section => ({
         ...section,
         items: section.items.filter(item => !item.module || allowedModules.includes(item.module)),
@@ -40,7 +66,7 @@ function getNavSections(orgType, role, allowedModules) {
     const allowedPaths = [
       CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
     ];
-    return sections.map(section => ({
+    return NAV_SECTIONS.map(section => ({
       ...section,
       items: section.items.filter(item => allowedPaths.includes(item.to)),
     })).filter(section => section.items.length > 0);
@@ -56,27 +82,32 @@ function getNavSections(orgType, role, allowedModules) {
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
     ];
-    return sections.map(section => ({
+    return NAV_SECTIONS.map(section => ({
       ...section,
       items: section.items.filter(item => !blockedPaths.includes(item.to)),
     })).filter(section => section.items.length > 0);
   }
 
-  return sections;
+  return NAV_SECTIONS;
 }
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { profile, logout, gym, orgRole } = useAuth();
+  const { profile, logout, gym, orgRole, orgName } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.fullName || 'Usuario';
   const userRole = roleLabel(orgRole);
   const initials = getInitials(userName);
 
-  const currentOrgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   // El backend dicta los módulos visibles (fuente única); si no responde, cae al rol.
   const workspace = useWorkspace(gym?.id);
-  const navSections = getNavSections(currentOrgType, orgRole, workspace?.modules);
+  const navSections = getNavSections(orgRole, workspace?.modules);
+
+  // Nombre del gimnasio en el que está parado el usuario. El subtítulo de acá antes
+  // decía el RUBRO ("Kiosco", "Pilates"), un dato que ya no existe y que además nunca
+  // le sirvió a nadie: lo que el dueño de tres sucursales necesita saber de un vistazo
+  // es EN CUÁL está.
+  const currentGymName = gym?.name || orgName || '';
 
   const handleLogout = async () => {
     await logout();
@@ -106,12 +137,10 @@ export default function Sidebar({ isOpen, onClose }) {
               style={{ width: 32, height: 32, objectFit: 'contain' }}
               loading="lazy"
             />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span className="sidebar-logo-text">Veltronik</span>
-              {currentOrgType !== 'GYM' && (
-                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  {getVertical(currentOrgType).label}
-                </span>
+              {currentGymName && (
+                <span className="sidebar-logo-sub" title={currentGymName}>{currentGymName}</span>
               )}
             </div>
           </div>

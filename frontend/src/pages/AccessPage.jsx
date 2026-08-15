@@ -9,16 +9,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
-import { getVertical } from '../lib/verticals';
+import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
-import { useAuth } from '../contexts/AuthContext';
 
 export default function AccessPage() {
-  const { gym } = useAuth();
-  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = getVertical(orgType).placeLabel;
-  const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
+  const orgLabel = GYM.placeLabel;
+  const orgLabelCap = GYM.placeLabelCap;
 
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');

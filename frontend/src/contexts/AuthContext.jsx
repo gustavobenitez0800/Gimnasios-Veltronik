@@ -171,7 +171,6 @@ export function AuthProvider({ children }) {
     // Sync localStorage with fresh data
     if (gymData) {
       localStorage.setItem('current_org_name', gymData.name || '');
-      localStorage.setItem('current_org_type', gymData.businessType || gymData.type || 'GYM');
     }
     localStorage.setItem('current_org_role', role);
 
@@ -426,7 +425,6 @@ export function AuthProvider({ children }) {
       setOrgName(data.name || '');
       // Keep localStorage in sync for page refreshes
       localStorage.setItem('current_org_name', data.name || '');
-      if (data.businessType || data.type) localStorage.setItem('current_org_type', data.businessType || data.type);
     }
     return data;
   };

@@ -21,12 +21,15 @@ import org.mapstruct.MappingTarget;
  * {@code PUT /api/tenants/{id}} con {@code "trialEndsAt": "2099-..."} extendería el
  * período de prueba indefinidamente, anulando el Kill Switch. Esos campos solo los
  * escribe el backend (setup, billing, webhooks, grupos).</p>
+ *
+ * <p>Desde que Veltronik es solo para gimnasios, {@code businessType} entra en esa
+ * misma lista: el cliente ya no lo manda y tampoco puede escribirlo. Lo fija el
+ * {@code SetupController} al crear el gimnasio, una sola vez.</p>
  */
 @Mapper(componentModel = "spring")
 public interface TenantMapper {
 
     /** Convierte una entidad Tenant a su DTO para enviar al frontend. */
-    @Mapping(target = "type", source = "businessType")
     @Mapping(target = "role", ignore = true)
     TenantDTO toDto(Tenant entity);
 
@@ -37,6 +40,7 @@ public interface TenantMapper {
     @Mapping(target = "trialEndsAt", ignore = true)
     @Mapping(target = "active", ignore = true)
     @Mapping(target = "group", ignore = true)
+    @Mapping(target = "businessType", ignore = true)
     Tenant toEntity(TenantDTO dto);
 
     /** Actualiza una entidad existente con el DTO del PUT (solo campos editables). */
@@ -46,5 +50,6 @@ public interface TenantMapper {
     @Mapping(target = "trialEndsAt", ignore = true)
     @Mapping(target = "active", ignore = true)
     @Mapping(target = "group", ignore = true)
+    @Mapping(target = "businessType", ignore = true)
     void updateEntityFromDto(TenantDTO dto, @MappingTarget Tenant entity);
 }

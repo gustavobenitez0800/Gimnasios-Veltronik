@@ -1,8 +1,10 @@
 // ============================================
 // VELTRONIK V2 - MAIN APP (React Router)
 // ============================================
-// Las rutas del gimnasio van detrás de OrgTypeGuard. Hoy Veltronik tiene un solo
-// vertical (GYM), pero el guard se queda: es la puerta que ya existe el día que haya dos.
+// Todas las rutas de adentro son rutas de gimnasio. Antes colgaban de un OrgTypeGuard
+// que comparaba el "tipo de negocio" contra una lista de rubros permitidos; con un solo
+// rubro esa comparación siempre daba true y lo único que hacía era mantener vivo el
+// concepto de tipo. Se dio de baja junto con el resto del andamiaje multi-rubro.
 // ============================================
 
 import { HashRouter, Routes, Route } from 'react-router-dom';
@@ -11,9 +13,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppLayout, AuthLayout } from './components/Layout';
-import OrgTypeGuard from './components/OrgTypeGuard';
 import CONFIG from './lib/config';
-import { FITNESS_VERTICALS } from './lib/verticals';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -70,25 +70,17 @@ export default function App() {
 
               {/* App pages (with sidebar) */}
               <Route element={<AppLayout />}>
-                {/* Dashboard — shared route, renders correct dashboard by org type internally */}
                 <Route path={CONFIG.ROUTES.DASHBOARD} element={<DashboardPage />} />
-
-                {/* Rutas compartidas por todos los verticales */}
+                <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
+                <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
+                <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
+                <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
+                <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
                 <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
                 <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
                 <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
                 {/* Mission Control (ladrillo 7): la propia página se gatea por fundador. */}
                 <Route path={CONFIG.ROUTES.MISSION_CONTROL} element={<MissionControlPage />} />
-
-                {/* ─── GYM-ONLY ROUTES (Fitness & Wellness Ecosystem) ─── */}
-                <Route element={<OrgTypeGuard allowedTypes={FITNESS_VERTICALS} />}>
-                  <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
-                  <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
-                  <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
-                  <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
-                  <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
-                </Route>
-
               </Route>
 
               {/* Fallback: redirige rutas desconocidas al login */}

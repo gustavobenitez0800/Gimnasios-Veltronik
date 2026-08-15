@@ -2,6 +2,7 @@ package com.veltronik.v2.core.controllers;
 
 import com.veltronik.v2.core.dto.TenantDTO;
 import com.veltronik.v2.core.entities.AppUser;
+import com.veltronik.v2.core.entities.BusinessType;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.entities.TenantMembership;
 import com.veltronik.v2.core.entities.UserRole;
@@ -54,6 +55,10 @@ public class SetupController {
 
         Tenant tenant = tenantMapper.toEntity(tenantDTO);
         tenant.setActive(true);
+        // El rubro lo pone el SERVIDOR, no el navegador. Antes venía en el body (y en
+        // duplicado: `businessType` + `type`), o sea que el cliente informaba un dato
+        // de dominio que solo puede tener un valor. Acá queda decidido de una vez.
+        tenant.setBusinessType(BusinessType.GYM);
 
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         if (isFirstBranch) {
@@ -80,7 +85,7 @@ public class SetupController {
         // OJO: Map.of NO admite valores null y lanza NPE → 400 + rollback. La sucursal
         // adicional tiene trialEndsAt = null, así que usamos un HashMap (sí admite null).
         Map<String, Object> body = new HashMap<>();
-        body.put("message", "Negocio creado exitosamente");
+        body.put("message", "Gimnasio creado exitosamente");
         body.put("is_first_branch", isFirstBranch);
         body.put("tenant_id", savedTenant.getId());
         body.put("trial_ends_at", savedTenant.getTrialEndsAt()); // null en sucursal adicional

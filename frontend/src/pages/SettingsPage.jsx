@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { gymService, errorService, deviceService } from '../services';
 import { formatCurrency, timeAgo } from '../lib/utils';
-import { getVertical } from '../lib/verticals';
+import { GYM } from '../lib/gym';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
@@ -21,21 +21,22 @@ import apiClient from '../lib/apiClient';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
+import LogoPicker from '../components/LogoPicker';
+import GymLogo from '../components/GymLogo';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
   const { user, gym: authGym, profile, logout, refreshAuth, orgRole } = useAuth();
   const { preference, setTheme } = useTheme();
   const currentRole = orgRole;
-  const orgType = authGym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const orgLabel = getVertical(orgType).placeLabel;
-  const orgLabelCap = orgLabel.charAt(0).toUpperCase() + orgLabel.slice(1);
+  const orgLabel = GYM.placeLabel;
+  const orgLabelCap = GYM.placeLabelCap;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Gym form
-  const [gymForm, setGymForm] = useState({ name: '', address: '', phone: '', email: '' });
+  const [gymForm, setGymForm] = useState({ name: '', address: '', phone: '', email: '', logoUrl: null, logoEmoji: null });
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
@@ -75,6 +76,8 @@ export default function SettingsPage() {
         address: gymData.address || '',
         phone: gymData.phone || '',
         email: gymData.email || '',
+        logoUrl: gymData.logoUrl || null,
+        logoEmoji: gymData.logoEmoji || null,
       });
 
       // Subscription info
@@ -104,19 +107,15 @@ export default function SettingsPage() {
           : `${dateStr} (período de prueba finalizado)`;
       }
 
-      // Precio siempre desde CONFIG (precio plano $80.000 para todos los tipos).
-      // Ojo: `gymType` es el del dato recién traído; el `orgType` de arriba es el del
-      // contexto/localStorage. Se llamaban igual y uno tapaba al otro.
-      const gymType = gymData.type || 'GYM';
-      const amount = CONFIG.PRICES_BY_TYPE[gymType] || CONFIG.SUBSCRIPTION_PRICE || 80000;
-
-      const planNameMap = { GYM: 'Veltronik Pro', OTHER: 'Veltronik Business' };
+      // Precio plano, un solo plan. (Antes esto era una tabla precio-por-rubro y un
+      // mapa de nombres de plan por rubro; con un solo producto son dos constantes.)
+      const amount = CONFIG.SUBSCRIPTION_PRICE;
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
       // de visualización desde la fuente real para no depender de un campo inexistente.
       const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
-        plan: planNameMap[gymType] || 'Veltronik Pro',
+        plan: 'Veltronik Pro',
         status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
@@ -205,12 +204,17 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
-      await gymService.updateCurrent({
+      const saved = await gymService.updateCurrent({
         name: gymForm.name.trim(),
         address: gymForm.address.trim() || null,
         phone: gymForm.phone.trim() || null,
         email: gymForm.email.trim() || null,
+        logoUrl: gymForm.logoUrl,
+        logoEmoji: gymForm.logoEmoji,
       });
+      // Refrescamos el contexto para que el logo nuevo aparezca YA en el resto de la
+      // app (sidebar, lobby) en vez de recién al volver a entrar.
+      if (saved && refreshAuth) { try { await refreshAuth(); } catch { /* ignore */ } }
       showToast('Configuración guardada', 'success');
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
@@ -337,6 +341,16 @@ export default function SettingsPage() {
                   <input type="text" className="form-input" value={gymForm.name}
                     onChange={e => setGymForm(f => ({ ...f, name: e.target.value }))} required />
                 </div>
+                <div className="form-group full-width">
+                  <label className="form-label">Logo del {orgLabel}</label>
+                  <LogoPicker
+                    logoUrl={gymForm.logoUrl}
+                    logoEmoji={gymForm.logoEmoji}
+                    name={gymForm.name}
+                    onChange={({ logoUrl, logoEmoji }) => setGymForm(f => ({ ...f, logoUrl, logoEmoji }))}
+                    onError={(msg) => showToast(msg, 'error')}
+                  />
+                </div>
                 <div className="form-group">
                   <label className="form-label">Dirección</label>
                   <input type="text" className="form-input" value={gymForm.address}
@@ -359,9 +373,12 @@ export default function SettingsPage() {
             </form>
           ) : (
             <div className="modal-form">
-              <div className="form-group full-width">
-                <label className="form-label">Nombre del {orgLabel}</label>
-                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.name}</div>
+              <div className="form-group full-width" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <GymLogo logoUrl={gymForm.logoUrl} logoEmoji={gymForm.logoEmoji} name={gymForm.name} size={56} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label className="form-label">Nombre del {orgLabel}</label>
+                  <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.name}</div>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Dirección</label>
@@ -445,7 +462,7 @@ export default function SettingsPage() {
                   Ingresá la tarjeta nueva. El cobro mensual seguirá siendo {subscriptionInfo.amount}.
                 </p>
                 <CardCheckout
-                  amount={CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE || 80000}
+                  amount={CONFIG.SUBSCRIPTION_PRICE}
                   onSuccess={handleCardSuccess}
                 />
               </div>
@@ -476,7 +493,7 @@ export default function SettingsPage() {
           <div className="settings-section">
             <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="monitor" size="1.1em" /> Equipos</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
-              Computadoras que operan este negocio. Enrolá esta computadora para identificarla con un nombre y un rol.
+              Computadoras que operan este gimnasio. Enrolá esta computadora para identificarla con un nombre y un rol.
             </p>
 
             {devicesLoading ? (
@@ -622,7 +639,7 @@ export default function SettingsPage() {
         onConfirm={() => handleEnroll(false)} onCancel={() => setEnrollConfirm(false)} />
 
       <ConfirmDialog open={!!replacePrompt} title="Ya hay una Caja Madre activa"
-        message={`Este negocio ya tiene una Caja Madre activa${replacePrompt?.displayName ? ` ("${replacePrompt.displayName}")` : ''}${replacePrompt?.lastSeenAt ? `, vista por última vez el ${new Date(replacePrompt.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. ¿Querés reemplazarla por esta computadora? La anterior quedará revocada.`}
+        message={`Este gimnasio ya tiene una Caja Madre activa${replacePrompt?.displayName ? ` ("${replacePrompt.displayName}")` : ''}${replacePrompt?.lastSeenAt ? `, vista por última vez el ${new Date(replacePrompt.lastSeenAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}. ¿Querés reemplazarla por esta computadora? La anterior quedará revocada.`}
         icon="alertTriangle" confirmText={enrollBusy ? 'Reemplazando…' : 'Sí, reemplazar'} confirmClass="btn-danger"
         onConfirm={() => handleEnroll(true)} onCancel={() => setReplacePrompt(null)} />
 
