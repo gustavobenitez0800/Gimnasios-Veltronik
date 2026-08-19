@@ -30,6 +30,7 @@ import PlansPage from '../pages/PlansPage';
 import BlockedPage from '../pages/BlockedPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import PaymentCallbackPage from '../pages/PaymentCallbackPage';
+import DesktopAuthPage from '../pages/DesktopAuthPage';
 import SubscriptionActionsWeb from '../components/billing/SubscriptionActionsWeb';
 
 export default function WebRoutes() {
@@ -42,6 +43,9 @@ export default function WebRoutes() {
         <Route path={CONFIG.ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
         <Route path={CONFIG.ROUTES.ONBOARDING} element={<OnboardingPage />} />
         <Route path={CONFIG.ROUTES.PAYMENT_CALLBACK} element={<PaymentCallbackPage />} />
+        {/* Relevo del login de escritorio (Fase 1). Vive SOLO acá: la app de escritorio
+            nunca la abre — la abre el navegador del usuario. */}
+        <Route path={CONFIG.ROUTES.DESKTOP_AUTH} element={<DesktopAuthPage />} />
       </Route>
 
       {/* Full screen pages without layout wrappers */}

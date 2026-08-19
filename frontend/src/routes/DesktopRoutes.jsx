@@ -37,9 +37,16 @@ import SettingsPage from '../pages/SettingsPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import BillingWall from '../pages/BillingWall';
 import SubscriptionActionsDesktop from '../components/billing/SubscriptionActionsDesktop';
+import DeepLinkAuthBridge from '../components/DeepLinkAuthBridge';
 
 export default function DesktopRoutes() {
   return (
+    <>
+    {/* Escucha los veltronik:// que cierran el login con Google (Fase 2). Fuera de
+        <Routes> a propósito: tiene que estar montado en cualquier pantalla, porque el
+        deep link puede llegar en cualquier momento. */}
+    <DeepLinkAuthBridge />
+
     <Routes>
       {/* Auth pages (no sidebar) */}
       <Route element={<AuthLayout />}>
@@ -73,5 +80,6 @@ export default function DesktopRoutes() {
           /mission-control, /payment-callback): escribirlas a mano no lleva a ningún lado. */}
       <Route path="*" element={<LoginPage />} />
     </Routes>
+    </>
   );
 }

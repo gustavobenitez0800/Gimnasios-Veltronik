@@ -12,6 +12,7 @@ const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
 const deviceManager = require('./device-manager.cjs');
 const { isAllowedUrl } = require('./portal.cjs');
+const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
@@ -101,6 +102,30 @@ function createCustomMenu() {
 // Mantener referencia global para evitar garbage collection
 let mainWindow = null;
 
+// ============================================
+// DEEP LINKS veltronik:// (Fase 2)
+// ============================================
+// Se arranca ACÁ, en el cuerpo del módulo y no adentro de whenReady, porque el candado de
+// instancia única tiene que pedirse lo antes posible: si esta ejecución es la que abrió un
+// veltronik:// mientras Veltronik ya estaba corriendo, lo correcto es morir enseguida —
+// antes de crear ventanas, menús o sesiones— y dejar que la instancia viva atienda.
+
+/** Manda la URL al renderer; si la ventana todavía no puede recibir, la deja esperando. */
+function deliverDeepLink(url) {
+    if (mainWindow && !mainWindow.webContents.isLoading()) {
+        mainWindow.webContents.send('deep-link', url);
+    } else {
+        queue(url); // se entrega en did-finish-load (arranque en frío)
+    }
+}
+
+// ¿Somos la instancia que manda? Si no, otra ya tenía el candado y acaba de recibir
+// nuestros argumentos (con el deep link adentro): nos vamos.
+const IS_PRIMARY_INSTANCE = initDeepLinks(() => mainWindow, deliverDeepLink);
+if (!IS_PRIMARY_INSTANCE) {
+    app.quit();
+}
+
 // Configuración de la ventana
 const WINDOW_CONFIG = {
     width: 1400,
@@ -176,6 +201,13 @@ function createWindow() {
         deviceManager.init(mainWindow);
     });
 
+    // Arranque en frío: el usuario tocó el veltronik:// con la app cerrada, así que la
+    // URL llegó antes de que existiera el renderer y quedó esperando. Recién con la
+    // página cargada hay quien la reciba.
+    mainWindow.webContents.on('did-finish-load', () => {
+        flushPending();
+    });
+
 
     // Manejar cierre
     mainWindow.on('closed', () => {
@@ -199,8 +231,13 @@ function isDev() {
 // CICLO DE VIDA DE LA APP
 // ============================================
 
-// Listo para crear ventanas
-app.whenReady().then(() => {
+// Listo para crear ventanas.
+//
+// El guard de instancia única no es decorativo: `app.quit()` NO corta la ejecución del
+// módulo, así que sin este `if` la segunda instancia —la que abrió un veltronik:// con
+// Veltronik ya andando— alcanzaría a construir su ventana y el usuario vería un parpadeo
+// de una app que se abre y se cierra sola.
+if (IS_PRIMARY_INSTANCE) app.whenReady().then(() => {
     // Establecer el ID de la aplicación para notificaciones nativas en Windows
     app.setAppUserModelId('Veltronik');
 

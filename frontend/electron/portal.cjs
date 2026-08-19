@@ -62,6 +62,22 @@ function allowedOrigins() {
  * @param {unknown} url
  * @returns {boolean}
  */
+/**
+ * ¿Es el endpoint de autorización de Supabase? (Fase 2)
+ *
+ * El login con Google del escritorio abre en el navegador una URL que genera el propio
+ * cliente de Supabase (`https://<proyecto>.supabase.co/auth/v1/authorize?...`), y el
+ * subdominio del proyecto sale de una variable de entorno de build que el proceso
+ * principal no puede leer. Por eso se autoriza el dominio, no un origen exacto.
+ *
+ * La regla exige https y que el host TERMINE en ".supabase.co" — con el punto. Así
+ * `evil-supabase.co` y `supabase.co.atacante.com` quedan afuera, que es el error clásico
+ * de escribir esta clase de chequeo con un "contiene".
+ */
+function isSupabaseAuthUrl(parsed) {
+  return parsed.protocol === 'https:' && parsed.hostname.toLowerCase().endsWith('.supabase.co');
+}
+
 function isAllowedUrl(url) {
   if (typeof url !== 'string' || url.length > 2048) return false;
   let parsed;
@@ -71,6 +87,7 @@ function isAllowedUrl(url) {
     return false;
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+  if (isSupabaseAuthUrl(parsed)) return true;
   return allowedOrigins().includes(parsed.origin.toLowerCase());
 }
 

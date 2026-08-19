@@ -46,6 +46,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
+    /**
+     * Escucha los deep links `veltronik://` que despiertan a la app (Fase 2).
+     *
+     * Hoy trae uno solo: `veltronik://auth?code=...`, el retorno del login con Google
+     * hecho en el navegador del sistema. El renderer canjea ese código por la sesión
+     * (src/lib/desktopAuth.js).
+     *
+     * @param {(url: string) => void} callback
+     * @returns {() => void} función para dejar de escuchar
+     */
+    onDeepLink: (callback) => {
+        const handler = (_event, url) => callback(url);
+        ipcRenderer.on('deep-link', handler);
+        return () => ipcRenderer.removeListener('deep-link', handler);
+    },
+
     // ============================================
     // AUTO-UPDATES
     // ============================================

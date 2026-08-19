@@ -71,6 +71,10 @@ const CONFIG = {
     RESET_PASSWORD: '/reset-password',
     LOBBY: '/lobby',
     TEAM: '/team',
+    // Relevo del login de escritorio (Fase 1). Solo existe en el portal web: es la URL a
+    // la que Supabase devuelve tras el login con Google, y desde ahí el código salta a la
+    // app por veltronik://. Ver pages/DesktopAuthPage.jsx.
+    DESKTOP_AUTH: '/desktop-auth',
   }),
 
   // Gym Status

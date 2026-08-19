@@ -27,7 +27,30 @@ export function useAuth() {
 }
 
 // Public routes that don't require auth
-const PUBLIC_ROUTES = [CONFIG.ROUTES.LOGIN, CONFIG.ROUTES.REGISTER, CONFIG.ROUTES.RESET_PASSWORD];
+const PUBLIC_ROUTES = [
+  CONFIG.ROUTES.LOGIN,
+  CONFIG.ROUTES.REGISTER,
+  CONFIG.ROUTES.RESET_PASSWORD,
+  // Relevo del login de escritorio: quien la abre viene de Google y NO tiene sesión en
+  // este navegador (el código es de la app, que es la única que puede canjearlo). Sin
+  // esto, el guard la mandaría al login y el código se perdería.
+  CONFIG.ROUTES.DESKTOP_AUTH,
+];
+
+/**
+ * Páginas públicas que un usuario YA LOGUEADO igual tiene que poder ver.
+ *
+ * La regla general manda al Lobby a quien entra logueado a una pantalla pública, y está
+ * bien: no tiene sentido mostrarle el login. Pero estas dos terminan un trámite:
+ *   · reset-password → el link del mail crea una sesión de recuperación; echarlo sería
+ *     no dejarlo escribir la contraseña nueva.
+ *   · desktop-auth   → si además usa el portal en ese mismo navegador, tiene sesión web;
+ *     mandarlo al Lobby dejaría a la app de escritorio esperando para siempre.
+ */
+const PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN = [
+  CONFIG.ROUTES.RESET_PASSWORD,
+  CONFIG.ROUTES.DESKTOP_AUTH,
+];
 
 // Routes that don't need org context or active subscription
 const NO_ORG_ROUTES = [
@@ -355,11 +378,9 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    // Logged in on public page → redirect to lobby.
-    // EXCEPCIÓN reset-password: el link del email crea una sesión de recuperación
-    // (usuario "logueado"); sin esta excepción lo echaríamos al Lobby antes de que
-    // pueda escribir la contraseña nueva.
-    if (user && isPublic && currentPath !== CONFIG.ROUTES.RESET_PASSWORD) {
+    // Logged in on public page → redirect to lobby, salvo las que terminan un trámite
+    // (ver PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN arriba).
+    if (user && isPublic && !PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN.includes(currentPath)) {
       navigate(CONFIG.ROUTES.LOBBY, { replace: true });
       return;
     }

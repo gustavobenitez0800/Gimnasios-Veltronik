@@ -10,12 +10,18 @@ import Icon from '../components/Icon';
 import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
 import { openPortal } from '../lib/portal';
+import { canUseBrowserSignIn } from '../lib/desktopAuth';
 import { authService, errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
 
-// Google necesita un redirect de vuelta que file:// no puede recibir: en Electron
-// el botón se oculta (el login con email funciona igual en los dos envases).
-const IS_ELECTRON = typeof window !== 'undefined' && !!window.electronAPI;
+// Google ya funciona en los dos envases (Fase 2).
+//
+// Antes el botón estaba ESCONDIDO en Electron: la app se sirve por file:// y ahí Google
+// no tiene a dónde redirigir de vuelta. Ahora el escritorio saca el login al navegador
+// del sistema y lo recibe por veltronik:// (ver lib/desktopAuth.js), así que la única
+// razón para ocultarlo es que este build de escritorio no tenga el puente de Electron
+// disponible — o sea, abierto en un navegador común durante el desarrollo.
+const SHOW_GOOGLE = !CONFIG.IS_DESKTOP || canUseBrowserSignIn();
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -68,8 +74,13 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       await loginWithGoogle();
-    } catch {
-      showToast('Error al iniciar sesión con Google', 'error');
+      // En el escritorio esto solo ABRIÓ el navegador: la sesión llega después, por el
+      // deep link. Sin este aviso la pantalla se queda igual y parece que no pasó nada.
+      if (CONFIG.IS_DESKTOP) {
+        showToast('Terminá de iniciar sesión en el navegador y volvé a esta ventana.', 'info', 8000);
+      }
+    } catch (error) {
+      showToast(error?.message || 'Error al iniciar sesión con Google', 'error');
     }
   };
 
@@ -141,8 +152,8 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* Google: solo web (ver IS_ELECTRON arriba) */}
-      {!IS_ELECTRON && (<>
+      {/* Google: web con redirect, escritorio por navegador + veltronik:// */}
+      {SHOW_GOOGLE && (<>
       {/* Divider */}
       <div className="auth-divider">o continúa con</div>
 
