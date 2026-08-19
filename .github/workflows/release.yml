@@ -7,6 +7,13 @@ name: Release Electron (Windows)
 # Por qué en la nube: el runner windows-latest es limpio (admin, sin Windows Defender
 # bloqueando app.asar, symlinks de winCodeSign permitidos). Resuelve de raíz el fallo
 # de empaquetado local. Releases futuros = un `git push` del tag.
+#
+# El workflow NO compila Java. Hasta acá arrancaba con un "Setup Java 17" + un paso que
+# corría build-tools\build-backend.ps1 para armar el cerebro embebido (jar + JRE). Ese
+# script se fue con la baja del circuito offline (V43) y el paso quedó apuntándole: TODO
+# release fallaba en el segundo step. Además el artefacto que producía (resources/backend,
+# ~330MB) ya no lo empaquetaba nadie — electron-builder.yml solo lleva assets/ como
+# extraResources. Si algún día vuelve un runtime embebido, se agrega acá de nuevo.
 
 on:
   push:
@@ -27,21 +34,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Java 17 (cerebro embebido, ADR-009)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: maven
-
-      - name: Build backend embebido (jar + JRE firmada de Microsoft)
-        # Produce frontend/resources/backend/ — electron-builder lo empaqueta
-        # como extraResources (resources/backend del instalable). La JRE que
-        # viaja es la de Microsoft (Authenticode, ADR-011): jlink quedó
-        # descartado porque su runtime sin firma es bloqueado por WDAC.
-        working-directory: frontend
-        run: powershell -ExecutionPolicy Bypass -File build-tools\build-backend.ps1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
