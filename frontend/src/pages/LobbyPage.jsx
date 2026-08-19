@@ -22,6 +22,7 @@ import Icon from '../components/Icon';
 import GymLogo from '../components/GymLogo';
 import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
+import { openPortal } from '../lib/portal';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
@@ -248,6 +249,22 @@ export default function LobbyPage() {
   const handleUpdatePaymentMethod = async () => {
     if (!blockedOrg) return;
 
+    // En el escritorio la tarjeta no se toca acá (Fase 4): el checkout de Mercado Pago
+    // vive en el portal. Se fija la sucursal igual —para que el portal abra sobre la
+    // correcta— y se manda al navegador. Ni siquiera se llama al backend: el init_point
+    // que devolvía solo servía para navegar la ventana, que es justo lo que ya no se hace.
+    if (CONFIG.IS_DESKTOP) {
+      selectOrgContext(blockedOrg);
+      setBlockedOrg(null);
+      const ok = await openPortal('/#/lobby');
+      showToast(
+        ok ? 'Abrimos el portal en tu navegador para cambiar la tarjeta.'
+           : 'No pudimos abrir el navegador. Entrá al portal desde otro dispositivo.',
+        ok ? 'info' : 'error',
+      );
+      return;
+    }
+
     const gymId = blockedOrg.id;
     // El email del pagador es el de la cuenta. (Acá había un try/catch que se asignaba
     // a sí mismo el mismo valor, con un comentario que decía "stubbed": ceremonia vacía.)
@@ -442,16 +459,34 @@ export default function LobbyPage() {
   // El texto cambia según si es su PRIMER gimnasio o una sucursal más: a alguien que
   // ya tiene tres locales decirle "Registrá tu Gimnasio" le suena a empezar de cero.
   const isFirstGym = orgs.length === 0;
+
+  // Dar de alta un gimnasio es trámite de cuenta, no operación: vive en el portal (Fase 4).
+  // En el escritorio la card abre el navegador en vez de navegar a una pantalla que ese
+  // bundle ya no tiene, y el subtítulo lo dice para que nadie se sorprenda del salto.
+  const handleCreateOrg = () => {
+    if (CONFIG.IS_DESKTOP) {
+      openPortal('/#/onboarding').then((ok) => {
+        if (!ok) showToast('No pudimos abrir el navegador. Entrá al portal de Veltronik para dar de alta el gimnasio.', 'error');
+      });
+      return;
+    }
+    navigate(CONFIG.ROUTES.ONBOARDING);
+  };
+
   const createOrgCard = (
     <button
       className="lobby-card lobby-card-create card-hover"
-      onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
+      onClick={handleCreateOrg}
     >
       <div className="lobby-card-icon create-icon">
-        <Icon name="plus" size="2rem" />
+        <Icon name={CONFIG.IS_DESKTOP ? 'globe' : 'plus'} size="2rem" />
       </div>
       <h3 className="lobby-card-name">{isFirstGym ? 'Registrá tu Gimnasio' : 'Nueva sucursal'}</h3>
-      <p className="lobby-card-role">{isFirstGym ? 'Empezá tus 14 días gratis' : 'Sumá otro local a tu cuenta'}</p>
+      <p className="lobby-card-role">
+        {CONFIG.IS_DESKTOP
+          ? 'Se abre en tu navegador'
+          : (isFirstGym ? 'Empezá tus 14 días gratis' : 'Sumá otro local a tu cuenta')}
+      </p>
     </button>
   );
 

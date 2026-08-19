@@ -9,6 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
+import { openPortal } from '../lib/portal';
 import { authService, errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
 
@@ -159,9 +160,17 @@ export default function LoginPage() {
       </div>
       </>)}
 
-      {/* Register Link */}
+      {/* Register Link. Crear la cuenta es cosa del portal: en el escritorio la pantalla
+          de registro no existe (Fase 4), así que el link abriría la nada. Abre el navegador. */}
       <p className="auth-links">
-        ¿No tenés cuenta? <Link to={CONFIG.ROUTES.REGISTER}>Registrate gratis</Link>
+        ¿No tenés cuenta?{' '}
+        {CONFIG.IS_DESKTOP ? (
+          <button type="button" className="link-button" onClick={() => openPortal('/#/register')}>
+            Registrate gratis
+          </button>
+        ) : (
+          <Link to={CONFIG.ROUTES.REGISTER}>Registrate gratis</Link>
+        )}
       </p>
     </div>
   );

@@ -79,8 +79,18 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Build (vite)
+      - name: Build web (vite)
         # Sin secrets: las VITE_* quedan undefined y el bundle no es usable en
         # runtime, pero el build DEBE compilar. Los bundles reales (con secrets)
         # los produce release.yml.
         run: pnpm run build
+
+      - name: Build de escritorio (vite)
+        # El otro entry point (Fase 4). Compila aparte, así que puede romperse solo.
+        run: pnpm run build:desktop
+
+      - name: El bundle de escritorio no lleva código de cobro
+        # El criterio de aceptación de la Fase 4. Acá es donde tiene que doler: si un
+        # import arrastra de nuevo el SDK de Mercado Pago al instalador, el PR se pone
+        # rojo antes del merge, no en el release.
+        run: pnpm run check:desktop-bundle

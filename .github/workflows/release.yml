@@ -65,16 +65,28 @@ jobs:
         # sincronizado con package.json → releases 100% reproducibles.
         run: pnpm install --frozen-lockfile
 
-      - name: Build web (vite)
+      - name: Build de escritorio (vite)
+        # Fase 4: el instalador NO lleva el bundle del portal. `build:desktop` compila
+        # dist-desktop/ (solo pantallas de operación) y es lo único que empaqueta
+        # electron-builder. El build web (`pnpm run build` → dist/) lo hace Vercel.
+        #
         # Vite inyecta las VITE_* en build-time. Vienen de GitHub Secrets (NUNCA del
         # repo: los .env están gitignoreados). Sin esto, el bundle arranca con
         # "Missing Supabase environment variables" y la app queda en pantalla negra.
+        # VITE_MP_PUBLIC_KEY ya no hace falta acá —el escritorio no cobra— pero se deja
+        # pasada por si alguna pantalla de operación la mirara: cuesta nada.
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_MP_PUBLIC_KEY: ${{ secrets.VITE_MP_PUBLIC_KEY }}
-        run: pnpm run build
+        run: pnpm run build:desktop
+
+      - name: Verificar que el bundle no lleve código de cobro
+        # El criterio de aceptación de la Fase 4, en el pipeline: si un import vuelve a
+        # arrastrar el SDK de Mercado Pago al instalador, el release se pone rojo ACÁ y
+        # no seis meses después en la máquina de un cliente.
+        run: pnpm run check:desktop-bundle
 
       - name: Build & publish Electron (Windows)
         env:

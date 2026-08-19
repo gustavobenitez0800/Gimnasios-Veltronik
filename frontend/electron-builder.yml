@@ -5,12 +5,20 @@ copyright: Copyright © 2026 Veltronik
 # Archivos a incluir en el build
 files:
   - "electron/**/*"
-  - "dist/**/*"
+  # dist-desktop, NO dist (Fase 4). `dist/` es el bundle del portal web, con las
+  # pantallas de cuenta y el SDK de Mercado Pago adentro; ese va a Vercel y no al
+  # instalador. Lo produce `pnpm run build:desktop`.
+  - "dist-desktop/**/*"
   - "assets/**/*"
   - "package.json"
   # Lo que NO va adentro del instalador. Solo se listan rutas que EXISTEN: había
   # cuatro excludes de carpetas borradas hace rato (api/, .github/, vercel.json,
   # .vercelignore) que no excluían nada y hacían pensar que seguían existiendo.
+  # Explícito a propósito, aunque la lista de arriba ya es una allowlist: `dist/` existe
+  # en la máquina de build (Vercel y el escritorio se compilan del mismo repo) y si
+  # entrara al instalador se colaría el SDK de Mercado Pago por la puerta de atrás,
+  # justo lo que la Fase 4 saca. Barato de dejar, caro de olvidar.
+  - "!dist/**/*"
   - "!src/**/*"
   - "!public/**/*"
   - "!.git/**/*"

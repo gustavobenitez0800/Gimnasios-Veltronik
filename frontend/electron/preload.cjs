@@ -31,6 +31,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     isElectron: () => true,
 
+    /**
+     * Abrir una URL del PORTAL WEB en el navegador del sistema (Fase 4).
+     *
+     * La app de escritorio no trae las pantallas de cuenta ni de cobro: cuando hace falta
+     * una, manda al navegador por acá. Nunca navega su propia ventana — hacerlo era lo que
+     * rompía el pago (MP devolvía a la web y la app no se enteraba).
+     *
+     * El proceso principal valida la URL contra una lista blanca de orígenes
+     * (electron/portal.cjs) antes de abrir nada.
+     *
+     * @param {string} url
+     * @returns {Promise<boolean>} false si la rechazó la lista blanca
+     */
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
     // ============================================
     // AUTO-UPDATES
     // ============================================

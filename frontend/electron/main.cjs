@@ -7,10 +7,33 @@
  * Maneja la ventana, auto-updates y ciclo de vida.
  */
 
-const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, Menu, shell } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
 const deviceManager = require('./device-manager.cjs');
+const { isAllowedUrl } = require('./portal.cjs');
+
+// Dev server de Vite (el mismo puerto que usa `pnpm dev`).
+const DEV_SERVER_ORIGIN = 'http://localhost:5173';
+
+/**
+ * ¿Esta navegación es "dentro de la app"?
+ *
+ * En producción la app se sirve por file://; en desarrollo, desde el dev server. Moverse
+ * ahí adentro es normal (el HashRouter cambia el fragmento, F5 recarga el documento).
+ * Cualquier otro destino es salir de la app, y eso no puede pasar en la ventana propia:
+ * ver el comentario de will-navigate más abajo.
+ */
+function isInternalNavigation(targetUrl) {
+    try {
+        const u = new URL(targetUrl);
+        if (u.protocol === 'file:') return true;
+        if (isDev() && u.origin === DEV_SERVER_ORIGIN) return true;
+        return false;
+    } catch {
+        return false;
+    }
+}
 
 // ============================================
 // MENÚ DE APLICACIÓN PERSONALIZADO
@@ -105,14 +128,40 @@ const WINDOW_CONFIG = {
 function createWindow() {
     mainWindow = new BrowserWindow(WINDOW_CONFIG);
 
-    // Cargar la app - React build output
+    // Cargar la app — el bundle de ESCRITORIO (Fase 4), no el de la web.
+    // `dist-desktop/` lo produce `pnpm run build:desktop` (vite.desktop.config.js) y trae
+    // solo las pantallas de operación: sin planes, sin checkout, sin SDK de Mercado Pago.
+    // `dist/` es de Vercel y acá no se toca.
     if (isDev()) {
-        // En dev, cargar desde el servidor Vite
-        mainWindow.loadURL('http://localhost:5173');
+        // En dev el server de Vite sirve las dos entradas; pedimos la del escritorio.
+        // ⚠️ Levantalo con `pnpm run dev:desktop`, no con `pnpm dev`: el server común usa
+        // vite.config.js y ahí __IS_DESKTOP__ vale false, así que la app cargaría las
+        // rutas de escritorio pero creyéndose la web (el muro de cobro navegaría en vez
+        // de abrir el navegador, el link de registro apuntaría a una ruta inexistente).
+        mainWindow.loadURL(`${DEV_SERVER_ORIGIN}/index.desktop.html`);
     } else {
-        // En producción, cargar el build de Vite
-        mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+        mainWindow.loadFile(path.join(__dirname, '..', 'dist-desktop', 'index.desktop.html'));
     }
+
+    // ─── La ventana de la app NUNCA sale de la app ───
+    // Red de seguridad estructural, no una lista de casos. El pago roto nacía de un
+    // `window.location.href = <url de Mercado Pago>`: la ventana se iba a MP, MP devolvía
+    // al cliente a la URL web, y la app jamás se enteraba de que había pagado (por eso
+    // reintentaba, y cada reintento sumaba un rechazo). Con esto, aunque se nos escape
+    // algún camino en el código, la ventana no puede irse: si el destino es el portal se
+    // abre en el navegador del sistema, y si no, no pasa nada.
+    mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+        if (isInternalNavigation(targetUrl)) return;
+        event.preventDefault();
+        if (isAllowedUrl(targetUrl)) shell.openExternal(targetUrl);
+    });
+
+    // Lo mismo para target=_blank / window.open: afuera, y nunca una ventana de Electron
+    // sin barra de direcciones haciéndose pasar por un navegador.
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (isAllowedUrl(url)) shell.openExternal(url);
+        return { action: 'deny' };
+    });
 
     // Mostrar cuando esté lista (evita flash blanco)
     mainWindow.once('ready-to-show', () => {
@@ -200,6 +249,27 @@ app.on('window-all-closed', () => {
 // Obtener versión de la app
 ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+});
+
+/**
+ * Abrir una URL del portal en el NAVEGADOR DEL SISTEMA (Fase 4).
+ *
+ * Es el único puente de la app hacia afuera: lo usan el muro de cobro, el alta de
+ * gimnasio y el registro, que ya no viven adentro del instalador.
+ *
+ * La URL la propone el renderer, así que acá se valida contra la lista blanca antes de
+ * tocar shell.openExternal — sin eso, cualquier código que llegue a ejecutarse en la
+ * página podría lanzar protocolos arbitrarios en la máquina del cliente. Falla cerrada:
+ * si no está en la lista, devuelve false y el muro muestra la dirección en pantalla para
+ * que el dueño la abra a mano.
+ */
+ipcMain.handle('open-external', async (_event, url) => {
+    if (!isAllowedUrl(url)) {
+        console.warn('[Veltronik] open-external rechazado (fuera de la lista blanca):', url);
+        return false;
+    }
+    await shell.openExternal(url);
+    return true;
 });
 
 // Verificar updates manualmente
