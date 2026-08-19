@@ -70,8 +70,29 @@ Panel: https://supabase.com/dashboard → tu proyecto → **Authentication**
 - [ ] **URL Configuration → Site URL**: poner el dominio web de producción
       (`https://gimnasio-veltronik-veltroniks-projects.vercel.app` o tu dominio custom si tenés).
 - [ ] **URL Configuration → Redirect URLs**: agregar `https://<tu-dominio-vercel>/**`
-      (con los `/**` al final — cubre `#/reset-password` y el retorno del OAuth).
+      (con los `/**` al final — cubre `#/reset-password`, el retorno del OAuth **y el
+      retorno del login de escritorio**, que cae en `#/desktop-auth`).
+      ⚠️ Si preferís no usar el comodín, entonces agregá explícitamente
+      `https://<tu-dominio-vercel>/#/desktop-auth`: **sin esa URL en la lista, el login
+      con Google desde la app de escritorio rebota** y el usuario nunca vuelve a la app.
 - [ ] **Providers → Google → Enable**: pegar el Client ID y Client Secret que salen del paso 2.
+
+### 1.b. Confirmarme cuál es el dominio REAL del portal
+
+Hay dos URLs dando vueltas y no coinciden:
+
+| Dónde | Valor |
+|---|---|
+| `frontend/src/lib/config.js` (fallback que hoy manda) | `https://veltronik-v2.vercel.app` |
+| `frontend/package.json` → `homepage` | `https://gimnasio-veltronik-veltroniks-projects.vercel.app` |
+
+`VITE_PUBLIC_WEB_URL` **no está seteada en ningún lado** (ni en los `.env` ni en los
+secrets del release), así que gana el fallback. De esa URL dependen tres cosas ahora:
+el botón de pago de la app de escritorio, el retorno del login con Google, y la lista
+blanca de `frontend/electron/portal.cjs`. Por las dudas quedaron las dos permitidas.
+
+- [ ] Decirme cuál es la buena → la dejo en una sola y la seteo como
+      `VITE_PUBLIC_WEB_URL` en los secrets del release.
 
 ## 2. Google Cloud Console (credenciales para "Continuar con Google")
 
