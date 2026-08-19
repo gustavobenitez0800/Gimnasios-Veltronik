@@ -22,6 +22,7 @@ import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
 import GymLogo from '../components/GymLogo';
+import TerminalSettings from '../components/TerminalSettings';
 
 /**
  * `SubscriptionActions` llega por prop desde la tabla de rutas (Fase 4).
@@ -464,6 +465,12 @@ export default function SettingsPage({ SubscriptionActions }) {
             <span className="info-value">{accountRole}</span>
           </div>
         </div>
+
+        {/* Preferencias de ESTA máquina (Fase 5): arranque con Windows, cerrar a bandeja.
+            A diferencia de las acciones de suscripción, este componente no arrastra nada
+            pesado, así que no necesita el patrón de inyección desde la tabla de rutas:
+            alcanza con no dibujarlo. Él mismo se esconde si no hay puente de Electron. */}
+        {CONFIG.IS_DESKTOP && <TerminalSettings />}
 
         {/* Equipos (Fase 1: registro + bautizo) */}
         {canManageDevices && (

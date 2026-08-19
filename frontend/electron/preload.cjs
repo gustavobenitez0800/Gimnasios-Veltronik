@@ -63,6 +63,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // ============================================
+    // PREFERENCIAS DEL TERMINAL (Fase 5)
+    // ============================================
+    // De la MÁQUINA, no de la cuenta: arranque con Windows y comportamiento al cerrar.
+    // Viven en un JSON local (electron/store.cjs), nunca viajan al servidor.
+
+    terminalSettings: {
+        /** @returns {Promise<{openAtLogin: boolean, closeToTray: boolean, trayAvailable: boolean}>} */
+        get: () => ipcRenderer.invoke('terminal-settings:get'),
+
+        /**
+         * @param {{openAtLogin?: boolean, closeToTray?: boolean}} changes
+         * @returns {Promise<{ok: boolean, error?: string}>}
+         */
+        set: (changes) => ipcRenderer.invoke('terminal-settings:set', changes),
+    },
+
+    // ============================================
     // AUTO-UPDATES
     // ============================================
 
