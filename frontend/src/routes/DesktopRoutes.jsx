@@ -24,7 +24,7 @@ import CONFIG from '../lib/config';
 import { AppLayout, AuthLayout } from '../components/Layout';
 
 import LoginPage from '../pages/LoginPage';
-import LobbyPage from '../pages/LobbyPage';
+import DeviceGate from '../pages/DeviceGate';
 import DashboardPage from '../pages/DashboardPage';
 import MembersPage from '../pages/MembersPage';
 import PaymentsPage from '../pages/PaymentsPage';
@@ -54,12 +54,18 @@ export default function DesktopRoutes() {
         {/* Recuperar contraseña SÍ queda: el mail de Supabase abre el portal, pero si
             el usuario vuelve con una sesión de recuperación, la pantalla tiene que existir. */}
         <Route path={CONFIG.ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
+        {/* Fase 3: en el escritorio /lobby NO es un selector de sucursal — es la puerta
+            del terminal. Averigua a qué sucursal está atado el equipo y entra sin
+            preguntar. Conserva el nombre de ruta para no tocar el guard de AuthContext ni
+            los caminos que ya mandan al Lobby (el "Ya pagué" del muro, la expulsión por
+            FORBIDDEN_TENANT). Va bajo AuthLayout porque es una pantalla de acceso, no de
+            operación: todavía no hay sucursal ni barra lateral. */}
+        <Route path={CONFIG.ROUTES.LOBBY} element={<DeviceGate />} />
       </Route>
 
       {/* El cobro no se hace acá: las dos rutas caen en el muro, que abre el portal. */}
       <Route path={CONFIG.ROUTES.PLANS} element={<BillingWall />} />
       <Route path={CONFIG.ROUTES.BLOCKED} element={<BillingWall />} />
-      <Route path={CONFIG.ROUTES.LOBBY} element={<LobbyPage />} />
 
       {/* App pages (with sidebar) */}
       <Route element={<AppLayout />}>

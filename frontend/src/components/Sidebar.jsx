@@ -43,16 +43,37 @@ const NAV_SECTIONS = [
   },
 ];
 
+/**
+ * Módulos que este ENVASE no puede mostrar, más allá de lo que permita el rol.
+ *
+ * En el escritorio (Fase 3) el equipo está atado a UNA sucursal: "Cambiar Sucursal" no
+ * llevaría a ningún lado — /lobby es la puerta del terminal, no un selector. El backend
+ * no puede decidir esto porque no sabe en qué envase corre la sesión; es lo único que el
+ * front filtra por su cuenta, y por eso se aplica DESPUÉS de la política del backend en
+ * vez de duplicarla.
+ */
+const MODULOS_FUERA_DE_ESTE_ENVASE = CONFIG.IS_DESKTOP ? ['lobby'] : [];
+
+function porEnvase(secciones) {
+  if (MODULOS_FUERA_DE_ESTE_ENVASE.length === 0) return secciones;
+  return secciones
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => !MODULOS_FUERA_DE_ESTE_ENVASE.includes(item.module)),
+    }))
+    .filter(section => section.items.length > 0);
+}
+
 function getNavSections(role, allowedModules) {
   // Preferencia: el backend dicta qué módulos se ven (fuente única de la política).
   // El front SOLO dibuja lo permitido. (Items sin `module` pasan, por las dudas.)
   if (allowedModules) {
-    return NAV_SECTIONS
+    return porEnvase(NAV_SECTIONS
       .map(section => ({
         ...section,
         items: section.items.filter(item => !item.module || allowedModules.includes(item.module)),
       }))
-      .filter(section => section.items.length > 0);
+      .filter(section => section.items.length > 0));
   }
 
   // Fallback (backend sin /workspace todavía): filtrado por rol heredado —
@@ -66,10 +87,10 @@ function getNavSections(role, allowedModules) {
     const allowedPaths = [
       CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
     ];
-    return NAV_SECTIONS.map(section => ({
+    return porEnvase(NAV_SECTIONS.map(section => ({
       ...section,
       items: section.items.filter(item => allowedPaths.includes(item.to)),
-    })).filter(section => section.items.length > 0);
+    })).filter(section => section.items.length > 0));
   }
 
   if (role === 'staff') {
@@ -82,13 +103,13 @@ function getNavSections(role, allowedModules) {
       CONFIG.ROUTES.RETENTION,
       CONFIG.ROUTES.REPORTS,
     ];
-    return NAV_SECTIONS.map(section => ({
+    return porEnvase(NAV_SECTIONS.map(section => ({
       ...section,
       items: section.items.filter(item => !blockedPaths.includes(item.to)),
-    })).filter(section => section.items.length > 0);
+    })).filter(section => section.items.length > 0));
   }
 
-  return NAV_SECTIONS;
+  return porEnvase(NAV_SECTIONS);
 }
 
 export default function Sidebar({ isOpen, onClose }) {

@@ -159,6 +159,13 @@ public class KillSwitchFilter extends OncePerRequestFilter {
                path.startsWith("/api/core/subscriptions") || // checkout/suscripción: el moroso debe poder pagar
                path.startsWith("/api/core/profiles") ||
                path.startsWith("/api/updates") ||  // el updater pregunta por credencial de equipo (sin tenant)
+               // "¿A qué sucursal pertenezco?" (Fase 3): es la PRIMERA pregunta que hace
+               // la app de escritorio al arrancar, y todavía no tiene sucursal que mandar
+               // en el header — sin esta excepción el KillSwitch la corta con 401 "falta
+               // contexto de negocio" y la app no puede ni averiguar dónde está parada.
+               // Exacta, no por prefijo: enroll y revoke SÍ deben respetar el corte por
+               // falta de pago.
+               path.equals("/api/core/devices/me") ||
                path.startsWith("/api/hq");          // Mission Control del fundador: global, cross-tenant
     }
 }

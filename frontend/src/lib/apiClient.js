@@ -106,10 +106,17 @@ apiClient.interceptors.response.use(
     } else if (
       error.response &&
       error.response.status === 403 &&
-      error.response.data?.error === 'FORBIDDEN_TENANT'
+      (error.response.data?.error === 'FORBIDDEN_TENANT' ||
+       error.response.data?.error === 'DEVICE_BOUND_TO_OTHER_TENANT')
     ) {
-      // El negocio seleccionado ya no es accesible (contexto viejo en localStorage,
-      // o el usuario fue removido del equipo). Limpiamos y volvemos al Lobby.
+      // Dos motivos distintos, misma cura: la sucursal que hay en el contexto no se puede
+      // operar desde acá.
+      //   · FORBIDDEN_TENANT            → la PERSONA perdió el acceso (la sacaron del equipo,
+      //                                   o quedó un contexto viejo en localStorage).
+      //   · DEVICE_BOUND_TO_OTHER_TENANT → el EQUIPO pertenece a otra sucursal (Fase 3):
+      //                                   este terminal está atado y no es la que se pidió.
+      // En los dos casos limpiamos el contexto y volvemos a la puerta de entrada, que en la
+      // web es el Lobby y en el escritorio es DeviceGate — la misma ruta.
       localStorage.removeItem('current_org_id');
       localStorage.removeItem('current_org_name');
       window.dispatchEvent(new Event('auth-forbidden-tenant'));

@@ -1,7 +1,10 @@
 package com.veltronik.v2.core.security;
 
+import com.veltronik.v2.core.entities.Device;
+import com.veltronik.v2.core.entities.DeviceStatus;
 import com.veltronik.v2.core.entities.TenantMembership;
 import com.veltronik.v2.core.entities.UserRole;
+import com.veltronik.v2.core.repositories.DeviceRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -44,11 +47,17 @@ public class TenantContextFilter extends OncePerRequestFilter {
 
     private final TenantMembershipRepository membershipRepository;
     private final MembershipCache membershipCache;
+    private final DeviceRepository deviceRepository;
+    private final DeviceBindingCache deviceBindingCache;
 
     public TenantContextFilter(TenantMembershipRepository membershipRepository,
-                               MembershipCache membershipCache) {
+                               MembershipCache membershipCache,
+                               DeviceRepository deviceRepository,
+                               DeviceBindingCache deviceBindingCache) {
         this.membershipRepository = membershipRepository;
         this.membershipCache = membershipCache;
+        this.deviceRepository = deviceRepository;
+        this.deviceBindingCache = deviceBindingCache;
     }
 
     @Override
@@ -91,6 +100,14 @@ public class TenantContextFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // Segunda llave: un equipo ENROLADO queda atado a SU sucursal (Fase 3).
+                if (!isAllowedOnThisDevice(request, tenantId, role)) {
+                    writeError(response, HttpServletResponse.SC_FORBIDDEN,
+                            "DEVICE_BOUND_TO_OTHER_TENANT",
+                            "Este equipo pertenece a otra sucursal.");
+                    return;
+                }
+
                 TenantContextHolder.setTenantId(tenantId);
                 // Inyecta el rol (de tenant_membership) como authority de Spring para que el
                 // control de acceso por método (@PreAuthorize) pueda bloquear endpoints sensibles
@@ -104,6 +121,68 @@ public class TenantContextFilter extends OncePerRequestFilter {
         } finally {
             // EXTREMADAMENTE IMPORTANTE: limpiar el ThreadLocal pase lo que pase.
             TenantContextHolder.clear();
+        }
+    }
+
+    /**
+     * ¿Puede este EQUIPO operar la sucursal pedida? (Fase 3 — la segunda identidad)
+     *
+     * <p>La primera llave —la membresía, arriba— dice qué sucursales puede tocar la
+     * PERSONA. Esta dice cuál puede tocar la MÁQUINA. El terminal del mostrador de una
+     * sucursal se enrola una vez y queda atado a ella: un empleado que además es miembro
+     * de otra sucursal no puede abrirla desde ahí, ni por error ni a propósito. La
+     * sucursal deja de ser algo que el cliente elige y manda en un header.</p>
+     *
+     * <p><b>El OWNER queda exento.</b> Es el dueño de todas sus sucursales y necesita
+     * poder mirarlas desde donde esté; encerrarlo en el terminal donde se sentó sería
+     * romperle la herramienta. Para todos los demás roles la atadura es dura.</p>
+     *
+     * <p><b>Falla ABIERTA a propósito</b>, al revés que el chequeo de membresía. Este es
+     * un control SECUNDARIO: si la consulta a la BD se cae, el usuario igual quedó
+     * limitado a las sucursales donde es miembro —la garantía fuerte ya se aplicó— así
+     * que dejar pasar acá acota el daño a "un empleado ve una sucursal suya desde el
+     * terminal equivocado", mientras que fallar cerrado dejaría un gimnasio entero sin
+     * poder trabajar por un blip de red.</p>
+     *
+     * <p>El {@code X-Device-Id} se lee del header y no de {@link DeviceContextHolder}
+     * porque {@code DeviceContextFilter} es un filtro de servlet auto-registrado: corre
+     * DESPUÉS de toda la cadena de Spring Security, así que en este punto el ThreadLocal
+     * todavía está vacío.</p>
+     */
+    private boolean isAllowedOnThisDevice(HttpServletRequest request, UUID tenantId, UserRole role) {
+        if (role == UserRole.OWNER) return true;
+
+        final UUID deviceId = parseUuid(request.getHeader("X-Device-Id"));
+        if (deviceId == null) return true; // sin DNI no hay atadura que verificar
+
+        try {
+            DeviceBindingCache.Binding cached = deviceBindingCache.get(deviceId);
+            if (cached == null) {
+                UUID enrolled = deviceRepository.findById(deviceId)
+                        .filter(d -> d.getStatus() == DeviceStatus.ACTIVE)
+                        .map(Device::getEnrolledTenantId)
+                        .orElse(null);
+                deviceBindingCache.put(deviceId, enrolled);
+                cached = new DeviceBindingCache.Binding(enrolled);
+            }
+
+            // Equipo sin enrolar (el caso de todo navegador web): nada que atar.
+            if (!cached.isBound()) return true;
+
+            return tenantId.equals(cached.tenantId());
+        } catch (Exception e) {
+            logger.warn("No se pudo verificar la atadura del equipo " + deviceId + ": " + e.getMessage());
+            return true; // ver "falla ABIERTA" arriba
+        }
+    }
+
+    /** Parseo tolerante: un header ausente o malformado es "sin DNI", no un error. */
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

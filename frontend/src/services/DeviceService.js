@@ -14,6 +14,22 @@ export const deviceService = {
   },
 
   /**
+   * Estado de ESTE equipo: sobre todo, `enrolledTenantId` — a qué sucursal pertenece.
+   *
+   * Es la primera pregunta que hace la app de escritorio al arrancar (Fase 3), antes de
+   * tener ninguna sucursal elegida. Por eso el endpoint funciona sin `X-Tenant-ID` y está
+   * exceptuado del KillSwitch: si necesitara una sucursal en la sesión para decirte a qué
+   * sucursal pertenecés, no serviría para nada.
+   *
+   * @returns {Promise<{id: string, enrolled: boolean, enrolledTenantId?: string,
+   *                    enrolledTenantName?: string, displayName?: string, status?: string}>}
+   */
+  async me() {
+    const res = await apiClient.get('/core/devices/me');
+    return res.data?.data || {};
+  },
+
+  /**
    * El bautizo: enrola ESTE equipo a la sucursal en curso.
    * @param {{role: 'CAJA'|'ENCARGADO', displayName: string, replaceActiveManager?: boolean}} payload
    * Si ya hay una Caja Madre activa y no se pidió reemplazo, el backend responde 409

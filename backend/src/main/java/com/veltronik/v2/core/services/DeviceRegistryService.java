@@ -7,6 +7,7 @@ import com.veltronik.v2.core.exceptions.BusinessException;
 import com.veltronik.v2.core.exceptions.DeviceEnrollConflictException;
 import com.veltronik.v2.core.exceptions.EntityNotFoundException;
 import com.veltronik.v2.core.repositories.DeviceRepository;
+import com.veltronik.v2.core.security.DeviceBindingCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,14 @@ public class DeviceRegistryService {
     private static final Duration HEARTBEAT_INTERVAL = Duration.ofMinutes(5);
 
     private final DeviceRepository deviceRepository;
+
+    /**
+     * Caché de la atadura equipo→sucursal que consulta TenantContextFilter (Fase 3).
+     * Se invalida acá, en los dos puntos donde la atadura cambia: enrolar y revocar. Sin
+     * eso, un equipo recién enrolado tardaría hasta un minuto en quedar atado y uno recién
+     * revocado seguiría entrando ese mismo minuto.
+     */
+    private final DeviceBindingCache deviceBindingCache;
 
     /** Última persistencia por equipo (throttle en memoria; se resetea al redeployar — inofensivo). */
     private final Map<UUID, Instant> lastPersisted = new ConcurrentHashMap<>();
@@ -141,6 +150,7 @@ public class DeviceRegistryService {
                 Device old = conflict.get();
                 old.setStatus(DeviceStatus.REVOKED);
                 deviceRepository.save(old);
+                deviceBindingCache.evict(old.getId()); // la Caja Madre desplazada pierde su atadura YA
                 log.info("Caja Madre {} de la sucursal {} revocada por reemplazo (nuevo encargado: {})",
                         old.getId(), tenantId, deviceId);
             }
@@ -164,7 +174,9 @@ public class DeviceRegistryService {
         String deviceKey = generateDeviceKey();
         device.setCredentialHash(sha256Hex(deviceKey));
 
-        return new EnrollResult(deviceRepository.save(device), deviceKey);
+        EnrollResult result = new EnrollResult(deviceRepository.save(device), deviceKey);
+        deviceBindingCache.evict(deviceId);          // el equipo queda atado YA
+        return result;
     }
 
     /**
@@ -209,5 +221,6 @@ public class DeviceRegistryService {
                 .orElseThrow(() -> new EntityNotFoundException("equipo de esta sucursal", deviceId));
         device.setStatus(DeviceStatus.REVOKED);
         deviceRepository.save(device);
+        deviceBindingCache.evict(deviceId);          // deja de estar atado YA
     }
 }

@@ -3,7 +3,9 @@ package com.veltronik.v2.core.controllers;
 import com.veltronik.v2.core.dto.DeviceDTO;
 import com.veltronik.v2.core.dto.DeviceEnrollRequest;
 import com.veltronik.v2.core.entities.Device;
+import com.veltronik.v2.core.entities.DeviceStatus;
 import com.veltronik.v2.core.exceptions.DeviceEnrollConflictException;
+import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.security.DeviceContextHolder;
 import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.TenantContextHolder;
@@ -33,6 +35,8 @@ import java.util.UUID;
 public class DeviceController {
 
     private final DeviceRegistryService deviceRegistryService;
+    /** Para poner el NOMBRE de la sucursal de enrolamiento en /me (Fase 3). */
+    private final TenantRepository tenantRepository;
 
     @GetMapping
     public ResponseEntity<?> listDevices() {
@@ -47,9 +51,16 @@ public class DeviceController {
     }
 
     /**
-     * Estado del equipo que llama, para que el instalable decida si mostrar el bautizo.
-     * Abierto a cualquier usuario autenticado del tenant (un STAFF en una caja enrolada
-     * también necesita saber el estado) — método pisa el @PreAuthorize de la clase.
+     * Estado del equipo que llama.
+     *
+     * <p>Es la PRIMERA pregunta que hace la app de escritorio al arrancar (Fase 3):
+     * "¿a qué sucursal pertenezco?". Si está enrolada, entra directo a esa sucursal y no
+     * muestra ningún selector; si no, ofrece activarse. Por eso funciona SIN un tenant en
+     * la sesión —el KillSwitch la exceptúa explícitamente— y por eso devuelve
+     * {@code enrolledTenantId} además del {@code enrolled} relativo al tenant en curso.</p>
+     *
+     * <p>Abierto a cualquier usuario autenticado (un STAFF en un terminal enrolado también
+     * necesita saber el estado) — el método pisa el {@code @PreAuthorize} de la clase.</p>
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
@@ -136,6 +147,16 @@ public class DeviceController {
         dto.setLastSeenAt(d.getLastSeenAt());
         dto.setFirstSeenAt(d.getCreatedAt());
         dto.setEnrolled(d.isEnrolledActiveIn(currentTenantId));
+
+        // Atadura absoluta (Fase 3): solo si el enrolamiento está VIGENTE. Un equipo
+        // revocado tiene enrolled_tenant_id cargado pero ya no pertenece a nadie —
+        // informarlo como atado dejaría a la app entrando a una sucursal que le sacaron.
+        if (d.getEnrolledTenantId() != null && d.getStatus() == DeviceStatus.ACTIVE) {
+            dto.setEnrolledTenantId(d.getEnrolledTenantId());
+            tenantRepository.findById(d.getEnrolledTenantId())
+                    .ifPresent(t -> dto.setEnrolledTenantName(t.getName()));
+        }
+
         dto.setDisplayName(d.getDisplayName());
         dto.setRole(d.getRole() != null ? d.getRole().name() : null);
         dto.setStatus(d.getStatus() != null ? d.getStatus().name() : null);
