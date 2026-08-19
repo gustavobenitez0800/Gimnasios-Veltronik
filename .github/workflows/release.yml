@@ -19,7 +19,20 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: {}   # permite dispararlo a mano desde la pestaña Actions
+  # A mano, desde la pestaña Actions. Por defecto NO publica: corre el pipeline
+  # entero (incluido el empaquetado, que es lo único que no se puede probar en una
+  # máquina local por el lock de Defender/OneDrive) y tira el .exe a la basura. Sirve
+  # para saber si el release funciona SIN dejar Releases borrador dando vueltas ni
+  # pisar un tag ya publicado. Elegí "always" solo si querés publicar de verdad.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publicar un Release borrador al terminar'
+        type: choice
+        default: 'never'
+        options:
+          - never
+          - always
 
 permissions:
   contents: write          # necesario para que electron-builder cree el Release
@@ -69,4 +82,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Sin firma de código (coincide con verifyUpdateCodeSignature: false del yml).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --win --publish always
+        # Por tag (el camino real de release): SIEMPRE publica — el comportamiento de
+        # siempre, intacto. A mano: lo que elijas en el input, que por defecto es "never".
+        #
+        # El orden de la expresión importa: 'always' cuelga de la rama del TAG, no del
+        # fallback. Así, si el input llegara vacío por lo que sea, el comando queda
+        # malformado y el run se pone rojo — nunca se cae hacia publicar sin querer.
+        # La resuelve Actions antes de que la vea la shell: no depende de pwsh ni cmd.
+        run: npx electron-builder --win --publish ${{ github.event_name == 'push' && 'always' || inputs.publish }}
