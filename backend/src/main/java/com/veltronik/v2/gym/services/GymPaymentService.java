@@ -60,14 +60,64 @@ public class GymPaymentService {
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
         payment.setTenant(tenant);
-        
+
         // Ensure the member belongs to the tenant
+        GymMember member = null;
         if (payment.getMember() != null && payment.getMember().getId() != null) {
-            GymMember member = memberService.findByIdAndVerifyOwnership(payment.getMember().getId());
+            member = memberService.findByIdAndVerifyOwnership(payment.getMember().getId());
             payment.setMember(member);
         }
-        
-        return repository.save(payment);
+
+        GymPayment saved = repository.save(payment);
+        extenderCobertura(saved, member);
+        return saved;
+    }
+
+    /**
+     * Cobrar una cuota corre la fecha de vencimiento del socio.
+     *
+     * <p><b>Por qué está acá y no en el navegador.</b> Hasta ahora esto lo hacía el
+     * frontend en dos pasos: guardaba el pago y después, en una request aparte, le movía
+     * la fecha al socio. Ese segundo paso estaba envuelto en un catch vacío con el
+     * comentario "best-effort: la membresía se puede ajustar a mano". O sea: si se cortaba
+     * la conexión entre las dos llamadas, <b>el pago quedaba registrado y el socio seguía
+     * figurando como vencido, sin que nadie se enterara</b>.</p>
+     *
+     * <p>Hoy eso lo tapa el criterio humano: la recepcionista ve rojo, se acuerda de que
+     * Juan pagó y lo deja pasar. Con un molinete no hay criterio que valga — el socio pagó
+     * y la puerta no se abre. Por eso pasa a ser una sola operación: o se guardan el pago
+     * y la cobertura, o no se guarda nada.</p>
+     *
+     * <p><b>Solo hacia adelante.</b> Un pago correctivo o cargado tarde jamás puede
+     * ACORTAR una membresía vigente: si el período que cubre termina antes de lo que el
+     * socio ya tenía, no se toca nada. Registrar un pago viejo no puede dejar a alguien
+     * afuera.</p>
+     */
+    private void extenderCobertura(GymPayment payment, GymMember member) {
+        if (member == null) return;                       // pago sin socio: nada que extender
+        if (!estaCobrado(payment.getStatus())) return;    // pendiente o anulado: la plata no entró
+        LocalDateTime hasta = payment.getPeriodEnd();
+        if (hasta == null) return;                        // sin período: no dice hasta cuándo cubre
+
+        LocalDateTime vigente = member.getMembershipEnd();
+        if (vigente != null && !hasta.isAfter(vigente)) return; // nunca hacia atrás
+
+        member.setMembershipEnd(hasta);
+        // Reactivar va ATADO a la extensión, no al pago: si el pago no corrió la fecha
+        // (era viejo), tampoco tiene por qué revivir a alguien que el dueño dio de baja.
+        member.setActive(true);
+        memberService.saveForCurrentTenant(member);
+    }
+
+    /**
+     * ¿Este pago significa que la plata entró?
+     *
+     * <p>Sin distinguir mayúsculas a propósito: la entidad nace con {@code "PAID"} y el
+     * frontend manda {@code "paid"}. Comparar de forma exacta haría que la cobertura se
+     * extendiera para unos pagos sí y otros no, según por dónde entraron.</p>
+     */
+    private static boolean estaCobrado(String status) {
+        return status != null && "paid".equalsIgnoreCase(status.trim());
     }
     
     public GymPayment findByIdAndVerifyOwnership(UUID id) {

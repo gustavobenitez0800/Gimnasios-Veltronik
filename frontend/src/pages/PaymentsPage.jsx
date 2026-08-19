@@ -255,17 +255,16 @@ export default function PaymentsPage() {
         data.id = modal.editingId;
       }
       
+      // Correr el vencimiento del socio ya NO se hace acá. Antes había una segunda
+      // request envuelta en un catch vacío ("best-effort"): si fallaba, el pago quedaba
+      // guardado y el socio seguía figurando como vencido, sin que nadie se enterara.
+      // Ahora el backend guarda el pago y la cobertura en una sola operación.
+      //
+      // Sacarlo no es solo limpieza: el backend nunca mueve la fecha HACIA ATRÁS (un
+      // pago correctivo no puede acortarle la membresía a alguien al día), y esta llamada
+      // la movía sin esa regla — o sea que deshacía la protección.
       await savePayment(data);
       showToast(modal.editingId ? 'Pago actualizado' : 'Pago registrado exitosamente', 'success');
-
-      if (!modal.editingId && data.periodEnd && data.member_id && data.status === 'paid') {
-        try {
-          await memberService.updateMember(data.member_id, {
-            membershipEnd: `${data.periodEnd}T23:59:59`,
-            status: 'active',
-          });
-        } catch { /* best-effort: el pago ya quedó registrado; la membresía se puede ajustar a mano */ }
-      }
 
       modal.close();
       // Recarga con el filtro de fecha ACTIVO → la lista queda consistente con lo que se ve.
@@ -298,15 +297,7 @@ export default function PaymentsPage() {
         paymentDate: toLocalDateString(),
       });
       showToast('Pago marcado como pagado', 'success');
-
-      if (payment.periodEnd && payment.member_id) {
-        try {
-          await memberService.updateMember(payment.member_id, {
-            membershipEnd: `${payment.periodEnd}T23:59:59`,
-            status: 'active',
-          });
-        } catch { /* best-effort: el pago ya quedó marcado; la membresía se puede ajustar a mano */ }
-      }
+      // El vencimiento lo corre el backend al guardar el pago (ver handleSubmit).
       loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
