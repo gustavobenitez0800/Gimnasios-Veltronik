@@ -47,6 +47,19 @@ function getQuickDates(period) {
   return { from, to };
 }
 
+/**
+ * Compara el estado de un pago sin depender de mayúsculas.
+ *
+ * Durante mucho tiempo convivieron dos cajas en la misma columna: los pagos cargados desde
+ * la app quedaron en minúscula ("paid") y los que tomaron el default viejo del backend, en
+ * mayúscula ("PAID"). Comparar exacto hacía que los totales de esta pantalla se saltearan
+ * los pagos de una de las dos épocas. El backend ya normaliza al guardar, pero los que ya
+ * están en la base quedaron como quedaron.
+ */
+function esEstado(pago, estado) {
+  return (pago?.status || '').toLowerCase() === estado;
+}
+
 function getInitialForm() {
   const today = toLocalDateString(new Date());
   return {
@@ -66,7 +79,9 @@ const PAYMENT_MAP_FN = (p) => ({
   amount: p.amount || '',
   paymentDate: p.paymentDate || '',
   paymentMethod: p.paymentMethod || 'cash',
-  status: p.status || 'paid',
+  // En minúscula: si no, un pago viejo con "PAID" no coincide con ninguna opción del
+  // select de estado y el campo aparece en blanco al editarlo.
+  status: (p.status || 'paid').toLowerCase(),
   notes: p.notes || '',
   periodStart: p.periodStart || '',
   periodEnd: p.periodEnd || '',
@@ -152,8 +167,8 @@ export default function PaymentsPage() {
 
   // Stats computed strictly from currently fetched payments
   const stats = useMemo(() => {
-    const paidInPeriod = payments.filter((p) => p.status === 'paid');
-    const pendingInPeriod = payments.filter((p) => p.status === 'pending');
+    const paidInPeriod = payments.filter((p) => esEstado(p, 'paid'));
+    const pendingInPeriod = payments.filter((p) => esEstado(p, 'pending'));
 
     return {
       totalPeriod: paidInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
@@ -435,7 +450,7 @@ export default function PaymentsPage() {
                     </td>
                     <td data-label="Acciones">
                       <div className="table-actions">
-                        {payment.status === 'pending' && (
+                        {esEstado(payment, 'pending') && (
                           <button className="action-btn-quick action-btn-success"
                             onClick={() => handleMarkPaid(payment)} title="Marcar como pagado">
                             <Icon name="check" />

@@ -39,6 +39,20 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
     @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId AND p.member.id = :memberId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantIdAndMemberId(@Param("tenantId") UUID tenantId, @Param("memberId") UUID memberId);
     
-    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM GymPayment p WHERE p.tenant.id = :tenantId AND p.paymentDate >= :startDate AND p.status = 'PAID'")
+    /**
+     * Ingresos del gimnasio desde una fecha (el "cobrado este mes" del Dashboard).
+     *
+     * <p><b>UPPER(p.status) y no {@code p.status = 'PAID'}.</b> La comparación exacta que
+     * había acá estaba rota de verdad: la entidad nace con {@code "PAID"} pero el frontend
+     * guarda {@code "paid"} en minúscula, y nadie normalizaba. O sea que esta suma
+     * <b>no contaba ni un solo pago cargado desde la app</b> — el dueño miraba un número
+     * de ingresos que no incluía su facturación real.</p>
+     *
+     * <p>Desde ahora el estado se guarda normalizado (ver {@code GymPaymentService}), pero
+     * la consulta sigue siendo insensible a mayúsculas a propósito: los pagos que ya están
+     * en la base quedaron con la caja que les tocó, y tienen que contar igual.</p>
+     */
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM GymPayment p WHERE p.tenant.id = :tenantId "
+            + "AND p.paymentDate >= :startDate AND UPPER(p.status) = 'PAID'")
     BigDecimal sumAmountByTenantIdAndDateAfter(@Param("tenantId") UUID tenantId, @Param("startDate") LocalDateTime startDate);
 }

@@ -61,6 +61,12 @@ public class GymPaymentService {
         tenant.setId(TenantContextHolder.getTenantId());
         payment.setTenant(tenant);
 
+        // Una sola caja para el estado, decidida acá y no por quien mande la request.
+        // Convivían "PAID" (default de la entidad) y "paid" (lo que manda el frontend) en
+        // la misma columna, y la suma de ingresos del Dashboard comparaba exacto contra
+        // 'PAID' → no contaba nada de lo cargado desde la app.
+        normalizarEstado(payment);
+
         // Ensure the member belongs to the tenant
         GymMember member = null;
         if (payment.getMember() != null && payment.getMember().getId() != null) {
@@ -110,11 +116,21 @@ public class GymPaymentService {
     }
 
     /**
+     * Deja el estado del pago en minúscula, que es la caja canónica (la que el frontend
+     * escribe y lee). Un estado vacío se trata como cobrado, igual que el default de la
+     * entidad: registrar un pago sin decir nada significa que la plata entró.
+     */
+    private static void normalizarEstado(GymPayment payment) {
+        String status = payment.getStatus();
+        payment.setStatus((status == null || status.isBlank()) ? "paid" : status.trim().toLowerCase());
+    }
+
+    /**
      * ¿Este pago significa que la plata entró?
      *
-     * <p>Sin distinguir mayúsculas a propósito: la entidad nace con {@code "PAID"} y el
-     * frontend manda {@code "paid"}. Comparar de forma exacta haría que la cobertura se
-     * extendiera para unos pagos sí y otros no, según por dónde entraron.</p>
+     * <p>Sigue sin distinguir mayúsculas aunque ahora se normalice al guardar: este método
+     * también se usa sobre pagos que ya estaban en la base desde antes, con la caja que les
+     * haya tocado.</p>
      */
     private static boolean estaCobrado(String status) {
         return status != null && "paid".equalsIgnoreCase(status.trim());

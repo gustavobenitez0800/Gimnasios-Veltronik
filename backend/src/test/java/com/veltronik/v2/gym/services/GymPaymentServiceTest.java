@@ -142,6 +142,59 @@ class GymPaymentServiceTest {
         }
     }
 
+    // ── El estado del pago, con una sola caja ──────────────────────────────────
+
+    @Nested
+    @DisplayName("Normalización del estado")
+    class EstadoNormalizado {
+
+        /** Devuelve el pago tal como quedó guardado. */
+        private GymPayment guardar(GymPayment p) {
+            return service.saveForCurrentTenant(p);
+        }
+
+        @Test
+        @DisplayName("'PAID' se guarda como 'paid'")
+        void mayusculaSeNormaliza() {
+            assertThat(guardar(pago("PAID", null)).getStatus()).isEqualTo("paid");
+        }
+
+        @Test
+        @DisplayName("'Pending' se guarda como 'pending'")
+        void mezclaSeNormaliza() {
+            assertThat(guardar(pago("Pending", null)).getStatus()).isEqualTo("pending");
+        }
+
+        @Test
+        @DisplayName("Espacios al costado no cuentan")
+        void seRecortanEspacios() {
+            assertThat(guardar(pago("  paid  ", null)).getStatus()).isEqualTo("paid");
+        }
+
+        @Test
+        @DisplayName("Sin estado se asume cobrado")
+        void sinEstadoEsCobrado() {
+            // Registrar un pago sin decir nada significa que la plata entró; es el mismo
+            // criterio que el default de la entidad.
+            assertThat(guardar(pago(null, null)).getStatus()).isEqualTo("paid");
+            assertThat(guardar(pago("   ", null)).getStatus()).isEqualTo("paid");
+        }
+
+        @Test
+        @DisplayName("Un pago que entra en mayúscula igual extiende la cobertura")
+        void normalizarNoRompeLaExtension() {
+            // Esta era la trampa: si la normalización corriera DESPUÉS de decidir la
+            // cobertura, o si la comparación fuera exacta, el mismo pago haría cosas
+            // distintas según cómo escribieron el estado.
+            LocalDateTime hasta = LocalDateTime.of(2026, 9, 10, 23, 59);
+            socio.setMembershipEnd(null);
+
+            guardar(pago("PAID", hasta));
+
+            assertCoberturaHasta(hasta);
+        }
+    }
+
     // ── Lo que NO tiene que pasar ──────────────────────────────────────────────
 
     @Nested
