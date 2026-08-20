@@ -97,17 +97,22 @@ export default function SettingsPage({ SubscriptionActions }) {
       let nextPaymentText = '--';
       let hasSubscription = false;
 
-      // Si el tenant está activo y tiene trialEndsAt en el futuro → está en período válido
-      try {
-        const tenantId = authGym?.id || localStorage.getItem('current_org_id');
-        if (tenantId) {
-          const subRes = await apiClient.get(`/tenants/${tenantId}/subscription`);
-          if (subRes.status === 200 && subRes.data) {
-            hasSubscription = true;
+      // En el ESCRITORIO no se consulta siquiera: esta pantalla no muestra plata del
+      // dueño (ver la sección de suscripción más abajo), así que traer el estado de
+      // cobro sería pedir un dato que no se va a usar. Lo que no se pide, no se filtra.
+      if (!CONFIG.IS_DESKTOP) {
+        // Si el tenant está activo y tiene trialEndsAt en el futuro → está en período válido
+        try {
+          const tenantId = authGym?.id || localStorage.getItem('current_org_id');
+          if (tenantId) {
+            const subRes = await apiClient.get(`/tenants/${tenantId}/subscription`);
+            if (subRes.status === 200 && subRes.data) {
+              hasSubscription = true;
+            }
           }
+        } catch {
+          // Sin suscripción MP activa — puede estar en trial
         }
-      } catch {
-        // Sin suscripción MP activa — puede estar en trial
       }
 
       // Sin suscripción de MP, el "próximo cobro" es el fin de la prueba gratis.
@@ -409,45 +414,28 @@ export default function SettingsPage({ SubscriptionActions }) {
           )}
         </div>
 
-        {/* Subscription - Solo para owner/admin */}
-        {(currentRole === 'owner' || currentRole === 'admin') && (
-          <div className="settings-section">
-            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="creditCard" size="1.1em" /> Suscripción</h2>
-            <div className="subscription-card">
-              <div className="subscription-plan">{subscriptionInfo.plan}</div>
-              <div className="subscription-status">{statusLabels[subscriptionInfo.status] || subscriptionInfo.status}</div>
-            </div>
+        {/* Suscripción — la sección ENTERA la dibuja la variante que inyecta la tabla de
+            rutas, y esta pantalla no sabe qué hay adentro.
 
-            {/* Past due warning */}
-            {subscriptionInfo.status === 'blocked' && (
-              <div style={{
-                padding: '0.75rem 1rem', marginBottom: '1rem',
-                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 'var(--border-radius-md)', color: '#ef4444', fontSize: 'var(--font-size-sm)'
-              }}>
-                <Icon name="alertTriangle" size="1em" style={{ flexShrink: 0 }} /> Tu suscripción tiene un pago pendiente. Actualizá tu método de pago para restaurar el acceso.
-              </div>
-            )}
+            Antes acá estaban el monto mensual, el próximo cobro y el estado de cobro, y
+            eso viajaba también al escritorio. O sea: la facturación del dueño quedaba en
+            una pantalla de mostrador, a la vista de cualquiera que pase — y un encargado
+            con rol de admin veía cuánto paga su jefe por el sistema.
 
-            <div className="info-row">
-              <span className="info-label">Próximo cobro</span>
-              <span className="info-value">{subscriptionInfo.nextPayment}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">Monto mensual</span>
-              <span className="info-value">{subscriptionInfo.amount}</span>
-            </div>
-            {/* Payment Method Actions — la variante la inyecta la tabla de rutas. */}
-            {subscriptionInfo.hasSubscription && SubscriptionActions && (
-              <SubscriptionActions
-                monthlyAmountLabel={subscriptionInfo.amount}
-                verifying={verifyingSubscription}
-                onVerify={handleVerifySubscription}
-                onCardSuccess={handleCardSuccess}
-              />
-            )}
-
-          </div>
+            En el portal la variante web muestra todo eso; en el escritorio, la de
+            escritorio solo dice que se gestiona desde la web. */}
+        {(currentRole === 'owner' || currentRole === 'admin') && SubscriptionActions && (
+          <SubscriptionActions
+            plan={subscriptionInfo.plan}
+            statusLabel={statusLabels[subscriptionInfo.status] || subscriptionInfo.status}
+            blocked={subscriptionInfo.status === 'blocked'}
+            nextPayment={subscriptionInfo.nextPayment}
+            monthlyAmountLabel={subscriptionInfo.amount}
+            hasSubscription={subscriptionInfo.hasSubscription}
+            verifying={verifyingSubscription}
+            onVerify={handleVerifySubscription}
+            onCardSuccess={handleCardSuccess}
+          />
         )}
 
         {/* Account */}
@@ -590,7 +578,10 @@ export default function SettingsPage({ SubscriptionActions }) {
             <h2 className="danger-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="alertTriangle" size="1.1em" /> Zona de Peligro</h2>
           </div>
           <div className="danger-content">
-            {currentRole === 'owner' && (
+            {/* Dar de baja la suscripción es una decisión de cuenta, y de las caras: no
+                corresponde que esté a un clic en la computadora del mostrador. Va solo en
+                el portal, igual que el resto del cobro. */}
+            {currentRole === 'owner' && !CONFIG.IS_DESKTOP && (
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Cancelar Suscripción</h3>
