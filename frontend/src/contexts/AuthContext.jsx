@@ -60,6 +60,9 @@ const NO_ORG_ROUTES = [
   CONFIG.ROUTES.PLANS,
   CONFIG.ROUTES.PAYMENT_CALLBACK,
   CONFIG.ROUTES.BLOCKED,
+  // El resumen del dueño habla de TODAS sus sucursales, así que no puede exigir tener una
+  // seleccionada: el guard lo mandaría al Lobby justo cuando quiere ver el conjunto.
+  CONFIG.ROUTES.OWNER_INSIGHTS,
 ];
 
 export function AuthProvider({ children }) {

@@ -2,21 +2,14 @@ package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.dto.CoverageGapDTO;
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import org.junit.jupiter.api.AfterAll;
+import com.veltronik.v2.support.EmbeddedPostgresTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -33,12 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * este caso el fallo sería mudo: la pantalla de Ajustes se traga el error y no dibuja la
  * sección, así que la herramienta simplemente "no existiría" y nadie se enteraría.</p>
  *
- * <p>Mismo arnés que {@code TenantDeleteIntegrationTest}.</p>
+ * <p>Corre sobre el Postgres compartido de {@link EmbeddedPostgresTest}: siembra sus
+ * propios datos con ids aleatorios y consulta acotado a ellos, sin asumir base vacía.</p>
  */
-@SpringBootTest
-class CoverageGapsIntegrationTest {
-
-    private static EmbeddedPostgres postgres;
+class CoverageGapsIntegrationTest extends EmbeddedPostgresTest {
 
     @Autowired
     private GymPaymentService paymentService;
@@ -47,30 +38,6 @@ class CoverageGapsIntegrationTest {
     private JdbcTemplate jdbc;
 
     private final UUID tenantId = UUID.randomUUID();
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) throws Exception {
-        postgres = EmbeddedPostgres.builder().start();
-        // Stub del esquema 'auth' de Supabase (V11/V17 lo referencian; acá no se usa).
-        try (Connection c = postgres.getPostgresDatabase().getConnection();
-             Statement st = c.createStatement()) {
-            st.execute("CREATE SCHEMA IF NOT EXISTS auth");
-            st.execute("CREATE TABLE IF NOT EXISTS auth.users ("
-                    + "id uuid PRIMARY KEY, email varchar(255), raw_user_meta_data jsonb)");
-        }
-        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl("postgres", "postgres"));
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-        registry.add("SUPABASE_URL", () -> "https://dummy.supabase.co");
-        registry.add("MP_ACCESS_TOKEN", () -> "TEST-dummy");
-        registry.add("MP_PUBLIC_KEY", () -> "TEST-dummy");
-        registry.add("MP_WEBHOOK_SECRET", () -> "dummy");
-    }
-
-    @AfterAll
-    static void stopPostgres() throws IOException {
-        if (postgres != null) postgres.close();
-    }
 
     @AfterEach
     void limpiar() {

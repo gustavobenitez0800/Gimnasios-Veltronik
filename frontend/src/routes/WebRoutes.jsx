@@ -31,6 +31,7 @@ import BlockedPage from '../pages/BlockedPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import PaymentCallbackPage from '../pages/PaymentCallbackPage';
 import DesktopAuthPage from '../pages/DesktopAuthPage';
+import OwnerInsightsPage from '../pages/OwnerInsightsPage';
 import SubscriptionActionsWeb from '../components/billing/SubscriptionActionsWeb';
 
 export default function WebRoutes() {
@@ -52,6 +53,9 @@ export default function WebRoutes() {
       <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />
       <Route path={CONFIG.ROUTES.BLOCKED} element={<BlockedPage />} />
       <Route path={CONFIG.ROUTES.LOBBY} element={<LobbyPage />} />
+      {/* Resumen del dueño sobre todas sus sucursales. Solo acá: en el escritorio, el
+          terminal está atado a UNA sucursal y no tiene por qué mostrar las otras. */}
+      <Route path={CONFIG.ROUTES.OWNER_INSIGHTS} element={<OwnerInsightsPage />} />
 
       {/* App pages (with sidebar) */}
       <Route element={<AppLayout />}>

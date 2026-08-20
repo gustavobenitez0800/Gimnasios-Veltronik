@@ -21,3 +21,5 @@ export { deviceService } from './DeviceService';
 import InsightsService from './InsightsService';
 export const insightsService = new InsightsService();
 export { dashboardStatsService } from './DashboardStatsService';
+// Resumen cross-sucursal del dueño (solo portal web).
+export { ownerInsightsService } from './OwnerInsightsService';

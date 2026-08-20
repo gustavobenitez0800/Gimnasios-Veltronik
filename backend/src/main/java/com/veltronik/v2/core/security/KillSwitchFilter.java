@@ -166,6 +166,12 @@ public class KillSwitchFilter extends OncePerRequestFilter {
                // Exacta, no por prefijo: enroll y revoke SÍ deben respetar el corte por
                // falta de pago.
                path.equals("/api/core/devices/me") ||
+               // El resumen del dueño sobre TODAS sus sucursales. No es operar un gimnasio:
+               // es mirar la propia historia, de solo lectura. Si una sucursal está impaga,
+               // el dueño necesita PODER ver el resumen —es lo que le muestra qué está
+               // pasando y cuánto vale seguir— y además el resumen no habla de la sucursal
+               // que tenga seleccionada, así que cortarlo por ella no tendría sentido.
+               path.equals("/api/gym/insights/owner") ||
                path.startsWith("/api/hq");          // Mission Control del fundador: global, cross-tenant
     }
 }

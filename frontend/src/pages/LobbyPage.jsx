@@ -460,6 +460,11 @@ export default function LobbyPage() {
   // ya tiene tres locales decirle "Registrá tu Gimnasio" le suena a empezar de cero.
   const isFirstGym = orgs.length === 0;
 
+  // El resumen cross-sucursal solo tiene sentido con dos o más gimnasios PROPIOS: suma lo
+  // que es del dueño, no los locales donde alguien trabaja como empleado.
+  const puedeVerResumen = !CONFIG.IS_DESKTOP
+    && orgs.filter((o) => o.role === 'owner').length >= 2;
+
   // Dar de alta un gimnasio es trámite de cuenta, no operación: vive en el portal (Fase 4).
   // En el escritorio la card abre el navegador en vez de navegar a una pantalla que ese
   // bundle ya no tiene, y el subtítulo lo dice para que nadie se sorprenda del salto.
@@ -514,6 +519,18 @@ export default function LobbyPage() {
             </div>
           </div>
           <div className="lobby-header-actions">
+            {/* Resumen de todas las sucursales. Aparece solo con DOS o más propias: con
+                una sola no suma nada que el Dashboard de esa sucursal no muestre ya, y
+                sería un botón que lleva a una tabla de una fila. */}
+            {puedeVerResumen && (
+              <button
+                className="btn lobby-logout-btn"
+                onClick={() => navigate(CONFIG.ROUTES.OWNER_INSIGHTS)}
+                title="Ver el total de todas tus sucursales"
+              >
+                <Icon name="chart" /> <span>Resumen</span>
+              </button>
+            )}
             {/* Salir dejó de ser un `btn-ghost` (transparente + gris): sobre el fondo
                 oscuro del lobby y sin hover —en un teléfono no hay hover— se leía como
                 texto decorativo. Ahora es un botón con borde propio. */}

@@ -75,6 +75,9 @@ const CONFIG = {
     // la que Supabase devuelve tras el login con Google, y desde ahí el código salta a la
     // app por veltronik://. Ver pages/DesktopAuthPage.jsx.
     DESKTOP_AUTH: '/desktop-auth',
+    // Resumen del dueño sobre TODAS sus sucursales. Solo portal web, y no necesita una
+    // sucursal seleccionada — justamente habla de todas.
+    OWNER_INSIGHTS: '/resumen',
   }),
 
   // Gym Status
