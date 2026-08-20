@@ -55,4 +55,39 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM GymPayment p WHERE p.tenant.id = :tenantId "
             + "AND p.paymentDate >= :startDate AND UPPER(p.status) = 'PAID'")
     BigDecimal sumAmountByTenantIdAndDateAfter(@Param("tenantId") UUID tenantId, @Param("startDate") LocalDateTime startDate);
+
+    /**
+     * Socios que PAGARON más allá de la fecha hasta la que figuran cubiertos.
+     *
+     * <p>Son los restos del bug de los dos pasos: el pago entraba y la request que le
+     * corría el vencimiento al socio fallaba en silencio. Con el mecanismo ya arreglado
+     * esto no debería crecer más, pero lo que quedó en la base sigue ahí — y cuenta como
+     * "baja" en cualquier reporte, cuando en realidad es alguien que pagó.</p>
+     *
+     * <p>Se agrupa por socio y se toma el período más lejano, no el último pago cargado:
+     * si alguien registró primero septiembre y después una cuota vieja de marzo, lo que
+     * vale es septiembre.</p>
+     */
+    @Query("SELECT m.id AS memberId, m.firstName AS firstName, m.lastName AS lastName, "
+            + "m.membershipEnd AS membershipEnd, MAX(p.periodEnd) AS paidUntil "
+            + "FROM GymPayment p JOIN p.member m "
+            + "WHERE p.tenant.id = :tenantId AND UPPER(p.status) = 'PAID' AND p.periodEnd IS NOT NULL "
+            + "GROUP BY m.id, m.firstName, m.lastName, m.membershipEnd "
+            + "HAVING m.membershipEnd IS NULL OR MAX(p.periodEnd) > m.membershipEnd "
+            + "ORDER BY MAX(p.periodEnd) DESC")
+    List<CoverageGapProjection> findCoverageGaps(@Param("tenantId") UUID tenantId);
+
+    /** Hasta cuándo pagó realmente un socio (el período más lejano entre sus pagos cobrados). */
+    @Query("SELECT MAX(p.periodEnd) FROM GymPayment p WHERE p.tenant.id = :tenantId "
+            + "AND p.member.id = :memberId AND UPPER(p.status) = 'PAID' AND p.periodEnd IS NOT NULL")
+    LocalDateTime findPaidUntil(@Param("tenantId") UUID tenantId, @Param("memberId") UUID memberId);
+
+    /** Proyección de {@link #findCoverageGaps}: solo lo que la pantalla de revisión necesita. */
+    interface CoverageGapProjection {
+        UUID getMemberId();
+        String getFirstName();
+        String getLastName();
+        LocalDateTime getMembershipEnd();
+        LocalDateTime getPaidUntil();
+    }
 }

@@ -9,12 +9,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -139,6 +142,84 @@ class GymPaymentServiceTest {
             service.saveForCurrentTenant(pago("paid", LocalDateTime.of(2026, 9, 10, 23, 59)));
 
             assertThat(socio.isActive()).isTrue();
+        }
+    }
+
+    // ── Corregir a mano un pago huérfano ───────────────────────────────────────
+
+    @Nested
+    @DisplayName("Corrección de pagos huérfanos")
+    class CorreccionManual {
+
+        @Test
+        @DisplayName("Le pone al socio la fecha hasta la que realmente pagó")
+        void corrigeAlSocioQuePago() {
+            socio.setMembershipEnd(LocalDateTime.of(2026, 3, 31, 23, 59));
+            LocalDateTime pagoHasta = LocalDateTime.of(2026, 9, 30, 23, 59);
+            when(repository.findPaidUntil(TENANT, SOCIO)).thenReturn(pagoHasta);
+
+            LocalDateTime resultado = service.fixCoverage(SOCIO);
+
+            assertThat(resultado).isEqualTo(pagoHasta);
+            assertThat(socio.getMembershipEnd()).isEqualTo(pagoHasta);
+            verify(memberService).saveForCurrentTenant(socio);
+        }
+
+        @Test
+        @DisplayName("Corregir dos veces no hace nada la segunda")
+        void esIdempotente() {
+            // Importa: el dueño puede tener la pantalla abierta en dos lugares, o tocar
+            // el botón dos veces sin ver que ya se aplicó.
+            socio.setMembershipEnd(LocalDateTime.of(2026, 3, 31, 23, 59));
+            when(repository.findPaidUntil(TENANT, SOCIO))
+                    .thenReturn(LocalDateTime.of(2026, 9, 30, 23, 59));
+
+            service.fixCoverage(SOCIO);
+            LocalDateTime segunda = service.fixCoverage(SOCIO);
+
+            assertThat(segunda).isNull(); // ya no había nada que corregir
+            verify(memberService, times(1)).saveForCurrentTenant(socio);
+        }
+
+        @Test
+        @DisplayName("Usa la MISMA regla que el cobro: nunca acorta una membresía")
+        void nuncaAcorta() {
+            // Si la pantalla de revisión corrigiera con un criterio distinto al del cobro,
+            // tendríamos dos definiciones de "hasta cuándo está cubierto" — el mismo
+            // problema que teníamos con el estado del pago, pero con fechas de membresía.
+            LocalDateTime vigente = LocalDateTime.of(2026, 12, 31, 23, 59);
+            socio.setMembershipEnd(vigente);
+            when(repository.findPaidUntil(TENANT, SOCIO))
+                    .thenReturn(LocalDateTime.of(2026, 9, 30, 23, 59));
+
+            assertThat(service.fixCoverage(SOCIO)).isNull();
+            assertThat(socio.getMembershipEnd()).isEqualTo(vigente);
+            verify(memberService, never()).saveForCurrentTenant(any());
+        }
+
+        @Test
+        @DisplayName("Un socio sin pagos con período no se toca")
+        void sinPagosNoSeToca() {
+            LocalDateTime vigente = LocalDateTime.of(2026, 8, 31, 23, 59);
+            socio.setMembershipEnd(vigente);
+            when(repository.findPaidUntil(TENANT, SOCIO)).thenReturn(null);
+
+            assertThat(service.fixCoverage(SOCIO)).isNull();
+            assertThat(socio.getMembershipEnd()).isEqualTo(vigente);
+        }
+
+        @Test
+        @DisplayName("Corregir a un socio de otra sucursal no es posible")
+        void noSePuedeCorregirDeOtraSucursal() {
+            // La verificación de pertenencia la hace GymMemberService; acá se comprueba
+            // que fixCoverage pase por ella y no toque nada si rebota.
+            UUID ajeno = UUID.randomUUID();
+            when(memberService.findByIdAndVerifyOwnership(ajeno))
+                    .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado a este miembro"));
+
+            assertThatThrownBy(() -> service.fixCoverage(ajeno))
+                    .isInstanceOf(ResponseStatusException.class);
+            verify(memberService, never()).saveForCurrentTenant(any());
         }
     }
 

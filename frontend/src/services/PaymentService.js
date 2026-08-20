@@ -35,6 +35,23 @@ class PaymentService {
     await apiClient.delete(`/gym/payments/${id}`);
     return true;
   }
+
+  /**
+   * Socios que pagaron más allá de la fecha hasta la que figuran cubiertos.
+   *
+   * Son los que dejó el bug de los dos pasos: el pago entraba y la request que le corría
+   * el vencimiento al socio fallaba en silencio. Lista vacía = no hay nada que revisar.
+   */
+  async getCoverageGaps() {
+    const response = await apiClient.get('/gym/payments/coverage-gaps');
+    return response.data || [];
+  }
+
+  /** Corrige a UN socio: le pone la fecha hasta la que realmente pagó. */
+  async fixCoverageGap(memberId) {
+    const response = await apiClient.post(`/gym/payments/coverage-gaps/${memberId}/fix`);
+    return response.data?.membershipEnd || null;
+  }
 }
 
 export const paymentService = new PaymentService();

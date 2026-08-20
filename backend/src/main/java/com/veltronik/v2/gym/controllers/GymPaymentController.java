@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.controllers;
 
+import com.veltronik.v2.gym.dto.CoverageGapDTO;
 import com.veltronik.v2.gym.dto.GymPaymentDTO;
 import com.veltronik.v2.gym.dto.GymPaymentInputDTO;
 import com.veltronik.v2.gym.entities.GymPayment;
@@ -101,5 +102,32 @@ public class GymPaymentController {
     public ResponseEntity<Void> deletePayment(@PathVariable UUID id) {
         paymentService.deleteAndVerifyOwnership(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Revisión de pagos huérfanos ────────────────────────────────────────────
+
+    /**
+     * Socios que pagaron más allá de la fecha hasta la que figuran cubiertos.
+     *
+     * <p>Los dejó el bug de los dos pasos (el pago entraba, la request que corría el
+     * vencimiento fallaba en silencio). Arreglar el mecanismo no corrige hacia atrás, así
+     * que esto alimenta la pantalla donde el dueño los revisa uno por uno.</p>
+     *
+     * <p>Devuelve lista vacía cuando no hay nada — la sección de Ajustes se esconde sola.</p>
+     */
+    @GetMapping("/coverage-gaps")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')") // toca fechas de membresía: no es de mostrador
+    public ResponseEntity<List<CoverageGapDTO>> getCoverageGaps() {
+        return ResponseEntity.ok(paymentService.findCoverageGaps());
+    }
+
+    /** Corrige a UN socio: le pone la fecha hasta la que realmente pagó. */
+    @PostMapping("/coverage-gaps/{memberId}/fix")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<?> fixCoverageGap(@PathVariable UUID memberId) {
+        LocalDateTime applied = paymentService.fixCoverage(memberId);
+        // null = no había nada que corregir (ya estaba al día, o lo corrigieron en otra
+        // pestaña). No es un error: la pantalla se recarga y la fila desaparece.
+        return ResponseEntity.ok(java.util.Collections.singletonMap("membershipEnd", applied));
     }
 }
