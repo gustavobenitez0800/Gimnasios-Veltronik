@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,6 +91,53 @@ class TenantDeleteIntegrationTest {
         assertThat(count("tenant_membership", "tenant_id", tenantId)).isZero();
         // El usuario NO se borra: puede ser dueño de otros negocios.
         assertThat(count("app_user", "id", userId)).isEqualTo(1);
+    }
+
+    @Test
+    void borrarElNegocioSUELTAsusEquipos_paraQueElTerminalNoQuedeInservible() {
+        // El bug: la purga borra por columna `tenant_id`, y device_registry usa
+        // `enrolled_tenant_id` (es flota, no datos del negocio). Los terminales quedaban
+        // atados a una sucursal que ya no existía: al arrancar, la app decía "este equipo
+        // pertenece a otra sucursal" y no dejaba entrar a ninguna. Apareció en una máquina
+        // real apenas salió la 2.6.7.
+        UUID tenantId = UUID.randomUUID();
+        UUID terminal = UUID.randomUUID();
+        UUID otroTerminal = UUID.randomUUID();
+        UUID tenantAjeno = UUID.randomUUID();
+        LocalDateTime now = LocalDateTime.now();
+
+        jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type) VALUES (?,?,?,?,?)",
+                tenantId, now, now, "Sucursal que se borra", "GYM");
+        jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type) VALUES (?,?,?,?,?)",
+                tenantAjeno, now, now, "Sucursal que sigue viva", "GYM");
+
+        // Un terminal enrolado a la sucursal condenada...
+        jdbc.update("INSERT INTO device_registry (id, created_at, updated_at, last_seen_at, "
+                        + "enrolled_tenant_id, last_tenant_id, status, display_name) VALUES (?,?,?,?,?,?,?,?)",
+                terminal, now, now, now, tenantId, tenantId, "ACTIVE", "Recepción");
+        // ...y otro de una sucursal distinta, que NO se tiene que tocar.
+        jdbc.update("INSERT INTO device_registry (id, created_at, updated_at, last_seen_at, "
+                        + "enrolled_tenant_id, last_tenant_id, status, display_name) VALUES (?,?,?,?,?,?,?,?)",
+                otroTerminal, now, now, now, tenantAjeno, tenantAjeno, "ACTIVE", "Mostrador ajeno");
+
+        tenantService.delete(tenantId);
+
+        assertThat(count("tenant", "id", tenantId)).isZero();
+
+        // El equipo NO se borra —su DNI y su historial quedan, los registros viejos lo
+        // referencian por origin_device_id— pero se suelta: revocado y sin punteros a un
+        // negocio fantasma. Así vuelve a poder activarse en cualquier sucursal.
+        Map<String, Object> liberado = jdbc.queryForMap(
+                "SELECT status, enrolled_tenant_id, last_tenant_id FROM device_registry WHERE id = ?", terminal);
+        assertThat(liberado.get("status")).isEqualTo("REVOKED");
+        assertThat(liberado.get("enrolled_tenant_id")).isNull();
+        assertThat(liberado.get("last_tenant_id")).isNull();
+
+        // El de la otra sucursal quedó intacto.
+        Map<String, Object> intacto = jdbc.queryForMap(
+                "SELECT status, enrolled_tenant_id FROM device_registry WHERE id = ?", otroTerminal);
+        assertThat(intacto.get("status")).isEqualTo("ACTIVE");
+        assertThat(intacto.get("enrolled_tenant_id")).isEqualTo(tenantAjeno);
     }
 
     private long count(String table, String column, UUID value) {

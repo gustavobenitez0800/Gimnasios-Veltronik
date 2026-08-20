@@ -211,6 +211,45 @@ public class DeviceRegistryService {
     }
 
     /**
+     * Suelta todos los equipos de una sucursal que se está borrando.
+     *
+     * <p><b>El bug que esto evita.</b> El borrado de un negocio purga toda tabla con
+     * columna {@code tenant_id}, y {@code device_registry} no tiene esa columna (usa
+     * {@code enrolled_tenant_id}, sin FK dura, porque es flota y no datos del negocio).
+     * Resultado: los terminales quedaban atados a un negocio que ya no existía. Al
+     * arrancar, la app veía "pertenecés a otra sucursal", el equipo no podía entrar a
+     * ninguna, y el terminal quedaba inservible.</p>
+     *
+     * <p>Se REVOCA, no se borra: el DNI y su historial quedan (los registros históricos
+     * siguen apuntando a él por {@code origin_device_id}). Y se limpian las dos
+     * referencias al negocio muerto para no dejar punteros a un fantasma.</p>
+     *
+     * <p>Un equipo revocado vuelve a estar disponible: el enrolamiento deja de reportarse
+     * ({@code /devices/me} solo informa la atadura si está ACTIVA) y el chequeo de
+     * {@code TenantContextFilter} deja de atarlo. La máquina se puede activar de nuevo en
+     * cualquier sucursal, como si fuera nueva.</p>
+     */
+    @Transactional
+    public void releaseDevicesOf(UUID tenantId) {
+        List<Device> equipos = deviceRepository
+                .findByEnrolledTenantIdOrLastTenantIdOrderByLastSeenAtDesc(tenantId, tenantId);
+        for (Device device : equipos) {
+            if (tenantId.equals(device.getEnrolledTenantId())) {
+                device.setEnrolledTenantId(null);
+                device.setStatus(DeviceStatus.REVOKED);
+            }
+            if (tenantId.equals(device.getLastTenantId())) {
+                device.setLastTenantId(null);
+            }
+            deviceBindingCache.evict(device.getId());
+        }
+        if (!equipos.isEmpty()) {
+            deviceRepository.saveAll(equipos);
+            log.info("Sucursal {} borrada: {} equipo(s) liberados", tenantId, equipos.size());
+        }
+    }
+
+    /**
      * Revoca el enrolamiento de un equipo de la sucursal. Nunca borra: el DNI y su
      * historial quedan (los datos históricos siguen apuntando a él por origin_device_id).
      */

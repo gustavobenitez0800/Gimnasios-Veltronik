@@ -37,6 +37,8 @@ public class TenantService extends BaseServiceImpl<Tenant, TenantDTO, UUID> {
     private final TenantMapper tenantMapper;
     private final TenantMembershipRepository membershipRepository;
     private final EntityManager entityManager;
+    /** Para soltar los equipos de la sucursal al borrarla (ver {@link #delete}). */
+    private final DeviceRegistryService deviceRegistryService;
 
     @Override
     protected String getEntityName() {
@@ -92,6 +94,13 @@ public class TenantService extends BaseServiceImpl<Tenant, TenantDTO, UUID> {
         if (!tenantRepository.existsById(id)) {
             throw new EntityNotFoundException("Tenant", id);
         }
+
+        // Los EQUIPOS no los alcanza la purga: device_registry no tiene columna tenant_id
+        // (es flota, no datos del negocio), así que quedaban atados a una sucursal muerta y
+        // el terminal no podía entrar a ninguna otra. Se sueltan ANTES de purgar, en la
+        // misma transacción: si el borrado falla, tampoco se liberan.
+        deviceRegistryService.releaseDevicesOf(id);
+
         entityManager.createNativeQuery(buildPurgeBlock(id)).executeUpdate();
     }
 
