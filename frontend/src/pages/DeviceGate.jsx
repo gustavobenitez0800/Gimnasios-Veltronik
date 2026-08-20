@@ -56,10 +56,20 @@ export default function DeviceGate() {
 
   const [estado, setEstado] = useState('cargando'); // cargando | activar | sin-permiso | error
   const [sucursales, setSucursales] = useState([]);
+  /**
+   * Las sucursales que se ofrecen en el desplegable. NO es siempre la misma lista que
+   * `sucursales`: al ACTIVAR un equipo virgen vale dueño o admin, pero al REASIGNAR uno
+   * que ya pertenece a otra sucursal solo vale dueño (ver el porqué más abajo). Vive en
+   * estado y no se recalcula en el render justamente para que las dos pantallas no se
+   * desincronicen.
+   */
+  const [elegibles, setElegibles] = useState([]);
   const [elegida, setElegida] = useState('');
   const [nombreEquipo, setNombreEquipo] = useState('Recepción');
   const [activando, setActivando] = useState(false);
   const [detalleError, setDetalleError] = useState('');
+  /** Aviso cuando el equipo YA estaba activado en otra sucursal y se lo va a reasignar. */
+  const [avisoReasignacion, setAvisoReasignacion] = useState('');
 
   /** Deja la sucursal fija para esta sesión y entra. */
   const entrarA = useCallback(async (orgId, orgName, role) => {
@@ -73,6 +83,7 @@ export default function DeviceGate() {
   const identificar = useCallback(async () => {
     setEstado('cargando');
     setDetalleError('');
+    setAvisoReasignacion('');
 
     // Sin sucursal en el contexto: si quedara una vieja, apiClient la mandaría en el
     // header y el propio chequeo de atadura podría rechazar esta consulta — la pantalla
@@ -90,28 +101,59 @@ export default function DeviceGate() {
       const lista = Array.from(new Map((misSucursales || []).map((o) => [o.id, o])).values());
       setSucursales(lista);
 
+      const activables = lista.filter((o) => PUEDEN_ACTIVAR.includes(o.role));
+
       // ── Equipo ya activado: entramos derecho, sin preguntar nada ──
       if (equipo?.enrolledTenantId) {
         const propia = lista.find((o) => o.id === equipo.enrolledTenantId);
-        if (!propia) {
-          // El equipo pertenece a una sucursal donde esta persona NO es miembro.
-          setEstado('sin-permiso');
-          setDetalleError(
-            `Este equipo pertenece a ${equipo.enrolledTenantName || 'otra sucursal'}, y tu usuario no tiene acceso a ella.`,
-          );
+        if (propia) {
+          await entrarA(propia.id, propia.name, propia.role || 'staff');
           return;
         }
-        await entrarA(propia.id, propia.name, propia.role || 'staff');
+
+        // El equipo quedó atado a una sucursal que esta persona no puede abrir. Pasa de
+        // verdad: un terminal que se enroló a un negocio que después se borró, o una
+        // máquina que cambió de dueño.
+        //
+        // ⚠️ Esto ANTES era un callejón sin salida: se mostraba el cartel y la única
+        // opción era cerrar sesión, así que el equipo quedaba inservible para siempre.
+        // Estaba mal — re-enrolar es legal por diseño (la sucursal es una etiqueta
+        // reasignable, ver DeviceRegistryService.enroll). Si esta persona puede activar
+        // terminales, hay que dejarla reasignarlo.
+        // Solo el DUEÑO puede reasignar, y no es una regla de pantalla: el enrolamiento
+        // viaja con el X-Device-Id, así que pasa por el chequeo de atadura del backend
+        // (TenantContextFilter), donde el único rol exento es OWNER. Un ADMIN vería el
+        // formulario, elegiría sucursal, y se comería un 403 al confirmar. Mejor no
+        // ofrecerle un camino que no existe.
+        const puedenReasignar = lista.filter((o) => o.role === 'owner');
+        if (puedenReasignar.length > 0) {
+          setElegibles(puedenReasignar);
+          setElegida(puedenReasignar[0].id);
+          setAvisoReasignacion(
+            equipo.enrolledTenantName
+              ? `Este equipo estaba activado en "${equipo.enrolledTenantName}", una sucursal a la que tu usuario no tiene acceso. Si lo activás acá, deja de pertenecer a la anterior.`
+              : 'Este equipo estaba activado en una sucursal que ya no existe. Elegí a cuál pertenece ahora.',
+          );
+          setEstado('activar');
+          return;
+        }
+
+        // Sin permiso para reasignar: acá sí no hay nada que la persona pueda hacer.
+        setEstado('sin-permiso');
+        setDetalleError(
+          `Este equipo pertenece a ${equipo.enrolledTenantName || 'otra sucursal'}, y tu usuario no tiene acceso a ella.`,
+        );
         return;
       }
 
-      // ── Equipo sin activar ──
-      const activables = lista.filter((o) => PUEDEN_ACTIVAR.includes(o.role));
+      // ── Equipo sin activar ── acá sí vale dueño o admin: no hay atadura previa que el
+      // backend pueda rechazar.
       if (activables.length === 0) {
         setEstado('sin-permiso');
         setDetalleError('');
         return;
       }
+      setElegibles(activables);
       setElegida(activables[0].id);
       setEstado('activar');
     } catch (error) {
@@ -145,8 +187,6 @@ export default function DeviceGate() {
     }
   };
 
-  const activables = sucursales.filter((o) => PUEDEN_ACTIVAR.includes(o.role));
-
   return (
     <div className="auth-card" style={{ maxWidth: '460px' }}>
       <img src={logoSrc} alt="Veltronik" style={{ height: '44px', margin: '0 auto 1.5rem', display: 'block' }} />
@@ -161,8 +201,22 @@ export default function DeviceGate() {
       {estado === 'activar' && (
         <>
           <h1 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.5rem', textAlign: 'center' }}>
-            Activá este equipo
+            {avisoReasignacion ? 'Reasigná este equipo' : 'Activá este equipo'}
           </h1>
+
+          {/* Cuando el equipo venía de otra sucursal hay que decirlo ANTES de que elija:
+              no es lo mismo estrenar un terminal que sacárselo a otro local. */}
+          {avisoReasignacion && (
+            <div style={{
+              display: 'flex', gap: '0.6rem', alignItems: 'flex-start',
+              background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
+              borderRadius: 'var(--border-radius-md)', padding: '0.75rem 0.9rem',
+              margin: '0 0 1.25rem', color: '#fbbf24', fontSize: 'var(--font-size-sm)', lineHeight: 1.5,
+            }}>
+              <Icon name="alertTriangle" size="1.1em" />
+              <span>{avisoReasignacion}</span>
+            </div>
+          )}
           <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1.5rem', textAlign: 'center', fontSize: '0.95rem' }}>
             Elegí a qué sucursal pertenece esta computadora. Queda fija: de acá en más, quien
             trabaje en este equipo entra siempre a esa sucursal.
@@ -176,7 +230,7 @@ export default function DeviceGate() {
               onChange={(e) => setElegida(e.target.value)}
               disabled={activando}
             >
-              {activables.map((o) => (
+              {elegibles.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
