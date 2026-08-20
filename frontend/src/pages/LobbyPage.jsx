@@ -1,7 +1,7 @@
 // ============================================
-// VELTRONIK - LOBBY (selector de negocio)
+// VELTRONIK - LOBBY (selector de sucursal)
 // ============================================
-// La puerta de entrada: el dueño elige a cuál de sus sucursales entrar. Cada card
+// La puerta de entrada: el dueño elige a cuál de sus gimnasios entrar. Cada card
 // muestra el estado de cobro de ESA sucursal (activa, en prueba, en gracia, vencida),
 // que se calcula acá y lo vuelve a validar el backend en cada request.
 // Una sucursal bloqueada no navega: abre el muro de pago sin salir de esta pantalla.
@@ -16,32 +16,27 @@ import { groupService } from '../services/GroupService';
 import UpdateIndicator from '../components/UpdateIndicator';
 import { getInitials } from '../lib/utils';
 import { computeAccess } from '../lib/access';
-import { getVertical, roleLabel } from '../lib/verticals';
+import { roleLabel } from '../lib/gym';
+import { useVisualViewport } from '../hooks';
 import Icon from '../components/Icon';
+import GymLogo from '../components/GymLogo';
 import logoSrc from '../assets/LogotipoSecundario.png';
 import CONFIG from '../lib/config';
+import { openPortal } from '../lib/portal';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 
-/**
- * Ícono del rubro, leído del registry de verticales (fuente única, lib/verticals.js).
- * Antes cada card dibujaba SIEMPRE una pesa (hardcodeada) y el modal usaba mapas
- * locales duplicados — un kiosco aparecía con logo de gimnasio.
- */
-function VerticalIcon({ orgType, size = '2rem' }) {
-  const icon = getVertical(orgType).icon;
-  if (icon.type === 'image') {
-    return <img src={icon.src} alt="" style={{ width: size, height: size, objectFit: 'contain' }} />;
-  }
-  return <Icon name={icon.name} size={size} />;
-}
+// ¿Es un dispositivo táctil? Decide si el campo de confirmación se enfoca solo:
+// en escritorio ahorra un click, en un teléfono abre el teclado a destiempo.
+const IS_TOUCH = typeof window !== 'undefined'
+  && window.matchMedia?.('(hover: none), (pointer: coarse)').matches;
 
 // ─── Block reason messages ───
 
 const BLOCK_MESSAGES = {
   expired: {
     title: 'Renová tu suscripción',
-    message: 'Tu período mensual finalizó. Reactivá tu suscripción para seguir gestionando tu negocio sin interrupciones. Tu información permanece intacta.',
+    message: 'Tu período mensual finalizó. Reactivá tu suscripción para seguir gestionando tu gimnasio sin interrupciones. Tu información permanece intacta.',
     showUpdateCard: false,
   },
   past_due: {
@@ -162,7 +157,7 @@ export default function LobbyPage() {
       await groupsPromise;
     } catch (err) {
       console.error('Error loading orgs:', err);
-      showToast('Error al cargar los negocios', 'error');
+      showToast('Error al cargar tus gimnasios', 'error');
     } finally {
       setLoading(false);
     }
@@ -206,13 +201,11 @@ export default function LobbyPage() {
    * de pago, que llamaban a refreshOrgContext() sin esperarlo y se iban.
    */
   const selectOrgContext = (org) => {
-    const orgType = org.type || 'GYM';
     const role = org.role || 'owner';
     localStorage.setItem('current_org_id', org.id);
     localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', org.name);
-    localStorage.setItem('current_org_type', orgType);
-    return { orgType, role };
+    return { role };
   };
 
   // ─── Handle org selection ───
@@ -256,6 +249,22 @@ export default function LobbyPage() {
   const handleUpdatePaymentMethod = async () => {
     if (!blockedOrg) return;
 
+    // En el escritorio la tarjeta no se toca acá (Fase 4): el checkout de Mercado Pago
+    // vive en el portal. Se fija la sucursal igual —para que el portal abra sobre la
+    // correcta— y se manda al navegador. Ni siquiera se llama al backend: el init_point
+    // que devolvía solo servía para navegar la ventana, que es justo lo que ya no se hace.
+    if (CONFIG.IS_DESKTOP) {
+      selectOrgContext(blockedOrg);
+      setBlockedOrg(null);
+      const ok = await openPortal('/#/lobby');
+      showToast(
+        ok ? 'Abrimos el portal en tu navegador para cambiar la tarjeta.'
+           : 'No pudimos abrir el navegador. Entrá al portal desde otro dispositivo.',
+        ok ? 'info' : 'error',
+      );
+      return;
+    }
+
     const gymId = blockedOrg.id;
     // El email del pagador es el de la cuenta. (Acá había un try/catch que se asignaba
     // a sí mismo el mismo valor, con un comentario que decía "stubbed": ceremonia vacía.)
@@ -298,23 +307,54 @@ export default function LobbyPage() {
     }
   };
 
-  // ─── Handle delete organization ───
+  // ─── Eliminar un gimnasio ───
+
+  // Mientras el diálogo está abierto seguimos el área visible: con el teclado abierto,
+  // `100dvh` miente y el campo queda debajo de las teclas.
+  useVisualViewport(!!deleteTarget);
+
+  const closeDeleteModal = useCallback(() => {
+    // No se puede cerrar en medio del borrado: el DELETE ya salió y cerrar la ventana
+    // solo lograba que el dueño no viera si terminó bien.
+    if (deleting) return;
+    setDeleteTarget(null);
+    setDeleteConfirmName('');
+  }, [deleting]);
+
+  // Comparación tolerante a mayúsculas y a espacios de más (el nombre se copia a mano
+  // desde la etiqueta de arriba, y un espacio final invisible bloqueaba el botón sin
+  // que hubiera forma de darse cuenta).
+  const nameMatches = !!deleteTarget
+    && deleteConfirmName.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
+
   const handleDeleteOrg = async () => {
-    if (!deleteTarget) return;
-    if (deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()) {
-      showToast('El nombre no coincide. Escribí el nombre exacto del negocio para confirmar.', 'error');
+    if (!deleteTarget || deleting) return;
+    if (!nameMatches) {
+      showToast('El nombre no coincide. Escribí el nombre exacto del gimnasio para confirmar.', 'error');
       return;
     }
 
+    const { id, name } = deleteTarget;
     setDeleting(true);
     try {
-      await gymService.deleteOrg(deleteTarget.id);
-      showToast(`"${deleteTarget.name}" eliminado correctamente`, 'success');
+      await gymService.deleteOrg(id);
+      // El estado se limpia ANTES de recargar: si no, la lista vuelve mientras el
+      // diálogo sigue en pantalla apuntando a un gimnasio que ya no existe.
       setDeleteTarget(null);
       setDeleteConfirmName('');
-      await loadOrgs(); // Refresh the list
+      showToast(`"${name}" eliminado correctamente`, 'success');
+      await loadOrgs();
     } catch (error) {
-      showToast(error.message || 'Error al eliminar el negocio', 'error');
+      // El backend contesta 403 si no sos el dueño y 404 si ya no está; en los dos
+      // casos el mensaje crudo no le dice nada a nadie.
+      const status = error?.response?.status;
+      const msg = status === 403
+        ? 'Solo el dueño del gimnasio puede eliminarlo.'
+        : status === 404
+          ? 'Ese gimnasio ya no existe.'
+          : (error?.response?.data?.message || error.message || 'No pudimos eliminar el gimnasio. Probá de nuevo.');
+      showToast(msg, 'error');
+      if (status === 404) { setDeleteTarget(null); setDeleteConfirmName(''); await loadOrgs(); }
     } finally {
       setDeleting(false);
     }
@@ -322,8 +362,7 @@ export default function LobbyPage() {
 
   // ─── Render de una card de negocio (extraído para poder agrupar) ───
   const renderOrgCard = (org) => {
-    const orgType = org.type || 'GYM';
-    const price = CONFIG.PRICES_BY_TYPE[orgType] || CONFIG.SUBSCRIPTION_PRICE;
+    const price = CONFIG.SUBSCRIPTION_PRICE;
     const accessStatus = orgStatuses[org.id];
     const isBlocked = accessStatus && !accessStatus.canAccess;
 
@@ -337,7 +376,7 @@ export default function LobbyPage() {
         {org.role === 'owner' && (
           <button
             className="lobby-card-delete"
-            title="Eliminar negocio"
+            title="Eliminar gimnasio"
             onClick={(e) => {
               e.stopPropagation();
               setDeleteTarget(org);
@@ -355,14 +394,12 @@ export default function LobbyPage() {
           </div>
         )}
 
-        {/* Ícono identificador del rubro, según el vertical del negocio. */}
-        <div className="lobby-card-icon">
-          <VerticalIcon orgType={orgType} />
+        {/* La marca DEL GIMNASIO, no la de Veltronik: la imagen que subió el dueño,
+            el emoji que eligió, o la inicial de su nombre. */}
+        <div className="lobby-card-logo">
+          <GymLogo logoUrl={org.logoUrl} logoEmoji={org.logoEmoji} name={org.name} size={72} />
         </div>
         <h3 className="lobby-card-name">{org.name}</h3>
-        <span className="badge badge-success">
-          {getVertical(orgType).label}
-        </span>
         <p className="lobby-card-role">
           {roleLabel(org.role)}
         </p>
@@ -418,18 +455,43 @@ export default function LobbyPage() {
   })();
   const hasGroups = groups.length > 0;
 
-  // La card de "Crear Negocio" cierra las dos vistas (agrupada y plana). Estaba escrita dos
-  // veces, y una de las dos todavía decía "Registrá un nuevo gimnasio" a dueños de kioscos.
+  // La card de alta cierra las dos vistas (agrupada y plana).
+  // El texto cambia según si es su PRIMER gimnasio o una sucursal más: a alguien que
+  // ya tiene tres locales decirle "Registrá tu Gimnasio" le suena a empezar de cero.
+  const isFirstGym = orgs.length === 0;
+
+  // El resumen cross-sucursal solo tiene sentido con dos o más gimnasios PROPIOS: suma lo
+  // que es del dueño, no los locales donde alguien trabaja como empleado.
+  const puedeVerResumen = !CONFIG.IS_DESKTOP
+    && orgs.filter((o) => o.role === 'owner').length >= 2;
+
+  // Dar de alta un gimnasio es trámite de cuenta, no operación: vive en el portal (Fase 4).
+  // En el escritorio la card abre el navegador en vez de navegar a una pantalla que ese
+  // bundle ya no tiene, y el subtítulo lo dice para que nadie se sorprenda del salto.
+  const handleCreateOrg = () => {
+    if (CONFIG.IS_DESKTOP) {
+      openPortal('/#/onboarding').then((ok) => {
+        if (!ok) showToast('No pudimos abrir el navegador. Entrá al portal de Veltronik para dar de alta el gimnasio.', 'error');
+      });
+      return;
+    }
+    navigate(CONFIG.ROUTES.ONBOARDING);
+  };
+
   const createOrgCard = (
     <button
       className="lobby-card lobby-card-create card-hover"
-      onClick={() => navigate(CONFIG.ROUTES.ONBOARDING)}
+      onClick={handleCreateOrg}
     >
       <div className="lobby-card-icon create-icon">
-        <Icon name="plus" size="2rem" />
+        <Icon name={CONFIG.IS_DESKTOP ? 'globe' : 'plus'} size="2rem" />
       </div>
-      <h3 className="lobby-card-name">Crear Negocio</h3>
-      <p className="lobby-card-role">Registrá tu negocio</p>
+      <h3 className="lobby-card-name">{isFirstGym ? 'Registrá tu Gimnasio' : 'Nueva sucursal'}</h3>
+      <p className="lobby-card-role">
+        {CONFIG.IS_DESKTOP
+          ? 'Se abre en tu navegador'
+          : (isFirstGym ? 'Empezá tus 14 días gratis' : 'Sumá otro local a tu cuenta')}
+      </p>
     </button>
   );
 
@@ -457,23 +519,37 @@ export default function LobbyPage() {
             </div>
           </div>
           <div className="lobby-header-actions">
-            <UpdateIndicator />
-            <button className="btn btn-ghost" onClick={logout} title="Cerrar sesión">
-              <Icon name="logout" /> Salir
+            {/* Resumen de todas las sucursales. Aparece solo con DOS o más propias: con
+                una sola no suma nada que el Dashboard de esa sucursal no muestre ya, y
+                sería un botón que lleva a una tabla de una fila. */}
+            {puedeVerResumen && (
+              <button
+                className="btn lobby-logout-btn"
+                onClick={() => navigate(CONFIG.ROUTES.OWNER_INSIGHTS)}
+                title="Ver el total de todas tus sucursales"
+              >
+                <Icon name="chart" /> <span>Resumen</span>
+              </button>
+            )}
+            {/* Salir dejó de ser un `btn-ghost` (transparente + gris): sobre el fondo
+                oscuro del lobby y sin hover —en un teléfono no hay hover— se leía como
+                texto decorativo. Ahora es un botón con borde propio. */}
+            <button className="btn lobby-logout-btn" onClick={logout} title="Cerrar sesión">
+              <Icon name="logout" /> <span>Salir</span>
             </button>
           </div>
         </div>
 
         {/* Title */}
         <div className="lobby-title-section">
-          <h1 className="lobby-title">Mis Negocios</h1>
-          <p className="lobby-subtitle">Seleccioná un negocio para acceder al sistema</p>
+          <h1 className="lobby-title">Mis Gimnasios</h1>
+          <p className="lobby-subtitle">Elegí una sucursal para entrar al sistema</p>
         </div>
 
         {/* Loading */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <span className="spinner" /> Cargando negocios...
+            <span className="spinner" /> Cargando tus gimnasios...
           </div>
         ) : hasGroups ? (
           /* Vista AGRUPADA: una sección por grupo + "Sin grupo" + crear */
@@ -527,7 +603,7 @@ export default function LobbyPage() {
 
             {/* Org name */}
             <div className="lobby-blocked-org-badge">
-              <VerticalIcon orgType={blockedOrg.type} size="20px" />
+              <GymLogo logoUrl={blockedOrg.logoUrl} logoEmoji={blockedOrg.logoEmoji} name={blockedOrg.name} size={22} />
               <span>{blockedOrg.name}</span>
             </div>
 
@@ -555,7 +631,7 @@ export default function LobbyPage() {
             {/* Price info */}
             <div className="lobby-blocked-price-info">
               <span>Precio del sistema:</span>
-              <strong>${(CONFIG.PRICES_BY_TYPE[blockedOrg.type || 'GYM'] || CONFIG.SUBSCRIPTION_PRICE).toLocaleString('es-AR')}/mes</strong>
+              <strong>${CONFIG.SUBSCRIPTION_PRICE.toLocaleString('es-AR')}/mes</strong>
             </div>
 
             {/* Actions */}
@@ -592,11 +668,18 @@ export default function LobbyPage() {
         </div>
       )}
 
-      {/* ─── DELETE ORG CONFIRMATION MODAL ─── */}
+      {/* ─── ELIMINAR GIMNASIO ───
+          Este diálogo NO es un bottom sheet como el resto de los modales de la app, y
+          es a propósito: es el único que pide TECLADO. Una hoja pegada abajo con el
+          teclado abierto deja el campo y el botón "Eliminar" fuera de la pantalla, y
+          desde afuera parece que el borrado está roto cuando lo que está roto es que
+          no llegás a tocarlo.
+          Se dibuja centrado sobre el área REALMENTE visible (ver useVisualViewport):
+          se abre el teclado, el diálogo se reacomoda solo y el campo queda a mano. */}
       {deleteTarget && (
-        <div className="lobby-blocked-overlay" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
-          <div className="lobby-blocked-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <button className="lobby-blocked-close" onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+        <div className="lobby-delete-overlay" onClick={closeDeleteModal}>
+          <div className="lobby-blocked-modal lobby-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="lobby-blocked-close" onClick={closeDeleteModal} aria-label="Cerrar">
               <Icon name="x" size="1em" />
             </button>
 
@@ -604,23 +687,35 @@ export default function LobbyPage() {
               <Icon name="alertTriangle" size="2rem" />
             </div>
 
-            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Negocio</h2>
+            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Gimnasio</h2>
             <p className="lobby-blocked-message">
               Estás a punto de eliminar <strong>"{deleteTarget.name}"</strong> y <strong>todos sus datos</strong>: socios, pagos, accesos, equipo y suscripciones. Esta acción es <strong>irreversible</strong>.
             </p>
 
-            <div style={{ margin: '1.25rem 0' }}>
-              <label className="form-label" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+            <div className="lobby-delete-confirm">
+              {/* label + htmlFor: en un teléfono tocar el texto también abre el teclado,
+                  así el objetivo táctil deja de ser solo la cajita. */}
+              <label className="form-label lobby-delete-label" htmlFor="delete-confirm-name">
                 Escribí <strong style={{ color: '#ef4444' }}>{deleteTarget.name}</strong> para confirmar:
               </label>
               <input
+                id="delete-confirm-name"
                 type="text"
                 className="form-input"
                 placeholder={deleteTarget.name}
                 value={deleteConfirmName}
                 onChange={(e) => setDeleteConfirmName(e.target.value)}
-                style={{ marginTop: '0.5rem', borderColor: deleteConfirmName.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase() ? '#ef4444' : undefined }}
-                autoFocus
+                style={{ borderColor: nameMatches ? '#ef4444' : undefined }}
+                // Nada de autocorrección: acá se copia un nombre propio letra por letra
+                // y el corrector del teléfono lo "arreglaba" hasta que no coincidía nunca.
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                enterKeyHint="done"
+                // autoFocus SOLO con teclado físico. En un celular abría el teclado
+                // encima del diálogo que todavía se estaba animando.
+                autoFocus={!IS_TOUCH}
               />
             </div>
 
@@ -629,7 +724,7 @@ export default function LobbyPage() {
                 className="btn lobby-blocked-btn-main"
                 style={{ background: '#ef4444', borderColor: '#ef4444' }}
                 onClick={handleDeleteOrg}
-                disabled={deleting || deleteConfirmName.trim().toLowerCase() !== deleteTarget.name.trim().toLowerCase()}
+                disabled={deleting || !nameMatches}
               >
                 {deleting ? (
                   <><span className="spinner" /> Eliminando...</>
@@ -637,13 +732,23 @@ export default function LobbyPage() {
                   <><Icon name="trash" size="1em" /> Eliminar Permanentemente</>
                 )}
               </button>
-              <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}>
+              <button className="btn btn-ghost" style={{ width: '100%' }} onClick={closeDeleteModal}>
                 Cancelar
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ─── VERSIÓN ───
+          Vivía arriba, al lado de "Salir", compitiendo por atención con lo único que
+          importa en esta pantalla (elegir el gimnasio). Ahora es una marca de agua en
+          la esquina de abajo: se lee si la buscás y desaparece si no.
+          El componente crece solo cuando tiene algo que decir (hay una actualización
+          descargada y lista para instalar). */}
+      <div className="lobby-version-footer">
+        <UpdateIndicator />
+      </div>
     </div>
   );
 }

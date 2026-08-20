@@ -7,12 +7,32 @@ name: Release Electron (Windows)
 # Por qué en la nube: el runner windows-latest es limpio (admin, sin Windows Defender
 # bloqueando app.asar, symlinks de winCodeSign permitidos). Resuelve de raíz el fallo
 # de empaquetado local. Releases futuros = un `git push` del tag.
+#
+# El workflow NO compila Java. Hasta acá arrancaba con un "Setup Java 17" + un paso que
+# corría build-tools\build-backend.ps1 para armar el cerebro embebido (jar + JRE). Ese
+# script se fue con la baja del circuito offline (V43) y el paso quedó apuntándole: TODO
+# release fallaba en el segundo step. Además el artefacto que producía (resources/backend,
+# ~330MB) ya no lo empaquetaba nadie — electron-builder.yml solo lleva assets/ como
+# extraResources. Si algún día vuelve un runtime embebido, se agrega acá de nuevo.
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: {}   # permite dispararlo a mano desde la pestaña Actions
+  # A mano, desde la pestaña Actions. Por defecto NO publica: corre el pipeline
+  # entero (incluido el empaquetado, que es lo único que no se puede probar en una
+  # máquina local por el lock de Defender/OneDrive) y tira el .exe a la basura. Sirve
+  # para saber si el release funciona SIN dejar Releases borrador dando vueltas ni
+  # pisar un tag ya publicado. Elegí "always" solo si querés publicar de verdad.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publicar un Release borrador al terminar'
+        type: choice
+        default: 'never'
+        options:
+          - never
+          - always
 
 permissions:
   contents: write          # necesario para que electron-builder cree el Release
@@ -27,21 +47,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Java 17 (cerebro embebido, ADR-009)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: maven
-
-      - name: Build backend embebido (jar + JRE firmada de Microsoft)
-        # Produce frontend/resources/backend/ — electron-builder lo empaqueta
-        # como extraResources (resources/backend del instalable). La JRE que
-        # viaja es la de Microsoft (Authenticode, ADR-011): jlink quedó
-        # descartado porque su runtime sin firma es bloqueado por WDAC.
-        working-directory: frontend
-        run: powershell -ExecutionPolicy Bypass -File build-tools\build-backend.ps1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -60,16 +65,28 @@ jobs:
         # sincronizado con package.json → releases 100% reproducibles.
         run: pnpm install --frozen-lockfile
 
-      - name: Build web (vite)
+      - name: Build de escritorio (vite)
+        # Fase 4: el instalador NO lleva el bundle del portal. `build:desktop` compila
+        # dist-desktop/ (solo pantallas de operación) y es lo único que empaqueta
+        # electron-builder. El build web (`pnpm run build` → dist/) lo hace Vercel.
+        #
         # Vite inyecta las VITE_* en build-time. Vienen de GitHub Secrets (NUNCA del
         # repo: los .env están gitignoreados). Sin esto, el bundle arranca con
         # "Missing Supabase environment variables" y la app queda en pantalla negra.
+        # VITE_MP_PUBLIC_KEY ya no hace falta acá —el escritorio no cobra— pero se deja
+        # pasada por si alguna pantalla de operación la mirara: cuesta nada.
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_MP_PUBLIC_KEY: ${{ secrets.VITE_MP_PUBLIC_KEY }}
-        run: pnpm run build
+        run: pnpm run build:desktop
+
+      - name: Verificar que el bundle no lleve código de cobro
+        # El criterio de aceptación de la Fase 4, en el pipeline: si un import vuelve a
+        # arrastrar el SDK de Mercado Pago al instalador, el release se pone rojo ACÁ y
+        # no seis meses después en la máquina de un cliente.
+        run: pnpm run check:desktop-bundle
 
       - name: Build & publish Electron (Windows)
         env:
@@ -77,4 +94,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Sin firma de código (coincide con verifyUpdateCodeSignature: false del yml).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --win --publish always
+        # Por tag (el camino real de release): SIEMPRE publica — el comportamiento de
+        # siempre, intacto. A mano: lo que elijas en el input, que por defecto es "never".
+        #
+        # El orden de la expresión importa: 'always' cuelga de la rama del TAG, no del
+        # fallback. Así, si el input llegara vacío por lo que sea, el comando queda
+        # malformado y el run se pone rojo — nunca se cae hacia publicar sin querer.
+        # La resuelve Actions antes de que la vea la shell: no depende de pwsh ni cmd.
+        run: npx electron-builder --win --publish ${{ github.event_name == 'push' && 'always' || inputs.publish }}

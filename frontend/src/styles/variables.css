@@ -176,77 +176,12 @@
   --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.14);
 }
 
-/* ─── VERTICAL THEMES (Identity layers) ─── */
-/* Default (GYM) uses the Blue palette defined in :root */
+/* ─── PALETA ───
+   Veltronik tiene UNA identidad visual: la del gimnasio, definida arriba en :root.
 
-/* 1. Pilates & Yoga (Teal/Mint + Outfit) */
-[data-vertical="pilates"] {
-  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  --primary-50: #f0fdfa;
-  --primary-100: #ccfbf1;
-  --primary-200: #99f6e4;
-  --primary-300: #5eead4;
-  --primary-400: #2dd4bf;
-  --primary-500: #14b8a6;
-  --primary-600: #0d9488;
-  --primary-700: #0f766e;
-  --primary-800: #115e59;
-  --primary-900: #134e4a;
-  --shadow-glow: 0 0 20px rgba(20, 184, 166, 0.15);
-  --btn-radius: 9999px;
-  --btn-bg: var(--primary-500);
-  --btn-bg-hover: var(--primary-600);
-  --btn-shadow: 0 4px 14px rgba(20, 184, 166, 0.2);
-  --card-radius: 20px;
-  --card-backdrop: none;
-}
-
-/* 2. Club Deportivo (Indigo + Montserrat) */
-[data-vertical="club"] {
-  --font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
-  --primary-50: #eef2ff;
-  --primary-100: #e0e7ff;
-  --primary-200: #c7d2fe;
-  --primary-300: #a5b4fc;
-  --primary-400: #818cf8;
-  --primary-500: #6366f1;
-  --primary-600: #4f46e5;
-  --primary-700: #4338ca;
-  --primary-800: #3730a3;
-  --primary-900: #312e81;
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
-  --btn-shadow: 0 2px 12px rgba(99, 102, 241, 0.25);
-}
-
-/* 3. Academia / Instituto (Violet + Outfit) */
-[data-vertical="academy"] {
-  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  --primary-50: #f5f3ff;
-  --primary-100: #ede9fe;
-  --primary-200: #ddd6fe;
-  --primary-300: #c4b5fd;
-  --primary-400: #a78bfa;
-  --primary-500: #8b5cf6;
-  --primary-600: #7c3aed;
-  --primary-700: #6d28d9;
-  --primary-800: #5b21b6;
-  --primary-900: #4c1d95;
-  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15);
-  --btn-shadow: 0 2px 12px rgba(139, 92, 246, 0.25);
-  --card-radius: 20px;
-}
-
-/* 4. Otros (Slate) */
-[data-vertical="other"] {
-  --primary-50: #f8fafc;
-  --primary-100: #f1f5f9;
-  --primary-200: #e2e8f0;
-  --primary-300: #cbd5e1;
-  --primary-400: #94a3b8;
-  --primary-500: #64748b;
-  --primary-600: #475569;
-  --primary-700: #334155;
-  --primary-800: #1e293b;
-  --primary-900: #0f172a;
-  --shadow-glow: 0 0 20px rgba(100, 116, 139, 0.15);
-}
+   Acá vivían cuatro bloques `[data-vertical="pilates|club|academy|other"]` que
+   repintaban toda la paleta (y hasta la tipografía) según el rubro del negocio.
+   Ese atributo lo ponía el Layout en cada render leyendo el "tipo de negocio";
+   al darse de baja el multi-rubro, ninguno de los cuatro podía activarse nunca
+   más: eran 70 líneas de CSS muerto esperando a que alguien las creyera vivas.
+   Si algún día hay una segunda identidad, se agrega acá a propósito. */

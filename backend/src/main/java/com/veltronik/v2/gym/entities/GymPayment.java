@@ -30,9 +30,17 @@ public class GymPayment extends TenantAwareEntity {
     @Column(name = "payment_method", length = 50)
     private String paymentMethod;
 
-    // e.g. "PAID", "PENDING", "CANCELLED"
+    /**
+     * "paid" | "pending" | "cancelled", SIEMPRE en minúscula.
+     *
+     * <p>El default era {@code "PAID"} y el frontend guardaba {@code "paid"}: convivían las
+     * dos cajas en la misma columna y la suma de ingresos del Dashboard —que comparaba
+     * exacto contra {@code 'PAID'}— no contaba los pagos cargados desde la app. Ahora
+     * {@code GymPaymentService} normaliza al guardar, así que la ambigüedad no se puede
+     * volver a colar.</p>
+     */
     @Column(nullable = false, length = 20)
-    private String status = "PAID";
+    private String status = "paid";
 
     private String notes;
 

@@ -7,10 +7,59 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
-import { verticalThemeKey } from '../lib/verticals';
 import CONFIG from '../lib/config';
+import logoSrc from '../assets/LogotipoSecundario.png';
 
 import ErrorBoundary from './ErrorBoundary';
+
+/**
+ * Header móvil que se retrae al bajar y vuelve al subir.
+ *
+ * Un header clavado arriba se come una franja de pantalla PERMANENTE, que en un
+ * teléfono es carísima. Este se comporta como el de las apps nativas: molesta cero
+ * mientras leés hacia abajo y aparece apenas hacés el gesto de volver.
+ *
+ * Detalles que importan:
+ *  - El umbral de 8px ignora el temblor del dedo (si no, el header parpadea).
+ *  - Cerca del tope (<64px) siempre se muestra: nadie quiere "buscar" el menú al
+ *    llegar arriba de todo.
+ *  - rAF: el listener es pasivo y no calcula nada durante el scroll.
+ */
+function useAutoHideHeader() {
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const NOISE = 8;      // px de temblor que ignoramos
+    const ALWAYS_SHOW = 64; // px desde el tope donde el header es intocable
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = Math.max(0, window.scrollY);
+        const delta = y - lastY;
+        if (y < ALWAYS_SHOW) {
+          setHidden(false);
+          lastY = y;
+        } else if (delta > NOISE) {
+          setHidden(true);
+          lastY = y;
+        } else if (delta < -NOISE) {
+          setHidden(false);
+          lastY = y;
+        }
+        ticking = false;
+      });
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return [hidden, setHidden];
+}
 
 /**
  * Main app layout with sidebar (for dashboard pages)
@@ -18,10 +67,14 @@ import ErrorBoundary from './ErrorBoundary';
  */
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { loading, subscription, gym } = useAuth();
+  const { loading, subscription } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toggleRef = useRef(null);
+  const [headerHidden, setHeaderHidden] = useAutoHideHeader();
+
+  // Al cambiar de sección la página vuelve arriba: el header también.
+  useEffect(() => { setHeaderHidden(false); }, [location.pathname, setHeaderHidden]);
 
   // Cierre del drawer reutilizable: además de ocultarlo, devuelve el foco al botón
   // hamburguesa (en desktop el botón está display:none → focus() es no-op inocuo).
@@ -29,16 +82,6 @@ export function AppLayout() {
     setSidebarOpen(false);
     toggleRef.current?.focus();
   }, []);
-
-  // Apply vertical theme — la clave sale del registry (fuente única): un tipo
-  // inesperado cae a 'other' (con estilos) en vez de un string sin tema.
-  useEffect(() => {
-    const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-    document.documentElement.setAttribute('data-vertical', verticalThemeKey(orgType));
-    return () => {
-      document.documentElement.removeAttribute('data-vertical');
-    };
-  }, [gym]);
 
   // Drawer móvil abierto → bloquear el scroll del fondo y cerrar con Escape.
   // El lock vive en <body> (CSS solo lo aplica en mobile); el listener se limpia al cerrar.
@@ -88,19 +131,21 @@ export function AppLayout() {
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       <main className="main-content">
-        {/* Mobile header */}
-        <header className="mobile-header">
+        {/* Mobile header — el drawer abierto lo mantiene a la vista */}
+        <header className={`mobile-header ${headerHidden && !sidebarOpen ? 'mobile-header-hidden' : ''}`}>
           <button
             ref={toggleRef}
-            className="btn-icon sidebar-toggle"
+            className="sidebar-toggle"
             onClick={() => setSidebarOpen(true)}
             aria-label="Abrir menú de navegación"
             aria-expanded={sidebarOpen}
             aria-controls="sidebar"
           >
             <Icon name="menu" />
+            <span className="sidebar-toggle-label">Menú</span>
           </button>
-          <span className="mobile-header-title">Veltronik</span>
+          <img src={logoSrc} alt="Veltronik" className="mobile-header-logo" />
+          <span className="mobile-header-spacer" aria-hidden="true" />
         </header>
 
         {/* Payment warning banner */}

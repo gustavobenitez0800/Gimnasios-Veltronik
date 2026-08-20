@@ -2,7 +2,7 @@
 // VELTRONIK V2 - SOCIOS / ALUMNOS (gym)
 // ============================================
 // ABM de socios con búsqueda y paginación server-side, historial de pagos y
-// export a CSV. Cómo se llama al socio en cada rubro lo dice lib/verticals.
+// export a CSV. Cómo se llama al socio lo dice lib/gym.
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
@@ -11,7 +11,7 @@ import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
-import { getVertical } from '../lib/verticals';
+import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
@@ -62,9 +62,8 @@ export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { orgRole, gym } = useAuth();
-  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
-  const { memberLabel, membersLabel } = getVertical(orgType);
+  const { orgRole } = useAuth();
+  const { memberLabel, membersLabel } = GYM;
   const membersLabelLower = membersLabel.toLowerCase();
   const canDelete = orgRole === 'owner' || orgRole === 'admin';
 

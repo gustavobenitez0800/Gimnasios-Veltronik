@@ -139,7 +139,7 @@ public class TenantService extends BaseServiceImpl<Tenant, TenantDTO, UUID> {
             """.formatted(tenantId);
     }
 
-    /** Negocios donde el usuario logueado tiene membresía, con su rol y grupo. */
+    /** Gimnasios donde el usuario logueado tiene membresía, con su rol y grupo. */
     @Transactional(readOnly = true)
     public List<TenantDTO> findMyTenants() {
         UUID userId = SecurityUtils.getCurrentUserId();
@@ -150,7 +150,6 @@ public class TenantService extends BaseServiceImpl<Tenant, TenantDTO, UUID> {
         return memberships.stream().map(m -> {
             TenantDTO dto = tenantMapper.toDto(m.getTenant());
             dto.setRole(m.getRole().name().toLowerCase());
-            dto.setType(m.getTenant().getBusinessType().name());
             // Grupo al que el dueño asignó la sucursal (null = sin grupo).
             if (m.getTenant().getGroup() != null) {
                 dto.setGroupId(m.getTenant().getGroup().getId());

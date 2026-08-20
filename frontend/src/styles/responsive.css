@@ -206,11 +206,13 @@ button, a, input, select, textarea, [role="button"] {
 
   .main-content { margin-left: 0; }
 
-  /* ── Header móvil: vidrio fijo arriba, respeta el notch ── */
+  /* ── Header móvil: vidrio arriba, respeta el notch ──
+     Sigue siendo sticky, pero se retrae al bajar (clase .mobile-header-hidden que
+     pone AppLayout) y reaparece apenas el usuario scrollea hacia arriba. */
   .mobile-header {
-    display: flex;
-    padding: 0.75rem 1rem;
-    padding-top: calc(0.75rem + env(safe-area-inset-top));
+    display: grid;
+    padding: 0.6rem 1rem;
+    padding-top: calc(0.6rem + env(safe-area-inset-top));
     background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
     backdrop-filter: blur(18px) saturate(1.3);
     -webkit-backdrop-filter: blur(18px) saturate(1.3);
@@ -424,6 +426,19 @@ button, a, input, select, textarea, [role="button"] {
     padding-bottom: calc(2rem + env(safe-area-inset-bottom));
   }
 
+  /* EXCEPCIÓN: el diálogo de eliminar NO es bottom sheet.
+     Es el único que pide teclado, y una hoja pegada al borde de abajo con el teclado
+     abierto deja el campo de confirmación y el botón fuera de la pantalla. Queda
+     centrado, flotante y con sus cuatro esquinas redondeadas. Comparte la clase
+     .lobby-blocked-modal (mismo vidrio), así que hay que deshacer la regla de arriba. */
+  .lobby-blocked-modal.lobby-delete-modal {
+    max-width: min(440px, calc(100vw - 2rem));
+    border-radius: 24px;
+    max-height: 100%;
+    padding: 1.75rem 1.35rem;
+    padding-bottom: 1.75rem;
+  }
+
   /* ── Toasts: ancho completo arriba, bajo el notch ── */
   .toast-container {
     left: 0.85rem;
@@ -432,14 +447,52 @@ button, a, input, select, textarea, [role="button"] {
     max-width: none;
   }
 
-  /* ── Auth (login / registro) ── */
+  /* ── Auth (login / registro) ──
+     OBJETIVO: que el login entre ENTERO en una pantalla de teléfono, sin barra de
+     scroll y sin que la página "baile". Dos cosas a la vez:
+
+     1) El wrapper pasa a ser el scroller, con altura EXACTA al viewport (antes tenía
+        min-height + overflow:hidden: si el contenido pasaba un pixel, el que crecía y
+        scrolleaba era el <body> → aparecía la barra fea del navegador sobre el vidrio).
+        La barra se oculta pero el scroll sigue existiendo: es la válvula de seguridad
+        para teléfonos muy bajos o con la tipografía del sistema agrandada. Nunca
+        atrapa contenido.
+
+     2) Se compacta el aire de la tarjeta. Cada bloque cede unos píxeles y el conjunto
+        entra cómodo hasta en un teléfono de 667px de alto (el piso realista hoy). */
   .auth-wrapper {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 1.25rem;
     padding-top: calc(1.25rem + env(safe-area-inset-top));
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+
+    /* Scrollbar invisible (el scroll sigue funcionando) */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
-  .auth-card { padding: 1.75rem 1.5rem; }
+  .auth-wrapper::-webkit-scrollbar { width: 0; height: 0; }
+
+  .auth-card { padding: 1.5rem 1.35rem; }
+
+  /* Compactación del bloque de marca */
+  .auth-logo { margin-bottom: 1.15rem; }
+  .auth-logo-img { width: 46px; height: 46px; margin-bottom: 0.5rem; }
+  .auth-logo-text { font-size: var(--font-size-xl); }
+  .auth-logo-subtitle { font-size: var(--font-size-xs); }
+
+  /* Compactación del formulario */
+  .auth-title { font-size: var(--font-size-lg); }
+  .auth-subtitle { margin-bottom: 1rem; }
+  .auth-card .form-group { margin-bottom: 0.9rem; }
+  .auth-forgot { margin-bottom: 1rem; margin-top: -0.25rem; }
+  .auth-divider { margin: 1rem 0; }
+  .auth-social { margin-bottom: 1rem; }
+  .auth-links { margin-top: 1.1rem; }
 
   /* Orbes de la aurora más chicos: mismo clima visual, mucha menos GPU */
   .auth-wrapper::before { width: 340px; height: 340px; filter: blur(60px); }
@@ -517,11 +570,24 @@ button, a, input, select, textarea, [role="button"] {
   .stat-icon { width: 36px; height: 36px; }
 
   .auth-card {
-    padding: 1.5rem 1.25rem;
+    padding: 1.35rem 1.15rem;
     border-radius: var(--border-radius-lg);
   }
 
-  .auth-logo-img { width: 48px; height: 48px; }
+  .auth-logo-img { width: 42px; height: 42px; }
+
+  /* En un teléfono chico la bajada de marca es lo primero que sobra: el logo y el
+     nombre ya dicen dónde estás, y esos ~28px son la diferencia entre entrar en
+     pantalla o no. */
+  .auth-logo-subtitle { display: none; }
+  .auth-logo { margin-bottom: 1rem; }
+
+  /* Últimos píxeles. El piso real es un Android de 360×640: ahí la tarjeta entraba
+     por 4px de más. Estos recortes son invisibles de a uno y suman ~16px. */
+  .auth-forgot { margin-bottom: 0.75rem; }
+  .auth-divider { margin: 0.85rem 0; }
+  .auth-social { margin-bottom: 0.85rem; }
+  .auth-links { margin-top: 0.9rem; }
 
   /* Calendario de clases: 1 columna scrolleable */
   .weekly-calendar { grid-template-columns: 1fr; }
@@ -555,7 +621,10 @@ button, a, input, select, textarea, [role="button"] {
     overflow-y: auto;
     align-items: flex-start;
     padding: 1rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
+  .auth-wrapper::-webkit-scrollbar { width: 0; height: 0; }
   .auth-card { margin: 0.5rem auto; }
   .auth-logo { margin-bottom: 1rem; }
 

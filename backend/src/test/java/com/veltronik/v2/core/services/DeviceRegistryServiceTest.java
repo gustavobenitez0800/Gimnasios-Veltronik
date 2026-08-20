@@ -7,6 +7,7 @@ import com.veltronik.v2.core.exceptions.BusinessException;
 import com.veltronik.v2.core.exceptions.DeviceEnrollConflictException;
 import com.veltronik.v2.core.exceptions.EntityNotFoundException;
 import com.veltronik.v2.core.repositories.DeviceRepository;
+import com.veltronik.v2.core.security.DeviceBindingCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,9 @@ class DeviceRegistryServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(DeviceRepository.class);
-        service = new DeviceRegistryService(repository);
+        // Caché real y no mock: no tiene dependencias ni estado compartido entre tests, y
+        // así el test también cubre que enrolar/revocar la invaliden (Fase 3).
+        service = new DeviceRegistryService(repository, new DeviceBindingCache());
     }
 
     @Test

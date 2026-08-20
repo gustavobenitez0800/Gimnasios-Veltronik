@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'dist_electron', 'release']),
+  globalIgnores(['dist', 'dist-desktop', 'dist_electron', 'release']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -18,6 +18,8 @@ export default defineConfig([
         ...globals.browser,
         // Inyectada por Vite (define) con la versión del package.json.
         __APP_VERSION__: 'readonly',
+        // Inyectada por Vite (define): true solo en el build de escritorio (Fase 4).
+        __IS_DESKTOP__: 'readonly',
       },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },

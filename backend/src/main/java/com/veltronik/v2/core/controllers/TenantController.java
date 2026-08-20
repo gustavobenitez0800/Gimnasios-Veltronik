@@ -81,13 +81,8 @@ public class TenantController {
     @GetMapping("/{id}/workspace")
     public ResponseEntity<WorkspaceDTO> getWorkspace(@PathVariable UUID id) {
         TenantMembership membership = requireMembership(id);
-        TenantDTO tenant = tenantService.findById(id);
-        String orgType = tenant.getBusinessType() != null
-                ? tenant.getBusinessType().name()
-                : (tenant.getType() != null ? tenant.getType() : "GYM");
         return ResponseEntity.ok(new WorkspaceDTO(
                 id,
-                orgType,
                 membership.getRole().name().toLowerCase(),
                 WorkspacePolicy.modulesFor(membership.getRole())
         ));

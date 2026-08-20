@@ -4,6 +4,8 @@
 
 import { supabase } from '../lib/supabase';
 import CONFIG from '../lib/config';
+import { readAuthCode } from '../lib/authCode';
+import { startGoogleSignIn, canUseBrowserSignIn } from '../lib/desktopAuth';
 
 /** ¿La app corre dentro de Electron? (mismo criterio que lib/connection.js) */
 function inElectron() {
@@ -52,16 +54,29 @@ class AuthService {
   }
 
   /**
-   * Login con Google (OAuth vía Supabase). SOLO WEB por ahora: en Electron la app
-   * corre por file:// y Google no puede redirigir de vuelta — se necesita un
-   * protocolo custom (pendiente), así que el LoginPage oculta el botón ahí.
-   * redirectTo explícito: sin él, Supabase usa su Site URL por defecto y el
-   * usuario podía terminar en cualquier lado (el "no funciona" reportado).
+   * Login con Google (OAuth vía Supabase).
+   *
+   * Dos caminos, según el envase:
+   *
+   * · WEB — redirect normal de toda la vida. `redirectTo` explícito: sin él, Supabase usa
+   *   su Site URL por defecto y el usuario terminaba en cualquier lado.
+   *
+   * · ESCRITORIO (Fase 2) — la app se sirve por file:// y ahí Google no puede redirigir
+   *   de vuelta; ese era el motivo de que el botón estuviera escondido en Electron. Ahora
+   *   el login sale al navegador del sistema y vuelve por `veltronik://` (ver
+   *   lib/desktopAuth.js). Esta llamada solo ABRE el navegador: la sesión aparece después,
+   *   cuando llega el deep link — por eso no devuelve nada útil y quien la llama no debe
+   *   asumir que ya hay usuario.
    */
   async signInWithGoogle() {
-    if (inElectron()) {
-      throw new Error('El login con Google está disponible en la versión web.');
+    if (CONFIG.IS_DESKTOP) {
+      if (!canUseBrowserSignIn()) {
+        throw new Error('Esta ventana no puede abrir el navegador para completar el login.');
+      }
+      await startGoogleSignIn();
+      return { pendingBrowserSignIn: true };
     }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${publicWebBase()}/#${CONFIG.ROUTES.LOBBY}` },
@@ -95,16 +110,12 @@ class AuthService {
 
   /**
    * Canjea el "?code=..." del link de recuperación (PKCE) por una sesión activa.
-   * Devuelve true si había código y el canje funcionó. Con HashRouter el código
-   * puede venir en el search real o adentro del hash (#/reset-password?code=...).
+   * Devuelve true si había código y el canje funcionó. El parseo (el código puede venir
+   * en el search real o adentro del hash) vive en lib/authCode.js: lo comparte con el
+   * login de escritorio, que tiene exactamente el mismo problema.
    */
   async exchangeRecoveryCode() {
-    const url = new URL(window.location.href);
-    let code = url.searchParams.get('code');
-    if (!code) {
-      const hashQuery = window.location.hash.split('?')[1];
-      if (hashQuery) code = new URLSearchParams(hashQuery).get('code');
-    }
+    const code = readAuthCode(window.location.href);
     if (!code) return false;
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) throw error;
@@ -150,7 +161,6 @@ class AuthService {
     localStorage.removeItem('current_org_id');
     localStorage.removeItem('current_org_role');
     localStorage.removeItem('current_org_name');
-    localStorage.removeItem('current_org_type');
   }
 }
 

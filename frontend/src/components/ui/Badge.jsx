@@ -24,7 +24,12 @@ const STATUS_CONFIG = {
  * @param {string} className — Clase CSS override (opcional)
  */
 export default function Badge({ status, label = null, className = null }) {
-  const config = STATUS_CONFIG[status] || { className: 'badge-neutral', label: status };
+  // La búsqueda va en minúscula: todas las claves de arriba lo están, y hay estados que
+  // llegan en mayúscula desde datos viejos (los pagos convivieron con "PAID" y "paid" en
+  // la misma columna). Sin esto, un pago viejo mostraba un chip gris que decía "PAID" en
+  // vez del verde "Pagado".
+  const config = STATUS_CONFIG[String(status || '').toLowerCase()]
+      || { className: 'badge-neutral', label: status };
 
   return (
     <span className={`badge ${className || config.className}`}>

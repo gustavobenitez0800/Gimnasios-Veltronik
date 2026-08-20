@@ -201,6 +201,25 @@
 .chart-title { margin-bottom: 0.75rem; font-size: var(--font-size-sm); color: var(--text-muted); }
 .chart-container { position: relative; height: 250px; }
 
+/* Estado vacío DENTRO de un gráfico: ocupa exactamente el mismo alto que el canvas,
+   así la grilla no salta cuando el gimnasio carga su primer socio. */
+.chart-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.chart-empty-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 /* Dashboard Grid (Bento Box container) */
 .dashboard-grid {
   display: grid;

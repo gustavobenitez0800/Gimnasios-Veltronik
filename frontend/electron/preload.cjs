@@ -31,6 +31,54 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     isElectron: () => true,
 
+    /**
+     * Abrir una URL del PORTAL WEB en el navegador del sistema (Fase 4).
+     *
+     * La app de escritorio no trae las pantallas de cuenta ni de cobro: cuando hace falta
+     * una, manda al navegador por acá. Nunca navega su propia ventana — hacerlo era lo que
+     * rompía el pago (MP devolvía a la web y la app no se enteraba).
+     *
+     * El proceso principal valida la URL contra una lista blanca de orígenes
+     * (electron/portal.cjs) antes de abrir nada.
+     *
+     * @param {string} url
+     * @returns {Promise<boolean>} false si la rechazó la lista blanca
+     */
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+    /**
+     * Escucha los deep links `veltronik://` que despiertan a la app (Fase 2).
+     *
+     * Hoy trae uno solo: `veltronik://auth?code=...`, el retorno del login con Google
+     * hecho en el navegador del sistema. El renderer canjea ese código por la sesión
+     * (src/lib/desktopAuth.js).
+     *
+     * @param {(url: string) => void} callback
+     * @returns {() => void} función para dejar de escuchar
+     */
+    onDeepLink: (callback) => {
+        const handler = (_event, url) => callback(url);
+        ipcRenderer.on('deep-link', handler);
+        return () => ipcRenderer.removeListener('deep-link', handler);
+    },
+
+    // ============================================
+    // PREFERENCIAS DEL TERMINAL (Fase 5)
+    // ============================================
+    // De la MÁQUINA, no de la cuenta: arranque con Windows y comportamiento al cerrar.
+    // Viven en un JSON local (electron/store.cjs), nunca viajan al servidor.
+
+    terminalSettings: {
+        /** @returns {Promise<{openAtLogin: boolean, closeToTray: boolean, trayAvailable: boolean}>} */
+        get: () => ipcRenderer.invoke('terminal-settings:get'),
+
+        /**
+         * @param {{openAtLogin?: boolean, closeToTray?: boolean}} changes
+         * @returns {Promise<{ok: boolean, error?: string}>}
+         */
+        set: (changes) => ipcRenderer.invoke('terminal-settings:set', changes),
+    },
+
     // ============================================
     // AUTO-UPDATES
     // ============================================

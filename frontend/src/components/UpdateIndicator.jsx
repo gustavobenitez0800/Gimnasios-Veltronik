@@ -122,10 +122,12 @@ export default function UpdateIndicator() {
   }
 
   // ─── Estado: al día (solo versión) ───
+  // Marca de agua: sin caja, sin ícono, casi transparente. Es un dato de soporte
+  // ("¿qué versión tenés?"), no una notificación — no debería ganarle la atención a
+  // nada de lo que hay en pantalla. Se aclara al pasarle el mouse por encima.
   return (
-    <div className="update-indicator" role="status" title="Tu sistema está actualizado">
-      <Icon name="checkCircle" size="0.9em" />
-      <span className="update-indicator-sub">Veltronik v{version}{isElectron ? ' · Al día' : ''}</span>
+    <div className="update-indicator update-indicator-idle" role="status" title="Tu sistema está actualizado">
+      <span className="update-indicator-sub">v{version}{isElectron ? ' · al día' : ''}</span>
     </div>
   );
 }

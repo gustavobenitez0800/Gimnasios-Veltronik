@@ -8,3 +8,4 @@ export { usePagination } from './usePagination';
 export { useDebouncedSearch } from './useDebouncedSearch';
 export { useQueryCache, clearQueryCache } from './useQueryCache';
 export { useLoadOnMount } from './useLoadOnMount';
+export { useVisualViewport } from './useVisualViewport';

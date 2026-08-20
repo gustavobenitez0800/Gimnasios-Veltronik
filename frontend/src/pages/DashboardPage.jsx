@@ -2,7 +2,6 @@
 // VELTRONIK V2 - DASHBOARD PAGE (Refactored)
 // ============================================
 
-import { useCallback } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -17,10 +16,9 @@ import {
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
 import { useDashboardController } from '../controllers/useDashboardController';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
-import { getVertical } from '../lib/verticals';
+import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
 import Icon from '../components/Icon';
@@ -45,9 +43,7 @@ export default function DashboardPage() {
 }
 
 function GymDashboard({ gym }) {
-  const { showToast } = useToast();
-  const orgType = gym?.type || 'GYM';
-  const { membersLabel, memberLabel } = getVertical(orgType);
+  const { membersLabel, memberLabel } = GYM;
 
   const {
     dashboardStats,
@@ -58,18 +54,7 @@ function GymDashboard({ gym }) {
     membersChartData,
     recentMembers,
     loading,
-    isFetching,
-    handleRefreshStats: controllerRefreshStats
   } = useDashboardController(gym);
-
-  const handleRefreshStats = useCallback(async () => {
-    const ok = await controllerRefreshStats();
-    if (ok) {
-      showToast('Estadísticas actualizadas', 'success');
-    } else {
-      showToast('Las estadísticas se están calculando en tiempo real', 'info');
-    }
-  }, [controllerRefreshStats, showToast]);
 
   // ─── CHART CONFIGS ───
   const revenueChart = {
@@ -119,6 +104,10 @@ function GymDashboard({ gym }) {
     },
   };
 
+  // Total real de socios contados por el gráfico. Si es 0 no hay torta que dibujar
+  // (ver el bloque del gráfico más abajo).
+  const membersTotal = membersChartData.data.reduce((sum, n) => sum + n, 0);
+
   const membersChart = {
     labels: membersChartData.labels,
     datasets: [
@@ -154,7 +143,7 @@ function GymDashboard({ gym }) {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Dashboard" subtitle="Vista general de tu negocio" icon="dashboard" />
+        <PageHeader title="Dashboard" subtitle="Vista general de tu gimnasio" icon="dashboard" />
         <div className="dashboard-loading">
           <div className="loading-spinner" />
           <p className="text-muted">Cargando dashboard...</p>
@@ -165,25 +154,16 @@ function GymDashboard({ gym }) {
 
   return (
     <div className="dashboard">
+      {/* Sin badge "Activo" ni botón de recargar.
+          El badge decía siempre lo mismo (un gimnasio inactivo no puede ni abrir esta
+          pantalla: el Kill Switch del backend lo manda al muro de pago antes), así que
+          era un cartel que informaba lo obvio. Y el botón de refrescar competía con él
+          por el mismo rincón, parpadeando un spinner cada vez que la caché revalidaba.
+          Los datos se refrescan solos; si alguien quiere forzarlo, F5. */}
       <PageHeader
         title="Dashboard"
-        subtitle={isFetching ? "Actualizando datos..." : "Vista general de tu negocio"}
+        subtitle="Vista general de tu gimnasio"
         icon="dashboard"
-        actions={
-          <div className="flex gap-2 items-center">
-            <button
-              className="btn btn-sm btn-ghost"
-              onClick={handleRefreshStats}
-              disabled={isFetching}
-              title="Actualizar estadísticas"
-            >
-              {isFetching ? <span className="spinner" /> : <Icon name="refresh" />}
-            </button>
-            <span className={`badge ${(gym?.active ?? gym?.isActive) ? 'badge-success' : 'badge-warning'}`}>
-              {(gym?.active ?? gym?.isActive) ? 'Activo' : 'Inactivo'}
-            </span>
-          </div>
-        }
       />
 
       {/* Stats Cards */}
@@ -229,7 +209,22 @@ function GymDashboard({ gym }) {
           <div className="card chart-card">
             <h4 className="chart-title"><Icon name="users" size="1em" /> Estado de {membersLabel}</h4>
             <div className="chart-container">
-              <Doughnut data={membersChart} options={membersChartOptions} />
+              {/* Un doughnut cuyos valores suman CERO no dibuja nada: Chart.js reparte
+                  la circunferencia en proporción a los datos, y sin datos no hay arco
+                  que pintar. El gimnasio nuevo veía un recuadro vacío y parecía que el
+                  gráfico estaba roto. Cuando todavía no hay socios lo decimos con
+                  palabras, que es lo único útil que se puede decir ahí. */}
+              {membersTotal > 0 ? (
+                <Doughnut data={membersChart} options={membersChartOptions} />
+              ) : (
+                <div className="chart-empty">
+                  <Icon name="users" size="1.75rem" />
+                  <p className="chart-empty-title">Todavía no hay {membersLabel.toLowerCase()}</p>
+                  <Link to={`${CONFIG.ROUTES.MEMBERS}?action=new`} className="btn btn-sm btn-secondary">
+                    <Icon name="plus" size="1em" /> Cargar el primero
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -115,7 +115,7 @@ export default function MissionControlPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '6px 8px' }}>Negocio</th>
+                  <th style={{ padding: '6px 8px' }}>Gimnasio</th>
                   <th style={{ padding: '6px 8px' }}>Equipo</th>
                   <th style={{ padding: '6px 8px' }}>Rol</th>
                   <th style={{ padding: '6px 8px' }}>Versión</th>

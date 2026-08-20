@@ -219,7 +219,7 @@ export default function ReportsPage() {
 
   return (
     <div className="reports-page">
-      <PageHeader title="Reportes y Exportación" subtitle="Genera y descarga informes de tu negocio" icon="chart" />
+      <PageHeader title="Reportes y Exportación" subtitle="Genera y descarga informes de tu gimnasio" icon="chart" />
 
       {/* Date Range */}
       <div className="card mb-3" style={{ padding: '1.25rem' }}>

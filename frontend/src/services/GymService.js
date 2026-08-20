@@ -12,7 +12,7 @@ class GymService {
   async getCurrent() {
     const orgId = localStorage.getItem('current_org_id');
     if (!orgId) return null;
-    
+
     const response = await apiClient.get(`/tenants/${orgId}`);
     return response.data;
   }
@@ -21,27 +21,26 @@ class GymService {
    * Actualiza el gimnasio actual.
    * Java API: PUT /tenants/{orgId}
    *
-   * businessType es OBLIGATORIO para el backend (@NotNull en TenantDTO): si el caller
-   * no lo manda (Ajustes solo edita nombre/dirección/teléfono/email), lo completamos
-   * con el tipo actual del negocio. Sin este fallback, guardar Ajustes devolvía 400
-   * "El tipo de negocio es obligatorio".
+   * Acá vivía un truco: el backend exigía `businessType` (@NotNull) en CADA guardado,
+   * así que este método lo reconstruía del localStorage para que Ajustes —que solo
+   * edita nombre, dirección, teléfono y email— no muriera con un 400. Ese campo salió
+   * del contrato: el rubro lo fija el servidor al crear el gimnasio y no se toca más.
+   *
+   * `logoUrl` / `logoEmoji` solo se mandan si el caller los incluye: así una pantalla
+   * que edita el teléfono no puede borrarle el logo al gimnasio sin querer.
    */
   async updateCurrent(updates) {
     const orgId = localStorage.getItem('current_org_id');
     if (!orgId) throw new Error('No org selected');
-
-    const businessType = updates.businessType
-      || updates.type
-      || localStorage.getItem('current_org_type')
-      || 'GYM';
 
     const payload = {
       name: updates.name,
       address: updates.address,
       phone: updates.phone,
       email: updates.email,
-      businessType,
     };
+    if ('logoUrl' in updates) payload.logoUrl = updates.logoUrl;
+    if ('logoEmoji' in updates) payload.logoEmoji = updates.logoEmoji;
 
     const response = await apiClient.put(`/tenants/${orgId}`, payload);
     return response.data;
@@ -75,7 +74,6 @@ class GymService {
       localStorage.removeItem('current_org_id');
       localStorage.removeItem('current_org_role');
       localStorage.removeItem('current_org_name');
-      localStorage.removeItem('current_org_type');
     }
 
     return true;

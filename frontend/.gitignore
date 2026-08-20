@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+# Bundle de la app de escritorio (Fase 4): artefacto de build, lo produce
+# `pnpm run build:desktop` y lo empaqueta electron-builder.
+dist-desktop
 dist-ssr
 *.local
 

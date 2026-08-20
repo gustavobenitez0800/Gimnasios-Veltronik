@@ -26,6 +26,18 @@ public class DeviceDTO {
     /** ¿Está enrolado y ACTIVO en la sucursal en curso? */
     private boolean enrolled;
 
+    /**
+     * Sucursal a la que está atado el equipo, sin importar cuál sea la sucursal en curso
+     * (Fase 3). {@link #enrolled} no alcanza para el arranque de la app de escritorio:
+     * es relativo al tenant de la request, y en el arranque justamente todavía no hay
+     * ninguno — la app pregunta "¿a qué sucursal pertenezco?" para no tener que mostrar
+     * un selector. Null = equipo sin enrolar.
+     */
+    private UUID enrolledTenantId;
+
+    /** Nombre de esa sucursal, para poder mostrarlo sin una segunda request. */
+    private String enrolledTenantName;
+
     /** Nombre visible que le puso el dueño (null si no está enrolado). */
     private String displayName;
 

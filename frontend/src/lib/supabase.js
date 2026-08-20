@@ -8,6 +8,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+/**
+ * Fotografía de la URL con la que se abrió la pestaña, tomada ANTES de construir el
+ * cliente de Supabase — por eso vive acá arriba y no en otro módulo: así no depende del
+ * orden de imports de nadie.
+ *
+ * Por qué hace falta: con `detectSessionInUrl: true`, el cliente procesa el "?code=..."
+ * apenas se crea y LIMPIA la URL. La página /desktop-auth (que solo tiene que reenviarle
+ * ese código a la app de escritorio, no canjearlo) llegaría tarde y encontraría la URL ya
+ * barrida. Leyendo de esta constante siempre ve lo que vino.
+ */
+export const INITIAL_URL = typeof window !== 'undefined' ? window.location.href : '';
+
 // Toda llamada de auth de Supabase (signIn, getSession, refresh de token) pasa por este
 // fetch resiliente: timeout por intento + reintentos con backoff. Antes el cliente se
 // creaba sin opciones → sin timeout (la app podía colgarse en redes lentas) y sin

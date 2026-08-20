@@ -8,22 +8,21 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 import { hasAccess } from '../lib/access';
-import { getVertical } from '../lib/verticals';
+import { GYM } from '../lib/gym';
 import apiClient from '../lib/apiClient';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
 
-const FEATURES_BY_TYPE = {
-  GYM: [
-    'Gestión ilimitada de socios activos',
-    'Control de caja y pagos mensuales',
-    'Dashboard inteligente con métricas clave',
-    'Control de acceso automatizado y asistencia',
-    'Múltiples perfiles de usuario por equipo',
-    'Soporte técnico y asistencia prioritaria',
-    'Nuevas funciones y actualizaciones gratis',
-  ],
-};
+// Lo que el dueño se lleva por su cuota. Un plan, un precio, una lista.
+const FEATURES = [
+  'Gestión ilimitada de socios activos',
+  'Control de caja y pagos mensuales',
+  'Dashboard inteligente con métricas clave',
+  'Control de acceso automatizado y asistencia',
+  'Múltiples perfiles de usuario por equipo',
+  'Soporte técnico y asistencia prioritaria',
+  'Nuevas funciones y actualizaciones gratis',
+];
 
 export default function PlansPage() {
   const navigate = useNavigate();
@@ -31,9 +30,8 @@ export default function PlansPage() {
   const { gym, subscription } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
 
-  const orgType = gym?.type || localStorage.getItem('current_org_type') || 'GYM';
   const price = 80000; // Tarifa plana inamovible (Kill Switch V2)
-  const features = FEATURES_BY_TYPE[orgType] || FEATURES_BY_TYPE.GYM;
+  const features = FEATURES;
 
   // Esta página NUNCA mete a nadie al sistema sola. Antes hacía
   // `if (isActiveSubscription(subscription)) navigate(DASHBOARD)`, con dos problemas:
@@ -47,7 +45,7 @@ export default function PlansPage() {
   // Sin sucursal elegida no hay a quién cobrarle: el backend resuelve el tenant del header
   // X-Tenant-ID y respondería "No hay gimnasio en la sesión" DESPUÉS de que el cliente cargó
   // la tarjeta. Mejor decirlo antes que hacerle pagar en el aire. (Pasa con un F5 acá: /plans
-  // es una ruta que no exige contexto de negocio.)
+  // es una ruta que no exige contexto de gimnasio.)
   const sucursalElegida = gym?.id || localStorage.getItem('current_org_id');
 
   const handleSubscribe = async () => {
@@ -89,7 +87,7 @@ export default function PlansPage() {
 
         {/* Hero */}
         <div className="plans-hero">
-          <h1 className="plans-hero-title">Activá tu {getVertical(orgType).placeLabel}</h1>
+          <h1 className="plans-hero-title">Activá tu {GYM.placeLabel}</h1>
           <p className="plans-hero-subtitle">Suscripción mensual para acceso completo al sistema</p>
         </div>
 
@@ -158,7 +156,7 @@ export default function PlansPage() {
             <div className="plans-uptodate">
               <div className="plans-uptodate-head">
                 <Icon name="alertTriangle" size="1.2em" />
-                <strong>Elegí primero qué negocio querés activar</strong>
+                <strong>Elegí primero qué sucursal querés activar</strong>
               </div>
               <p className="plans-uptodate-text">
                 El cobro se hace sobre una sucursal en particular. Volvé al Lobby y entrá por
