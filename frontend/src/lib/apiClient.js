@@ -19,6 +19,7 @@ const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, metho
 
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';
+import { getShiftId } from './shift';
 
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
@@ -50,6 +51,15 @@ apiClient.interceptors.request.use(
     const deviceId = getDeviceId();
     if (deviceId) {
       config.headers['X-Device-Id'] = deviceId;
+    }
+
+    // Quién está en el turno del mostrador. El backend lo estampa en cada registro que se
+    // crea (performed_by_cashier_id), así que un cobro deja de ser anónimo: dice quién lo
+    // hizo, no solo desde qué máquina. Ausente cuando no hay turno abierto — la web del
+    // dueño, por ejemplo — y ahí el registro simplemente queda sin firma.
+    const cashierId = getShiftId();
+    if (cashierId) {
+      config.headers['X-Cashier-Id'] = cashierId;
     }
 
     // Versión de la app (inyectada por Vite desde package.json): alimenta la señal

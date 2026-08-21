@@ -16,6 +16,8 @@ export { teamService } from './TeamService';
 export { subscriptionService } from './SubscriptionService';
 export { errorService } from './ErrorService';
 export { deviceService } from './DeviceService';
+// Personas del mostrador (PIN por turno): no son usuarios, no tienen cuenta.
+export { cashierService } from './CashierService';
 
 // Analytics
 import InsightsService from './InsightsService';

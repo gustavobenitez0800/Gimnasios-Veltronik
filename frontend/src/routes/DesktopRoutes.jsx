@@ -38,6 +38,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage';
 import BillingWall from '../pages/BillingWall';
 import SubscriptionActionsDesktop from '../components/billing/SubscriptionActionsDesktop';
 import DeepLinkAuthBridge from '../components/DeepLinkAuthBridge';
+import ShiftGate from '../components/ShiftGate';
 
 export default function DesktopRoutes() {
   return (
@@ -46,6 +47,11 @@ export default function DesktopRoutes() {
         <Routes> a propósito: tiene que estar montado en cualquier pantalla, porque el
         deep link puede llegar en cualquier momento. */}
     <DeepLinkAuthBridge />
+
+    {/* ¿Quién está atendiendo? Bloquea la operación hasta que alguien marque su PIN, para
+        que cada cobro y cada acceso queden firmados. Solo aparece si el gimnasio ya cargó
+        gente en el mostrador — ver el porqué en el componente. */}
+    <ShiftGate />
 
     <Routes>
       {/* Auth pages (no sidebar) */}

@@ -2,8 +2,10 @@
 // VELTRONIK - SIDEBAR COMPONENT
 // ============================================
 
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getShift } from '../lib/shift';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
 import { GYM, roleLabel } from '../lib/gym';
@@ -130,6 +132,18 @@ export default function Sidebar({ isOpen, onClose }) {
   // es EN CUÁL está.
   const currentGymName = gym?.name || orgName || '';
 
+  // El turno abierto en esta computadora. Se relee cuando ShiftGate avisa que cambió.
+  const [turno, setTurno] = useState(() => getShift());
+  useEffect(() => {
+    const refrescar = () => setTurno(getShift());
+    window.addEventListener('veltronik-turno-cambiado', refrescar);
+    window.addEventListener('focus', refrescar);
+    return () => {
+      window.removeEventListener('veltronik-turno-cambiado', refrescar);
+      window.removeEventListener('focus', refrescar);
+    };
+  }, []);
+
   const handleLogout = async () => {
     await logout();
   };
@@ -218,6 +232,18 @@ export default function Sidebar({ isOpen, onClose }) {
               <div className="sidebar-user-name">{userName}</div>
               <div className="sidebar-user-role">{userRole}</div>
             </div>
+            {/* Quién está en el turno. Un clic lo cambia — 4 dígitos, sin cerrar sesión.
+                Va acá, al lado de quién está logueado, porque son dos cosas distintas que
+                la gente confunde: la CUENTA es del terminal, el TURNO es de la persona. */}
+            {turno && (
+              <button
+                className="sidebar-logout"
+                onClick={() => window.dispatchEvent(new Event('veltronik-cambiar-turno'))}
+                title={`En el turno: ${turno.name} — tocá para cambiar`}
+              >
+                <Icon name="userCog" />
+              </button>
+            )}
             <button
               className="sidebar-logout"
               onClick={handleLogout}
