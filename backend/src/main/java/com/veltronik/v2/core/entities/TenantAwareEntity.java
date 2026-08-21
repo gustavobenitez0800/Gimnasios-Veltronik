@@ -53,14 +53,36 @@ public abstract class TenantAwareEntity extends BaseEntity {
     private java.util.UUID originDeviceId;
 
     /**
-     * Hook de JPA: antes de insertar, si nadie asignó la procedencia explícitamente,
-     * toma el DNI de equipo de la request actual (header {@code X-Device-Id}, puesto
-     * en el ThreadLocal por {@code DeviceContextFilter}).
+     * QUIÉN hizo esto: el cajero que estaba en el turno cuando se creó el registro.
+     *
+     * <p>Complementa a {@link #originDeviceId}, que dice desde qué MÁQUINA vino. Las dos
+     * juntas contestan la pregunta que un dueño hace el día que falta plata en la caja:
+     * "¿quién cobró esto y desde dónde?".</p>
+     *
+     * <p>Nulo cuando no hay persona de mostrador detrás: lo que hace el dueño desde la web,
+     * los webhooks de Mercado Pago, los jobs. Y en todo lo anterior a esta función.</p>
+     */
+    @Column(name = "performed_by_cashier_id", updatable = false)
+    private java.util.UUID performedByCashierId;
+
+    /**
+     * Hook de JPA: antes de insertar, estampa la procedencia de la request actual — de qué
+     * equipo vino y quién estaba en el turno.
+     *
+     * <p>Los dos son {@code updatable = false}: la autoría de un registro no cambia aunque
+     * después alguien lo edite. Si mañana hace falta saber quién editó qué, eso es un
+     * historial aparte, no pisar el dato original.</p>
+     *
+     * <p>Solo se asigna si nadie lo puso explícitamente, para que un caso especial pueda
+     * estampar a mano sin que el hook lo pise.</p>
      */
     @PrePersist
-    protected void stampOriginDevice() {
+    protected void stampOrigin() {
         if (this.originDeviceId == null) {
             this.originDeviceId = com.veltronik.v2.core.security.DeviceContextHolder.getDeviceId();
+        }
+        if (this.performedByCashierId == null) {
+            this.performedByCashierId = com.veltronik.v2.core.security.CashierContextHolder.getCashierId();
         }
     }
 }
