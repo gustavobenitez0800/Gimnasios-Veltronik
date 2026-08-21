@@ -15,8 +15,15 @@ class TeamService {
     return response.data;
   }
 
-  async inviteMember(email, role) {
-    const response = await apiClient.post('/gym/team/invite', { email, role });
+  /**
+   * Suma a alguien al equipo. Si no tiene cuenta en Veltronik, el backend se la crea.
+   *
+   * @returns el miembro agregado. Cuando la cuenta se acaba de crear, trae además
+   *   `accountCreated: true` y `temporaryPassword` — que viaja UNA sola vez: no queda
+   *   guardada en ningún lado legible, así que si no se copia hay que resetearla.
+   */
+  async inviteMember(email, role, fullName) {
+    const response = await apiClient.post('/gym/team/invite', { email, role, fullName });
     return response.data;
   }
 

@@ -25,11 +25,16 @@ public class GymTeamController {
         return ResponseEntity.ok(teamService.getTeamMembers());
     }
 
+    /**
+     * Suma a alguien al equipo. Si no tiene cuenta en Veltronik, se la crea acá mismo y la
+     * respuesta trae la contraseña temporal — una sola vez, para que el dueño se la pase.
+     */
     @PostMapping("/invite")
     public ResponseEntity<Map<String, Object>> inviteMember(@RequestBody Map<String, String> payload) {
         String email = payload.get("email");
         String role = payload.get("role");
-        return ResponseEntity.ok(teamService.inviteMember(email, role));
+        String fullName = payload.get("fullName");
+        return ResponseEntity.ok(teamService.inviteMember(email, role, fullName));
     }
 
     @PutMapping("/{userId}/role")

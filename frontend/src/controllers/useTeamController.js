@@ -44,12 +44,14 @@ export function useTeamController() {
     }
   }, [currentGym]);
 
-  const inviteMember = async (email, role) => {
+  /** @returns el miembro agregado; trae `temporaryPassword` si se acaba de crear la cuenta. */
+  const inviteMember = async (email, role, fullName) => {
     setLoading(true);
     setError(null);
     try {
-      await teamService.inviteMember(email, role);
+      const creado = await teamService.inviteMember(email, role, fullName);
       await loadTeam();
+      return creado;
     } catch (err) {
       console.error("Error inviting member:", err);
       setError(err.message);

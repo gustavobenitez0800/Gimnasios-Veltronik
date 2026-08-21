@@ -8,7 +8,9 @@ import com.veltronik.v2.core.repositories.AppUserRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.exceptions.BusinessException;
+import com.veltronik.v2.core.security.MembershipCache;
 import com.veltronik.v2.core.security.TenantContextHolder;
+import com.veltronik.v2.core.services.SupabaseAdminService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import com.veltronik.v2.gym.entities.AccessLog;
@@ -32,12 +34,15 @@ public class GymTeamService {
     private final AccessLogRepository accessLogRepository;
     private final GymPaymentRepository paymentRepository;
     private final GymMemberRepository memberRepository;
-    private final com.veltronik.v2.core.security.MembershipCache membershipCache;
+    private final MembershipCache membershipCache;
+    /** Para crear la cuenta del empleado sin que se registre él (ver {@link #inviteMember}). */
+    private final SupabaseAdminService supabaseAdminService;
 
     public GymTeamService(TenantMembershipRepository membershipRepository, AppUserRepository userRepository,
                           TenantRepository tenantRepository, AccessLogRepository accessLogRepository,
                           GymPaymentRepository paymentRepository, GymMemberRepository memberRepository,
-                          com.veltronik.v2.core.security.MembershipCache membershipCache) {
+                          MembershipCache membershipCache,
+                          SupabaseAdminService supabaseAdminService) {
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
@@ -45,6 +50,7 @@ public class GymTeamService {
         this.paymentRepository = paymentRepository;
         this.memberRepository = memberRepository;
         this.membershipCache = membershipCache;
+        this.supabaseAdminService = supabaseAdminService;
     }
 
     public List<Map<String, Object>> getTeamMembers() {
@@ -69,15 +75,53 @@ public class GymTeamService {
     }
 
     @Transactional
-    public Map<String, Object> inviteMember(String email, String roleStr) {
+    /**
+     * Suma a alguien al equipo. Si no tiene cuenta, se la CREA.
+     *
+     * <p><b>Por qué cambió.</b> Antes esto exigía que el empleado se registrara solo: el
+     * dueño tenía que decirle "entrá a esta web, creá una cuenta y después decime qué
+     * email usaste". Con la rotación que tiene un mostrador, ese baile se repite todo el
+     * tiempo — y el botón "Invitar" no invitaba nada, solo vinculaba cuentas existentes.</p>
+     *
+     * <p>Ahora el dueño escribe nombre, email y rol, y listo. Si la persona YA tenía cuenta
+     * (porque trabaja en otra sucursal, por ejemplo), se vincula la que hay en vez de
+     * crear una nueva.</p>
+     *
+     * <p><b>La contraseña temporal viaja UNA sola vez</b>, en la respuesta de esta llamada
+     * — mismo criterio que la credencial de equipo. No queda guardada en ningún lado
+     * legible: el dueño la copia y se la pasa a la persona.</p>
+     *
+     * @param fullName nombre para mostrar; solo se usa si hay que crear la cuenta
+     */
+    public Map<String, Object> inviteMember(String email, String roleStr, String fullName) {
         UUID tenantId = TenantContextHolder.getTenantId();
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant no encontrado"));
 
-        AppUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException("El empleado debe tener una cuenta registrada en Veltronik."));
+        if (email == null || email.isBlank()) {
+            throw new BusinessException("Poné el email del empleado.");
+        }
+        final String emailLimpio = email.trim().toLowerCase();
 
         UserRole role = parseAssignableRole(roleStr);
+
+        String temporaryPassword = null;
+        Optional<AppUser> existente = userRepository.findByEmail(emailLimpio);
+        AppUser user;
+
+        if (existente.isPresent()) {
+            user = existente.get();
+        } else if (supabaseAdminService.isAvailable()) {
+            // No tiene cuenta: se la creamos. La fila de app_user la crea sola el trigger
+            // on_auth_user_created (V11) al insertarse el usuario en Supabase.
+            SupabaseAdminService.CreatedUser creado = supabaseAdminService.createUser(emailLimpio, fullName);
+            temporaryPassword = creado.temporaryPassword();
+            user = esperarUsuarioCreado(emailLimpio, creado.userId());
+        } else {
+            // Sin credencial de servicio configurada: se mantiene el comportamiento viejo
+            // en vez de romper. El mensaje dice qué hacer.
+            throw new BusinessException("El empleado debe tener una cuenta registrada en Veltronik.");
+        }
 
         Optional<TenantMembership> existingOpt = membershipRepository.findByUserIdAndTenantId(user.getId(), tenantId);
         TenantMembership membership;
@@ -103,9 +147,44 @@ public class GymTeamService {
         Map<String, Object> map = new HashMap<>();
         map.put("user_id", user.getId());
         map.put("email", user.getEmail());
-        map.put("fullName", user.getFirstName() + " " + user.getLastName());
+        map.put("fullName", (safe(user.getFirstName()) + " " + safe(user.getLastName())).trim());
         map.put("role", membership.getRole().name().toLowerCase());
+        // Presente SOLO cuando se acaba de crear la cuenta. Viaja una única vez: no queda
+        // guardada en ningún lado legible, así que si el dueño no la copia, hay que
+        // resetearla. El frontend la muestra con un aviso de eso.
+        map.put("temporaryPassword", temporaryPassword);
+        map.put("accountCreated", temporaryPassword != null);
         return map;
+    }
+
+    private static String safe(String value) {
+        return value != null ? value : "";
+    }
+
+    /**
+     * Espera a que aparezca la fila de {@code app_user} del usuario recién creado.
+     *
+     * <p>La crea un trigger de base de datos cuando Supabase inserta en {@code auth.users},
+     * no nuestro código. En la práctica ya está lista cuando la API responde, pero son dos
+     * caminos distintos hacia la misma base y no hay garantía de orden: sin este reintento,
+     * un alta podría fallar por milisegundos y el dueño vería un error con la cuenta ya
+     * creada — el peor de los dos mundos, porque reintentar le diría "ese email ya existe".</p>
+     */
+    private AppUser esperarUsuarioCreado(String email, UUID userId) {
+        for (int intento = 0; intento < 5; intento++) {
+            Optional<AppUser> encontrado = userRepository.findByEmail(email);
+            if (encontrado.isPresent()) return encontrado.get();
+            Optional<AppUser> porId = userRepository.findById(userId);
+            if (porId.isPresent()) return porId.get();
+            try {
+                Thread.sleep(200L * (intento + 1));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        throw new BusinessException(
+                "La cuenta se creó, pero todavía no está disponible. Esperá unos segundos y agregala por su email.");
     }
 
     @Transactional

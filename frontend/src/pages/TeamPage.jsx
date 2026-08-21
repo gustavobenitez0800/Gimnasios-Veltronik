@@ -37,7 +37,10 @@ export default function TeamPage() {
 
   // Invite
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState('staff');
+  /** Datos de la cuenta recién creada, para mostrar la contraseña temporal una única vez. */
+  const [nuevaCuenta, setNuevaCuenta] = useState(null);
   const [inviting, setInviting] = useState(false);
 
   // Role change
@@ -60,9 +63,24 @@ export default function TeamPage() {
     if (!inviteEmail.trim()) { showToast('Ingresá el email del empleado', 'error'); return; }
     setInviting(true);
     try {
-      await controllerInvite(inviteEmail.trim(), inviteRole);
-      showToast(`${inviteEmail} agregado como ${ROLE_LABELS[inviteRole]}`, 'success');
+      const creado = await controllerInvite(inviteEmail.trim(), inviteRole, inviteName.trim());
+
+      if (creado?.temporaryPassword) {
+        // Cuenta recién creada: la contraseña viaja UNA sola vez y no queda guardada en
+        // ningún lado legible. Va a un cartel que hay que cerrar a mano, no a un toast que
+        // se va solo en tres segundos — si el dueño no la copia, hay que resetearla.
+        setNuevaCuenta({
+          email: inviteEmail.trim(),
+          nombre: inviteName.trim(),
+          rol: ROLE_LABELS[inviteRole],
+          password: creado.temporaryPassword,
+        });
+      } else {
+        showToast(`${inviteEmail} agregado como ${ROLE_LABELS[inviteRole]}`, 'success');
+      }
+
       setInviteEmail('');
+      setInviteName('');
     } catch (err) {
       showToast(err.message || 'Error al invitar', 'error');
     } finally { setInviting(false); }
@@ -127,11 +145,14 @@ export default function TeamPage() {
           {/* Invite Section (owner / admin) */}
           {canManageTeam && (
             <div className="card mb-3" style={{ padding: '1.25rem' }}>
-              <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Invitar al equipo</h3>
+              <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Sumar al equipo</h3>
               <p className="text-muted mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
-                El empleado debe tener cuenta en Veltronik. Ingresá su email para agregarlo.
+                Poné su nombre y su email. Si todavía no tiene cuenta en Veltronik, se la creamos
+                acá mismo y te damos una contraseña para pasarle — no necesita registrarse por su cuenta.
               </p>
               <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
+                <input type="text" className="form-input" placeholder="Nombre y apellido"
+                  value={inviteName} onChange={e => setInviteName(e.target.value)} style={{ flex: 1, minWidth: 180 }} />
                 <input type="email" className="form-input" placeholder="empleado@email.com"
                   value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
                 <select className="form-select" value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ width: 'auto' }}>
@@ -140,7 +161,7 @@ export default function TeamPage() {
                   <option value="reception">Recepción</option>
                 </select>
                 <button className="btn btn-primary" onClick={handleInvite} disabled={inviting}>
-                  {inviting ? <span className="spinner" /> : <><Icon name="send" size="1em" /> Invitar</>}
+                  {inviting ? <span className="spinner" /> : <><Icon name="send" size="1em" /> Agregar</>}
                 </button>
               </div>
             </div>
@@ -226,6 +247,68 @@ export default function TeamPage() {
       )}
 
       {/* Role Modal */}
+      {/* Cuenta recién creada: la contraseña temporal se muestra UNA sola vez.
+          Va en un cartel que hay que cerrar a mano y no en un toast que se va solo: si el
+          dueño no la copia, no hay dónde volver a buscarla — no queda guardada en ningún
+          lado legible. Mismo criterio que la credencial de un equipo al enrolarlo. */}
+      {nuevaCuenta && (
+        <div className="modal-overlay modal-show">
+          <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="modal-header" style={{ marginBottom: '1.25rem' }}>
+              <h2 className="modal-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon name="checkCircle" size="1.1em" /> Cuenta creada
+              </h2>
+            </div>
+
+            <p className="text-muted mb-2" style={{ lineHeight: 1.6 }}>
+              {nuevaCuenta.nombre ? <strong>{nuevaCuenta.nombre}</strong> : 'La persona'} ya puede entrar
+              como <strong>{nuevaCuenta.rol}</strong>. Pasale estos datos:
+            </p>
+
+            <div style={{
+              background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-md)',
+              padding: '1rem', marginBottom: '1rem',
+            }}>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <div className="text-muted" style={{ fontSize: 'var(--font-size-xs)' }}>Usuario</div>
+                <code style={{ fontSize: '0.95rem', wordBreak: 'break-all' }}>{nuevaCuenta.email}</code>
+              </div>
+              <div>
+                <div className="text-muted" style={{ fontSize: 'var(--font-size-xs)' }}>Contraseña temporal</div>
+                <code style={{ fontSize: '1.15rem', letterSpacing: '0.05em', fontWeight: 700 }}>{nuevaCuenta.password}</code>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex', gap: '0.6rem', alignItems: 'flex-start',
+              background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
+              borderRadius: 'var(--border-radius-md)', padding: '0.75rem 0.9rem',
+              color: '#fbbf24', fontSize: 'var(--font-size-sm)', lineHeight: 1.5, marginBottom: '1.25rem',
+            }}>
+              <Icon name="alertTriangle" size="1.1em" />
+              <span>Esta contraseña no se vuelve a mostrar. Copiala antes de cerrar — si se pierde, hay que generar una nueva.</span>
+            </div>
+
+            <div className="flex gap-1">
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  navigator.clipboard?.writeText(`Usuario: ${nuevaCuenta.email}\nContraseña: ${nuevaCuenta.password}`)
+                    .then(() => showToast('Copiado', 'success'))
+                    .catch(() => showToast('No se pudo copiar — anotala a mano', 'error'));
+                }}
+              >
+                <Icon name="fileText" size="1em" /> Copiar
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setNuevaCuenta(null)}>
+                Ya la copié
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {roleModal && roleTarget && (
         <div className="modal-overlay modal-show" onClick={() => setRoleModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
