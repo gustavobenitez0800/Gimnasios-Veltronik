@@ -6,6 +6,9 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getShift } from '../lib/shift';
+// Directo desde ui/ y NO desde Layout: Layout importa este mismo archivo, así que
+// traerlo de ahí crearía un ciclo entre los dos módulos.
+import ConfirmDialog from './ui/ConfirmDialog';
 import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
 import { GYM, roleLabel } from '../lib/gym';
@@ -132,6 +135,8 @@ export default function Sidebar({ isOpen, onClose }) {
   // es EN CUÁL está.
   const currentGymName = gym?.name || orgName || '';
 
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+
   // El turno abierto en esta computadora. Se relee cuando ShiftGate avisa que cambió.
   const [turno, setTurno] = useState(() => getShift());
   useEffect(() => {
@@ -144,7 +149,19 @@ export default function Sidebar({ isOpen, onClose }) {
     };
   }, []);
 
+  /**
+   * En el ESCRITORIO, cerrar sesión pregunta antes.
+   *
+   * No es cautela genérica: es un caso que ya pasó. Este botón parece "salir del programa"
+   * y no lo es — deja el terminal pidiendo usuario y contraseña, que es justo lo que la
+   * persona del turno puede no tener. A las 7 de la mañana eso es un gimnasio sin sistema
+   * hasta que aparezca alguien con las credenciales.
+   *
+   * En la web no pregunta: ahí cerrar sesión es lo normal y no hay terminal que dejar
+   * colgado.
+   */
   const handleLogout = async () => {
+    if (CONFIG.IS_DESKTOP) { setConfirmarSalida(true); return; }
     await logout();
   };
 
@@ -254,6 +271,23 @@ export default function Sidebar({ isOpen, onClose }) {
           </div>
         </div>
       </aside>
+
+      {/* La segunda línea del mensaje es la que más sirve: le dice a la persona qué era lo
+          que probablemente quería hacer. Casi siempre es cambiar de turno, no cerrar la
+          sesión del terminal. */}
+      <ConfirmDialog
+        open={confirmarSalida}
+        title="¿Cerrar la sesión de este terminal?"
+        message={turno
+          ? `Vas a necesitar usuario y contraseña para volver a operar. Si lo que querés es que atienda otra persona, usá el cambio de turno — ahora está ${turno.name}.`
+          : 'Vas a necesitar usuario y contraseña para volver a operar en esta computadora.'}
+        icon="logout"
+        confirmText="Sí, cerrar sesión"
+        cancelText="Volver"
+        confirmClass="btn-danger"
+        onConfirm={async () => { setConfirmarSalida(false); await logout(); }}
+        onCancel={() => setConfirmarSalida(false)}
+      />
     </>
   );
 }

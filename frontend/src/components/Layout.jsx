@@ -274,22 +274,10 @@ export function EmptyState({ icon, title, description, action }) {
 }
 
 /**
- * Confirm dialog component
+ * Confirm dialog component.
+ *
+ * Se mudó a components/ui/ConfirmDialog.jsx: Layout importa Sidebar, y Sidebar necesita
+ * confirmar el cierre de sesión — tenerlo acá habría creado un ciclo entre los dos
+ * módulos. Se re-exporta para que todo lo que ya lo importaba desde Layout siga andando.
  */
-export function ConfirmDialog({ open, title, message, icon = 'alertTriangle', confirmText = 'Confirmar', cancelText = 'Cancelar', confirmClass = 'btn-danger', onConfirm, onCancel }) {
-  if (!open) return null;
-
-  return (
-    <div className="modal-overlay modal-show" onClick={onCancel}>
-      <div className="modal-container confirm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-icon">{typeof icon === 'string' && icon.length > 2 ? <Icon name={icon} size="2rem" /> : icon}</div>
-        <h2 className="modal-title">{title}</h2>
-        <p className="modal-message">{message}</p>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>{cancelText}</button>
-          <button className={`btn ${confirmClass}`} onClick={onConfirm}>{confirmText}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+export { default as ConfirmDialog } from './ui/ConfirmDialog';
