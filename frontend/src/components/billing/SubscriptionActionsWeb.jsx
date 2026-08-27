@@ -22,14 +22,15 @@
 
 import { useState } from 'react';
 import CardCheckout from '../CardCheckout';
-import CONFIG from '../../lib/config';
 import Icon from '../Icon';
+import { useMonthlyPrice } from '../../hooks/useMonthlyPrice';
 
 export default function SubscriptionActionsWeb({
   plan, statusLabel, blocked, nextPayment, monthlyAmountLabel,
   hasSubscription, verifying, onVerify, onCardSuccess,
 }) {
   const [showCardForm, setShowCardForm] = useState(false);
+  const precioMensual = useMonthlyPrice(); // el monto real del backend, no el del build
 
   const handleSuccess = async () => {
     setShowCardForm(false);
@@ -97,7 +98,7 @@ export default function SubscriptionActionsWeb({
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '0.75rem' }}>
                 Ingresá la tarjeta nueva. El cobro mensual seguirá siendo {monthlyAmountLabel}.
               </p>
-              <CardCheckout amount={CONFIG.SUBSCRIPTION_PRICE} onSuccess={handleSuccess} />
+              <CardCheckout amount={precioMensual} onSuccess={handleSuccess} />
             </div>
           )}
         </>

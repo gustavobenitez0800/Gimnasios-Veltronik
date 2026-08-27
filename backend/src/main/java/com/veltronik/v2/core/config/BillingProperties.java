@@ -10,7 +10,7 @@ import java.math.BigDecimal;
  * Los datos del cobro, en UN solo lugar.
  *
  * <p>Antes cada clase que necesitaba el precio lo leía por su cuenta con su propio valor por
- * defecto: {@code @Value("${veltronik.billing.monthly-price:80000}")} estaba escrito CUATRO veces
+ * defecto: {@code @Value("${veltronik.billing.monthly-price:...}")} estaba escrito CUATRO veces
  * (PublicConfigController, BillingService, MercadoPagoService y SubscriptionBillingService) y la
  * URL del frontend DOS. Tocar el precio obligaba a acordarse de los cuatro, y el que se olvidara
  * quedaba cobrando distinto de lo que la app le muestra al cliente. Acá el default vive una vez
@@ -24,7 +24,14 @@ import java.math.BigDecimal;
 @Getter
 public class BillingProperties {
 
-    /** Precio mensual del sistema (ARS). Tarifa plana para todos los rubros. */
+    /**
+     * Precio mensual del plan BÁSICO (ARS) — el único que se ofrece hoy.
+     *
+     * <p><b>No es retroactivo:</b> el monto viaja grabado dentro del preapproval que
+     * {@code MercadoPagoService} crea al suscribir, así que Mercado Pago sigue cobrando el
+     * precio que regía ese día. Bajar este valor NO le baja la cuota a quien ya está
+     * suscripto: para eso hay que rehacerle el preapproval (vuelve a cargar la tarjeta).</p>
+     */
     private final BigDecimal monthlyPrice;
 
     /** Base pública de la app web: a dónde vuelve el cliente después de pagar. */
@@ -34,7 +41,7 @@ public class BillingProperties {
     private final int trialDays;
 
     public BillingProperties(
-            @Value("${veltronik.billing.monthly-price:80000}") BigDecimal monthlyPrice,
+            @Value("${veltronik.billing.monthly-price:45000}") BigDecimal monthlyPrice,
             @Value("${veltronik.billing.trial-days:14}") int trialDays,
             // Cadena de respaldo a propósito: `cors.frontend-url` es la variable histórica, pero
             // no está definida en application.properties, así que si nadie la setea caía SIEMPRE

@@ -26,6 +26,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { openPortal, portalUrl } from '../lib/portal';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
+import { useMonthlyPriceLabel } from '../hooks/useMonthlyPrice';
 
 /** Ruta del portal a la que se manda para pagar. */
 const PORTAL_BILLING_PATH = '/#/plans';
@@ -35,6 +36,7 @@ export default function BillingWall() {
   const navigate = useNavigate();
   const [opened, setOpened] = useState(false);
   const [failed, setFailed] = useState(false);
+  const precio = useMonthlyPriceLabel(); // el monto real del backend, no el del build
 
   // El rol puede no estar en el contexto todavía (el muro se puede pintar antes de que
   // termine de resolverse la sesión); el localStorage lo escribe el Lobby al entrar.
@@ -93,7 +95,7 @@ export default function BillingWall() {
           {canPay ? (
             <>
               El cobro se hace desde el portal web, en tu navegador — más seguro y con todos
-              los medios de pago. Son <b style={{ color: '#fff' }}>${CONFIG.SUBSCRIPTION_PRICE.toLocaleString('es-AR')} ARS</b> por
+              los medios de pago. Son <b style={{ color: '#fff' }}>${precio} ARS</b> por
               mes. Tus socios, cuotas y accesos quedan intactos mientras tanto.
             </>
           ) : (
