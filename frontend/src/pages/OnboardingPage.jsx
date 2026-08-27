@@ -24,6 +24,7 @@ import { DEFAULT_LOGO_EMOJI } from '../lib/logo';
 
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
+import { useMonthlyPriceLabel } from '../hooks/useMonthlyPrice';
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export default function OnboardingPage() {
     return () => { active = false; };
   }, []);
 
-  const monthlyPrice = CONFIG.SUBSCRIPTION_PRICE.toLocaleString('es-AR');
+  const monthlyPrice = useMonthlyPriceLabel(); // lo dice el backend, no el build
 
   const handleSubmit = async (e) => {
     e.preventDefault();

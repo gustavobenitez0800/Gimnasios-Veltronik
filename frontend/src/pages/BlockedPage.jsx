@@ -12,12 +12,17 @@ import { useToast } from '../contexts/ToastContext';
 import CardCheckout from '../components/CardCheckout';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
+import { useMonthlyPrice } from '../hooks/useMonthlyPrice';
 
 export default function BlockedPage() {
   const { logout } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [fallbackLoading, setFallbackLoading] = useState(false);
+  // Antes acá decía "$80.000 ARS" escrito a mano: el muro de pago prometía un precio y el
+  // cobro salía por otro. Ahora lo dice el backend, que es el que le pasa el monto a MP.
+  const precioNumero = useMonthlyPrice();
+  const precio = precioNumero.toLocaleString('es-AR');
 
   // Pago OK con tarjeta → el backend ya reactivó. Volvemos al Lobby, que re-evalúa el acceso
   // y enruta al dashboard.
@@ -73,12 +78,12 @@ export default function BlockedPage() {
         </h1>
 
         <p style={{ color: '#d1d5db', marginBottom: '1.5rem', lineHeight: '1.6', fontSize: '0.98rem' }}>
-          Ingresá tu tarjeta y listo — el cobro es mensual de <b style={{ color: '#fff' }}>$80.000 ARS</b> y
+          Ingresá tu tarjeta y listo — el cobro es mensual de <b style={{ color: '#fff' }}>${precio} ARS</b> y
           tus sucursales y socios siguen intactos. Pago seguro procesado por Mercado Pago.
         </p>
 
         {/* Formulario de tarjeta (tokeniza y suscribe sin salir de la app) */}
-        <CardCheckout onSuccess={handleSuccess} />
+        <CardCheckout amount={precioNumero} onSuccess={handleSuccess} />
 
         {/* Respaldo: link clásico de Mercado Pago */}
         <button

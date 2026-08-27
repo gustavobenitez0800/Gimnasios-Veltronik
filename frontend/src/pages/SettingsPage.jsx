@@ -19,6 +19,7 @@ import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 import CONFIG from '../lib/config';
+import { getPaymentConfig } from '../lib/paymentConfig';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
 import GymLogo from '../components/GymLogo';
@@ -126,9 +127,10 @@ export default function SettingsPage({ SubscriptionActions }) {
           : `${dateStr} (período de prueba finalizado)`;
       }
 
-      // Precio plano, un solo plan. (Antes esto era una tabla precio-por-rubro y un
-      // mapa de nombres de plan por rubro; con un solo producto son dos constantes.)
-      const amount = CONFIG.SUBSCRIPTION_PRICE;
+      // El precio lo dice el BACKEND, que es quien le pasa el monto a Mercado Pago.
+      // (Antes esto era CONFIG.SUBSCRIPTION_PRICE, horneado en el build: un instalador
+      // viejo mostraba para siempre el precio con el que se compiló.)
+      const amount = (await getPaymentConfig()).monthlyPrice;
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
       // de visualización desde la fuente real para no depender de un campo inexistente.

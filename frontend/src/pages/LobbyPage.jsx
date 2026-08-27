@@ -17,7 +17,7 @@ import UpdateIndicator from '../components/UpdateIndicator';
 import { getInitials } from '../lib/utils';
 import { computeAccess } from '../lib/access';
 import { roleLabel } from '../lib/gym';
-import { useVisualViewport } from '../hooks';
+import { useVisualViewport, useMonthlyPrice } from '../hooks';
 import Icon from '../components/Icon';
 import GymLogo from '../components/GymLogo';
 import logoSrc from '../assets/LogotipoSecundario.png';
@@ -71,6 +71,7 @@ const BLOCK_MESSAGES = {
 // ============================================
 
 export default function LobbyPage() {
+  const precioMensual = useMonthlyPrice(); // el que cobra el backend, no el horneado en el build
   const { profile, logout, refreshOrgContext } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -362,7 +363,7 @@ export default function LobbyPage() {
 
   // ─── Render de una card de negocio (extraído para poder agrupar) ───
   const renderOrgCard = (org) => {
-    const price = CONFIG.SUBSCRIPTION_PRICE;
+    const price = precioMensual;
     const accessStatus = orgStatuses[org.id];
     const isBlocked = accessStatus && !accessStatus.canAccess;
 
@@ -631,7 +632,7 @@ export default function LobbyPage() {
             {/* Price info */}
             <div className="lobby-blocked-price-info">
               <span>Precio del sistema:</span>
-              <strong>${CONFIG.SUBSCRIPTION_PRICE.toLocaleString('es-AR')}/mes</strong>
+              <strong>${precioMensual.toLocaleString('es-AR')}/mes</strong>
             </div>
 
             {/* Actions */}

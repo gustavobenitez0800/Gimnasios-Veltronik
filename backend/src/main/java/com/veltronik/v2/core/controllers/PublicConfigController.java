@@ -2,11 +2,13 @@ package com.veltronik.v2.core.controllers;
 
 import com.veltronik.v2.core.config.BillingProperties;
 import com.veltronik.v2.core.config.MercadoPagoProperties;
+import com.veltronik.v2.core.config.PlanCatalog;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,10 +37,13 @@ public class PublicConfigController {
 
     private final MercadoPagoProperties mercadoPago;
     private final BillingProperties billing;
+    private final PlanCatalog planCatalog;
 
-    public PublicConfigController(MercadoPagoProperties mercadoPago, BillingProperties billing) {
+    public PublicConfigController(MercadoPagoProperties mercadoPago, BillingProperties billing,
+                                  PlanCatalog planCatalog) {
         this.mercadoPago = mercadoPago;
         this.billing = billing;
+        this.planCatalog = planCatalog;
     }
 
     @GetMapping("/payment-config")
@@ -49,5 +54,26 @@ public class PublicConfigController {
                 "currency", "ARS",
                 "monthlyPrice", billing.getMonthlyPrice()
         ));
+    }
+
+    /**
+     * Los planes que se pueden contratar HOY.
+     *
+     * <p>Devuelve solo los {@code available}: un plan en construcción existe en el catálogo
+     * —para poder programarlo— pero no sale por acá, así que ninguna pantalla puede ofrecerlo
+     * ni por error. El día que se prende la variable de entorno, aparece solo.</p>
+     */
+    @GetMapping("/plans")
+    public ResponseEntity<List<Map<String, Object>>> plans() {
+        List<Map<String, Object>> body = planCatalog.available().stream()
+                .map(p -> Map.<String, Object>of(
+                        "code", p.code().name(),
+                        "name", p.name(),
+                        "tagline", p.tagline(),
+                        "price", p.price(),
+                        "features", p.features()
+                ))
+                .toList();
+        return ResponseEntity.ok(body);
     }
 }

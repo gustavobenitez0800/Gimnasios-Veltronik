@@ -25,6 +25,18 @@ public class Subscription extends TenantAwareEntity {
     @Column(nullable = false, length = 50)
     private String status;
 
+    /**
+     * Qué plan contrató (V46). Se guarda como texto: el plan es un dato del CONTRATO, no algo
+     * a deducir del monto pagado — el precio cambia con el tiempo y el importe viaja grabado
+     * en el preapproval del día del alta, así que un cliente viejo del básico a 80.000 se
+     * leería como premium para siempre.
+     *
+     * <p>Se lee con {@code PlanCode.from(...)}, que ante un valor desconocido cae en BÁSICO:
+     * si un dato llega raro, que falle hacia MENOS acceso y nunca hacia más.</p>
+     */
+    @Column(name = "plan_code", nullable = false, length = 20)
+    private String planCode = com.veltronik.v2.core.config.PlanCode.BASICO.name();
+
     @Column(name = "current_period_start")
     private LocalDateTime currentPeriodStart;
 

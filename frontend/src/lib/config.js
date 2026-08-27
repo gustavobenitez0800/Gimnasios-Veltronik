@@ -41,10 +41,13 @@ const CONFIG = {
   // Debug mode
   DEBUG: import.meta.env.DEV,
 
-  // Precio de la suscripción (ARS). Tarifa plana por sucursal: un solo producto,
-  // un solo precio. (Antes había además un PRICES_BY_TYPE con un precio por rubro;
-  // los tres valores eran 80000 y el rubro ya no existe.)
-  SUBSCRIPTION_PRICE: 80000,
+  // Precio del plan básico (ARS), por sucursal.
+  //
+  // ⚠️ Esto es solo el RESPALDO de build-time. La fuente de verdad es el backend
+  // (veltronik.billing.monthly-price → /public/payment-config), porque es el monto que
+  // Mercado Pago cobra de verdad. Para mostrar el precio en pantalla usá el hook
+  // `useMonthlyPrice()`, no esta constante: un instalador viejo tiene acá el precio viejo.
+  SUBSCRIPTION_PRICE: 45000,
   SUBSCRIPTION_CURRENCY: 'ARS',
 
   // App Configuration

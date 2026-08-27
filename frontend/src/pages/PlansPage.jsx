@@ -1,8 +1,19 @@
 // ============================================
-// VELTRONIK V2 - PLANS PAGE (Premium Subscription Checkout)
+// VELTRONIK V2 - PLANS PAGE (contratación)
 // ============================================
+// Los planes los define el BACKEND (/public/plans), no esta pantalla.
+//
+// POR QUÉ
+// Antes acá vivían el precio (`const price = 80000`) y la lista de funciones, escritos a
+// mano. Dos problemas: bajar el precio en el servidor dejaba esta página mostrando el viejo
+// —el cliente leía un número y le cobraban otro— y la lista prometía "Control de acceso
+// automatizado", que pasó a ser una función del plan premium.
+//
+// Ahora el backend manda solo los planes CONTRATABLES: un plan en construcción existe en el
+// catálogo para poder programarlo, pero no sale por el endpoint, así que esta pantalla no
+// puede ofrecerlo ni por error.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,26 +23,48 @@ import { GYM } from '../lib/gym';
 import apiClient from '../lib/apiClient';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
-
-// Lo que el dueño se lleva por su cuota. Un plan, un precio, una lista.
-const FEATURES = [
-  'Gestión ilimitada de socios activos',
-  'Control de caja y pagos mensuales',
-  'Dashboard inteligente con métricas clave',
-  'Control de acceso automatizado y asistencia',
-  'Múltiples perfiles de usuario por equipo',
-  'Soporte técnico y asistencia prioritaria',
-  'Nuevas funciones y actualizaciones gratis',
-];
+import { useMonthlyPrice } from '../hooks/useMonthlyPrice';
 
 export default function PlansPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { gym, subscription } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
+  const [planes, setPlanes] = useState(null);
 
-  const price = 80000; // Tarifa plana inamovible (Kill Switch V2)
-  const features = FEATURES;
+  // Respaldo si el backend no contesta: el muro de pago NO puede quedar en blanco — es la
+  // única pantalla desde donde un cliente bloqueado puede volver a entrar. El precio sale
+  // del hook (que ya tiene su propia cadena de respaldo).
+  const precioRespaldo = useMonthlyPrice();
+
+  useEffect(() => {
+    let vigente = true;
+    apiClient.get('/public/plans')
+      .then((res) => {
+        const lista = Array.isArray(res.data) ? res.data : [];
+        if (vigente && lista.length > 0) setPlanes(lista);
+        else if (vigente) setPlanes([]); // respondió, pero sin planes → usamos el respaldo
+      })
+      .catch(() => { if (vigente) setPlanes([]); });
+    return () => { vigente = false; };
+  }, []);
+
+  const planesAMostrar = (planes && planes.length > 0) ? planes : [{
+    code: 'BASICO',
+    name: 'Veltronik',
+    tagline: 'Todo lo que necesitás para manejar el gimnasio.',
+    price: precioRespaldo,
+    features: [
+      'Gestión ilimitada de socios activos',
+      'Control de caja y pagos mensuales',
+      'Dashboard inteligente con métricas clave',
+      'Registro de asistencia y accesos',
+      'Sigue funcionando sin internet',
+      'Múltiples perfiles de usuario por equipo',
+      'Soporte técnico y asistencia prioritaria',
+      'Nuevas funciones y actualizaciones gratis',
+    ],
+  }];
 
   // Esta página NUNCA mete a nadie al sistema sola. Antes hacía
   // `if (isActiveSubscription(subscription)) navigate(DASHBOARD)`, con dos problemas:
@@ -109,66 +142,70 @@ export default function PlansPage() {
           </div>
         )}
 
-        {/* Card de precio */}
-        <div className="plans-card">
-          <div className="plans-card-badge">Veltronik Premium</div>
-
-          <div className="plans-card-head">
-            <h2 className="plans-card-title">Veltronik Premium</h2>
-            <p className="plans-card-desc">Acceso completo e ilimitado a todas las funcionalidades</p>
-          </div>
-
-          {/* Precio */}
-          <div className="plans-price-box">
-            <div className="plans-price">
-              <span className="plans-price-currency">$</span>
-              <span className="plans-price-amount tabular-nums">{price.toLocaleString('es-AR')}</span>
+        {planesAMostrar.map((plan) => (
+          <div className="plans-card" key={plan.code}>
+            {/* El nombre va una sola vez, en el título. (Antes la chapita y el título decían
+                los dos "Veltronik Premium"; con el nombre del plan servido por el backend la
+                repetición quedaba a la vista: "Veltronik / Veltronik".) */}
+            <div className="plans-card-head">
+              <h2 className="plans-card-title">{plan.name}</h2>
+              <p className="plans-card-desc">{plan.tagline}</p>
             </div>
-            <span className="plans-price-period">por mes</span>
-          </div>
 
-          {/* Features */}
-          <ul className="plans-features">
-            {features.map((f, i) => (
-              <li key={i} className="plans-feature">
-                <span className="plans-feature-check"><Icon name="check" size="1.1em" /></span>
-                <span>{f}</span>
-              </li>
-            ))}
-          </ul>
-
-          {sucursalElegida ? (
-            <>
-              {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
-              <CardCheckout amount={price} onSuccess={handleSuccess} />
-
-              {/* Respaldo: link clásico de Mercado Pago */}
-              <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
-                {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
-              </button>
-
-              <div className="plans-secure">
-                <Icon name="lock" size="0.9em" />
-                <span>Pago seguro procesado por Mercado Pago</span>
+            {/* Precio */}
+            <div className="plans-price-box">
+              <div className="plans-price">
+                <span className="plans-price-currency">$</span>
+                <span className="plans-price-amount tabular-nums">
+                  {Number(plan.price).toLocaleString('es-AR')}
+                </span>
               </div>
-            </>
-          ) : (
-            <div className="plans-uptodate">
-              <div className="plans-uptodate-head">
-                <Icon name="alertTriangle" size="1.2em" />
-                <strong>Elegí primero qué sucursal querés activar</strong>
-              </div>
-              <p className="plans-uptodate-text">
-                El cobro se hace sobre una sucursal en particular. Volvé al Lobby y entrá por
-                la que querés activar para que el pago quede asociado a ella.
-              </p>
-              <button className="btn btn-primary" style={{ width: '100%' }}
-                onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
-                Ir al Lobby <Icon name="arrowRight" size="1em" />
-              </button>
+              <span className="plans-price-period">por mes</span>
             </div>
-          )}
-        </div>
+
+            {/* Features */}
+            <ul className="plans-features">
+              {(plan.features || []).map((f, i) => (
+                <li key={i} className="plans-feature">
+                  <span className="plans-feature-check"><Icon name="check" size="1.1em" /></span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            {sucursalElegida ? (
+              <>
+                {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
+                <CardCheckout amount={Number(plan.price)} onSuccess={handleSuccess} />
+
+                {/* Respaldo: link clásico de Mercado Pago */}
+                <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
+                  {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
+                </button>
+
+                <div className="plans-secure">
+                  <Icon name="lock" size="0.9em" />
+                  <span>Pago seguro procesado por Mercado Pago</span>
+                </div>
+              </>
+            ) : (
+              <div className="plans-uptodate">
+                <div className="plans-uptodate-head">
+                  <Icon name="alertTriangle" size="1.2em" />
+                  <strong>Elegí primero qué sucursal querés activar</strong>
+                </div>
+                <p className="plans-uptodate-text">
+                  El cobro se hace sobre una sucursal en particular. Volvé al Lobby y entrá por
+                  la que querés activar para que el pago quede asociado a ella.
+                </p>
+                <button className="btn btn-primary" style={{ width: '100%' }}
+                  onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
+                  Ir al Lobby <Icon name="arrowRight" size="1em" />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
