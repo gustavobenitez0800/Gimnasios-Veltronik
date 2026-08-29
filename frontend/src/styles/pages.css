@@ -1190,3 +1190,94 @@
   color: var(--text-muted);
 }
 .copia-local.is-vieja { color: var(--warning-500, #f59e0b); }
+
+/* ============================================
+   BORRADO DE CUENTA
+   ============================================ */
+
+/* Pantalla del arrepentimiento. Centrada y sola: mientras corre la gracia el sistema está
+   cerrado, así que no hay nada más que mostrar — y el botón de volver atrás tiene que ser
+   lo único en lo que se pueda hacer clic. */
+.borrado-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  background: var(--bg-primary);
+}
+
+.borrado-card {
+  width: 100%;
+  max-width: 32rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem 1.75rem;
+  text-align: center;
+}
+
+.borrado-icono { color: var(--danger-500, #ef4444); margin-bottom: 1rem; }
+
+.borrado-titulo {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+/* La cuenta regresiva es el dato que convierte una decisión abstracta en algo concreto:
+   "faltan 6 días" se entiende, "próximamente" no. Por eso va grande. */
+.borrado-cuenta {
+  font-size: 1.15rem;
+  color: var(--danger-500, #ef4444);
+  margin: 0 0 1.25rem;
+}
+.borrado-cuenta span { color: var(--text-muted); font-size: 0.92rem; }
+
+.borrado-texto {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 1rem;
+  text-align: left;
+}
+
+.borrado-btn { width: 100%; min-height: 3.25rem; font-size: 1.05rem; margin-top: 0.5rem; }
+
+.borrado-nota {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  text-align: left;
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Modal de confirmación. La fricción de escribir el nombre es deliberada. */
+.borrado-modal { max-width: 30rem; }
+.borrado-modal-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger-500, #ef4444);
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+.borrado-modal-lista {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.borrado-modal-label {
+  display: block;
+  margin: 1rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}

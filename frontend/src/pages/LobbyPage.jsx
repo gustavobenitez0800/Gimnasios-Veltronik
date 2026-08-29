@@ -18,6 +18,8 @@ import { getInitials } from '../lib/utils';
 import { computeAccess } from '../lib/access';
 import { roleLabel } from '../lib/gym';
 import { useVisualViewport, useMonthlyPrice } from '../hooks';
+import { accountService } from '../services/AccountService';
+import CuentaEnBorrado from '../components/CuentaEnBorrado';
 import Icon from '../components/Icon';
 import GymLogo from '../components/GymLogo';
 import logoSrc from '../assets/LogotipoSecundario.png';
@@ -72,6 +74,18 @@ const BLOCK_MESSAGES = {
 
 export default function LobbyPage() {
   const precioMensual = useMonthlyPrice(); // el que cobra el backend, no el horneado en el build
+  const [borradoPendiente, setBorradoPendiente] = useState(null);
+
+  // Se pregunta en cada entrada al Lobby. Falla en silencio: si el backend no contesta, el
+  // Lobby se comporta como siempre. Un problema de red no puede hacer aparecer —ni
+  // desaparecer— una pantalla de borrado de cuenta.
+  useEffect(() => {
+    let vigente = true;
+    accountService.getDeletionStatus()
+      .then((e) => { if (vigente) setBorradoPendiente(e); })
+      .catch(() => {});
+    return () => { vigente = false; };
+  }, []);
   const { profile, logout, refreshOrgContext } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -495,6 +509,17 @@ export default function LobbyPage() {
       </p>
     </button>
   );
+
+  // ─── Cuenta pidiendo borrarse ───
+  // El Lobby es por donde pasa todo el mundo al entrar, y con la cuenta marcada para borrar
+  // TODOS sus gimnasios quedan cerrados: no puede ir a ningún otro lado. Así que este es el
+  // lugar donde tiene que aparecer la puerta para arrepentirse.
+  //
+  // Se muestra en vez del Lobby, no encima: con todas las sucursales bloqueadas, la lista de
+  // cards no ofrece nada que hacer y solo confundiría.
+  if (borradoPendiente?.pendiente) {
+    return <CuentaEnBorrado estado={borradoPendiente} onCancelado={() => window.location.reload()} />;
+  }
 
   // ─── Render ───
   return (
