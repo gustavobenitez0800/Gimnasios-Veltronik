@@ -10,6 +10,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services';
 import apiClient from '../lib/apiClient';
 import { clearQueryCache } from '../hooks/useQueryCache';
+// La copia local de socios se borra al cerrar sesión: la lista de un gimnasio no puede
+// quedar en la máquina para que la vea quien entre después.
+import { olvidarSocios } from '../lib/localMembers';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
@@ -319,6 +322,7 @@ export function AuthProvider({ children }) {
       // Force redirect anyway
     }
     clearQueryCache();
+    olvidarSocios();
     lastLoadedOrgRef.current = null;
     setUser(null);
     setProfile(null);
@@ -348,6 +352,7 @@ export function AuthProvider({ children }) {
       async (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           clearQueryCache();
+          olvidarSocios();
           lastLoadedOrgRef.current = null;
           setUser(null);
           setProfile(null);

@@ -15,7 +15,16 @@ const apiClient = axios.create({
 // transitorio de red no debe romper un GET; los reintentamos con backoff. NUNCA se
 // reintenta un POST/PUT/DELETE (evita duplicar cobros, altas, etc.) ni un error con
 // respuesta HTTP (4xx/5xx ya son decisiones del backend, no fallos de transporte).
-const NETWORK_RETRY = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 3000, methods: ['get', 'head'] };
+// UN reintento, no dos.
+//
+// Con dos, un GET que no llega tarda el timeout COMPLETO tres veces seguidas antes de
+// admitir la falla: 20s + 20s + 20s = más de un minuto con la pantalla girando y el socio
+// esperando en el mostrador. Los recepcionistas no se quejaban de que "va lento" — se
+// quejaban de eso.
+//
+// El segundo reintento casi nunca salva nada: si dos intentos separados por medio segundo
+// fallaron, el problema no es un paquete perdido. Lo que sí hace es triplicar la espera.
+const NETWORK_RETRY = { maxRetries: 1, baseDelayMs: 500, maxDelayMs: 3000, methods: ['get', 'head'] };
 
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';

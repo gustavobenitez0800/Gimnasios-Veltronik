@@ -1176,3 +1176,17 @@
   line-height: 1.5;
   color: var(--text-muted);
 }
+
+/* Estado de la copia local de socios, al lado del buscador de recepción.
+   Discreto a propósito: la mayor parte del tiempo dice "hace unos segundos" y nadie lo
+   mira. Cuando se cae el internet empieza a envejecer a la vista, y ahí explica solo por
+   qué el socio que acaba de pagar sigue figurando vencido. */
+.copia-local {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.copia-local.is-vieja { color: var(--warning-500, #f59e0b); }

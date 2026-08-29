@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { refrescarSocios } from '../lib/localMembers';
 
 class PaymentService {
   async getAll() {
@@ -23,6 +24,11 @@ class PaymentService {
 
   async createPayment(data) {
     const response = await apiClient.post('/gym/payments', data);
+    // Cobrar corre el vencimiento del socio, así que la copia local del mostrador quedó
+    // vieja en el dato que más importa: si no se refresca, el socio que ACABA de pagar
+    // sigue apareciendo vencido en el buscador de al lado.
+    const tenantId = localStorage.getItem('current_org_id');
+    if (tenantId) refrescarSocios(tenantId).catch(() => {});
     return response.data;
   }
 
