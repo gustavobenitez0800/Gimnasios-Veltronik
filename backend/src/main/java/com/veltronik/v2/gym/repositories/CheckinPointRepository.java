@@ -30,10 +30,10 @@ public interface CheckinPointRepository extends JpaRepository<CheckinPoint, UUID
      * tiene que dejar de funcionar.</p>
      */
     @Query(value = """
-            SELECT cp.id          AS point_id,
-                   cp.tenant_id   AS tenant_id,
-                   cp.name        AS point_name,
-                   t.name         AS gym_name
+            SELECT cp.id          AS "pointId",
+                   cp.tenant_id   AS "tenantId",
+                   cp.name        AS "pointName",
+                   t.name         AS "gymName"
               FROM checkin_point cp
               JOIN tenant t ON t.id = cp.tenant_id
              WHERE cp.token = :token
