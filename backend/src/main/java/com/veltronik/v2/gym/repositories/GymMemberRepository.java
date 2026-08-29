@@ -30,6 +30,19 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
            "LOWER(COALESCE(m.email, '')) LIKE LOWER(CONCAT('%', :q, '%')))")
     Page<GymMember> searchByTenantId(@Param("tenantId") UUID tenantId, @Param("q") String q, Pageable pageable);
 
+    /**
+     * El socio con ESE documento exacto en ESTE gimnasio. Lo usa el check-in por QR, donde el
+     * socio se identifica con su DNI.
+     *
+     * <p>Exacto y no "contiene" a propósito: el buscador del mostrador usa {@code LIKE} porque
+     * ahí hay una persona eligiendo de una lista. Acá no hay nadie mirando — un {@code LIKE}
+     * podría marcarle la entrada al socio equivocado.</p>
+     *
+     * <p>Devuelve lista y no {@code Optional} porque el documento no tiene índice único: si un
+     * gimnasio cargó dos veces a la misma persona, queremos enterarnos en vez de que explote.</p>
+     */
+    List<GymMember> findByTenantIdAndDocument(UUID tenantId, String document);
+
     // Para "Expiring Soon" (vencen en los próximos días)
     List<GymMember> findByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
 

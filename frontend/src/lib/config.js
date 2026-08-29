@@ -81,6 +81,9 @@ const CONFIG = {
     // Resumen del dueño sobre TODAS sus sucursales. Solo portal web, y no necesita una
     // sucursal seleccionada — justamente habla de todas.
     OWNER_INSIGHTS: '/resumen',
+    // Check-in del socio por QR. El :token lo pone el cartel de la puerta; es lo único que
+    // dice a qué sucursal pertenece el escaneo, porque el socio no tiene sesión.
+    CHECKIN: '/marcar/:token',
   }),
 
   // Gym Status
