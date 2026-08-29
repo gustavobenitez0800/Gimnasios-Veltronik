@@ -1013,3 +1013,157 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* ============================================
+   CHECK-IN DEL SOCIO (público, celular)
+   ============================================
+   Pantalla que se abre al escanear el QR de la puerta. Se diseña para un pulgar, a un brazo
+   de distancia, con el teléfono en la mano y gente atrás esperando: un solo objetivo por
+   pantalla, botones grandes, y el resultado legible sin acercar la cara. */
+
+.checkin-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  /* Área segura del notch y de la barra de gestos: sin esto, en un iPhone el botón queda
+     debajo de la barra de inicio y no se puede tocar. */
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  background: var(--bg-primary);
+}
+
+.checkin-card {
+  width: 100%;
+  max-width: 26rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.checkin-brand {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.checkin-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+  color: var(--text-primary);
+  text-wrap: balance;
+}
+
+.checkin-sub {
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0 0 1.5rem;
+}
+
+.checkin-gym {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1.25rem;
+}
+
+.checkin-form { display: flex; flex-direction: column; gap: 0.75rem; }
+
+/* 1.15rem no es capricho: por debajo de 16px, iOS hace zoom solo al enfocar el campo y
+   descoloca toda la pantalla. */
+.checkin-input {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.15rem;
+  text-align: center;
+  letter-spacing: 0.06em;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.checkin-input:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 2px; }
+
+.checkin-btn {
+  width: 100%;
+  /* 3.5rem: un objetivo cómodo para un pulgar apurado. */
+  min-height: 3.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--border-radius-md);
+  background: var(--primary-500);
+  color: #fff;
+  cursor: pointer;
+}
+.checkin-btn:disabled { opacity: 0.5; cursor: default; }
+.checkin-btn:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 2px; }
+
+.checkin-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  margin-top: 1.5rem;
+}
+
+.checkin-link {
+  margin-top: 1.25rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* El resultado se lee de un vistazo por la MARCA y el color, antes que por el texto. */
+.checkin-mark {
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.checkin-result.is-ok   .checkin-mark { background: rgba(34, 197, 94, 0.15);  color: #22c55e; }
+.checkin-result.is-warn .checkin-mark { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.checkin-result.is-bad  .checkin-mark { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
+
+/* ── El cartel para imprimir (Ajustes) ── */
+.qr-poster {
+  background: #fff;
+  color: #0b0f11;
+  border-radius: var(--border-radius-md);
+  padding: 1.5rem;
+  text-align: center;
+  max-width: 22rem;
+}
+.qr-poster-title { font-size: 1.3rem; font-weight: 800; margin: 0 0 0.35rem; }
+.qr-poster-sub   { font-size: 0.9rem; color: #4b5563; margin: 0 0 1.25rem; }
+.qr-poster-foot  { font-size: 0.78rem; color: #6b7280; margin: 1rem 0 0; }
+
+@media print {
+  /* Al imprimir queda SOLO el cartel: sin barra lateral, sin botones, sin fondo oscuro
+     comiéndose el tóner. */
+  body * { visibility: hidden; }
+  .qr-poster, .qr-poster * { visibility: visible; }
+  .qr-poster {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    max-width: none;
+    width: 100%;
+    box-shadow: none;
+  }
+}

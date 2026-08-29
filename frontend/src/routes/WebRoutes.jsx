@@ -32,6 +32,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage';
 import PaymentCallbackPage from '../pages/PaymentCallbackPage';
 import DesktopAuthPage from '../pages/DesktopAuthPage';
 import OwnerInsightsPage from '../pages/OwnerInsightsPage';
+import CheckinPage from '../pages/CheckinPage';
 import SubscriptionActionsWeb from '../components/billing/SubscriptionActionsWeb';
 
 export default function WebRoutes() {
@@ -48,6 +49,12 @@ export default function WebRoutes() {
             nunca la abre — la abre el navegador del usuario. */}
         <Route path={CONFIG.ROUTES.DESKTOP_AUTH} element={<DesktopAuthPage />} />
       </Route>
+
+      {/* Check-in del socio: PÚBLICA de verdad, sin login ni layout. La abre alguien parado
+          en la puerta del gimnasio con su teléfono, escaneando el QR de la pared. Los socios
+          no son usuarios de Veltronik, así que no hay sesión de la que colgarse.
+          Solo en la web: el escritorio no la sirve, el socio nunca toca esa máquina. */}
+      <Route path={CONFIG.ROUTES.CHECKIN} element={<CheckinPage />} />
 
       {/* Full screen pages without layout wrappers */}
       <Route path={CONFIG.ROUTES.PLANS} element={<PlansPage />} />

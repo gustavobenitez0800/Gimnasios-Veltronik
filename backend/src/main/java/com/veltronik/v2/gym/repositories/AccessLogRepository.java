@@ -18,4 +18,13 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     List<AccessLog> findByTenantIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId);
     
     Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId, UUID memberId);
+
+    /**
+     * Visitas que quedaron abiertas con la entrada anterior a {@code limite} — las que el socio
+     * nunca cerró. Las busca el cierre nocturno.
+     *
+     * <p>Sin tenant a propósito: el trabajo nocturno corre para todo el sistema, fuera de una
+     * sesión, y no tiene un gimnasio "actual" del que colgarse.</p>
+     */
+    List<AccessLog> findByCheckOutAtIsNullAndCheckInAtBefore(LocalDateTime limite);
 }
