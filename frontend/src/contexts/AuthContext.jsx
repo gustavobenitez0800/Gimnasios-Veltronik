@@ -38,6 +38,27 @@ const PUBLIC_ROUTES = [
 ];
 
 /**
+ * Rutas públicas CON PARÁMETRO en el path.
+ *
+ * <p>Van aparte porque la lista de arriba se compara EXACTA (`includes`), y el path real trae
+ * el valor puesto: `/marcar/ABC123` nunca va a ser igual a `/marcar/:token`. Sumarla a
+ * PUBLIC_ROUTES no serviría de nada — el guard no la reconocería jamás y mandaría al socio al
+ * login, que es exactamente lo que pasó la primera vez.</p>
+ *
+ * <p>Se comparan por prefijo terminado en barra, a propósito: `/marcar/` acepta
+ * `/marcar/ABC123` pero NO `/marcarcualquier-otra-cosa`, ni `/marcar` pelado (sin token no hay
+ * check-in que hacer). En código de autenticación, un prefijo flojo es una puerta abierta.</p>
+ */
+const PUBLIC_PREFIXES = [
+  // '/marcar/' — el check-in del socio por QR. Quien la abre es un cliente del gimnasio con su
+  // teléfono: no tiene ni puede tener cuenta en Veltronik.
+  `${CONFIG.ROUTES.CHECKIN.split('/:')[0]}/`,
+];
+
+/** ¿El path cae en una ruta pública con parámetro? */
+const matchesPublicPrefix = (path) => PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+
+/**
  * Páginas públicas que un usuario YA LOGUEADO igual tiene que poder ver.
  *
  * La regla general manda al Lobby a quien entra logueado a una pantalla pública, y está
@@ -372,8 +393,15 @@ export function AuthProvider({ children }) {
     if (loading || !initCompleteRef.current) return;
 
     const currentPath = location.pathname;
-    const isPublic = PUBLIC_ROUTES.includes(currentPath);
-    const needsOrg = !NO_ORG_ROUTES.includes(currentPath);
+    const conParametro = matchesPublicPrefix(currentPath);
+    const isPublic = PUBLIC_ROUTES.includes(currentPath) || conParametro;
+    const needsOrg = !NO_ORG_ROUTES.includes(currentPath) && !conParametro;
+
+    // Las públicas con parámetro tampoco echan al que SÍ está logueado: el dueño probando su
+    // propio cartel de QR es lo primero que pasa, y rebotarlo al Lobby haría parecer que la
+    // función está rota justo en la única prueba que va a hacer.
+    const permitidaLogueado =
+      PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN.includes(currentPath) || conParametro;
 
     // Not logged in → redirect to login (except public pages)
     if (!user && !isPublic) {
@@ -383,7 +411,7 @@ export function AuthProvider({ children }) {
 
     // Logged in on public page → redirect to lobby, salvo las que terminan un trámite
     // (ver PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN arriba).
-    if (user && isPublic && !PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN.includes(currentPath)) {
+    if (user && isPublic && !permitidaLogueado) {
       navigate(CONFIG.ROUTES.LOBBY, { replace: true });
       return;
     }
