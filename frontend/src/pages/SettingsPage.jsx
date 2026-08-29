@@ -621,7 +621,7 @@ export default function SettingsPage({ SubscriptionActions }) {
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Cancelar Suscripción</h3>
-                  <p>Tu suscripción se cancelará al finalizar el período actual ya pagado. Tus datos se conservarán por 30 días adicionales.</p>
+                  <p>Se corta el cobro automático. Seguís usando el sistema hasta que termine el período que ya pagaste, y <strong>tus datos quedan intactos</strong>. Podés volver a suscribirte cuando quieras.</p>
                 </div>
                 <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
               </div>
@@ -629,7 +629,7 @@ export default function SettingsPage({ SubscriptionActions }) {
             <div className="danger-item">
               <div className="danger-info">
                 <h3>Cerrar Sesión</h3>
-                <p>Finaliza tu sesión actual de forma segura en este dispositivo.</p>
+                <p>Salís de tu cuenta en esta computadora. No se borra nada y podés volver a entrar cuando quieras.</p>
               </div>
               <button className="btn-outline-secondary" onClick={() => setConfirmLogout(true)}>Cerrar Sesión</button>
             </div>
@@ -637,7 +637,7 @@ export default function SettingsPage({ SubscriptionActions }) {
             {/* Borrar la cuenta. Solo el DUEÑO, y en el portal web: es una decisión de la
                 cuenta, no una operación de mostrador, y no tiene por qué estar al alcance
                 de una terminal de recepción. */}
-            {!CONFIG.IS_DESKTOP && orgRole === 'owner' && (
+            {currentRole === 'owner' && !CONFIG.IS_DESKTOP && (
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Borrar mi cuenta</h3>
@@ -647,7 +647,7 @@ export default function SettingsPage({ SubscriptionActions }) {
                     borre definitivamente.
                   </p>
                 </div>
-                <button className="btn-danger" onClick={() => { setTextoBorrado(''); setConfirmBorrado(true); }}>
+                <button className="btn-outline-danger" onClick={() => { setTextoBorrado(''); setConfirmBorrado(true); }}>
                   Borrar mi cuenta
                 </button>
               </div>
@@ -707,7 +707,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
       {/* Confirm Dialogs */}
       <ConfirmDialog open={confirmCancel} title="Cancelar Suscripción"
-        message="¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual. Tu suscripción en Mercado Pago también será cancelada."
+        message="Se corta el cobro automático en Mercado Pago. Vas a poder usar el sistema hasta que termine el período que ya pagaste, y tus datos quedan intactos. Para volver vas a tener que cargar la tarjeta de nuevo."
         icon="alertTriangle" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
         onConfirm={handleCancelSubscription} onCancel={() => setConfirmCancel(false)} />
 
