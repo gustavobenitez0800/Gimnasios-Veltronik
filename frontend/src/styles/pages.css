@@ -1167,3 +1167,12 @@
     box-shadow: none;
   }
 }
+
+/* Aviso mientras la pantalla insiste sin señal. Discreto: el socio tiene que poder leerlo
+   de reojo y decidir si espera o va al mostrador, sin que parezca un error. */
+.checkin-espera {
+  margin: 0.9rem 0 0;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

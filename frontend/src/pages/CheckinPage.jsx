@@ -10,7 +10,7 @@
 // La identidad se resuelve UNA sola vez: la primera vez el socio escribe su documento y el
 // teléfono se lo acuerda. De ahí en adelante es abrir y tocar un botón.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../lib/apiClient';
 
@@ -89,6 +89,36 @@ function vibrar(patron) {
   try { navigator.vibrate?.(patron); } catch { /* no todos los navegadores */ }
 }
 
+// Cuánto insiste la pantalla antes de mandar al socio al mostrador.
+//
+// La mayoría de los cortes en la puerta de un gimnasio duran segundos: el socio viene de la
+// calle y el wifi todavía no enganchó. Si la pantalla espera sola un rato con él ahí parado,
+// buena parte se resuelve sin que nadie haga nada. Pasado ese rato ya no es un parpadeo:
+// es un corte de verdad, y hacerlo esperar más sería perder su tiempo.
+const INSISTIR_MS = 90_000;
+
+/**
+ * Espera {@code ms}, o menos si vuelve la conexión antes.
+ *
+ * El evento `online` es lo que hace que esto se sienta instantáneo: el socio cruza la puerta,
+ * el teléfono engancha el wifi del gimnasio, y la marca sale en ese mismo momento en vez de
+ * esperar a que termine el próximo intervalo.
+ */
+function esperarOConexion(ms) {
+  return new Promise((resolve) => {
+    let listo = false;
+    const terminar = () => {
+      if (listo) return;
+      listo = true;
+      clearTimeout(t);
+      window.removeEventListener('online', terminar);
+      resolve();
+    };
+    const t = setTimeout(terminar, ms);
+    window.addEventListener('online', terminar);
+  });
+}
+
 export default function CheckinPage() {
   const { token } = useParams();
   const [documento, setDocumento] = useState('');
@@ -96,6 +126,19 @@ export default function CheckinPage() {
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [ultima, setUltima] = useState(null);
+  const [reintentando, setReintentando] = useState(false);
+  // Si el socio se va de la pantalla, dejamos de insistir: no tiene sentido seguir mandando
+  // la marca de alguien que ya no está mirando.
+  //
+  // OJO con el `false` de la entrada: sin eso, la bandera queda en `true` del desmontaje
+  // anterior y la pantalla nace CANCELADA — deja de reintentar al instante y le dice al socio
+  // que no hay conexión a los cuatro segundos. Pasa siempre en desarrollo (React monta,
+  // desmonta y vuelve a montar) y en producción cada vez que el componente se remonta.
+  const cancelado = useRef(false);
+  useEffect(() => {
+    cancelado.current = false;
+    return () => { cancelado.current = true; };
+  }, []);
 
   useEffect(() => {
     try {
@@ -108,17 +151,58 @@ export default function CheckinPage() {
   // Si la última vez entró, lo próximo que va a hacer es salir.
   const vaASalir = ultima === 'ENTRADA';
 
+  // Guarda la pantalla para que abra sin señal. Se registra SOLO acá, así que el service
+  // worker se instala únicamente en los teléfonos de los socios que escanean el cartel —
+  // nunca en el navegador del dueño usando el portal, salvo que él mismo entre a probar.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    // Falla en silencio a propósito: sin service worker el check-in funciona igual mientras
+    // haya señal, que es el caso normal. Es una red de seguridad, no un requisito.
+    navigator.serviceWorker.register('./checkin-sw.js').catch(() => {});
+  }, []);
+
+  /**
+   * Manda la marca, insistiendo mientras el problema sea de conexión.
+   *
+   * <p>Distingue dos fracasos que parecen el mismo: si el SERVIDOR contestó —aunque sea un
+   * error— no se reintenta, porque la respuesta ya es definitiva (documento que no existe,
+   * demasiados intentos). Reintentar ahí sería martillar al backend para recibir el mismo
+   * "no" veinte veces. Solo se insiste cuando la petición ni siquiera llegó.</p>
+   */
+  const enviarInsistiendo = async (doc) => {
+    const hasta = Date.now() + INSISTIR_MS;
+    let espera = 2000;
+
+    for (;;) {
+      try {
+        const { data } = await apiClient.post('/public/checkin', {
+          token, documento: doc, scannerId: idDeEsteTelefono(),
+        });
+        return data;
+      } catch (err) {
+        // El servidor contestó: es una respuesta, no un corte. No se reintenta.
+        if (err?.response) throw err;
+        if (Date.now() >= hasta || cancelado.current) throw err;
+
+        setReintentando(true);
+        await esperarOConexion(espera);
+        // Cada vez un poco más de aire, con techo: sirve para el corte que dura un rato, sin
+        // quedarse dormido si la conexión vuelve justo después.
+        espera = Math.min(Math.round(espera * 1.6), 15000);
+      }
+    }
+  };
+
   const marcar = async (e) => {
     e?.preventDefault();
     const doc = documento.trim();
     if (!doc || enviando) return;
 
     setEnviando(true);
+    setReintentando(false);
     setResultado(null);
     try {
-      const { data } = await apiClient.post('/public/checkin', {
-        token, documento: doc, scannerId: idDeEsteTelefono(),
-      });
+      const data = await enviarInsistiendo(doc);
       setResultado(data);
 
       if (data.ok) {
@@ -136,14 +220,19 @@ export default function CheckinPage() {
         } catch { /* sin memoria */ }
         if (data.sonar) { bip(true); vibrar([120, 80, 120]); } else { bip(false); vibrar(60); }
       }
-    } catch {
-      setResultado({
+    } catch (err) {
+      // Si el servidor llegó a contestar, mostramos SU mensaje: sabe más que nosotros.
+      // (Es el caso del freno por demasiados intentos, que devuelve 429 con su explicación.)
+      const delServidor = err?.response?.data;
+      setResultado(delServidor?.titulo ? delServidor : {
         ok: false,
-        titulo: 'No pudimos conectarnos',
-        detalle: 'Fijate que tengas señal y probá de nuevo. Si no, pedile al mostrador que te marque la entrada.',
+        titulo: 'Seguimos sin conexión',
+        detalle: 'Estuvimos intentando un rato y no hubo caso. Pedile al mostrador que te '
+               + 'marque la entrada — la va a poder cargar a mano.',
       });
     } finally {
       setEnviando(false);
+      setReintentando(false);
     }
   };
 
@@ -199,11 +288,21 @@ export default function CheckinPage() {
               )}
 
               <button className="checkin-btn" type="submit" disabled={enviando || !documento.trim()}>
-                {enviando ? 'Un segundo…'
+                {reintentando ? 'Buscando señal…'
+                  : enviando ? 'Un segundo…'
                   : !recordado ? 'Entrar'
                   : vaASalir ? 'Marcar salida'
                   : 'Marcar entrada'}
               </button>
+
+              {/* Mientras insiste, el socio tiene que saber DOS cosas: que el sistema no se
+                  colgó, y que puede irse al mostrador sin esperar a que esto termine. */}
+              {reintentando && (
+                <p className="checkin-espera" role="status">
+                  Sin señal. Seguimos intentando — si tenés apuro, pedile al mostrador que te
+                  marque la entrada.
+                </p>
+              )}
             </form>
 
             {recordado && (
