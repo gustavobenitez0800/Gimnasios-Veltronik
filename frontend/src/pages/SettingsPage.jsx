@@ -20,7 +20,6 @@ import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
 import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
-import { accountService } from '../services/AccountService';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
 import GymLogo from '../components/GymLogo';
@@ -62,12 +61,6 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Action states
   const [confirmLogout, setConfirmLogout] = useState(false);
-  // Borrado de cuenta: además del modal, hay que escribir el nombre del gimnasio. Un clic
-  // distraído no puede borrar un negocio entero — y de todos los botones del sistema, este
-  // es el único donde equivocarse no tiene arreglo después de 30 días.
-  const [confirmBorrado, setConfirmBorrado] = useState(false);
-  const [textoBorrado, setTextoBorrado] = useState('');
-  const [borrando, setBorrando] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [verifyingSubscription, setVerifyingSubscription] = useState(false);
@@ -335,26 +328,6 @@ export default function SettingsPage({ SubscriptionActions }) {
   };
 
   // Logout
-  /** El nombre que hay que escribir para confirmar. */
-  const nombreGimnasio = authGym?.name || localStorage.getItem('current_org_name') || '';
-
-  const handleBorrarCuenta = async () => {
-    setBorrando(true);
-    try {
-      await accountService.requestDeletion();
-      // Recarga completa a propósito: con la cuenta marcada, TODOS sus gimnasios quedan
-      // cerrados. Seguir en Ajustes mostraría una pantalla que ya no corresponde; el
-      // arranque limpio lo deja donde tiene que estar, en la pantalla del arrepentimiento.
-      window.location.reload();
-    } catch (e) {
-      // El caso que importa: no se pudo cortar el cobro, así que NO se marcó nada. El
-      // backend manda el porqué y ese texto sí es para el cliente.
-      showToast(e.response?.data?.error || 'No pudimos procesar el borrado. Probá de nuevo.', 'error');
-      setBorrando(false);
-      setConfirmBorrado(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -621,7 +594,7 @@ export default function SettingsPage({ SubscriptionActions }) {
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Cancelar Suscripción</h3>
-                  <p>Tu suscripción se cancelará al finalizar el período actual ya pagado. Tus datos se conservarán por 30 días adicionales.</p>
+                  <p>Se corta el cobro automático. Seguís usando el sistema hasta que termine el período que ya pagaste, y <strong>tus datos quedan intactos</strong>. Podés volver a suscribirte cuando quieras.</p>
                 </div>
                 <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
               </div>
@@ -629,85 +602,18 @@ export default function SettingsPage({ SubscriptionActions }) {
             <div className="danger-item">
               <div className="danger-info">
                 <h3>Cerrar Sesión</h3>
-                <p>Finaliza tu sesión actual de forma segura en este dispositivo.</p>
+                <p>Salís de tu cuenta en esta computadora. No se borra nada y podés volver a entrar cuando quieras.</p>
               </div>
               <button className="btn-outline-secondary" onClick={() => setConfirmLogout(true)}>Cerrar Sesión</button>
             </div>
 
-            {/* Borrar la cuenta. Solo el DUEÑO, y en el portal web: es una decisión de la
-                cuenta, no una operación de mostrador, y no tiene por qué estar al alcance
-                de una terminal de recepción. */}
-            {!CONFIG.IS_DESKTOP && orgRole === 'owner' && (
-              <div className="danger-item">
-                <div className="danger-info">
-                  <h3>Borrar mi cuenta</h3>
-                  <p>
-                    Se elimina todo: tus gimnasios, socios, pagos y accesos, y tu forma de
-                    entrar. Tenés <strong>30 días para arrepentirte</strong> antes de que se
-                    borre definitivamente.
-                  </p>
-                </div>
-                <button className="btn-danger" onClick={() => { setTextoBorrado(''); setConfirmBorrado(true); }}>
-                  Borrar mi cuenta
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Borrar la cuenta: modal propio y no ConfirmDialog, porque exige ESCRIBIR el nombre
-          del gimnasio. La fricción es deliberada: obliga a leer qué se está por hacer. */}
-      {confirmBorrado && (
-        <div className="modal-overlay" onClick={() => !borrando && setConfirmBorrado(false)}>
-          <div className="modal-container borrado-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title borrado-modal-titulo">
-              <Icon name="alertTriangle" size="1.2em" /> Borrar mi cuenta
-            </h2>
-
-            <p>Esto elimina <strong>todo</strong> y no se puede deshacer después de 30 días:</p>
-            <ul className="borrado-modal-lista">
-              <li>Todos tus gimnasios y sus datos</li>
-              <li>Socios, pagos y accesos</li>
-              <li>Tu forma de entrar al sistema</li>
-            </ul>
-            <p>
-              Damos de baja el cobro automático ahora mismo. Tenés <strong>30 días</strong> para
-              arrepentirte: durante ese tiempo vas a poder entrar solo para cancelar el borrado.
-            </p>
-
-            <label className="borrado-modal-label" htmlFor="confirmar-borrado">
-              Para confirmar, escribí <strong>{nombreGimnasio}</strong>
-            </label>
-            <input
-              id="confirmar-borrado"
-              className="form-input"
-              value={textoBorrado}
-              onChange={(e) => setTextoBorrado(e.target.value)}
-              placeholder={nombreGimnasio}
-              autoComplete="off"
-            />
-
-            <div className="modal-actions">
-              <button className="btn btn-secondary" disabled={borrando}
-                onClick={() => setConfirmBorrado(false)}>
-                Mejor no
-              </button>
-              <button
-                className="btn btn-danger"
-                disabled={borrando || textoBorrado.trim() !== (nombreGimnasio || '').trim()}
-                onClick={handleBorrarCuenta}
-              >
-                {borrando ? 'Procesando…' : 'Sí, borrar mi cuenta'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Confirm Dialogs */}
       <ConfirmDialog open={confirmCancel} title="Cancelar Suscripción"
-        message="¿Estás seguro de cancelar tu suscripción? Perderás acceso al sistema al finalizar el período actual. Tu suscripción en Mercado Pago también será cancelada."
+        message="Se corta el cobro automático en Mercado Pago. Vas a poder usar el sistema hasta que termine el período que ya pagaste, y tus datos quedan intactos. Para volver vas a tener que cargar la tarjeta de nuevo."
         icon="alertTriangle" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
         onConfirm={handleCancelSubscription} onCancel={() => setConfirmCancel(false)} />
 

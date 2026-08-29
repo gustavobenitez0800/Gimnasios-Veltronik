@@ -190,6 +190,99 @@ public class AccountDeletionService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Borrar UNA sucursal
+    // ─────────────────────────────────────────────────────────────────────────
+    //
+    // Vive acá y no en su propio servicio porque comparte toda la maquinaria con el borrado
+    // de cuenta: la misma columna, el mismo archivo de ingresos y el mismo trabajo nocturno.
+    // Separarlo sería duplicar tres cosas delicadas para que hagan lo mismo.
+
+    /**
+     * Programa el borrado de una sucursal para dentro de {@code graciaDias}.
+     *
+     * <p><b>Antes esto era instantáneo y definitivo.</b> Un clic borraba el gimnasio con sus
+     * socios, sus pagos y todo su historial, sin un minuto de arrepentimiento — mientras que
+     * borrar la cuenta ENTERA sí tenía 30 días. La acción más chica estaba menos protegida que
+     * la grande, que es exactamente al revés de como debería ser.</p>
+     *
+     * <p>Como la maquinaria de los 30 días ya existía, darle lo mismo a la sucursal salió
+     * casi gratis.</p>
+     */
+    @Transactional
+    public LocalDateTime programarBorradoSucursal(UUID tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Gimnasio inexistente"));
+
+        if (tenant.getDeletionScheduledAt() != null) {
+            return tenant.getDeletionScheduledAt(); // ya estaba pedido: no se reinicia el reloj
+        }
+
+        // Cortar el cobro de ESTA sucursal. Cada una tiene su propia suscripción, así que
+        // borrar una no puede tocar lo que se le cobra a las otras.
+        if (subscriptionRepository.findFirstByTenantIdOrderByCreatedAtDesc(tenantId).isPresent()) {
+            try {
+                billingService.cancelSubscription(tenant);
+            } catch (Exception e) {
+                log.error("No se pudo cancelar la suscripción del gimnasio {} al programar su borrado. "
+                        + "El borrado NO se registra.", tenantId, e);
+                throw new IllegalStateException(
+                        "No pudimos dar de baja el cobro automático de esta sucursal. No la marcamos "
+                        + "para borrar hasta resolverlo, para que no te sigan cobrando.");
+            }
+        }
+
+        LocalDateTime cuando = LocalDateTime.now(BUSINESS_ZONE).plusDays(graciaDias);
+        tenant.setDeletionScheduledAt(cuando);
+        tenantRepository.save(tenant);
+
+        log.warn("Gimnasio {} ({}) marcado para borrado el {}.", tenant.getName(), tenantId, cuando);
+        return cuando;
+    }
+
+    /** El arrepentimiento, para una sucursal. */
+    @Transactional
+    public void cancelarBorradoSucursal(UUID tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Gimnasio inexistente"));
+        tenant.setDeletionScheduledAt(null);
+        tenantRepository.save(tenant);
+        log.warn("Gimnasio {} ({}) canceló su borrado.", tenant.getName(), tenantId);
+    }
+
+    /**
+     * Borra las sucursales sueltas cuya gracia venció.
+     *
+     * <p>Separado de {@link #purgarVencidas()} porque son dos cosas distintas: allá se va una
+     * PERSONA con todo lo suyo, acá se va un local y su dueño se queda. Una sucursal marcada
+     * por el borrado de su cuenta la levanta el otro camino; si por alguna razón la levantan
+     * los dos, el segundo la encuentra borrada y sigue de largo.</p>
+     */
+    public int purgarSucursalesVencidas() {
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<Tenant> vencidas = tenantRepository.findByDeletionScheduledAtBefore(ahora);
+
+        int hechas = 0;
+        for (Tenant t : vencidas) {
+            try {
+                purgarSucursal(t.getId());
+                hechas++;
+            } catch (Exception e) {
+                log.error("Falló la purga del gimnasio {}. Se reintenta mañana.", t.getId(), e);
+            }
+        }
+        if (hechas > 0) log.warn("Purga de sucursales: {} borradas definitivamente.", hechas);
+        return hechas;
+    }
+
+    @Transactional
+    public void purgarSucursal(UUID tenantId) {
+        if (tenantRepository.findById(tenantId).isEmpty()) return; // ya la borró el otro camino
+        archivarIngresos(tenantId);
+        tenantService.delete(tenantId);
+        log.warn("Gimnasio {} borrado definitivamente.", tenantId);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // La purga
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -242,7 +335,7 @@ public class AccountDeletionService {
         List<Tenant> propios = gimnasiosPropios(userId);
 
         for (Tenant t : propios) {
-            archivarIngresos(t.getId(), user.getId());
+            archivarIngresos(t.getId());
         }
 
         for (Tenant t : propios) {
@@ -285,8 +378,11 @@ public class AccountDeletionService {
      * cliente, sin poder saber cuál era. Nativo porque escribe en una tabla que a propósito
      * no tiene entidad — no es dominio de la app, es el libro contable.</p>
      */
-    private void archivarIngresos(UUID tenantId, UUID userId) {
-        String clienteRef = Integer.toHexString((tenantId.toString() + ":" + userId).hashCode())
+    private void archivarIngresos(UUID tenantId) {
+        // Referencia derivada SOLO del gimnasio: sirve igual para agrupar ("estos ocho cobros
+        // fueron del mismo cliente") y no cambia según se borre la cuenta entera o una sola
+        // sucursal, que si no dejaría dos referencias distintas para el mismo local.
+        String clienteRef = Integer.toHexString(tenantId.hashCode())
                 + "-" + tenantId.toString().substring(0, 8);
 
         em.createNativeQuery("""
