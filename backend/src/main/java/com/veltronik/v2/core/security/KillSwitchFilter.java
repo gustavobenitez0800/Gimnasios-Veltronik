@@ -157,6 +157,11 @@ public class KillSwitchFilter extends OncePerRequestFilter {
                path.startsWith("/api/tenants") || // Permitir listar y crear tenants sin tener uno seleccionado
                path.startsWith("/api/core/setup") ||
                path.startsWith("/api/core/subscriptions") || // checkout/suscripción: el moroso debe poder pagar
+               // Borrado de cuenta: durante los 30 días de gracia el sistema está CERRADO —esa
+               // es la decisión— pero el arrepentimiento tiene que seguir funcionando. Si esta
+               // ruta pasara por el filtro, la única puerta para cancelar el borrado estaría
+               // cerrada con llave por el mismo borrado que se quiere cancelar.
+               path.startsWith("/api/account") ||
                path.startsWith("/api/core/profiles") ||
                path.startsWith("/api/updates") ||  // el updater pregunta por credencial de equipo (sin tenant)
                // "¿A qué sucursal pertenezco?" (Fase 3): es la PRIMERA pregunta que hace

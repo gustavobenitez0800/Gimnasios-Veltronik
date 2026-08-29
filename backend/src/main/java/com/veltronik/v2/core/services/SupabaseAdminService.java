@@ -128,6 +128,51 @@ public class SupabaseAdminService {
         }
     }
 
+    /**
+     * Borra el login de una persona, definitivamente.
+     *
+     * <p>Es el último paso del borrado de cuenta y el único que sale de nuestra base. Con el
+     * trigger de la V48, borrar acá arrastra también {@code app_user} y sus membresías: no hay
+     * que limpiarlos a mano ni queda ficha huérfana que después queme el correo.</p>
+     *
+     * <p>Un 404 se toma como éxito: si el usuario ya no está en Supabase, el objetivo de esta
+     * llamada —que no exista— está cumplido. Fallar ahí dejaría la purga trabada para siempre
+     * reintentando borrar algo que no está.</p>
+     */
+    public void deleteUser(UUID userId) {
+        if (!isAvailable()) {
+            throw new BusinessException("El servicio de cuentas no está configurado.");
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(supabaseUrl + "/auth/v1/admin/users/" + userId))
+                .header("apikey", serviceRoleKey)
+                .header("Authorization", "Bearer " + serviceRoleKey)
+                .DELETE()
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException("El borrado del login quedó interrumpido.");
+        } catch (Exception e) {
+            log.warn("Supabase admin no respondió al borrar el usuario {}: {}", userId, e.getMessage());
+            throw new BusinessException("No pudimos comunicarnos con el servicio de cuentas.");
+        }
+
+        if (response.statusCode() == 404) {
+            log.info("El login {} ya no existía en Supabase. Nada que borrar.", userId);
+            return;
+        }
+        if (response.statusCode() >= 300) {
+            log.warn("Supabase rechazó el borrado de {} (HTTP {}): {}",
+                    userId, response.statusCode(), response.body());
+            throw new BusinessException("El servicio de cuentas rechazó el borrado del login.");
+        }
+    }
+
     /** Traduce el error de Supabase a algo que le sirva al dueño. */
     private static String mensajeDeError(int status, String body) {
         String lower = body == null ? "" : body.toLowerCase();

@@ -41,6 +41,7 @@ public class SubscriptionAccessPolicy {
         CANCELED_PAID_PERIOD,  // 'canceled' pero el mes ya pago sigue corriendo
         ACTIVE_TRIAL,          // prueba gratis vigente
         MASTER_DISABLED,       // baja manual a nivel maestro (tenant.is_active = false)
+        PENDING_DELETION,      // la cuenta dueña pidió borrarse y corre la gracia de 30 días
         NO_VALID_ENTITLEMENT   // activo a nivel maestro pero sin trial ni suscripción válida
     }
 
@@ -62,6 +63,14 @@ public class SubscriptionAccessPolicy {
 
         // Baja manual / persistida → bloqueo inmediato, sin importar trial ni suscripción.
         if (!tenant.isActive()) return Decision.block(Reason.MASTER_DISABLED);
+
+        // Cuenta pidiendo borrarse: el sistema se cierra durante la gracia. Va ANTES de mirar
+        // el pago a propósito — alguien con la cuota al día que pidió irse igual queda afuera,
+        // porque lo que pidió fue irse, no una pausa. Entrar para ARREPENTIRSE sigue siendo
+        // posible: eso no pasa por acá, lo permite la pantalla de cuenta en borrado.
+        if (tenant.getDeletionScheduledAt() != null) {
+            return Decision.block(Reason.PENDING_DELETION);
+        }
 
         // 1) Habilitación PAGA (autoritativa): la da la suscripción con período vigente.
         Reason paid = subscriptionAccess(latest, now);
