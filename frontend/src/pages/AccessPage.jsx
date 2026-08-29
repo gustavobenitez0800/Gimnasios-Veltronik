@@ -9,6 +9,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
+import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
+import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -32,9 +34,14 @@ export default function AccessPage() {
   // recargas (después de una entrada o una salida) la lista se repinta sin parpadear.
   const loadData = useCallback(async () => {
     try {
+      // Timeout corto en la pantalla del mostrador. El general son 20 segundos y encima
+      // hay reintentos: una consulta que no llegaba tardaba MÁS DE UN MINUTO en admitir
+      // que no pudo, con el socio esperando. Acá el dato es "quién está adentro" y "qué
+      // pasó hoy": si en 8 segundos no llegó, es mejor mostrar la pantalla sin eso que
+      // dejarla girando. La búsqueda de socios ya no depende de la red.
       const [inGym, logs] = await Promise.all([
-        accessService.getCurrentlyCheckedIn(),
-        accessService.getTodayLogs(),
+        accessService.getCurrentlyCheckedIn({ timeout: 8000 }),
+        accessService.getTodayLogs({ timeout: 8000 }),
       ]);
       setCheckedIn(inGym || []);
       setTodayLogs(logs || []);
@@ -46,6 +53,17 @@ export default function AccessPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
+  // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
+  // refresca sola cada tanto, en el fondo y sin que nadie la espere.
+  useEffect(() => {
+    const tenantId = localStorage.getItem('current_org_id');
+    if (!tenantId) return undefined;
+    prepararSocios(tenantId);
+    const t = setInterval(() => { refrescarSocios(tenantId).catch(() => {}); }, REFRESCO_MS);
+    return () => clearInterval(t);
+  }, []);
 
   // Search
   const doSearch = useMemo(() => debounce(async (query) => {
@@ -162,6 +180,7 @@ export default function AccessPage() {
             <input type="text" className="search-input" placeholder="Buscar por nombre o DNI..."
               value={searchQuery} onChange={e => handleSearch(e.target.value)} />
           </div>
+          <EstadoCopiaLocal />
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
           {searchResults.length > 0 && (
             <div className="search-results">

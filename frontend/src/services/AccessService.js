@@ -6,8 +6,8 @@ import apiClient from '../lib/apiClient';
  */
 class AccessService {
 
-  async getTodayLogs() {
-    const response = await apiClient.get('/gym/access/today');
+  async getTodayLogs(opts = {}) {
+    const response = await apiClient.get('/gym/access/today', opts);
     return response.data;
   }
 
@@ -31,8 +31,8 @@ class AccessService {
     return response.data;
   }
 
-  async getCurrentlyCheckedIn() {
-    const response = await apiClient.get('/gym/access/active');
+  async getCurrentlyCheckedIn(opts = {}) {
+    const response = await apiClient.get('/gym/access/active', opts);
     return response.data;
   }
 }
