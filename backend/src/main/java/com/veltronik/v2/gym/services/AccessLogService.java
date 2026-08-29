@@ -23,9 +23,14 @@ public class AccessLogService {
     private final AccessLogRepository accessLogRepository;
     private final GymMemberService memberService;
 
-    public AccessLogService(AccessLogRepository accessLogRepository, GymMemberService memberService) {
+    public AccessLogService(
+            AccessLogRepository accessLogRepository,
+            GymMemberService memberService,
+            @org.springframework.beans.factory.annotation.Value(
+                    "${veltronik.gym.access.max-visit-hours:6}") long visitaMaximaHoras) {
         this.accessLogRepository = accessLogRepository;
         this.memberService = memberService;
+        this.visitaMaximaHoras = visitaMaximaHoras;
     }
 
     /** Zona del negocio (Argentina): "hoy" y los rangos se calculan en hora AR, no UTC. */
@@ -78,8 +83,12 @@ public class AccessLogService {
     /**
      * Pasadas estas horas, una visita abierta ya no es alguien adentro: es alguien que se fue
      * sin marcar. Nadie entrena seis horas.
+     *
+     * <p>Configurable porque el número correcto depende del negocio: un gimnasio de barrio no
+     * es lo mismo que uno con pileta y sauna donde la gente pasa la tarde. Un valor demasiado
+     * corto parte visitas reales en dos; uno demasiado largo deja gente "adentro" de más.</p>
      */
-    private static final long VISITA_MAXIMA_HORAS = 6;
+    private final long visitaMaximaHoras;
 
     /**
      * Marca el paso de un socio, deduciendo si es entrada o salida.
@@ -107,7 +116,7 @@ public class AccessLogService {
      * después.</p>
      */
     @Transactional
-    public ScanResult registerScan(UUID memberId, String method, UUID checkinPointId) {
+    public ScanResult registerScan(UUID memberId, String method, UUID checkinPointId, UUID scannerId) {
         GymMember member = memberService.findByIdAndVerifyOwnership(memberId);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
 
@@ -129,7 +138,7 @@ public class AccessLogService {
                 log.setCheckOutAt(cierreEstimado(log.getCheckInAt(), now));
                 log.setAutoClosed(true);
                 accessLogRepository.save(log);
-                return new ScanResult(abrirVisita(member, method, checkinPointId, now), Direction.ENTRADA, true);
+                return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, true);
             }
 
             // (3) Visita normal en curso → esto es la salida.
@@ -137,19 +146,19 @@ public class AccessLogService {
             return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
         }
 
-        return new ScanResult(abrirVisita(member, method, checkinPointId, now), Direction.ENTRADA, false);
+        return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, false);
     }
 
     /** Compatibilidad con el mostrador, que ya llamaba así. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {
-        return registerScan(memberId, method, null).log();
+        return registerScan(memberId, method, null, null).log();
     }
 
     private boolean esAbandonada(LocalDateTime entrada, LocalDateTime now) {
         // Dos criterios, cualquiera alcanza: pasó demasiado tiempo, o cambió el día. El segundo
         // atrapa al que entró a las 23:00 y marca a las 7:00 — solo 8 horas, pero es otra visita.
-        return java.time.Duration.between(entrada, now).toHours() >= VISITA_MAXIMA_HORAS
+        return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras
                 || !entrada.toLocalDate().equals(now.toLocalDate());
     }
 
@@ -169,7 +178,8 @@ public class AccessLogService {
         return finDelDia.isBefore(now) ? finDelDia : now;
     }
 
-    private AccessLog abrirVisita(GymMember member, String method, UUID checkinPointId, LocalDateTime now) {
+    private AccessLog abrirVisita(GymMember member, String method, UUID checkinPointId,
+                                  UUID scannerId, LocalDateTime now) {
         AccessLog log = new AccessLog();
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
@@ -179,7 +189,23 @@ public class AccessLogService {
         log.setCheckInAt(now);
         log.setAccessMethod(method != null ? method : "MANUAL");
         log.setCheckinPointId(checkinPointId);
+        log.setScannerId(scannerId);
         return accessLogRepository.save(log);
+    }
+
+    /**
+     * ¿Cuántos socios distintos marcó este teléfono en los últimos días?
+     *
+     * <p>Lo normal es 1: cada uno marca con el suyo. Más que eso puede ser una pareja que
+     * comparte teléfono —legítimo— o alguien usando documentos ajenos. El sistema no decide
+     * cuál de las dos: lo muestra para que lo mire una persona.</p>
+     */
+    @Transactional(readOnly = true)
+    public long sociosDistintosDelTelefono(UUID scannerId, int dias) {
+        if (scannerId == null) return 0;
+        return accessLogRepository.countSociosDistintosPorScanner(
+                TenantContextHolder.getTenantId(), scannerId,
+                LocalDateTime.now(BUSINESS_ZONE).minusDays(dias));
     }
 
     /**

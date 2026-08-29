@@ -2,6 +2,8 @@ package com.veltronik.v2.gym.repositories;
 
 import com.veltronik.v2.gym.entities.AccessLog;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,4 +29,22 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
      * sesión, y no tiene un gimnasio "actual" del que colgarse.</p>
      */
     List<AccessLog> findByCheckOutAtIsNullAndCheckInAtBefore(LocalDateTime limite);
+
+    /**
+     * A cuántos socios DISTINTOS marcó este teléfono desde {@code desde}.
+     *
+     * <p>Un socio marca siempre con el suyo, así que lo normal es 1. Un número mayor significa
+     * que ese aparato se está usando para varias personas: puede ser una pareja que comparte
+     * teléfono —perfectamente legítimo— o alguien probando documentos ajenos. El sistema no
+     * juzga cuál es: lo marca para que lo mire una persona.</p>
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT a.member.id) FROM AccessLog a
+             WHERE a.tenant.id = :tenantId
+               AND a.scannerId = :scannerId
+               AND a.checkInAt >= :desde
+            """)
+    long countSociosDistintosPorScanner(@Param("tenantId") UUID tenantId,
+                                        @Param("scannerId") UUID scannerId,
+                                        @Param("desde") LocalDateTime desde);
 }

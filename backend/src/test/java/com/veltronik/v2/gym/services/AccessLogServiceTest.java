@@ -45,7 +45,7 @@ class AccessLogServiceTest {
     void setUp() {
         repo = mock(AccessLogRepository.class);
         memberService = mock(GymMemberService.class);
-        service = new AccessLogService(repo, memberService);
+        service = new AccessLogService(repo, memberService, 6);
         TenantContextHolder.setTenantId(TENANT);
 
         GymMember member = new GymMember();
@@ -82,7 +82,7 @@ class AccessLogServiceTest {
         void primerEscaneoEsEntrada() {
             sinVisitaAbierta();
 
-            var r = service.registerScan(MEMBER, "QR", null);
+            var r = service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction());
             assertFalse(r.recuperado());
@@ -93,7 +93,7 @@ class AccessLogServiceTest {
         void segundoEscaneoEsSalida() {
             visitaAbiertaDesde(LocalDateTime.now().minusHours(1));
 
-            var r = service.registerScan(MEMBER, "QR", null);
+            var r = service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(AccessLogService.Direction.SALIDA, r.direction());
             assertTrue(r.log().getCheckOutAt() != null, "la salida tiene que quedar grabada");
@@ -110,7 +110,7 @@ class AccessLogServiceTest {
         void dobleEscaneoNoCuentaDosVeces() {
             AccessLog abierta = visitaAbiertaDesde(LocalDateTime.now().minusSeconds(3));
 
-            var r = service.registerScan(MEMBER, "QR", null);
+            var r = service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(AccessLogService.Direction.REBOTE, r.direction());
             assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
@@ -132,7 +132,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             visitaAbiertaDesde(ayer);
 
-            var r = service.registerScan(MEMBER, "QR", null);
+            var r = service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction(),
                     "si esto vuelve a ser SALIDA, la visita de hoy no se registra nunca");
@@ -145,7 +145,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             AccessLog vieja = visitaAbiertaDesde(ayer);
 
-            service.registerScan(MEMBER, "QR", null);
+            service.registerScan(MEMBER, "QR", null, null);
 
             assertTrue(vieja.getCheckOutAt() != null, "no puede quedar abierta para siempre");
             assertTrue(vieja.isAutoClosed(), "sin la marca, envenena el promedio de permanencia");
@@ -157,7 +157,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             AccessLog vieja = visitaAbiertaDesde(ayer);
 
-            service.registerScan(MEMBER, "QR", null);
+            service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(ayer.toLocalDate(), vieja.getCheckOutAt().toLocalDate(),
                     "cerrar 'ahora' grabaría visitas de 25 horas");
@@ -169,7 +169,7 @@ class AccessLogServiceTest {
         void masDeSeisHorasEsAbandono() {
             visitaAbiertaDesde(LocalDateTime.now().minusHours(7));
 
-            var r = service.registerScan(MEMBER, "QR", null);
+            var r = service.registerScan(MEMBER, "QR", null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction(), "nadie entrena siete horas");
             assertTrue(r.recuperado());

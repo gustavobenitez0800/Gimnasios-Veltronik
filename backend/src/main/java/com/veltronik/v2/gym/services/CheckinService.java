@@ -71,8 +71,18 @@ public class CheckinService {
      * el peor error posible del sistema: el pedido siguiente leería los datos de otro negocio.
      * De ahí el {@code finally}.</p>
      */
+    /**
+     * Cuántos socios distintos puede marcar un mismo teléfono antes de que valga la pena que
+     * alguien lo mire. Dos es normal —una pareja que comparte el celular—; de tres para arriba
+     * ya no parece un hogar.
+     */
+    private static final long SOCIOS_POR_TELEFONO_TOLERADOS = 2;
+
+    /** Ventana en la que se mira ese patrón. Un mes: suficiente para ver una costumbre. */
+    private static final int DIAS_DE_PATRON = 30;
+
     @Transactional
-    public CheckinResult scan(String token, String documento) {
+    public CheckinResult scan(String token, String documento, UUID scannerId) {
         Optional<CheckinPointRepository.PointLookup> lookup = pointRepository.findByToken(token);
         if (lookup.isEmpty()) {
             // Mismo mensaje para token inexistente que para desactivado: si dijéramos cuál es,
@@ -103,7 +113,7 @@ public class CheckinService {
         UUID anterior = TenantContextHolder.getTenantId();
         try {
             TenantContextHolder.setTenantId(punto.getTenantId());
-            return resolverSocio(punto, doc);
+            return resolverSocio(punto, doc, scannerId);
         } finally {
             if (anterior != null) TenantContextHolder.setTenantId(anterior);
             else TenantContextHolder.clear();
@@ -122,7 +132,7 @@ public class CheckinService {
         return raw.replaceAll("[^0-9A-Za-z]", "").toUpperCase();
     }
 
-    private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc) {
+    private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc, UUID scannerId) {
         String normalizado = normalizarDocumento(doc);
         if (normalizado.isEmpty()) {
             return error("Falta tu documento", "Escribí tu DNI sin puntos para poder identificarte.");
@@ -138,7 +148,8 @@ public class CheckinService {
             log.warn("Check-in sin match: gimnasio {} ({}), documento de {} caracteres.",
                     punto.getGymName(), punto.getTenantId(), normalizado.length());
             return error("No te encontramos",
-                    "Revisá el número, o pedile al mostrador que cargue tu documento en tu ficha.");
+                    "Revisá el número, o pedile al mostrador que cargue tu documento en tu ficha.",
+                    punto.getGymName());
         }
         if (encontrados.size() > 1) {
             // Cargaron dos veces a la misma persona. No adivinamos cuál es: marcar la entrada
@@ -146,7 +157,8 @@ public class CheckinService {
             // Sin el documento en el log: acá alcanza con saber en qué gimnasio pasa.
             log.warn("Documento duplicado en el gimnasio {} ({} fichas). Check-in bloqueado.",
                     punto.getTenantId(), encontrados.size());
-            return error("Tenés dos fichas cargadas", "Avisale al mostrador así unifican tu ficha.");
+            return error("Tenés dos fichas cargadas", "Avisale al mostrador así unifican tu ficha.",
+                    punto.getGymName());
         }
 
         GymMember member = encontrados.get(0);
@@ -154,16 +166,24 @@ public class CheckinService {
         MemberAccessPolicy.Verdict veredicto = accessPolicy.evaluate(member, now);
 
         AccessLogService.ScanResult scan =
-                accessLogService.registerScan(member.getId(), "QR", punto.getPointId());
+                accessLogService.registerScan(member.getId(), "QR", punto.getPointId(), scannerId);
 
-        return armarRespuesta(punto, member, veredicto, scan);
+        return armarRespuesta(punto, member, veredicto, scan, scannerId);
     }
 
     private CheckinResult armarRespuesta(CheckinPointRepository.PointLookup punto,
                                          GymMember member,
                                          MemberAccessPolicy.Verdict v,
-                                         AccessLogService.ScanResult scan) {
-        String nombre = (member.getFirstName() + " " + nullSafe(member.getLastName())).trim();
+                                         AccessLogService.ScanResult scan,
+                                         UUID scannerId) {
+        // SOLO el nombre de pila viaja al teléfono.
+        //
+        // El check-in se identifica con un DNI, que no es secreto: cualquiera puede escribir uno
+        // y ver qué contesta. Devolver el apellido convertía el cartel de la pared en una
+        // consulta de padrón — "¿fulano es socio acá?" con nombre y apellido. Con el nombre de
+        // pila, el socio se reconoce y confirma que marcó bien, y el curioso no se lleva nada
+        // que no supiera.
+        String nombre = nullSafe(member.getFirstName()).trim();
         String dir = scan.direction().name();
 
         // El rebote no es un evento: es el mismo gesto contado dos veces. Se lo confirmamos con
@@ -208,12 +228,42 @@ public class CheckinService {
             }
         }
 
+        // ¿Este teléfono viene marcando a nombre de varias personas?
+        //
+        // Como el DNI alcanza para marcar, alguien podría hacerlo por otro. Cerrarlo del todo
+        // pedía un PIN por socio; la decisión fue no agregar fricción pero dejar rastro. Dos
+        // socios en un mismo teléfono es normal (una pareja); de tres para arriba ya no parece
+        // un hogar y el mostrador se entera.
+        //
+        // El sistema NO acusa a nadie: no bloquea, no avisa al socio, no dice nada en pantalla.
+        // Solo levanta la mano para que lo mire una persona, que es quien puede saber si es una
+        // pareja o una avivada.
+        if (scannerId != null && !avisar) {
+            long distintos = accessLogService.sociosDistintosDelTelefono(scannerId, DIAS_DE_PATRON);
+            if (distintos > SOCIOS_POR_TELEFONO_TOLERADOS) {
+                log.info("Teléfono con {} socios distintos en {} días (gimnasio {}).",
+                        distintos, DIAS_DE_PATRON, punto.getTenantId());
+                avisar = true;
+            }
+        }
+
         return new CheckinResult(true, punto.getGymName(), nombre, dir, v.status().name(),
                 titulo, detalle, avisar, sonar);
     }
 
     private CheckinResult error(String titulo, String detalle) {
-        return new CheckinResult(false, null, null, null, null, titulo, detalle, false, false);
+        return error(titulo, detalle, null);
+    }
+
+    /**
+     * Error diciendo EN QUÉ GIMNASIO se buscó.
+     *
+     * <p>Con varias sucursales, "no te encontramos" a secas es indescifrable: el socio no tiene
+     * cómo saber que el cartel que escaneó es de otra sede. Nombrar la sucursal convierte un
+     * misterio en algo obvio de leer.</p>
+     */
+    private CheckinResult error(String titulo, String detalle, String gimnasio) {
+        return new CheckinResult(false, gimnasio, null, null, null, titulo, detalle, false, false);
     }
 
     private static String nullSafe(String s) { return s == null ? "" : s; }
