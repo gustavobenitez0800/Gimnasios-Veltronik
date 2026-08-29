@@ -20,6 +20,7 @@ import { roleLabel } from '../lib/gym';
 import { useVisualViewport, useMonthlyPrice } from '../hooks';
 import { accountService } from '../services/AccountService';
 import CuentaEnBorrado from '../components/CuentaEnBorrado';
+import BorrarCuentaModal from '../components/BorrarCuentaModal';
 import Icon from '../components/Icon';
 import GymLogo from '../components/GymLogo';
 import logoSrc from '../assets/LogotipoSecundario.png';
@@ -75,6 +76,7 @@ const BLOCK_MESSAGES = {
 export default function LobbyPage() {
   const precioMensual = useMonthlyPrice(); // el que cobra el backend, no el horneado en el build
   const [borradoPendiente, setBorradoPendiente] = useState(null);
+  const [modalBorrarCuenta, setModalBorrarCuenta] = useState(false);
 
   // Se pregunta en cada entrada al Lobby. Falla en silencio: si el backend no contesta, el
   // Lobby se comporta como siempre. Un problema de red no puede hacer aparecer —ni
@@ -357,7 +359,7 @@ export default function LobbyPage() {
       // diálogo sigue en pantalla apuntando a un gimnasio que ya no existe.
       setDeleteTarget(null);
       setDeleteConfirmName('');
-      showToast(`"${name}" eliminado correctamente`, 'success');
+      showToast(`"${name}" se va a borrar en 30 días. Podés cancelarlo entrando a la sucursal.`, 'success');
       await loadOrgs();
     } catch (error) {
       // El backend contesta 403 si no sos el dueño y 404 si ya no está; en los dos
@@ -611,6 +613,24 @@ export default function LobbyPage() {
             {createOrgCard}
           </div>
         )}
+
+        {/* Borrar la cuenta entera.
+            Vive ACÁ y no adentro de una sucursal, que es donde estaba: borra TODAS, y
+            ofrecerlo desde una sola era incoherente — entrabas a "Centro", tocabas un botón,
+            y desaparecían Centro, Norte y Sur. Acá el dueño está mirando la lista completa
+            de lo que está por perder.
+            Discreto y al final, lejos de las tarjetas: no es algo que se busque seguido. */}
+        {orgs.length > 0 && (
+          <div className="lobby-cuenta">
+            <button className="lobby-borrar-cuenta" onClick={() => setModalBorrarCuenta(true)}>
+              Borrar mi cuenta de Veltronik
+            </button>
+            <p className="lobby-cuenta-nota">
+              Se elimina todo, con 30 días para arrepentirte. Si solo querés cerrar una
+              sucursal, usá el botón de eliminar en su tarjeta.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ─── BLOCKED ORG MODAL ─── */}
@@ -715,7 +735,7 @@ export default function LobbyPage() {
 
             <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Gimnasio</h2>
             <p className="lobby-blocked-message">
-              Estás a punto de eliminar <strong>"{deleteTarget.name}"</strong> y <strong>todos sus datos</strong>: socios, pagos, accesos, equipo y suscripciones. Esta acción es <strong>irreversible</strong>.
+              Vas a cerrar <strong>"{deleteTarget.name}"</strong> con <strong>todos sus datos</strong>: socios, pagos, accesos y equipos. Damos de baja su cobro automático ahora, y tenés <strong>30 días para arrepentirte</strong> antes de que se borre definitivamente. Tus otras sucursales no se tocan.
             </p>
 
             <div className="lobby-delete-confirm">
@@ -755,7 +775,7 @@ export default function LobbyPage() {
                 {deleting ? (
                   <><span className="spinner" /> Eliminando...</>
                 ) : (
-                  <><Icon name="trash" size="1em" /> Eliminar Permanentemente</>
+                  <><Icon name="trash" size="1em" /> Programar el cierre</>
                 )}
               </button>
               <button className="btn btn-ghost" style={{ width: '100%' }} onClick={closeDeleteModal}>
@@ -775,6 +795,13 @@ export default function LobbyPage() {
       <div className="lobby-version-footer">
         <UpdateIndicator />
       </div>
+      {modalBorrarCuenta && (
+        <BorrarCuentaModal
+          gimnasios={orgs.length}
+          onClose={() => setModalBorrarCuenta(false)}
+          onBorrado={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }

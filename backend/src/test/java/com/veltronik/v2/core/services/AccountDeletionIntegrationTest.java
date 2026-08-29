@@ -146,6 +146,127 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
         }
     }
 
+    /**
+     * Borrar UNA sucursal, dejando la cuenta y las demás en pie.
+     *
+     * <p>Antes esto era instantáneo y definitivo: un clic se llevaba el gimnasio con sus
+     * socios y su historial, sin un minuto de arrepentimiento — mientras que borrar la cuenta
+     * ENTERA sí tenía 30 días. La acción más chica estaba menos protegida que la grande.</p>
+     */
+    @Nested
+    @DisplayName("borrar una sola sucursal")
+    class UnaSucursal {
+
+        @Test
+        @Transactional
+        @DisplayName("se programa a 30 días, no se borra en el acto")
+        void seProgramaNoSeBorra() {
+            UUID user = crearUsuario("sucursal-" + UUID.randomUUID() + "@t.com");
+            UUID gym = crearGimnasioDe(user, "Sucursal Centro");
+            crearSocio(gym, "Juan");
+            em.flush();
+
+            var cuando = deletionService.programarBorradoSucursal(gym);
+            em.flush();
+
+            assertNotNull(cuando);
+            assertEquals(1, contar("SELECT COUNT(*) FROM tenant WHERE id = :id", gym),
+                    "el gimnasio sigue existiendo durante la gracia");
+            assertEquals(1, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym),
+                    "y sus socios también");
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("no toca las otras sucursales del mismo dueño")
+        void noTocaLasOtras() {
+            UUID user = crearUsuario("multi-" + UUID.randomUUID() + "@t.com");
+            UUID centro = crearGimnasioDe(user, "Centro");
+            UUID norte = crearGimnasioDe(user, "Norte");
+            em.flush();
+
+            deletionService.programarBorradoSucursal(centro);
+            em.flush();
+
+            assertNull(em.createNativeQuery("SELECT deletion_scheduled_at FROM tenant WHERE id = :id")
+                    .setParameter("id", norte).getSingleResult(),
+                    "borrar una sucursal no puede arrastrar a las hermanas");
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("la cuenta del dueño NO queda marcada")
+        void laCuentaSigueViva() {
+            UUID user = crearUsuario("duenio-" + UUID.randomUUID() + "@t.com");
+            UUID gym = crearGimnasioDe(user, "Sucursal Sola");
+            em.flush();
+
+            deletionService.programarBorradoSucursal(gym);
+            em.flush();
+
+            assertNull(em.createNativeQuery("SELECT deletion_scheduled_at FROM app_user WHERE id = :id")
+                    .setParameter("id", user).getSingleResult(),
+                    "cerrar un local no es irse del sistema");
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("arrepentirse la devuelve a la normalidad")
+        void arrepentirse() {
+            UUID user = crearUsuario("vuelve-" + UUID.randomUUID() + "@t.com");
+            UUID gym = crearGimnasioDe(user, "Sucursal Que Vuelve");
+            em.flush();
+
+            deletionService.programarBorradoSucursal(gym);
+            em.flush();
+            deletionService.cancelarBorradoSucursal(gym);
+            em.flush();
+
+            assertNull(em.createNativeQuery("SELECT deletion_scheduled_at FROM tenant WHERE id = :id")
+                    .setParameter("id", gym).getSingleResult());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("vencida la gracia, se borra y los ingresos se archivan")
+        void purgaConArchivo() {
+            UUID user = crearUsuario("purga-suc-" + UUID.randomUUID() + "@t.com");
+            UUID gym = crearGimnasioDe(user, "Sucursal Vencida");
+            crearSocio(gym, "Ana");
+            crearCobroDeVeltronik(gym, "45000");
+            em.flush();
+
+            deletionService.programarBorradoSucursal(gym);
+            em.flush();
+            deletionService.purgarSucursal(gym);
+            em.flush();
+
+            assertEquals(0, contar("SELECT COUNT(*) FROM tenant WHERE id = :id", gym));
+            assertEquals(0, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym));
+
+            long archivados = ((Number) em.createNativeQuery(
+                    "SELECT COUNT(*) FROM saas_revenue WHERE amount = 45000").getSingleResult()).longValue();
+            assertTrue(archivados >= 1, "los ingresos de Veltronik sobreviven también acá");
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("el dueño sigue existiendo después de purgar su sucursal")
+        void elDuenioSobrevive() {
+            UUID user = crearUsuario("sobrevive-" + UUID.randomUUID() + "@t.com");
+            UUID gym = crearGimnasioDe(user, "Sucursal Cerrada");
+            em.flush();
+
+            deletionService.programarBorradoSucursal(gym);
+            em.flush();
+            deletionService.purgarSucursal(gym);
+            em.flush();
+
+            assertEquals(1, contar("SELECT COUNT(*) FROM app_user WHERE id = :id", user),
+                    "cerrar un local no puede borrar a la persona");
+        }
+    }
+
     @Nested
     @DisplayName("la purga")
     class Purga {

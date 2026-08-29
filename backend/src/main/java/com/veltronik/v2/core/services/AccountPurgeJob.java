@@ -27,6 +27,10 @@ public class AccountPurgeJob {
     public void purgar() {
         try {
             deletionService.purgarVencidas();
+            // Y las sucursales sueltas: son dos caminos distintos —allá se va una persona
+            // con todo lo suyo, acá se va un local y su dueño se queda— pero les toca la
+            // misma noche.
+            deletionService.purgarSucursalesVencidas();
         } catch (Exception e) {
             // Que falle la purga no puede tumbar nada: son datos que ya nadie usa y mañana se
             // reintenta. Lo grave sería lo contrario —borrar de más— y eso no lo arregla un

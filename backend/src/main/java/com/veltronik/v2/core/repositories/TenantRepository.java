@@ -62,4 +62,9 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
               )
             """)
     List<Tenant> findExpiredActiveTenants(@Param("now") LocalDateTime now);
+    /**
+     * Sucursales cuya gracia de 30 días ya venció: les toca borrarse. Las busca el trabajo
+     * nocturno, sin sesión ni contexto de gimnasio.
+     */
+    java.util.List<Tenant> findByDeletionScheduledAtBefore(java.time.LocalDateTime limite);
 }

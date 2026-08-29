@@ -7,6 +7,7 @@ import com.veltronik.v2.core.entities.UserRole;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.WorkspacePolicy;
+import com.veltronik.v2.core.services.AccountDeletionService;
 import com.veltronik.v2.core.services.TenantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -42,6 +44,7 @@ public class TenantController {
     private static final Set<UserRole> CAN_EDIT = Set.of(UserRole.OWNER, UserRole.ADMIN);
 
     private final TenantService tenantService;
+    private final AccountDeletionService deletionService;
     private final TenantMembershipRepository membershipRepository;
 
     /** Lista los negocios a los que pertenece el usuario actual (para el Lobby). */
@@ -95,11 +98,34 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.update(id, dto));
     }
 
-    /** Elimina el negocio. Solo el OWNER puede hacerlo. */
+    /**
+     * Programa el borrado del negocio para dentro de 30 días. Solo el OWNER.
+     *
+     * <p><b>Antes esto borraba en el acto y para siempre.</b> Un clic se llevaba el gimnasio
+     * con sus socios, sus pagos y todo su historial, sin un minuto de arrepentimiento —
+     * mientras que borrar la cuenta ENTERA sí tenía 30 días. La acción más chica estaba menos
+     * protegida que la grande, justo al revés de como debería ser.</p>
+     *
+     * <p>Ahora las dos usan la misma maquinaria: se marca, el gimnasio queda cerrado, y el
+     * trabajo nocturno lo borra recién cuando vence la gracia. Devuelve la fecha para que la
+     * pantalla pueda decir exactamente hasta cuándo hay tiempo de volver atrás.</p>
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
         requireRole(id, Set.of(UserRole.OWNER));
-        tenantService.delete(id);
+        try {
+            return ResponseEntity.ok(Map.of("borradoProgramado", deletionService.programarBorradoSucursal(id)));
+        } catch (IllegalStateException e) {
+            // No se pudo cortar el cobro, así que NO se marcó nada. El mensaje es para el cliente.
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** El arrepentimiento: deja el gimnasio como estaba. Solo el OWNER. */
+    @PostMapping("/{id}/cancelar-borrado")
+    public ResponseEntity<Void> cancelarBorrado(@PathVariable UUID id) {
+        requireRole(id, Set.of(UserRole.OWNER));
+        deletionService.cancelarBorradoSucursal(id);
         return ResponseEntity.noContent().build();
     }
 
