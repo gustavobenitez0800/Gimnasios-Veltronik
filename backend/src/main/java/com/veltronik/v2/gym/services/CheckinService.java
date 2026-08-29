@@ -81,6 +81,20 @@ public class CheckinService {
         }
         var punto = lookup.get();
 
+        // El cartel existe pero no pudimos leer a qué gimnasio pertenece. Es imposible en
+        // condiciones normales, y por eso hay que gritarlo: la primera versión de la consulta
+        // devolvía la fila con TODOS los campos en null (los alias iban en snake_case y Spring
+        // los busca en camelCase). Con el gimnasio en null, la búsqueda del socio preguntaba
+        // por un negocio inexistente y contestaba "No te encontramos" — culpando al socio de
+        // un error del sistema, con su documento bien puesto. Un fallo que MIENTE sobre su
+        // causa cuesta días; uno que se anuncia, minutos.
+        if (punto.getTenantId() == null) {
+            log.error("El cartel {} no resolvió su gimnasio. Revisar la proyección de findByToken.",
+                    punto.getPointId());
+            return error("Algo anda mal de nuestro lado",
+                    "Pedile al mostrador que te marque la entrada mientras lo resolvemos.");
+        }
+
         String doc = documento == null ? "" : documento.trim();
         if (doc.isEmpty()) {
             return error("Falta tu documento", "Escribí tu DNI sin puntos para poder identificarte.");

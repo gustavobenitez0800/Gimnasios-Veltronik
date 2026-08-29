@@ -1,0 +1,163 @@
+package com.veltronik.v2.gym.services;
+
+import com.veltronik.v2.support.EmbeddedPostgresTest;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * El flujo REAL del check-in, de punta a punta y contra Postgres.
+ *
+ * <p><b>Por qué existe:</b> el check-in falló en producción dos veces seguidas y las dos las
+ * encontró el dueño con el teléfono en la mano, no yo. La segunda —"no te encontramos" con el
+ * DNI bien puesto— no la pude reproducir razonando sobre el código, porque el problema podía
+ * estar en cualquiera de tres capas: la proyección del token, el aislamiento por gimnasio o la
+ * comparación del documento. Un test de unidad con mocks no toca ninguna de las tres: las tres
+ * SON la base de datos.</p>
+ *
+ * <p>Este test siembra un gimnasio, un socio y un cartel de verdad, y llama al servicio como lo
+ * llama el teléfono del socio.</p>
+ */
+class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
+
+    @Autowired
+    private EntityManager em;
+
+    @Autowired
+    private CheckinService checkinService;
+
+    private UUID crearGimnasio(String nombre) {
+        UUID id = UUID.randomUUID();
+        em.createNativeQuery("""
+                INSERT INTO tenant (id, created_at, updated_at, name, is_active)
+                VALUES (:id, now(), now(), :nombre, true)
+                """).setParameter("id", id).setParameter("nombre", nombre).executeUpdate();
+        return id;
+    }
+
+    private UUID crearSocio(UUID tenant, String nombre, String documento, LocalDateTime vence) {
+        UUID id = UUID.randomUUID();
+        em.createNativeQuery("""
+                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                                         is_active, membership_end, created_at, updated_at)
+                VALUES (:id, :tenant, :nombre, 'Prueba', :email, :doc, true, :vence, now(), now())
+                """)
+                .setParameter("id", id)
+                .setParameter("tenant", tenant)
+                .setParameter("nombre", nombre)
+                .setParameter("email", nombre.toLowerCase() + "-" + id + "@test.com")
+                .setParameter("doc", documento)
+                .setParameter("vence", vence)
+                .executeUpdate();
+        return id;
+    }
+
+    private String crearCartel(UUID tenant) {
+        String token = "tok-" + UUID.randomUUID().toString().replace("-", "");
+        em.createNativeQuery("""
+                INSERT INTO checkin_point (id, created_at, updated_at, tenant_id, token, name, active)
+                VALUES (:id, now(), now(), :tenant, :token, 'Puerta principal', true)
+                """)
+                .setParameter("id", UUID.randomUUID())
+                .setParameter("tenant", tenant)
+                .setParameter("token", token)
+                .executeUpdate();
+        return token;
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("el caso feliz: socio al día escanea y se registra su entrada")
+    void socioAlDiaEntra() {
+        UUID gym = crearGimnasio("Gimnasio Centro");
+        crearSocio(gym, "Juan", "30111222", LocalDateTime.now().plusDays(20));
+        String token = crearCartel(gym);
+        em.flush();
+
+        var r = checkinService.scan(token, "30111222");
+
+        assertTrue(r.ok(), "debería encontrar al socio: " + r.titulo() + " — " + r.detalle());
+        assertEquals("Juan Prueba", r.socio());
+        assertEquals("Gimnasio Centro", r.gimnasio());
+        assertEquals("ENTRADA", r.direccion());
+        assertEquals("AL_DIA", r.estado());
+        assertNotNull(r.titulo());
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("el formato del documento no importa: con puntos en la ficha, sin puntos al escribir")
+    void elFormatoNoImporta() {
+        UUID gym = crearGimnasio("Gimnasio Formato");
+        crearSocio(gym, "Ana", "30.111.222", LocalDateTime.now().plusDays(10));
+        String token = crearCartel(gym);
+        em.flush();
+
+        var r = checkinService.scan(token, "30111222");
+
+        assertTrue(r.ok(), "los puntos son adorno: " + r.titulo() + " — " + r.detalle());
+        assertEquals("Ana Prueba", r.socio());
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("el socio vencido entra igual, pero suena y avisa al mostrador")
+    void socioVencidoEntraConAviso() {
+        UUID gym = crearGimnasio("Gimnasio Vencidos");
+        crearSocio(gym, "Pedro", "27999888", LocalDateTime.now().minusDays(40));
+        String token = crearCartel(gym);
+        em.flush();
+
+        var r = checkinService.scan(token, "27999888");
+
+        assertTrue(r.ok());
+        assertEquals("VENCIDO", r.estado());
+        assertEquals("ENTRADA", r.direccion(), "la decisión del dueño es que entre igual");
+        assertTrue(r.sonar(), "tiene que sonar en su teléfono");
+        assertTrue(r.avisarMostrador(), "y el mostrador tiene que enterarse");
+    }
+
+    /**
+     * El aislamiento entre sucursales, que es la regla más cara de romper del sistema: el cartel
+     * de una sucursal NO puede marcarle la entrada al socio de otra.
+     */
+    @Test
+    @Transactional
+    @DisplayName("el cartel de una sucursal no encuentra al socio de otra")
+    void elCartelNoCruzaSucursales() {
+        UUID centro = crearGimnasio("Sucursal Centro");
+        UUID norte = crearGimnasio("Sucursal Norte");
+        crearSocio(norte, "Marta", "33444555", LocalDateTime.now().plusDays(30));
+        String tokenDelCentro = crearCartel(centro);
+        em.flush();
+
+        var r = checkinService.scan(tokenDelCentro, "33444555");
+
+        assertTrue(!r.ok(), "Marta es socia de Norte: el cartel de Centro no puede reconocerla");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("un cartel apagado deja de funcionar")
+    void cartelRotadoNoSirve() {
+        UUID gym = crearGimnasio("Gimnasio Rotado");
+        crearSocio(gym, "Luis", "28777666", LocalDateTime.now().plusDays(5));
+        String token = crearCartel(gym);
+        em.createNativeQuery("UPDATE checkin_point SET active = false WHERE token = :t")
+                .setParameter("t", token).executeUpdate();
+        em.flush();
+
+        var r = checkinService.scan(token, "28777666");
+
+        assertTrue(!r.ok(), "rotar el cartel tiene que matar al viejo en el momento");
+    }
+}
