@@ -83,4 +83,17 @@ public class Tenant extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     private TenantGroup group;
+    /**
+     * Este gimnasio está dentro de una cuenta marcada para borrarse (V50).
+     *
+     * <p>Mientras esté seteado, el negocio NO se puede usar: el dueño pidió irse. Pero SÍ se
+     * puede entrar para arrepentirse, que es de lo que se tratan los 30 días.</p>
+     *
+     * <p>Columna propia y NO reutilizar {@code isActive}: si apagáramos ese, al cancelar el
+     * borrado no sabríamos si el negocio estaba activo antes o suspendido por otro motivo
+     * (falta de pago, baja manual), y podríamos devolverle el acceso a quien no lo tenía.</p>
+     */
+    @Column(name = "deletion_scheduled_at")
+    private java.time.LocalDateTime deletionScheduledAt;
+
 }
