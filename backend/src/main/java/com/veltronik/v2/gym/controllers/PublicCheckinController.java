@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -48,11 +49,26 @@ public class PublicCheckinController {
      * está bien. Es un freno, no una auditoría, y no vale un viaje a la base por escaneo.</p>
      */
     private static final int MAX_FALLOS_POR_MINUTO = 10;
+
+    /**
+     * Tope de escaneos TOTALES por minuto y por cartel, aciertos incluidos.
+     *
+     * <p><b>Por qué no alcanzaba con frenar los fallos.</b> Un acierto también revela algo: la
+     * pantalla contesta con el nombre del socio. Alguien con una lista de documentos podía ir
+     * probando y, sin fallar nunca, averiguar quiénes son socios del gimnasio — el freno de
+     * fallos no lo tocaba. Con este tope, cualquier barrido choca contra la pared.</p>
+     *
+     * <p>40 por minuto es holgadísimo para una puerta real: en la hora pico de un gimnasio
+     * grande entran unas pocas personas por minuto. Un socio nunca lo va a ver.</p>
+     */
+    private static final int MAX_ESCANEOS_POR_MINUTO = 40;
+
     private final ConcurrentHashMap<String, Ventana> frenos = new ConcurrentHashMap<>();
 
     private static final class Ventana {
         volatile long desde = Instant.now().getEpochSecond();
         final AtomicInteger fallos = new AtomicInteger();
+        final AtomicInteger total = new AtomicInteger();
     }
 
     @PostMapping("/checkin")
@@ -75,10 +91,17 @@ public class PublicCheckinController {
                     "detalle", "Esperá un minuto, o pedile al mostrador que te marque la entrada."));
         }
 
-        CheckinService.CheckinResult r = checkinService.scan(token, documento);
-        if (!r.ok()) {
-            registrarFallo(token);
+        // El identificador del teléfono es opcional y anónimo: un número al azar que el propio
+        // aparato se genera. Si viene mal formado se ignora en vez de rechazar el escaneo —
+        // el socio no tiene por qué quedarse afuera por un dato accesorio.
+        UUID scannerId = null;
+        String scannerRaw = body.get("scannerId");
+        if (scannerRaw != null && !scannerRaw.isBlank()) {
+            try { scannerId = UUID.fromString(scannerRaw.trim()); } catch (IllegalArgumentException ignored) { }
         }
+
+        CheckinService.CheckinResult r = checkinService.scan(token, documento, scannerId);
+        registrarIntento(token, r.ok());
 
         return ResponseEntity.ok(r);
     }
@@ -90,16 +113,19 @@ public class PublicCheckinController {
             frenos.remove(token);
             return false;
         }
-        return v.fallos.get() >= MAX_FALLOS_POR_MINUTO;
+        return v.fallos.get() >= MAX_FALLOS_POR_MINUTO
+                || v.total.get() >= MAX_ESCANEOS_POR_MINUTO;
     }
 
-    private void registrarFallo(String token) {
+    private void registrarIntento(String token, boolean ok) {
         Ventana v = frenos.computeIfAbsent(token, k -> new Ventana());
         if (Instant.now().getEpochSecond() - v.desde >= 60) {
             v.desde = Instant.now().getEpochSecond();
             v.fallos.set(0);
+            v.total.set(0);
         }
-        v.fallos.incrementAndGet();
+        v.total.incrementAndGet();
+        if (!ok) v.fallos.incrementAndGet();
     }
 
     /** Últimos caracteres del token, para poder rastrear en los logs sin publicarlo entero. */

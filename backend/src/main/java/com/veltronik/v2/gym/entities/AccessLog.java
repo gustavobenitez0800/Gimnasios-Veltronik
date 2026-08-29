@@ -46,6 +46,20 @@ public class AccessLog extends TenantAwareEntity {
     @Column(name = "checkin_point_id")
     private java.util.UUID checkinPointId;
 
+    /**
+     * Desde qué teléfono se marcó (V49). Número al azar que el propio teléfono se genera y
+     * guarda: NO sale de ningún dato del aparato ni de la persona.
+     *
+     * <p>Existe para una sola pregunta: <i>¿este mismo teléfono viene marcando a nombre de
+     * personas distintas?</i> Como el check-in se identifica con el DNI —que no es secreto—
+     * cualquiera podría marcar por otro. Cerrarlo del todo exigiría un PIN por socio; la
+     * decisión fue no agregar fricción pero dejar rastro, y este campo es ese rastro.</p>
+     *
+     * <p>Null en los accesos que carga el mostrador a mano: ahí no hay teléfono detrás.</p>
+     */
+    @Column(name = "scanner_id")
+    private java.util.UUID scannerId;
+
     @Column(columnDefinition = "text")
     private String notes;
 }

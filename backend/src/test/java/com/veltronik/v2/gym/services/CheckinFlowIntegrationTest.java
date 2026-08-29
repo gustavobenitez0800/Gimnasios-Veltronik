@@ -83,10 +83,10 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         String token = crearCartel(gym);
         em.flush();
 
-        var r = checkinService.scan(token, "30111222");
+        var r = checkinService.scan(token, "30111222", null);
 
         assertTrue(r.ok(), "debería encontrar al socio: " + r.titulo() + " — " + r.detalle());
-        assertEquals("Juan Prueba", r.socio());
+        assertEquals("Juan", r.socio(), "solo el nombre de pila viaja al telefono");
         assertEquals("Gimnasio Centro", r.gimnasio());
         assertEquals("ENTRADA", r.direccion());
         assertEquals("AL_DIA", r.estado());
@@ -102,10 +102,10 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         String token = crearCartel(gym);
         em.flush();
 
-        var r = checkinService.scan(token, "30111222");
+        var r = checkinService.scan(token, "30111222", null);
 
         assertTrue(r.ok(), "los puntos son adorno: " + r.titulo() + " — " + r.detalle());
-        assertEquals("Ana Prueba", r.socio());
+        assertEquals("Ana", r.socio());
     }
 
     @Test
@@ -117,7 +117,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         String token = crearCartel(gym);
         em.flush();
 
-        var r = checkinService.scan(token, "27999888");
+        var r = checkinService.scan(token, "27999888", null);
 
         assertTrue(r.ok());
         assertEquals("VENCIDO", r.estado());
@@ -140,9 +140,86 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         String tokenDelCentro = crearCartel(centro);
         em.flush();
 
-        var r = checkinService.scan(tokenDelCentro, "33444555");
+        var r = checkinService.scan(tokenDelCentro, "33444555", null);
 
         assertTrue(!r.ok(), "Marta es socia de Norte: el cartel de Centro no puede reconocerla");
+    }
+
+    /**
+     * Lo que ve un curioso que escribe documentos ajenos. El cartel cuelga de una pared: hay
+     * que asumir que alguien va a probar.
+     */
+    @Test
+    @Transactional
+    @DisplayName("al teléfono solo le llega el nombre de pila, nunca el apellido")
+    void noSeFiltraElApellido() {
+        UUID gym = crearGimnasio("Gimnasio Privacidad");
+        crearSocio(gym, "Sofia", "31222333", LocalDateTime.now().plusDays(15));
+        String token = crearCartel(gym);
+        em.flush();
+
+        var r = checkinService.scan(token, "31222333", null);
+
+        assertEquals("Sofia", r.socio(),
+                "devolver el apellido convertiría el cartel en una consulta de padrón");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("cuando no encuentra al socio, dice EN QUÉ sucursal buscó")
+    void elErrorNombraLaSucursal() {
+        UUID centro = crearGimnasio("Sucursal Centro");
+        crearCartel(centro);
+        String token = crearCartel(centro);
+        em.flush();
+
+        var r = checkinService.scan(token, "99999999", null);
+
+        assertTrue(!r.ok());
+        assertEquals("Sucursal Centro", r.gimnasio(),
+                "con varias sedes, 'no te encontramos' a secas es indescifrable");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("un teléfono que marca por muchos socios distintos levanta la mano")
+    void telefonoCompartidoAvisaAlMostrador() {
+        UUID gym = crearGimnasio("Gimnasio Compartido");
+        String token = crearCartel(gym);
+        UUID telefono = UUID.randomUUID();
+
+        // Tres personas distintas marcando desde el mismo aparato. Dos sería una pareja; tres
+        // ya no parece un hogar.
+        String[] docs = {"40111111", "40222222", "40333333"};
+        for (String d : docs) {
+            crearSocio(gym, "Socio" + d.charAt(2), d, LocalDateTime.now().plusDays(30));
+        }
+        em.flush();
+
+        boolean avisoEnElUltimo = false;
+        for (String d : docs) {
+            var r = checkinService.scan(token, d, telefono);
+            assertTrue(r.ok());
+            avisoEnElUltimo = r.avisarMostrador();
+        }
+
+        assertTrue(avisoEnElUltimo,
+                "el sistema no acusa a nadie, pero tiene que levantar la mano para que lo mire una persona");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("un teléfono normal, con un solo socio, no molesta a nadie")
+    void telefonoNormalNoAvisa() {
+        UUID gym = crearGimnasio("Gimnasio Normal");
+        crearSocio(gym, "Clara", "41555666", LocalDateTime.now().plusDays(30));
+        String token = crearCartel(gym);
+        em.flush();
+
+        var r = checkinService.scan(token, "41555666", UUID.randomUUID());
+
+        assertTrue(r.ok());
+        assertTrue(!r.avisarMostrador(), "un socio al día con su propio teléfono no es un evento");
     }
 
     @Test
@@ -156,7 +233,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
                 .setParameter("t", token).executeUpdate();
         em.flush();
 
-        var r = checkinService.scan(token, "28777666");
+        var r = checkinService.scan(token, "28777666", null);
 
         assertTrue(!r.ok(), "rotar el cartel tiene que matar al viejo en el momento");
     }
