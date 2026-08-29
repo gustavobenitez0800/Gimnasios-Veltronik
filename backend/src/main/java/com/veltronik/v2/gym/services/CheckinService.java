@@ -96,17 +96,42 @@ public class CheckinService {
         }
     }
 
+    /**
+     * Deja el documento en su esencia: solo letras y números, en mayúsculas.
+     *
+     * <p>Un DNI es un número; los puntos son adorno de impresión. En la ficha puede estar
+     * {@code 30.111.222} y el socio escribir {@code 30111222} —o pegarlo con un espacio de
+     * más— y son la misma persona. Se limpian los DOS lados y recién ahí se comparan.</p>
+     */
+    static String normalizarDocumento(String raw) {
+        if (raw == null) return "";
+        return raw.replaceAll("[^0-9A-Za-z]", "").toUpperCase();
+    }
+
     private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc) {
-        List<GymMember> encontrados = memberRepository.findByTenantIdAndDocument(punto.getTenantId(), doc);
+        String normalizado = normalizarDocumento(doc);
+        if (normalizado.isEmpty()) {
+            return error("Falta tu documento", "Escribí tu DNI sin puntos para poder identificarte.");
+        }
+
+        List<GymMember> encontrados =
+                memberRepository.findByDocumentoNormalizado(punto.getTenantId(), normalizado);
 
         if (encontrados.isEmpty()) {
-            return error("No te encontramos", "Revisá el número, o pedile al mostrador que cargue tu documento.");
+            // Al WARN va el gimnasio y la LONGITUD del documento, nunca el número: alcanza para
+            // distinguir "escribió mal" de "el cartel apunta a la sucursal equivocada" sin dejar
+            // documentos de socios escritos en los logs.
+            log.warn("Check-in sin match: gimnasio {} ({}), documento de {} caracteres.",
+                    punto.getGymName(), punto.getTenantId(), normalizado.length());
+            return error("No te encontramos",
+                    "Revisá el número, o pedile al mostrador que cargue tu documento en tu ficha.");
         }
         if (encontrados.size() > 1) {
             // Cargaron dos veces a la misma persona. No adivinamos cuál es: marcar la entrada
             // en la ficha equivocada deja al socio figurando ausente y al dato inservible.
-            log.warn("Documento {} duplicado en el gimnasio {} ({} fichas). Check-in bloqueado.",
-                    doc, punto.getTenantId(), encontrados.size());
+            // Sin el documento en el log: acá alcanza con saber en qué gimnasio pasa.
+            log.warn("Documento duplicado en el gimnasio {} ({} fichas). Check-in bloqueado.",
+                    punto.getTenantId(), encontrados.size());
             return error("Tenés dos fichas cargadas", "Avisale al mostrador así unifican tu ficha.");
         }
 
