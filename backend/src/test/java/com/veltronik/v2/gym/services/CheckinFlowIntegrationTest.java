@@ -35,6 +35,9 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
     @Autowired
     private CheckinService checkinService;
 
+    @Autowired
+    private AccessLogService accessLogService;
+
     private UUID crearGimnasio(String nombre) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
@@ -220,6 +223,89 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
 
         assertTrue(r.ok());
         assertTrue(!r.avisarMostrador(), "un socio al día con su propio teléfono no es un evento");
+    }
+
+    /**
+     * El aviso al mostrador: la otra punta del check-in. Sin esto, el socio vencido que
+     * escanea el cartel entra, entrena y se va — el aviso salió en SU teléfono y ahí murió.
+     */
+    @Test
+    @Transactional
+    @DisplayName("el socio vencido que entró por QR aparece en los avisos del mostrador")
+    void elVencidoApareceEnElMostrador() {
+        UUID gym = crearGimnasio("Gimnasio Avisos");
+        crearSocio(gym, "Roberto", "29888777", LocalDateTime.now().minusDays(20));
+        String token = crearCartel(gym);
+        em.flush();
+
+        checkinService.scan(token, "29888777", null);
+        em.flush();
+
+        com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+        try {
+            var avisos = accessLogService.avisosPendientes();
+            assertEquals(1, avisos.size());
+            assertEquals("Roberto Prueba", avisos.get(0).nombre());
+            assertEquals("VENCIDO", avisos.get(0).estado());
+        } finally {
+            com.veltronik.v2.core.security.TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("el socio al día NO molesta al mostrador")
+    void elAlDiaNoAparece() {
+        UUID gym = crearGimnasio("Gimnasio Tranquilo");
+        crearSocio(gym, "Elena", "32111000", LocalDateTime.now().plusDays(20));
+        String token = crearCartel(gym);
+        em.flush();
+
+        checkinService.scan(token, "32111000", null);
+        em.flush();
+
+        com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+        try {
+            assertTrue(accessLogService.avisosPendientes().isEmpty(),
+                    "si avisara por cada socio al día, la lista sería ruido y se dejaría de mirar");
+        } finally {
+            com.veltronik.v2.core.security.TenantContextHolder.clear();
+        }
+    }
+
+    /**
+     * El veredicto se recalcula al consultar, no se congela al escanear. Si entró vencido a
+     * las 9 y pagó a las 10, a las 11 ya no hay nada que reclamarle — y un aviso congelado
+     * mandaría a la recepcionista a pedirle plata a alguien que está al día.
+     */
+    @Test
+    @Transactional
+    @DisplayName("si el socio paga después de entrar, el aviso desaparece solo")
+    void alPagarDesapareceElAviso() {
+        UUID gym = crearGimnasio("Gimnasio Que Cobra");
+        UUID socio = crearSocio(gym, "Marcos", "30555444", LocalDateTime.now().minusDays(5));
+        String token = crearCartel(gym);
+        em.flush();
+
+        checkinService.scan(token, "30555444", null);
+        em.flush();
+
+        com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+        try {
+            assertEquals(1, accessLogService.avisosPendientes().size(), "entró vencido");
+
+            // Paga en el mostrador: se le corre el vencimiento.
+            em.createNativeQuery("UPDATE gym_members SET membership_end = :f WHERE id = :id")
+                    .setParameter("f", LocalDateTime.now().plusDays(30))
+                    .setParameter("id", socio).executeUpdate();
+            em.flush();
+            em.clear();
+
+            assertTrue(accessLogService.avisosPendientes().isEmpty(),
+                    "el aviso tiene que decir la verdad de AHORA, no la de cuando entró");
+        } finally {
+            com.veltronik.v2.core.security.TenantContextHolder.clear();
+        }
     }
 
     @Test

@@ -10,6 +10,7 @@ import { useToast } from '../contexts/ToastContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
+import AvisosMostrador from '../components/AvisosMostrador';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
@@ -173,6 +174,10 @@ export default function AccessPage() {
 
       {/* Check-in + Currently In */}
       <div className="access-grid">
+        {/* Los avisos van ARRIBA del buscador: si un socio entró vencido, eso pasa antes
+            que lo que la recepcionista esté por hacer ahora. */}
+        <AvisosMostrador />
+
         {/* Check-in Search */}
         <div className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>

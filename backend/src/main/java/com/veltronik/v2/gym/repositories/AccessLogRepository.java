@@ -31,6 +31,16 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     List<AccessLog> findByCheckOutAtIsNullAndCheckInAtBefore(LocalDateTime limite);
 
     /**
+     * Accesos por QR de hoy que el mostrador todavía no atendió, del más nuevo al más viejo.
+     *
+     * <p><b>Solo los del QR, a propósito.</b> Los que carga la recepcionista a mano ya los vio
+     * ella: la pantalla le muestra el estado del socio cuando lo elige de la lista. El aviso
+     * existe justamente para los que entraron SIN que nadie los mirara.</p>
+     */
+    List<AccessLog> findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
+            UUID tenantId, String accessMethod, LocalDateTime desde);
+
+    /**
      * A cuántos socios DISTINTOS marcó este teléfono desde {@code desde}.
      *
      * <p>Un socio marca siempre con el suyo, así que lo normal es 1. Un número mayor significa

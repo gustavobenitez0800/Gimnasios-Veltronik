@@ -45,7 +45,10 @@ class AccessLogServiceTest {
     void setUp() {
         repo = mock(AccessLogRepository.class);
         memberService = mock(GymMemberService.class);
-        service = new AccessLogService(repo, memberService, 6);
+        // La política de socios entra real y no simulada: es una clase pura (compara fechas)
+        // y usar la de verdad evita que este test pase con un mock que dice cualquier cosa.
+        service = new AccessLogService(repo, memberService,
+                new com.veltronik.v2.gym.security.MemberAccessPolicy(3), 6);
         TenantContextHolder.setTenantId(TENANT);
 
         GymMember member = new GymMember();
