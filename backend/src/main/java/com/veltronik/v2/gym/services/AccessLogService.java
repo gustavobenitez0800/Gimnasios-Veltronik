@@ -4,6 +4,7 @@ import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.AccessLog;
 import com.veltronik.v2.gym.entities.GymMember;
+import com.veltronik.v2.gym.security.MemberAccessPolicy;
 import com.veltronik.v2.gym.repositories.AccessLogRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,14 +23,17 @@ public class AccessLogService {
 
     private final AccessLogRepository accessLogRepository;
     private final GymMemberService memberService;
+    private final MemberAccessPolicy accessPolicy;
 
     public AccessLogService(
             AccessLogRepository accessLogRepository,
             GymMemberService memberService,
+            MemberAccessPolicy accessPolicy,
             @org.springframework.beans.factory.annotation.Value(
                     "${veltronik.gym.access.max-visit-hours:6}") long visitaMaximaHoras) {
         this.accessLogRepository = accessLogRepository;
         this.memberService = memberService;
+        this.accessPolicy = accessPolicy;
         this.visitaMaximaHoras = visitaMaximaHoras;
     }
 
@@ -207,6 +211,62 @@ public class AccessLogService {
                 TenantContextHolder.getTenantId(), scannerId,
                 LocalDateTime.now(BUSINESS_ZONE).minusDays(dias));
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Avisos para el mostrador
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Un socio que entró por QR y necesita que alguien le hable. */
+    public record Aviso(UUID accesoId, UUID socioId, String nombre, String estado,
+                        long diasVencido, LocalDateTime hora) {}
+
+    /**
+     * Los socios que entraron solos y necesitan atención, de hoy y sin atender todavía.
+     *
+     * <p><b>Por qué existe:</b> con el check-in por QR el socio vencido entra sin que nadie lo
+     * vea — el aviso aparece en SU teléfono y ahí muere. La recepcionista se enteraría recién
+     * si mirara la lista de accesos y cruzara a mano el estado de cada uno, o sea nunca.</p>
+     *
+     * <p>El veredicto se calcula ACÁ y no se guarda al escanear a propósito: la situación del
+     * socio cambia. Si entró vencido a las 9 y pagó a las 10, a las 11 ya no hay nada que
+     * avisar, y un aviso congelado mandaría a la recepcionista a reclamarle a alguien que
+     * está al día. Recalcular cuesta nada y siempre dice la verdad de este momento.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<Aviso> avisosPendientes() {
+        LocalDateTime desde = LocalDate.now(BUSINESS_ZONE).atStartOfDay();
+        List<AccessLog> accesos = accessLogRepository
+                .findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
+                        TenantContextHolder.getTenantId(), "QR", desde);
+
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<Aviso> avisos = new java.util.ArrayList<>();
+        for (AccessLog a : accesos) {
+            GymMember m = a.getMember();
+            if (m == null) continue;
+            MemberAccessPolicy.Verdict v = accessPolicy.evaluate(m, ahora);
+            if (!v.necesitaAviso()) continue;
+            avisos.add(new Aviso(
+                    a.getId(), m.getId(),
+                    (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim(),
+                    v.status().name(), v.diasVencido(), a.getCheckInAt()));
+        }
+        return avisos;
+    }
+
+    /** El mostrador ya lo habló con el socio: se saca de la lista. */
+    @Transactional
+    public void marcarAvisoVisto(UUID accesoId) {
+        accessLogRepository.findById(accesoId)
+                .filter(a -> a.getTenant() != null
+                        && a.getTenant().getId().equals(TenantContextHolder.getTenantId()))
+                .ifPresent(a -> {
+                    a.setAvisoVistoAt(LocalDateTime.now(BUSINESS_ZONE));
+                    accessLogRepository.save(a);
+                });
+    }
+
+    private static String nullSafe(String s) { return s == null ? "" : s; }
 
     /**
      * Cierra las visitas que quedaron abiertas de días anteriores. Lo corre el trabajo nocturno.

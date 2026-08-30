@@ -35,6 +35,23 @@ class AccessService {
     const response = await apiClient.get('/gym/access/active', opts);
     return response.data;
   }
+
+  /**
+   * Socios que entraron por QR y necesitan que alguien les hable.
+   *
+   * La pantalla del mostrador la consulta cada 20 segundos, así que va con timeout corto: si
+   * no llegó, no pasa nada — vuelve a intentar en el próximo ciclo, y mientras tanto no puede
+   * colgar la pantalla donde hay gente esperando.
+   */
+  async getAvisos() {
+    const response = await apiClient.get('/gym/access/avisos', { timeout: 8000 });
+    return response.data;
+  }
+
+  /** "Ya lo hablé con él": saca el aviso en TODAS las terminales, no solo en esta. */
+  async marcarAvisoVisto(accesoId) {
+    await apiClient.post(`/gym/access/avisos/${accesoId}/visto`);
+  }
 }
 
 export const accessService = new AccessService();

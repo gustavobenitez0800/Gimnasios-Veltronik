@@ -60,6 +60,19 @@ public class AccessLog extends TenantAwareEntity {
     @Column(name = "scanner_id")
     private java.util.UUID scannerId;
 
+    /**
+     * Cuándo el mostrador dio por atendido el aviso de este acceso (V51).
+     *
+     * <p>Null = todavía está en la lista. Sin esta marca, el aviso de las 9 de la mañana
+     * seguiría en pantalla a las 8 de la noche, y un cartel que no se puede sacar deja de
+     * leerse a los dos días — llevándose puestos los avisos que sí importaban.</p>
+     *
+     * <p>Vive acá y no en cada terminal a propósito: si el gimnasio tiene dos computadoras,
+     * que una recepcionista resuelva el caso tiene que apagar el aviso en las dos.</p>
+     */
+    @Column(name = "aviso_visto_at")
+    private LocalDateTime avisoVistoAt;
+
     @Column(columnDefinition = "text")
     private String notes;
 }

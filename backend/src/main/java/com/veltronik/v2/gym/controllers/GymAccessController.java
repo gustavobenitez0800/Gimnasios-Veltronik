@@ -52,6 +52,28 @@ public class GymAccessController {
         return ResponseEntity.ok(accessMapper.toDtoList(accessService.getActiveAccesses()));
     }
 
+    /**
+     * Socios que entraron SOLOS por QR y necesitan que alguien les hable.
+     *
+     * <p>Es la otra punta del check-in: cuando un socio vencido escanea el cartel, el aviso
+     * aparece en SU teléfono y ahí muere. Sin esto, la recepcionista se enteraría solo si
+     * mirara la lista de accesos cruzando a mano el estado de cada uno — o sea, nunca.</p>
+     *
+     * <p>La consulta es liviana y la pantalla la repite cada pocos segundos, así que devuelve
+     * lo mínimo: quién, qué le pasa y a qué hora entró.</p>
+     */
+    @GetMapping("/avisos")
+    public ResponseEntity<List<AccessLogService.Aviso>> avisos() {
+        return ResponseEntity.ok(accessService.avisosPendientes());
+    }
+
+    /** "Ya lo hablé con él": saca el aviso de la lista, en todas las terminales. */
+    @PostMapping("/avisos/{id}/visto")
+    public ResponseEntity<Void> marcarAvisoVisto(@PathVariable java.util.UUID id) {
+        accessService.marcarAvisoVisto(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/register")
     public ResponseEntity<AccessLogDTO> registerAccess(@RequestBody AccessRegisterInputDTO input) {
         return ResponseEntity.ok(accessMapper.toDto(
