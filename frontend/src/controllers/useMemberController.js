@@ -19,7 +19,9 @@ function fromApi(dto) {
     attendanceDays = dto.attendanceDays;
   }
 
-  const expired = dto.active && dto.membershipEnd && new Date(dto.membershipEnd) < new Date();
+  // El estado también lo dice el backend. El cálculo local que había acá comparaba fechas
+  // en la zona del navegador y podía discrepar con el resto del sistema.
+  const expired = dto.situacion === 'VENCIDO' || dto.situacion === 'EN_GRACIA';
   const onlyDate = (value) => (value ? value.split('T')[0] : null);
 
   return {
@@ -31,7 +33,14 @@ function fromApi(dto) {
     birthDate: onlyDate(dto.birthDate),
     status: expired ? 'expired' : (dto.active ? 'active' : 'inactive'),
     membershipStart: onlyDate(dto.membershipStart),
+    // La FECHA recortada solo para los formularios (un input date no acepta la hora).
     membershipEnd: onlyDate(dto.membershipEnd),
+    // Y el timestamp COMPLETO aparte: recortarlo fue la mitad del bug de los días.
+    membershipEndAt: dto.membershipEnd || null,
+    // La situación la calcula el backend; acá solo viaja.
+    situacion: dto.situacion || null,
+    diasVencido: dto.diasVencido ?? null,
+    diasRestantes: dto.diasRestantes ?? null,
     attendanceDays,
     notes: dto.notes || '',
   };

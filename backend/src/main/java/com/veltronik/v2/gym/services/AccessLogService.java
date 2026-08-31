@@ -133,7 +133,13 @@ public class AccessLogService {
             java.time.Duration desdeEntrada = java.time.Duration.between(log.getCheckInAt(), now);
 
             // (1) Rebote: el mismo gesto contado dos veces.
-            if (desdeEntrada.getSeconds() < REBOTE_SEGUNDOS) {
+            //
+            // SOLO aplica al QR. El freno existe para el dedo que tiembla y para el teléfono
+            // que lee el código dos veces — cosas del celular. Una recepcionista apretando un
+            // botón es SIEMPRE deliberada: si el socio escanea al entrar y ella marca algo
+            // diez segundos después, son dos acciones distintas, no un temblor. Tragarse la
+            // segunda dejaba al mostrador sin poder corregir nada durante quince segundos.
+            if (esPorQr(method) && desdeEntrada.getSeconds() < REBOTE_SEGUNDOS) {
                 return new ScanResult(log, Direction.REBOTE, false);
             }
 
@@ -153,17 +159,42 @@ public class AccessLogService {
         return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, false);
     }
 
+    /**
+     * La visita abierta de este socio, si tiene una. La consulta el teléfono —a través del
+     * check-in— para saber si ofrecerle marcar entrada o salida.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AccessLog> visitaAbiertaDe(UUID memberId) {
+        return accessLogRepository.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(
+                TenantContextHolder.getTenantId(), memberId);
+    }
+
     /** Compatibilidad con el mostrador, que ya llamaba así. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {
         return registerScan(memberId, method, null, null).log();
     }
 
+    /**
+     * ¿Esta visita abierta es alguien adentro, o alguien que se fue sin marcar?
+     *
+     * <p><b>Solo cuenta el tiempo transcurrido.</b> La primera versión agregaba "o cambió el
+     * día", y eso rompía a cualquier gimnasio abierto después de medianoche: el socio que
+     * entraba a las 23:00 y salía a las 00:30 tenía una visita de hora y media —vivísima— pero
+     * el cambio de fecha la marcaba como abandonada. Resultado: su salida se convertía en una
+     * ENTRADA nueva. Tocaba "marcar salida", el sistema le contestaba "entrada registrada", y
+     * el botón volvía a decir "marcar salida". Parecía trabado, y en cierto modo lo estaba.</p>
+     *
+     * <p>La cláusula del día tampoco agregaba nada: el caso que decía cubrir —entró 23:00,
+     * vuelve 7:00— son ocho horas, y el umbral de tiempo ya lo atrapa solo.</p>
+     */
+    /** ¿La marca viene del cartel de la puerta, o de una persona en el mostrador? */
+    private static boolean esPorQr(String method) {
+        return "QR".equalsIgnoreCase(method == null ? "" : method.trim());
+    }
+
     private boolean esAbandonada(LocalDateTime entrada, LocalDateTime now) {
-        // Dos criterios, cualquiera alcanza: pasó demasiado tiempo, o cambió el día. El segundo
-        // atrapa al que entró a las 23:00 y marca a las 7:00 — solo 8 horas, pero es otra visita.
-        return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras
-                || !entrada.toLocalDate().equals(now.toLocalDate());
+        return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras;
     }
 
     /**

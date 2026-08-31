@@ -167,6 +167,26 @@ class AccessLogServiceTest {
             assertEquals(LocalTime.MAX.withNano(0), vieja.getCheckOutAt().toLocalTime().withNano(0));
         }
 
+        /**
+         * El gimnasio abierto de noche. Este caso estuvo ROTO: la regla decía "abandonada si
+         * pasaron 6 horas O cambió el día", y esa segunda mitad convertía la salida de
+         * cualquiera que cruzara la medianoche en una ENTRADA nueva. El socio tocaba "marcar
+         * salida", el sistema contestaba "entrada registrada", y el botón volvía a decir
+         * "marcar salida". Parecía trabado.
+         */
+        @Test
+        @DisplayName("entrar 23:00 y salir 00:30 es una SALIDA, aunque haya cambiado el día")
+        void cruzarLaMedianocheNoEsAbandono() {
+            LocalDateTime anoche = LocalDateTime.now().minusHours(2);
+            visitaAbiertaDesde(anoche);
+
+            var r = service.registerScan(MEMBER, "QR", null, null);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction(),
+                    "dos horas es una visita viva, cruce o no cruce la medianoche");
+            assertFalse(r.recuperado(), "no hay nada que recuperar: el socio está saliendo");
+        }
+
         @Test
         @DisplayName("una visita larguísima del mismo día también se corta")
         void masDeSeisHorasEsAbandono() {

@@ -25,15 +25,18 @@ public class GymMemberController {
 
     private final GymMemberService memberService;
     private final GymMemberMapper memberMapper;
+    private final com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy;
 
-    public GymMemberController(GymMemberService memberService, GymMemberMapper memberMapper) {
+    public GymMemberController(GymMemberService memberService, GymMemberMapper memberMapper,
+                               com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy) {
         this.memberService = memberService;
         this.memberMapper = memberMapper;
+        this.accessPolicy = accessPolicy;
     }
 
     @GetMapping
     public ResponseEntity<List<GymMemberDTO>> getAllMembers() {
-        return ResponseEntity.ok(memberMapper.toDtoList(memberService.findAllForCurrentTenant()));
+        return ResponseEntity.ok(memberMapper.toDtoList(memberService.findAllForCurrentTenant(), accessPolicy));
     }
 
     /**
@@ -47,27 +50,27 @@ public class GymMemberController {
             @RequestParam(required = false) String search) {
         var pageable = org.springframework.data.domain.PageRequest.of(
                 page, size, org.springframework.data.domain.Sort.by("firstName").ascending());
-        var result = memberService.findPageForCurrentTenant(search, pageable).map(memberMapper::toDto);
+        var result = memberService.findPageForCurrentTenant(search, pageable).map(m -> memberMapper.toDto(m, accessPolicy));
         return ResponseEntity.ok(com.veltronik.v2.core.dto.PageResponse.of(result));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<GymMemberDTO> getMemberById(@PathVariable UUID id) {
-        return ResponseEntity.ok(memberMapper.toDto(memberService.findByIdAndVerifyOwnership(id)));
+        return ResponseEntity.ok(memberMapper.toDto(memberService.findByIdAndVerifyOwnership(id), accessPolicy));
     }
 
     @PostMapping
     public ResponseEntity<GymMemberDTO> createMember(@RequestBody GymMemberInputDTO input) {
         GymMember member = new GymMember();
         applyEditableFields(member, input);
-        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(member)));
+        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(member), accessPolicy));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<GymMemberDTO> updateMember(@PathVariable UUID id, @RequestBody GymMemberInputDTO input) {
         GymMember existingMember = memberService.findByIdAndVerifyOwnership(id);
         applyEditableFields(existingMember, input);
-        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(existingMember)));
+        return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(existingMember), accessPolicy));
     }
 
     @DeleteMapping("/{id}")

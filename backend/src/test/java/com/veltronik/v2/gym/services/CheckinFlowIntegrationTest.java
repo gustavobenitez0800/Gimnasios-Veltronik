@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.services;
 import com.veltronik.v2.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -305,6 +306,189 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
                     "el aviso tiene que decir la verdad de AHORA, no la de cuando entró");
         } finally {
             com.veltronik.v2.core.security.TenantContextHolder.clear();
+        }
+    }
+
+    /**
+     * El QR y el mostrador escriben en el MISMO lugar, y tienen que entenderse en los dos
+     * sentidos. Estos casos son los que rompían en la práctica.
+     */
+    @Nested
+    @DisplayName("el QR y el mostrador, conectados")
+    class QrYMostrador {
+
+        @Test
+        @Transactional
+        @DisplayName("entra por QR y el mostrador ve su visita abierta")
+        void entraPorQrYElMostradorLoVe() {
+            UUID gym = crearGimnasio("Gimnasio Mixto A");
+            crearSocio(gym, "Diego", "26111000", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "26111000", null);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                assertEquals(1, accessLogService.getActiveAccesses().size(),
+                        "lo que marca el socio con su teléfono tiene que verlo el mostrador");
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+        }
+
+        /**
+         * El caso que reportó el dueño: el mostrador marca la salida a mano, y después el
+         * socio escanea el QR al irse. Antes su teléfono decía "marcar salida" y el servidor
+         * le abría una ENTRADA — quedaba "adentro del gimnasio" después de haberse ido.
+         *
+         * <p>El dato del servidor SIEMPRE fue correcto; lo que mentía era la etiqueta del
+         * botón. Este test fija que el servidor efectivamente hace lo suyo bien.</p>
+         */
+        @Test
+        @Transactional
+        @DisplayName("si el mostrador ya marcó la salida, el QR abre una visita nueva (y no rompe)")
+        void elMostradorMarcaSalidaYDespuesEscanea() {
+            UUID gym = crearGimnasio("Gimnasio Mixto B");
+            UUID socio = crearSocio(gym, "Laura", "27222111", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                // Entra por QR…
+                checkinService.scan(token, "27222111", null);
+                em.flush();
+                // …y el mostrador le marca la salida a mano.
+                var salida = accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+                assertEquals(AccessLogService.Direction.SALIDA, salida.direction(),
+                        "el mostrador tiene que poder cerrar una visita que abrió el QR");
+                assertEquals(0, accessLogService.getActiveAccesses().size());
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+        }
+
+        /**
+         * El espejo: el mostrador marca la ENTRADA (el socio se olvidó el teléfono) y el socio
+         * escanea al salir. Tiene que cerrar esa visita, no abrir otra.
+         */
+        @Test
+        @Transactional
+        @DisplayName("el mostrador marca la entrada y el socio cierra con el QR")
+        void elMostradorEntraYElQrSale() {
+            UUID gym = crearGimnasio("Gimnasio Mixto C");
+            UUID socio = crearSocio(gym, "Nico", "28333222", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+
+            // Pasa el tiempo suficiente para que no sea un rebote, y el socio escanea al irse.
+            em.createNativeQuery("UPDATE access_log SET check_in_at = :t WHERE member_id = :m")
+                    .setParameter("t", LocalDateTime.now().minusHours(1))
+                    .setParameter("m", socio).executeUpdate();
+            em.flush();
+            em.clear();
+
+            var r = checkinService.scan(token, "28333222", null);
+
+            assertEquals("SALIDA", r.direccion(),
+                    "el QR tiene que cerrar la visita que abrió el mostrador, no abrir otra");
+        }
+    }
+
+    /**
+     * La consulta que reemplazó a la memoria del teléfono. Antes el celular guardaba la última
+     * dirección y esa copia se volvía mentira apenas el mostrador tocaba algo: ofrecía "marcar
+     * salida", el servidor no encontraba visita abierta, y abría una ENTRADA — el socio
+     * quedaba adentro del gimnasio después de haberse ido.
+     */
+    @Nested
+    @DisplayName("el teléfono pregunta en vez de acordarse")
+    class EstadoDelSocio {
+
+        @Test
+        @Transactional
+        @DisplayName("recién entrado, está adentro")
+        void reciénEntradoEstaAdentro() {
+            UUID gym = crearGimnasio("Gimnasio Estado A");
+            crearSocio(gym, "Bruno", "24111222", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "24111222", null);
+            em.flush();
+
+            assertTrue(checkinService.estado(token, "24111222").adentro());
+        }
+
+        /** El caso del dueño: el mostrador cierra la visita y el teléfono tiene que enterarse. */
+        @Test
+        @Transactional
+        @DisplayName("si el mostrador marca la salida, el teléfono se entera")
+        void elMostradorCierraYElTelefonoSeEntera() {
+            UUID gym = crearGimnasio("Gimnasio Estado B");
+            UUID socio = crearSocio(gym, "Carla", "25333444", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "25333444", null);
+            em.flush();
+            assertTrue(checkinService.estado(token, "25333444").adentro());
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+
+            assertTrue(!checkinService.estado(token, "25333444").adentro(),
+                    "sin esto el teléfono ofrecía marcar una salida que ya no existía, "
+                    + "y terminaba abriendo una entrada fantasma");
+        }
+
+        /**
+         * Lo que ve un curioso. El cartel cuelga de una pared: hay que asumir que alguien va a
+         * probar documentos ajenos para ver quién es socio.
+         */
+        @Test
+        @Transactional
+        @DisplayName("no revela nada: lo mismo para un documento que no existe que para uno afuera")
+        void noRevelaNada() {
+            UUID gym = crearGimnasio("Gimnasio Estado C");
+            crearSocio(gym, "Elsa", "26555666", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            var socioAfuera = checkinService.estado(token, "26555666");
+            var inexistente = checkinService.estado(token, "99999999");
+
+            assertEquals(socioAfuera.adentro(), inexistente.adentro());
+            assertEquals(socioAfuera.desde(), inexistente.desde());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("un cartel de otra sucursal no dice nada del socio")
+        void noCruzaSucursales() {
+            UUID centro = crearGimnasio("Estado Centro");
+            UUID norte = crearGimnasio("Estado Norte");
+            crearSocio(norte, "Hugo", "27777888", LocalDateTime.now().plusDays(10));
+            String tokenCentro = crearCartel(centro);
+            em.flush();
+
+            assertTrue(!checkinService.estado(tokenCentro, "27777888").adentro());
         }
     }
 

@@ -39,4 +39,25 @@ public class GymMemberDTO {
     private String photoUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // ── Situación de la cuota, calculada por el BACKEND ──
+    //
+    // POR QUÉ VIENE CALCULADA Y NO SE DEDUCE EN LA PANTALLA
+    // La misma cuenta estaba escrita en cinco lugares del frontend, y no daban lo mismo: el
+    // aviso del mostrador decía "hace 2 días" y la lista de socios "4d vencido" PARA LA MISMA
+    // PERSONA. Dos errores que se sumaban — la lista recortaba la hora del vencimiento, y un
+    // texto "2026-08-27" en JavaScript se lee como UTC, que en Argentina son tres horas antes.
+    //
+    // Un socio no puede deber dos cantidades distintas de días según qué pantalla mire. Ahora
+    // lo decide UNA sola clase (MemberAccessPolicy, la misma que usa el check-in por QR) y las
+    // pantallas solo muestran lo que llega.
+
+    /** AL_DIA · EN_GRACIA · VENCIDO · SIN_DATOS · INACTIVO */
+    private String situacion;
+
+    /** Días vencido. 0 si está al día. */
+    private Long diasVencido;
+
+    /** Días que le quedan. 0 si ya venció. */
+    private Long diasRestantes;
 }

@@ -106,6 +106,29 @@ public class PublicCheckinController {
         return ResponseEntity.ok(r);
     }
 
+    /**
+     * ¿El socio está adentro ahora? Lo pregunta el teléfono para escribir bien el botón.
+     *
+     * <p><b>POST y no GET</b>: el documento va en el cuerpo, nunca en la URL. Un dato personal
+     * en una dirección web queda en el historial del navegador y en los registros del
+     * servidor, y ninguno de los dos es lugar para el DNI de un socio.</p>
+     *
+     * <p>Cuenta contra el mismo freno que el escaneo: es la misma superficie pública y sería
+     * absurdo limitar una puerta y dejar la otra abierta de par en par.</p>
+     */
+    @PostMapping("/checkin/estado")
+    public ResponseEntity<?> estado(@RequestBody Map<String, String> body) {
+        String token = body.get("token");
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.ok(Map.of("adentro", false));
+        }
+        if (frenado(token)) {
+            return ResponseEntity.status(429).body(Map.of("adentro", false));
+        }
+        registrarIntento(token, true);
+        return ResponseEntity.ok(checkinService.estado(token, body.get("documento")));
+    }
+
     private boolean frenado(String token) {
         Ventana v = frenos.get(token);
         if (v == null) return false;

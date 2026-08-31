@@ -120,6 +120,48 @@ public class CheckinService {
         }
     }
 
+    /** Si el socio está adentro ahora mismo. Lo pregunta el teléfono para escribir el botón. */
+    public record EstadoSocio(boolean adentro, LocalDateTime desde) {}
+
+    /**
+     * ¿Este socio está adentro del gimnasio en este momento?
+     *
+     * <p><b>Por qué existe.</b> El teléfono necesita saber si escribir "Marcar entrada" o
+     * "Marcar salida" ANTES de que la persona toque el botón. Antes se lo guardaba él mismo,
+     * y esa memoria era una copia de un dato ajeno: si el mostrador marcaba la salida, o el
+     * cierre nocturno cerraba la visita, el teléfono seguía creyendo lo suyo y ofrecía marcar
+     * una salida que ya no existía — con lo cual abría una entrada y el socio quedaba
+     * "adentro" después de haberse ido.</p>
+     *
+     * <p><b>No revela absolutamente nada.</b> Devuelve lo mismo —"no está adentro"— para un
+     * documento inexistente, para uno de otro gimnasio y para un socio que está afuera. Sin
+     * nombre, sin confirmación de existencia: no sirve para averiguar quién es socio de dónde,
+     * que es la única cosa que un cartel colgado en la pared podría filtrar.</p>
+     */
+    @Transactional(readOnly = true)
+    public EstadoSocio estado(String token, String documento) {
+        var lookup = pointRepository.findByToken(token);
+        if (lookup.isEmpty() || lookup.get().getTenantId() == null) return new EstadoSocio(false, null);
+
+        String normalizado = normalizarDocumento(documento);
+        if (normalizado.isEmpty()) return new EstadoSocio(false, null);
+
+        UUID anterior = TenantContextHolder.getTenantId();
+        try {
+            TenantContextHolder.setTenantId(lookup.get().getTenantId());
+            List<GymMember> encontrados = memberRepository
+                    .findByDocumentoNormalizado(lookup.get().getTenantId(), normalizado);
+            if (encontrados.size() != 1) return new EstadoSocio(false, null);
+
+            return accessLogService.visitaAbiertaDe(encontrados.get(0).getId())
+                    .map(a -> new EstadoSocio(true, a.getCheckInAt()))
+                    .orElse(new EstadoSocio(false, null));
+        } finally {
+            if (anterior != null) TenantContextHolder.setTenantId(anterior);
+            else TenantContextHolder.clear();
+        }
+    }
+
     /**
      * Deja el documento en su esencia: solo letras y números, en mayúsculas.
      *
@@ -189,8 +231,14 @@ public class CheckinService {
         // El rebote no es un evento: es el mismo gesto contado dos veces. Se lo confirmamos con
         // calma en vez de decirle que salió, que sería mentira y lo haría escanear otra vez.
         if (scan.direction() == AccessLogService.Direction.REBOTE) {
+            // El texto NO puede decir "tu entrada quedó marcada": el rebote también salta
+            // cuando alguien está intentando SALIR y toca dos veces, y ahí decirle "entrada"
+            // lo hace pensar que el sistema entendió al revés. Se le confirma el gesto sin
+            // nombrar la dirección, que es lo único cierto en los dos casos.
             return new CheckinResult(true, punto.getGymName(), nombre, dir, v.status().name(),
-                    "Ya estabas registrado", "Tu entrada de hoy ya quedó marcada.", false, false);
+                    "Listo, ya lo registramos",
+                    "Tu marca de recién quedó guardada. No hace falta escanear de nuevo.",
+                    false, false);
         }
 
         boolean esEntrada = scan.direction() == AccessLogService.Direction.ENTRADA;
@@ -198,7 +246,12 @@ public class CheckinService {
         String detalle = esEntrada ? "Entrada registrada." : "Salida registrada. Buen entrenamiento.";
 
         if (scan.recuperado()) {
-            detalle += " (La vez anterior te fuiste sin marcar la salida.)";
+            // Este es el caso más confuso de todos: el socio venía a marcar la SALIDA y el
+            // sistema le registra una ENTRADA, porque su visita anterior era tan vieja que ya
+            // no podía ser real. Si el mensaje no lo dice de frente, la persona cree que el
+            // sistema entendió al revés y vuelve a escanear — y ahí sí se traba de verdad.
+            detalle = "Registramos tu ENTRADA. La vez anterior te fuiste sin marcar la salida, "
+                    + "así que aquella visita la cerramos nosotros.";
         }
 
         // La situación de la cuota solo se avisa al ENTRAR. Al que ya entrenó y se está yendo no
