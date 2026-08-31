@@ -133,7 +133,13 @@ public class AccessLogService {
             java.time.Duration desdeEntrada = java.time.Duration.between(log.getCheckInAt(), now);
 
             // (1) Rebote: el mismo gesto contado dos veces.
-            if (desdeEntrada.getSeconds() < REBOTE_SEGUNDOS) {
+            //
+            // SOLO aplica al QR. El freno existe para el dedo que tiembla y para el teléfono
+            // que lee el código dos veces — cosas del celular. Una recepcionista apretando un
+            // botón es SIEMPRE deliberada: si el socio escanea al entrar y ella marca algo
+            // diez segundos después, son dos acciones distintas, no un temblor. Tragarse la
+            // segunda dejaba al mostrador sin poder corregir nada durante quince segundos.
+            if (esPorQr(method) && desdeEntrada.getSeconds() < REBOTE_SEGUNDOS) {
                 return new ScanResult(log, Direction.REBOTE, false);
             }
 
@@ -172,6 +178,11 @@ public class AccessLogService {
      * <p>La cláusula del día tampoco agregaba nada: el caso que decía cubrir —entró 23:00,
      * vuelve 7:00— son ocho horas, y el umbral de tiempo ya lo atrapa solo.</p>
      */
+    /** ¿La marca viene del cartel de la puerta, o de una persona en el mostrador? */
+    private static boolean esPorQr(String method) {
+        return "QR".equalsIgnoreCase(method == null ? "" : method.trim());
+    }
+
     private boolean esAbandonada(LocalDateTime entrada, LocalDateTime now) {
         return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras;
     }

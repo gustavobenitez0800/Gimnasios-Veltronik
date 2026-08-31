@@ -1377,3 +1377,19 @@
   .aviso { flex-direction: column; align-items: stretch; gap: 0.6rem; }
   .aviso-btn { width: 100%; }
 }
+
+/* Qué se registró, en el cartel de confirmación del mostrador. Antes el cartel solo decía el
+   nombre del socio: la recepcionista apretaba "entrada", el sistema grababa "salida" —porque
+   lo decide mirando el estado— y no había forma de enterarse. */
+.popup-accion {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+/* "Adentro desde 09:14" en el resultado de la búsqueda. Es el dato que cambia qué hace el
+   botón de al lado, así que tiene que verse antes de apretarlo. */
+.member-access-status.is-inside {
+  color: var(--primary-400, #60a5fa);
+}

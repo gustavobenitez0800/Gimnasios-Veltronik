@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -74,10 +75,29 @@ public class GymAccessController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Marca el paso de un socio desde el mostrador.
+     *
+     * <p><b>Devuelve QUÉ se hizo, no solo el registro.</b> Este endpoint no siempre registra
+     * una entrada: si el socio ya estaba adentro, graba la SALIDA — lo decide el servidor
+     * mirando el estado, que es lo correcto. Pero el botón del mostrador decía siempre
+     * "Registrar entrada" y el cartel de confirmación solo decía "Fulano registrado", así que
+     * la recepcionista podía apretar "entrada", grabar una salida, y no enterarse nunca.</p>
+     *
+     * <p>Con la dirección en la respuesta, la pantalla puede decir la verdad de lo que pasó.</p>
+     */
     @PostMapping("/register")
-    public ResponseEntity<AccessLogDTO> registerAccess(@RequestBody AccessRegisterInputDTO input) {
-        return ResponseEntity.ok(accessMapper.toDto(
-                accessService.registerAccess(input.getMemberId(), input.getMethod())));
+    public ResponseEntity<Map<String, Object>> registerAccess(@RequestBody AccessRegisterInputDTO input) {
+        AccessLogService.ScanResult r =
+                accessService.registerScan(input.getMemberId(), input.getMethod(), null, null);
+
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("acceso", accessMapper.toDto(r.log()));
+        body.put("direccion", r.direction().name());
+        // true cuando el socio había dejado una visita abierta de otro día: el mostrador tiene
+        // que poder explicarle por qué le figura una entrada nueva y no una salida.
+        body.put("recuperado", r.recuperado());
+        return ResponseEntity.ok(body);
     }
 
     @PutMapping("/{id}/checkout")

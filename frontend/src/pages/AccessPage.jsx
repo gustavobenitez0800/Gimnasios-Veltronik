@@ -124,17 +124,38 @@ export default function AccessPage() {
     return { label: `${d}d restantes`, type: 'ok' };
   };
 
-  // Check-in
+  // ─── ¿Este socio está adentro AHORA? ───
+  //
+  // Se cruza contra la lista de "quién está adentro", que esta pantalla ya trae y ahora se
+  // refresca sola. Sirve para dos cosas, y la segunda es la que importa:
+  //   · mostrarlo en el resultado de la búsqueda ("adentro desde 09:14"), y
+  //   · que el botón diga lo que REALMENTE va a pasar.
+  //
+  // Porque el botón decía siempre "Registrar entrada", pero el servidor decide solo mirando
+  // el estado: si el socio ya estaba adentro, ese clic graba una SALIDA. La recepcionista
+  // apretaba "entrada", se grababa "salida", y el cartel solo decía "Fulano registrado".
+  const visitaAbierta = useCallback(
+    (memberId) => checkedIn.find((l) => (l.member?.id || l.memberId) === memberId) || null,
+    [checkedIn],
+  );
+
+  // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
     try {
-      await accessService.checkIn(member.id, 'manual');
+      const r = await accessService.checkIn(member.id, 'manual');
       const daysInfo = getDaysInfo(member);
+      const salio = r?.direccion === 'SALIDA';
+      const rebote = r?.direccion === 'REBOTE';
 
-      // Show success popup
       setPopup({
         name: member.fullName,
-        type: daysInfo.type === 'expired' ? 'error' : daysInfo.type === 'danger' ? 'warning' : 'success',
-        daysLabel: daysInfo.label,
+        // La salida no se colorea por el estado de la cuota: al que se está yendo ya no se
+        // le reclama nada, y pintarle la pantalla de rojo en la puerta no sirve para nada.
+        type: salio || rebote ? 'success'
+          : daysInfo.type === 'expired' ? 'error'
+          : daysInfo.type === 'danger' ? 'warning' : 'success',
+        accion: rebote ? 'Ya estaba registrado' : salio ? 'Salida registrada' : 'Entrada registrada',
+        daysLabel: salio || rebote ? '' : daysInfo.label,
         initials: getInitials(member.fullName),
       });
 
@@ -144,7 +165,16 @@ export default function AccessPage() {
       setSearchResults([]);
       loadData();
 
-      showToast(`${member.fullName} registrado`, 'success');
+      // El mensaje nombra la dirección REAL. Antes decía "registrado" a secas y la
+      // recepcionista no tenía forma de saber qué había quedado grabado.
+      showToast(
+        rebote ? `${member.fullName}: ya estaba registrado`
+          : salio ? `Salida de ${member.fullName}`
+          : r?.recuperado
+            ? `Entrada de ${member.fullName} — la vez anterior se fue sin marcar salida`
+            : `Entrada de ${member.fullName}`,
+        'success',
+      );
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     }
@@ -224,6 +254,8 @@ export default function AccessPage() {
               {searchResults.map(member => {
                 const daysInfo = getDaysInfo(member);
                 const isExpired = daysInfo.type === 'expired';
+                const visita = visitaAbierta(member.id);
+                const adentro = !!visita;
                 return (
                   <div key={member.id} className="search-result-item">
                     <div className="member-avatar">{getInitials(member.fullName)}</div>
@@ -235,14 +267,33 @@ export default function AccessPage() {
                         <Icon name={isExpired ? 'xCircle' : 'checkCircle'} size="0.85em" />
                         {isExpired ? 'Vencido' : 'Activo'}
                       </span>
+                      {/* Que ya esté adentro es lo primero que la recepcionista necesita
+                          saber: cambia qué hace ese botón. Si marcó entrada por el QR y
+                          nadie lo dice acá, el mostrador lo vuelve a "ingresar" y en
+                          realidad lo está sacando. */}
+                      {adentro && (
+                        <span className="member-access-status is-inside">
+                          <Icon name="door" size="0.85em" />
+                          Adentro desde {new Date(visita.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
                     <div className="search-result-right">
                       <div className={`days-countdown ${daysInfo.type === 'ok' ? 'days-ok' : daysInfo.type === 'warning' ? 'days-warning' : daysInfo.type === 'expired' || daysInfo.type === 'danger' ? 'days-danger' : 'days-none'}`}>
                         {daysInfo.label}
                       </div>
-                      <button className="btn btn-sm btn-primary" onClick={() => handleCheckIn(member)}>
-                        <Icon name="checkCircle" size="0.9em" /> Registrar entrada
-                      </button>
+                      {/* El botón dice lo que va a pasar de verdad. Antes decía siempre
+                          "Registrar entrada" y grababa una SALIDA si el socio ya estaba
+                          adentro — la recepcionista no tenía forma de saberlo. */}
+                      {adentro ? (
+                        <button className="btn btn-sm btn-secondary" onClick={() => handleCheckIn(member)}>
+                          <Icon name="door" size="0.9em" /> Registrar salida
+                        </button>
+                      ) : (
+                        <button className="btn btn-sm btn-primary" onClick={() => handleCheckIn(member)}>
+                          <Icon name="checkCircle" size="0.9em" /> Registrar entrada
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -325,7 +376,13 @@ export default function AccessPage() {
           <div className={`checkin-success active ${popup.type}`}>
             <div className="popup-member-photo"><span className="initials">{popup.initials}</span></div>
             <div className="popup-member-name">{popup.name}</div>
-            <div className="popup-days-info"><span className="popup-days-label">{popup.daysLabel}</span></div>
+            {/* QUÉ se registró, no solo a quién. Este cartel decía únicamente el nombre, así
+                que la recepcionista podía apretar "entrada", grabarse una salida, y no
+                enterarse jamás. */}
+            <div className="popup-accion">{popup.accion}</div>
+            {popup.daysLabel && (
+              <div className="popup-days-info"><span className="popup-days-label">{popup.daysLabel}</span></div>
+            )}
             <div className="popup-progress-container"><div className="popup-progress-bar" /></div>
           </div>
         </>

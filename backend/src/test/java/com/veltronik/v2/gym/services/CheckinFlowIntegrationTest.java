@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.services;
 import com.veltronik.v2.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
@@ -305,6 +306,103 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
                     "el aviso tiene que decir la verdad de AHORA, no la de cuando entró");
         } finally {
             com.veltronik.v2.core.security.TenantContextHolder.clear();
+        }
+    }
+
+    /**
+     * El QR y el mostrador escriben en el MISMO lugar, y tienen que entenderse en los dos
+     * sentidos. Estos casos son los que rompían en la práctica.
+     */
+    @Nested
+    @DisplayName("el QR y el mostrador, conectados")
+    class QrYMostrador {
+
+        @Test
+        @Transactional
+        @DisplayName("entra por QR y el mostrador ve su visita abierta")
+        void entraPorQrYElMostradorLoVe() {
+            UUID gym = crearGimnasio("Gimnasio Mixto A");
+            crearSocio(gym, "Diego", "26111000", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "26111000", null);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                assertEquals(1, accessLogService.getActiveAccesses().size(),
+                        "lo que marca el socio con su teléfono tiene que verlo el mostrador");
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+        }
+
+        /**
+         * El caso que reportó el dueño: el mostrador marca la salida a mano, y después el
+         * socio escanea el QR al irse. Antes su teléfono decía "marcar salida" y el servidor
+         * le abría una ENTRADA — quedaba "adentro del gimnasio" después de haberse ido.
+         *
+         * <p>El dato del servidor SIEMPRE fue correcto; lo que mentía era la etiqueta del
+         * botón. Este test fija que el servidor efectivamente hace lo suyo bien.</p>
+         */
+        @Test
+        @Transactional
+        @DisplayName("si el mostrador ya marcó la salida, el QR abre una visita nueva (y no rompe)")
+        void elMostradorMarcaSalidaYDespuesEscanea() {
+            UUID gym = crearGimnasio("Gimnasio Mixto B");
+            UUID socio = crearSocio(gym, "Laura", "27222111", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                // Entra por QR…
+                checkinService.scan(token, "27222111", null);
+                em.flush();
+                // …y el mostrador le marca la salida a mano.
+                var salida = accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+                assertEquals(AccessLogService.Direction.SALIDA, salida.direction(),
+                        "el mostrador tiene que poder cerrar una visita que abrió el QR");
+                assertEquals(0, accessLogService.getActiveAccesses().size());
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+        }
+
+        /**
+         * El espejo: el mostrador marca la ENTRADA (el socio se olvidó el teléfono) y el socio
+         * escanea al salir. Tiene que cerrar esa visita, no abrir otra.
+         */
+        @Test
+        @Transactional
+        @DisplayName("el mostrador marca la entrada y el socio cierra con el QR")
+        void elMostradorEntraYElQrSale() {
+            UUID gym = crearGimnasio("Gimnasio Mixto C");
+            UUID socio = crearSocio(gym, "Nico", "28333222", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+
+            // Pasa el tiempo suficiente para que no sea un rebote, y el socio escanea al irse.
+            em.createNativeQuery("UPDATE access_log SET check_in_at = :t WHERE member_id = :m")
+                    .setParameter("t", LocalDateTime.now().minusHours(1))
+                    .setParameter("m", socio).executeUpdate();
+            em.flush();
+            em.clear();
+
+            var r = checkinService.scan(token, "28333222", null);
+
+            assertEquals("SALIDA", r.direccion(),
+                    "el QR tiene que cerrar la visita que abrió el mostrador, no abrir otra");
         }
     }
 
