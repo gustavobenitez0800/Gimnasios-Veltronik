@@ -1,4 +1,9 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
+//
+// happy-dom y no jsdom: jsdom arrastra undici, que usa `markAsUncloneable` de
+// worker_threads SIN protección, y esa función existe recién en Node 22. CI corre en
+// Node 20 a propósito —el mismo que arma el instalador en release.yml— así que jsdom
+// rompía ahí aunque pasara en la máquina de desarrollo.
 // ============================================
 // VELTRONIK - Tests de useQueryCache
 // ============================================
