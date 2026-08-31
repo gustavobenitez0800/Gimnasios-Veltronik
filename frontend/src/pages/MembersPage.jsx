@@ -72,6 +72,7 @@ export default function MembersPage() {
   const {
     members: controllerMembers,
     loading: isFetching,
+    error: loadError,
     totalRecords,
     loadMembers,
     refresh,
@@ -315,6 +316,13 @@ export default function MembersPage() {
                 <tr>
                   <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...
+                  </td>
+                </tr>
+              ) : loadError ? (
+                <tr>
+                  {/* Una lista vacía porque fallo el pedido NO es un gimnasio sin socios. */}
+                  <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
+                    No se pudieron cargar los {membersLabelLower}
                   </td>
                 </tr>
               ) : pagedMembers.length === 0 ? (

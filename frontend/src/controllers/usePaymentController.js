@@ -77,7 +77,7 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
   // Antes sí le pegaba: escribir en el buscador disparaba una consulta COMPLETA de pagos
   // para después filtrarla en el navegador. Se pedía todo el mes de nuevo para tachar
   // filas que ya estaban ahí.
-  const { data, loading, isFetching, mutate, invalidate } = useQueryCache(
+  const { data, loading, isFetching, error, mutate, invalidate } = useQueryCache(
     ['payments', orgId, dateFrom || '', dateTo || ''],
     fetchPayments,
     { staleTime: STALE_MS },
@@ -148,6 +148,14 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
 
   return {
     payments,
+    // ─── Que la pantalla pueda decir la verdad ───
+    //
+    // Si el pedido falla, `payments` queda vacío — igual que si el gimnasio no tuviera
+    // ni un pago. La tabla no puede mostrar lo mismo en los dos casos: uno es un dato y
+    // el otro es "no pude preguntar". Sin esto, un 401 o un 500 se leen como "no hay
+    // pagos", que es la clase de mentira que manda a alguien a buscar el problema donde
+    // no está.
+    error,
     // "Cargando" para la página es una sola cosa: o no hay nada que mostrar, o lo que se
     // muestra se está refrescando por detrás.
     loading: loading || isFetching,
