@@ -10,7 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates } from '../lib/utils';
 import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
@@ -22,29 +22,6 @@ function addOneMonth(dateStr) {
   const d = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
   d.setMonth(d.getMonth() + 1);
   return toLocalDateString(d);
-}
-
-function getQuickDates(period) {
-  const today = new Date();
-  let from, to;
-  switch (period) {
-    case 'today': from = to = toLocalDateString(today); break;
-    case 'week': {
-      const ws = new Date(today);
-      ws.setDate(today.getDate() - today.getDay() + 1);
-      from = toLocalDateString(ws);
-      to = toLocalDateString(today);
-      break;
-    }
-    case 'month':
-      from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
-      to = toLocalDateString(today); break;
-    case 'year':
-      from = toLocalDateString(new Date(today.getFullYear(), 0, 1));
-      to = toLocalDateString(today); break;
-    default: break;
-  }
-  return { from, to };
 }
 
 /**
@@ -115,6 +92,31 @@ export default function PaymentsPage() {
     setActivePeriod(period);
   };
 
+  // ─── "Hasta" tiene que seguir siendo HOY, no el día en que se abrió la pantalla ───
+  //
+  // El rango se calcula UNA vez, al montar. En una PC que se apaga todos los días eso no
+  // se nota; en el terminal de un gimnasio —que arranca con Windows y queda prendido—
+  // pasada la medianoche "Hasta" se quedaba en AYER, y los cobros del día no aparecían
+  // por ningún lado. La recepcionista ve una pantalla que dice que hoy no cobró nada.
+  //
+  // Solo con un período rápido activo (Hoy/Semana/Mes/Año): si el usuario escribió las
+  // fechas a mano, son suyas y no se le tocan.
+  useEffect(() => {
+    if (!activePeriod) return undefined;
+    const resincronizar = () => {
+      if (document.visibilityState !== 'visible') return;
+      const { from, to } = getQuickDates(activePeriod);
+      setDateFrom(from);
+      setDateTo(to);
+    };
+    document.addEventListener('visibilitychange', resincronizar);
+    window.addEventListener('focus', resincronizar);
+    return () => {
+      document.removeEventListener('visibilitychange', resincronizar);
+      window.removeEventListener('focus', resincronizar);
+    };
+  }, [activePeriod]);
+
   // Member search in modal
   const [memberSearch, setMemberSearch] = useState('');
   const [filteredMembers, setFilteredMembers] = useState([]);
@@ -160,6 +162,7 @@ export default function PaymentsPage() {
   const {
     payments,
     loading: isFetching,
+    error: loadError,
     refresh,
     savePayment,
     deletePayment
@@ -365,6 +368,29 @@ export default function PaymentsPage() {
         </div>
       </div>
 
+      {/* ─── Cuando el pedido falla, hay que decirlo ───
+          Sin este cartel la pantalla queda idéntica a un mes sin un solo cobro: las tres
+          tarjetas en cero y la tabla diciendo "no se encontraron pagos". Eso no es un dato,
+          es una mentira — el sistema no sabe si hay pagos, no pudo preguntar. Y manda a
+          buscar el problema donde no está. */}
+      {loadError && (
+        <div className="card mb-3" style={{ borderLeft: '3px solid var(--error-500)' }}>
+          <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <Icon name="alertTriangle" size="1.4em" />
+            <div style={{ flex: 1, minWidth: '14rem' }}>
+              <strong>No se pudieron cargar los pagos.</strong>
+              <div className="text-muted" style={{ fontSize: '0.9rem' }}>
+                {errorService.getMessage(loadError)}
+              </div>
+              <div className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                Los números de abajo están en cero porque no llegó la respuesta, no porque no haya cobros.
+              </div>
+            </div>
+            <button className="btn btn-secondary" onClick={refresh}>Reintentar</button>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="stats-grid stats-grid-3 mb-3">
         <StatCard icon="wallet" label="Ingresos del período" value={formatCurrency(stats.totalPeriod)} color="success" />
@@ -423,6 +449,12 @@ export default function PaymentsPage() {
                 <tr>
                   <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...
+                  </td>
+                </tr>
+              ) : loadError ? (
+                <tr>
+                  <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
+                    No se pudieron cargar los pagos
                   </td>
                 </tr>
               ) : payments.length === 0 ? (
