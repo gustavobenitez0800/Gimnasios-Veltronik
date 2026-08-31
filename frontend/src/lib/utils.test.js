@@ -6,7 +6,7 @@
 // ============================================
 
 import { describe, it, expect } from 'vitest';
-import { getQuickDates } from './utils';
+import { getQuickDates, addOneMonth } from './utils';
 
 // Mediodía a propósito: si algo adentro usara UTC, a mediodía NO se nota. Los casos de
 // borde (23:50, 00:10) van aparte, abajo.
@@ -61,5 +61,34 @@ describe('getQuickDates', () => {
     const { from, to } = getQuickDates('month', new Date('2026-09-01T00:10:00'));
     expect(from).toBe('2026-09-01');
     expect(to).toBe('2026-09-01');
+  });
+});
+
+describe('addOneMonth', () => {
+  it('suma un mes en el caso normal', () => {
+    expect(addOneMonth('2026-02-15')).toBe('2026-03-15');
+    expect(addOneMonth('2026-12-10')).toBe('2027-01-10');
+  });
+
+  // ⭐ EL BUG
+  // `setMonth(getMonth() + 1)` sobre un 31 desborda: febrero 31 no existe, y JavaScript
+  // lo empuja a marzo. El socio se lleva días de regalo, y cuanto más corto el mes
+  // siguiente, más días. Cobrar un 31 de agosto daba 1 de octubre.
+  it('no se pasa de mes cuando el día no existe en el mes siguiente', () => {
+    expect(addOneMonth('2026-08-31')).toBe('2026-09-30'); // septiembre tiene 30
+    expect(addOneMonth('2026-01-31')).toBe('2026-02-28'); // febrero tiene 28 en 2026
+    expect(addOneMonth('2026-03-31')).toBe('2026-04-30');
+    expect(addOneMonth('2026-05-31')).toBe('2026-06-30');
+    expect(addOneMonth('2026-01-30')).toBe('2026-02-28');
+  });
+
+  it('respeta el 29 de febrero de un año bisiesto', () => {
+    expect(addOneMonth('2028-01-31')).toBe('2028-02-29'); // 2028 es bisiesto
+  });
+
+  // El mediodía no es decorativo: a las 00:00 un cambio de horario de verano puede
+  // correr la fecha un día hacia atrás.
+  it('acepta un timestamp completo y devuelve solo la fecha', () => {
+    expect(addOneMonth('2026-02-15T23:59:59')).toBe('2026-03-15');
   });
 });

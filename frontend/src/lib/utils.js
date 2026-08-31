@@ -52,6 +52,34 @@ export function toLocalDateString(date = new Date()) {
 }
 
 /**
+ * Suma un mes a una fecha 'YYYY-MM-DD' (o a un timestamp) y devuelve 'YYYY-MM-DD' local.
+ *
+ * Vivía en PaymentsPage. Se mudó acá cuando el alta de socios necesitó lo mismo: es la
+ * misma cuenta, y una cuenta de fechas copiada en dos lugares va a dar distinto en alguno
+ * de los dos. (Ya pasó con getQuickDates y con los días de vencimiento.)
+ *
+ * ⚠️ EL DÍA SE RECORTA AL ÚLTIMO DEL MES SIGUIENTE. Hacer `setMonth(getMonth() + 1)` sobre
+ * un 31 desborda: "31 de febrero" no existe y JavaScript lo empuja a marzo. Cobrar un 31 de
+ * agosto daba 1 de OCTUBRE — un día de regalo, y desde un 31 de enero eran tres. Un mes
+ * desde el 31 de agosto es hasta el 30 de septiembre, que es lo que entiende cualquiera.
+ *
+ * Mediodía y no medianoche: en un cambio de horario de verano, las 00:00 pueden caer en
+ * el día anterior.
+ */
+export function addOneMonth(dateStr) {
+  const base = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
+  const dia = base.getDate();
+
+  // Se avanza de mes parado en el día 1, que existe en todos los meses, y recién ahí se
+  // pone el día: así el mes nunca se desborda solo.
+  const d = new Date(base.getFullYear(), base.getMonth() + 1, 1, 12, 0, 0);
+  const ultimoDelMes = new Date(d.getFullYear(), d.getMonth() + 1, 0, 12, 0, 0).getDate();
+  d.setDate(Math.min(dia, ultimoDelMes));
+
+  return toLocalDateString(d);
+}
+
+/**
  * Rangos rápidos de fecha: los botones Hoy / Semana / Mes / Año.
  *
  * Vive ACÁ y no en cada pantalla porque estaba copiado en Pagos y en Reportes, con el

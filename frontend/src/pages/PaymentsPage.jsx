@@ -10,19 +10,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates, addOneMonth } from '../lib/utils';
 import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
-
-// Suma 1 mes a una fecha 'YYYY-MM-DD' (mediodía para evitar saltos por DST), devuelve local.
-function addOneMonth(dateStr) {
-  const d = new Date(`${String(dateStr).split('T')[0]}T12:00:00`);
-  d.setMonth(d.getMonth() + 1);
-  return toLocalDateString(d);
-}
 
 /**
  * Compara el estado de un pago sin depender de mayúsculas.
@@ -605,6 +598,10 @@ export default function PaymentsPage() {
               <label className="form-label">Período hasta</label>
               <input type="date" className="form-input" value={modal.form.periodEnd}
                 onChange={(e) => handleFormChange('periodEnd', e.target.value)} />
+              <small className="form-hint">
+                Qué tramo cubre este pago. Al guardarlo, el socio queda habilitado hasta
+                esta fecha — nunca menos de lo que ya tenía.
+              </small>
             </div>
             <div className="form-group full-width">
               <label className="form-label">Notas</label>
