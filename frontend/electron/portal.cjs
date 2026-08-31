@@ -23,9 +23,12 @@
 const ALLOWED_ORIGINS = [
   // El que efectivamente se usa hoy: es el fallback de CONFIG.PUBLIC_WEB_URL, y
   // VITE_PUBLIC_WEB_URL no está seteada ni en los .env ni en los secrets del release.
+  // Comprobado el 2026-08-31: responde 200 y sirve la app.
   'https://veltronik-v2.vercel.app',
-  // El proyecto de Vercel con su nombre largo (package.json → homepage). Se acepta
-  // para que un cambio de dominio no deje la app muda.
+  // El nombre largo del proyecto en Vercel. HOY NO SIRVE: da 404, comprobado el mismo
+  // día — y por eso el campo `homepage` de package.json, que apuntaba acá, se corrigió
+  // al de arriba. Se deja en la lista igual porque el origen es nuestro: si algún día
+  // se despliega bajo ese nombre, la app no queda muda esperando un release.
   'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
 ];
 
