@@ -15,8 +15,22 @@ import java.time.LocalDateTime;
 @Setter
 public class GymPayment extends TenantAwareEntity {
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "member_id", nullable = false)
+    /**
+     * A quién se le cobró. <b>Puede ser null</b>, y el mapeo tiene que decirlo.
+     *
+     * <p>La columna es nullable y la FK es {@code ON DELETE SET NULL} (V10): borrar un socio
+     * NO se lleva sus pagos, los deja huérfanos, porque la plata que entró ya entró y la
+     * contabilidad no se puede evaporar.</p>
+     *
+     * <p><b>Por qué importa el {@code optional = true}:</b> antes esto declaraba
+     * {@code @JoinColumn(nullable = false)}. De ahí Hibernate deduce que la relación siempre
+     * existe y resuelve {@code findById} con un <b>INNER JOIN</b> contra {@code gym_members};
+     * un pago huérfano no matcheaba y respondía <b>404</b>. Aparecía en los listados (esas
+     * consultas usan {@code LEFT JOIN FETCH} explícito) y sumaba en los totales, pero no se
+     * podía abrir ni borrar. Hay test: {@code GymPaymentHuerfanoTest}.</p>
+     */
+    @ManyToOne(fetch = FetchType.EAGER, optional = true)
+    @JoinColumn(name = "member_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private GymMember member;
 
