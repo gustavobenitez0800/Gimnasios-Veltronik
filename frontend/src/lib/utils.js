@@ -52,6 +52,48 @@ export function toLocalDateString(date = new Date()) {
 }
 
 /**
+ * Rangos rápidos de fecha: los botones Hoy / Semana / Mes / Año.
+ *
+ * Vive ACÁ y no en cada pantalla porque estaba copiado en Pagos y en Reportes, con el
+ * mismo error en las dos: la semana se calculaba con `getDate() - getDay() + 1`, y el
+ * domingo (getDay() === 0) eso da MAÑANA. El rango quedaba al revés —desde posterior a
+ * hasta— y la pantalla no mostraba nada. Un domingo entero, todos los domingos.
+ *
+ * Es la misma lección que los días de vencimiento: una cuenta de fechas copiada en dos
+ * lugares es una cuenta que va a dar distinto en alguno de los dos.
+ *
+ * @param {string} period  today | week | month | year
+ * @param {Date} now  El "ahora", inyectable para poder probarlo con una fecha fija.
+ * @returns {{from: string|undefined, to: string|undefined}} en formato YYYY-MM-DD local.
+ */
+export function getQuickDates(period, now = new Date()) {
+  const hoy = toLocalDateString(now);
+
+  switch (period) {
+    case 'today':
+      return { from: hoy, to: hoy };
+
+    case 'week': {
+      // Lunes de ESTA semana. El domingo cierra la semana que arrancó el lunes anterior,
+      // así que retrocede 6 días en vez de avanzar uno.
+      const d = new Date(now);
+      const dia = d.getDay();
+      d.setDate(d.getDate() - dia + (dia === 0 ? -6 : 1));
+      return { from: toLocalDateString(d), to: hoy };
+    }
+
+    case 'month':
+      return { from: toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1)), to: hoy };
+
+    case 'year':
+      return { from: toLocalDateString(new Date(now.getFullYear(), 0, 1)), to: hoy };
+
+    default:
+      return { from: undefined, to: undefined };
+  }
+}
+
+/**
  * Tiempo relativo en castellano ("hace 5 min", "hace 2 h", "recién").
  * Usado por el web-espejo (V3): que el dueño vea la frescura de cada equipo/sync.
  */
