@@ -372,21 +372,31 @@ export default function SettingsPage({ SubscriptionActions }) {
                     onError={(msg) => showToast(msg, 'error')}
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Dirección</label>
-                  <input type="text" className="form-input" value={gymForm.address}
-                    onChange={e => setGymForm(f => ({ ...f, address: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Teléfono</label>
-                  <input type="tel" className="form-input" value={gymForm.phone}
-                    onChange={e => setGymForm(f => ({ ...f, phone: e.target.value }))} />
-                </div>
-                <div className="form-group full-width">
-                  <label className="form-label">Email de contacto</label>
-                  <input type="email" className="form-input" value={gymForm.email}
-                    onChange={e => setGymForm(f => ({ ...f, email: e.target.value }))} />
-                </div>
+                {/* Dirección, teléfono y email de contacto son datos del NEGOCIO: se cargan
+                    una vez, desde el portal. En el terminal del mostrador solo ocupaban
+                    lugar en una pantalla que se usa para otra cosa.
+                    Ojo: se ocultan, NO se borran. `gymForm` los sigue cargando desde el
+                    backend y `handleSaveGym` los manda tal cual vinieron, así que guardar
+                    desde el escritorio no los pisa con vacío. */}
+                {!CONFIG.IS_DESKTOP && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Dirección</label>
+                      <input type="text" className="form-input" value={gymForm.address}
+                        onChange={e => setGymForm(f => ({ ...f, address: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Teléfono</label>
+                      <input type="tel" className="form-input" value={gymForm.phone}
+                        onChange={e => setGymForm(f => ({ ...f, phone: e.target.value }))} />
+                    </div>
+                    <div className="form-group full-width">
+                      <label className="form-label">Email de contacto</label>
+                      <input type="email" className="form-input" value={gymForm.email}
+                        onChange={e => setGymForm(f => ({ ...f, email: e.target.value }))} />
+                    </div>
+                  </>
+                )}
               </div>
               <button type="submit" className="btn btn-primary" disabled={saving} style={{ marginTop: '1rem' }}>
                 {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar Cambios'}
@@ -401,18 +411,23 @@ export default function SettingsPage({ SubscriptionActions }) {
                   <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.name}</div>
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Dirección</label>
-                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.address || '--'}</div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Teléfono</label>
-                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.phone || '--'}</div>
-              </div>
-              <div className="form-group full-width">
-                <label className="form-label">Email de contacto</label>
-                <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.email || '--'}</div>
-              </div>
+              {/* Misma decisión que en la vista editable, para el rol que solo mira. */}
+              {!CONFIG.IS_DESKTOP && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">Dirección</label>
+                    <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.address || '--'}</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Teléfono</label>
+                    <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.phone || '--'}</div>
+                  </div>
+                  <div className="form-group full-width">
+                    <label className="form-label">Email de contacto</label>
+                    <div className="form-input" style={{ background: 'var(--bg-tertiary)', border: 'none' }}>{gymForm.email || '--'}</div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

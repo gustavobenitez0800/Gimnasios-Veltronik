@@ -56,8 +56,12 @@ const NAV_SECTIONS = [
  * no puede decidir esto porque no sabe en qué envase corre la sesión; es lo único que el
  * front filtra por su cuenta, y por eso se aplica DESPUÉS de la política del backend en
  * vez de duplicarla.
+ *
+ * `reports` se suma por lo mismo: la analítica se mira desde el portal. Acá el link tiene
+ * que desaparecer sí o sí, porque la ruta TAMPOCO existe en el instalador (no se importa
+ * ReportsPage) — un link que lleva al fallback del login sería peor que no tenerlo.
  */
-const MODULOS_FUERA_DE_ESTE_ENVASE = CONFIG.IS_DESKTOP ? ['lobby'] : [];
+const MODULOS_FUERA_DE_ESTE_ENVASE = CONFIG.IS_DESKTOP ? ['lobby', 'reports'] : [];
 
 function porEnvase(secciones) {
   if (MODULOS_FUERA_DE_ESTE_ENVASE.length === 0) return secciones;

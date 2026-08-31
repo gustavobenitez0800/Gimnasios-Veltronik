@@ -166,15 +166,25 @@ function GymDashboard({ gym }) {
         icon="dashboard"
       />
 
-      {/* Stats Cards */}
+      {/* Stats Cards
+          En el ESCRITORIO quedan solo las dos de operación —quién debe y quién está por
+          vencer—, que son las que la recepcionista puede accionar en el momento. El total
+          de socios activos y los ingresos del mes son números de dueño, y el mostrador
+          está a la vista de cualquiera que pase: en el portal siguen estando los cuatro. */}
       <div className="stats-grid">
-        <StatCard icon="users" label={`${membersLabel} Activos`} value={dashboardStats.activeMembers} color="primary" />
-        <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
+        {!CONFIG.IS_DESKTOP && (
+          <>
+            <StatCard icon="users" label={`${membersLabel} Activos`} value={dashboardStats.activeMembers} color="primary" />
+            <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
+          </>
+        )}
         <StatCard icon="bell" label="Pagos Vencidos" value={dashboardStats.expiredMembers} color="warning" />
         <StatCard icon="calendar" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
       </div>
 
-      {/* AI Section */}
+      {/* AI Section — solo en el portal: la predicción de ingresos y los dos gráficos son
+          para mirar el negocio, no para atender la puerta. */}
+      {!CONFIG.IS_DESKTOP && (
       <div className="ai-section">
         <h2 className="ai-section-title">
           <Icon name="brain" size="1.2em" /> Inteligencia Artificial
@@ -229,10 +239,13 @@ function GymDashboard({ gym }) {
           </div>
         </div>
       </div>
+      )}
 
       {/* Insights + Alerts */}
       <div className="dashboard-grid">
-        {/* Insights */}
+        {/* Insights — solo en el portal, por lo mismo que la sección de arriba: son
+            lecturas del negocio, no cosas que se accionen en el mostrador. */}
+        {!CONFIG.IS_DESKTOP && (
         <div className="card">
           <div className="card-header">
             <h3 className="card-title"><Icon name="lightbulb" size="1em" /> Insights del Día</h3>
@@ -259,6 +272,7 @@ function GymDashboard({ gym }) {
             )}
           </div>
         </div>
+        )}
 
         {/* Alerts */}
         <div className="card">

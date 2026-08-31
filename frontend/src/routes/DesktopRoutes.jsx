@@ -6,6 +6,9 @@
 //
 //   RegisterPage · OnboardingPage · PlansPage · BlockedPage · PaymentCallbackPage
 //   MissionControlPage  (y con ellas CardCheckout y el SDK de Mercado Pago)
+//   ReportsPage         (la analítica se mira desde el portal, no desde el mostrador)
+//   SubscriptionActionsDesktop / SubscriptionActionsWeb  (ninguna: Ajustes va sin la
+//                       sección de suscripción — la cuenta y el cobro son del portal)
 //
 // POR QUÉ SE CONSERVAN LOS NOMBRES DE RUTA `/plans` y `/blocked`
 // El backend contesta 402 cuando la sucursal está impaga; el interceptor de apiClient
@@ -31,12 +34,10 @@ import PaymentsPage from '../pages/PaymentsPage';
 import ClassesPage from '../pages/ClassesPage';
 import AccessPage from '../pages/AccessPage';
 import RetentionPage from '../pages/RetentionPage';
-import ReportsPage from '../pages/ReportsPage';
 import TeamPage from '../pages/TeamPage';
 import SettingsPage from '../pages/SettingsPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import BillingWall from '../pages/BillingWall';
-import SubscriptionActionsDesktop from '../components/billing/SubscriptionActionsDesktop';
 import DeepLinkAuthBridge from '../components/DeepLinkAuthBridge';
 import ShiftGate from '../components/ShiftGate';
 
@@ -81,11 +82,11 @@ export default function DesktopRoutes() {
         <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
         <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
         <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
-        <Route path={CONFIG.ROUTES.REPORTS} element={<ReportsPage />} />
         <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
-        {/* La variante de ESCRITORIO no toca tarjetas: manda al portal. Es lo que
-            impide que `import CardCheckout` arrastre el SDK de MP al instalador. */}
-        <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage SubscriptionActions={SubscriptionActionsDesktop} />} />
+        {/* Ajustes SIN la sección de suscripción: la cuenta y el cobro son del portal.
+            No se pasa `SubscriptionActions` y la pantalla no dibuja nada — el hueco ya
+            estaba previsto, y de paso ninguna variante de cobro entra al instalador. */}
+        <Route path={CONFIG.ROUTES.SETTINGS} element={<SettingsPage />} />
       </Route>
 
       {/* Fallback. Cubre además las rutas que acá no existen (/register, /onboarding,
