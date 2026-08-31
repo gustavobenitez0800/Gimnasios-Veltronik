@@ -7,11 +7,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
+import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
+import { useQueryCache } from '../hooks';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -21,39 +24,38 @@ export default function AccessPage() {
   const orgLabelCap = GYM.placeLabelCap;
 
   const { showToast } = useToast();
+  const { orgRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [checkedIn, setCheckedIn] = useState([]);
-  const [todayLogs, setTodayLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Success popup
   const [popup, setPopup] = useState(null);
 
-  // No prende el spinner: `loading` ya nace en true para la carga inicial, y en las
-  // recargas (después de una entrada o una salida) la lista se repinta sin parpadear.
-  const loadData = useCallback(async () => {
-    try {
-      // Timeout corto en la pantalla del mostrador. El general son 20 segundos y encima
-      // hay reintentos: una consulta que no llegaba tardaba MÁS DE UN MINUTO en admitir
-      // que no pudo, con el socio esperando. Acá el dato es "quién está adentro" y "qué
-      // pasó hoy": si en 8 segundos no llegó, es mejor mostrar la pantalla sin eso que
-      // dejarla girando. La búsqueda de socios ya no depende de la red.
-      const [inGym, logs] = await Promise.all([
-        accessService.getCurrentlyCheckedIn({ timeout: 8000 }),
-        accessService.getTodayLogs({ timeout: 8000 }),
-      ]);
-      setCheckedIn(inGym || []);
-      setTodayLogs(logs || []);
-    } catch (error) {
-      console.error('Access load error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // ─── Un pedido, y la vuelta a la pantalla es instantánea ───
+  //
+  // Antes esta pantalla pedía TRES cosas por separado (adentro, hoy, avisos) y las volvía a
+  // pedir de cero en cada visita al módulo — spinner en blanco cada vez que la recepcionista
+  // iba a Socios y volvía. Eso es exactamente lo que los dueños describen como "va lento".
+  //
+  // Ahora es un solo viaje, y con caché: al volver, la pantalla se pinta AL INSTANTE con lo
+  // último que se sabía y se refresca por detrás. El dato puede tener unos segundos, y para
+  // "quién está adentro" eso no cambia nada; lo que cambia es que ya no hay pantalla en
+  // blanco entre un clic y el siguiente.
+  //
+  // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
+  // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
+  const { data, loading, invalidate } = useQueryCache(
+    'mostrador',
+    () => accessService.getMostrador(),
+    { staleTime: 10000 },
+  );
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const checkedIn = useMemo(() => data?.adentro || [], [data]);
+  const todayLogs = useMemo(() => data?.hoy || [], [data]);
+  const avisos = useMemo(() => data?.avisos || [], [data]);
+
+  const loadData = invalidate;
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
@@ -238,7 +240,11 @@ export default function AccessPage() {
       <div className="access-grid">
         {/* Los avisos van ARRIBA del buscador: si un socio entró vencido, eso pasa antes
             que lo que la recepcionista esté por hacer ahora. */}
-        <AvisosMostrador />
+        <AvisosMostrador avisos={avisos} onAtendido={loadData} />
+
+        {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
+            configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
+        <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
 
         {/* Check-in Search */}
         <div className="checkin-section">

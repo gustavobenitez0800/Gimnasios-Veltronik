@@ -153,17 +153,23 @@ export default function PaymentsPage() {
   const deleteDialog = useConfirmDialog();
 
   // ─── CONTROLLER ───
+  // Los filtros van como parámetros y no como una llamada dentro de un efecto: el rango de
+  // fechas decide QUÉ se le pide al servidor (y qué se guarda en caché), y los otros tres
+  // se aplican sobre lo ya traído. El efecto que había acá pedía el mes entero de nuevo
+  // cada vez que se tocaba cualquiera de los cinco.
   const {
     payments,
     loading: isFetching,
-    loadPayments,
+    refresh,
     savePayment,
     deletePayment
-  } = usePaymentController();
-
-  useEffect(() => {
-    loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
-  }, [dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter, loadPayments]);
+  } = usePaymentController({
+    dateFrom,
+    dateTo,
+    search: debouncedSearch,
+    method: methodFilter,
+    status: statusFilter,
+  });
 
   // Stats computed strictly from currently fetched payments
   const stats = useMemo(() => {
@@ -282,8 +288,9 @@ export default function PaymentsPage() {
       showToast(modal.editingId ? 'Pago actualizado' : 'Pago registrado exitosamente', 'success');
 
       modal.close();
-      // Recarga con el filtro de fecha ACTIVO → la lista queda consistente con lo que se ve.
-      loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
+      // Vuelve a pedir el rango que se está mirando → la lista queda consistente con lo que
+      // se ve. Guardar ya marcó viejos los otros rangos, Socios y el dashboard.
+      refresh();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     } finally {
@@ -313,7 +320,7 @@ export default function PaymentsPage() {
       });
       showToast('Pago marcado como pagado', 'success');
       // El vencimiento lo corre el backend al guardar el pago (ver handleSubmit).
-      loadPayments(dateFrom, dateTo, debouncedSearch, methodFilter, statusFilter);
+      refresh();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
     }

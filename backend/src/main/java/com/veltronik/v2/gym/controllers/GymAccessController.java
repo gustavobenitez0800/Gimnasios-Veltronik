@@ -54,6 +54,27 @@ public class GymAccessController {
     }
 
     /**
+     * TODO lo que la pantalla del mostrador necesita, en UN solo pedido.
+     *
+     * <p><b>Por qué existe.</b> Esa pantalla pedía tres cosas por separado —quién está
+     * adentro, qué pasó hoy, y los avisos— y las repite cada quince segundos. Son tres viajes
+     * de ida y vuelta cada vez, sobre la conexión de un gimnasio, para armar una sola vista.
+     * Con internet regular eso se siente exactamente como lo que los dueños describen: lento.</p>
+     *
+     * <p>Los tres datos salen de la misma tabla y del mismo momento. Traerlos juntos además
+     * los deja COHERENTES entre sí: antes podían llegar con segundos de diferencia y mostrar
+     * a alguien en una lista y no en la otra.</p>
+     */
+    @GetMapping("/mostrador")
+    public ResponseEntity<Map<String, Object>> mostrador() {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
+        body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
+        body.put("avisos", accessService.avisosPendientes());
+        return ResponseEntity.ok(body);
+    }
+
+    /**
      * Socios que entraron SOLOS por QR y necesitan que alguien les hable.
      *
      * <p>Es la otra punta del check-in: cuando un socio vencido escanea el cartel, el aviso

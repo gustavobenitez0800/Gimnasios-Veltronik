@@ -1140,33 +1140,6 @@
 .checkin-result.is-warn .checkin-mark { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 .checkin-result.is-bad  .checkin-mark { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
 
-/* ── El cartel para imprimir (Ajustes) ── */
-.qr-poster {
-  background: #fff;
-  color: #0b0f11;
-  border-radius: var(--border-radius-md);
-  padding: 1.5rem;
-  text-align: center;
-  max-width: 22rem;
-}
-.qr-poster-title { font-size: 1.3rem; font-weight: 800; margin: 0 0 0.35rem; }
-.qr-poster-sub   { font-size: 0.9rem; color: #4b5563; margin: 0 0 1.25rem; }
-.qr-poster-foot  { font-size: 0.78rem; color: #6b7280; margin: 1rem 0 0; }
-
-@media print {
-  /* Al imprimir queda SOLO el cartel: sin barra lateral, sin botones, sin fondo oscuro
-     comiéndose el tóner. */
-  body * { visibility: hidden; }
-  .qr-poster, .qr-poster * { visibility: visible; }
-  .qr-poster {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    max-width: none;
-    width: 100%;
-    box-shadow: none;
-  }
-}
 
 /* Aviso mientras la pantalla insiste sin señal. Discreto: el socio tiene que poder leerlo
    de reojo y decidir si espera o va al mostrador, sin que parezca un error. */
@@ -1392,4 +1365,79 @@
    botón de al lado, así que tiene que verse antes de apretarlo. */
 .member-access-status.is-inside {
   color: var(--primary-400, #60a5fa);
+}
+
+/* ============================================
+   CARTEL DEL QR — en Accesos
+   ============================================
+   Va en la misma grilla que el resto del mostrador y ocupa el ancho completo. En pantalla
+   chica pasa a columna: la tablet del mostrador es lo más común después de la PC. */
+.qr-panel {
+  grid-column: 1 / -1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.qr-panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+  color: var(--text-primary);
+}
+.qr-panel-head p {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+.qr-panel-body {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* El QR SIEMPRE sobre blanco, en cualquier tema. Un código sobre fondo oscuro no lo lee
+   ninguna cámara: la lectura depende del contraste entre el módulo negro y su fondo. */
+.qr-panel-code {
+  background: #fff;
+  padding: 0.75rem;
+  border-radius: var(--border-radius-md);
+  line-height: 0;
+  flex: none;
+}
+
+.qr-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  min-width: 15rem;
+  flex: 1;
+}
+
+.qr-panel-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 40ch;
+}
+
+@media (max-width: 640px) {
+  .qr-panel-body { flex-direction: column; align-items: stretch; }
+  /* El código centrado y los botones a lo ancho: en un teléfono, un botón angosto al lado
+     de un QR grande queda desbalanceado y es más difícil de acertar. */
+  .qr-panel-code { align-self: center; }
+  .qr-panel-actions { min-width: 0; align-items: stretch; }
+  .qr-panel-actions .btn { width: 100%; justify-content: center; }
+  .qr-panel-hint { text-align: center; max-width: none; }
 }

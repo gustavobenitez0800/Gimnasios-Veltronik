@@ -11,7 +11,7 @@ name: CI
 #     java.util.logging, sin @Autowired ni @Value en campos) + la regla que exige
 #     que toda entidad de un vertical herede de TenantAwareEntity (el aislamiento
 #     entre negocios). El build se pone rojo solo.
-# Frontend: lint (no-console y demás reglas) + build de Vite.
+# Frontend: lint (no-console y demás reglas) + tests (vitest) + build de Vite.
 
 on:
   push:
@@ -78,6 +78,12 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+
+      - name: Tests
+        # Vitest. Hoy cubre el depósito de la caché de consultas: que refrescar no borre
+        # (o la pantalla queda en blanco en cada ciclo), que invalidar un módulo no toque
+        # a los otros, y que la caché tenga techo (los terminales no se apagan nunca).
+        run: pnpm test
 
       - name: Build web (vite)
         # Sin secrets: las VITE_* quedan undefined y el bundle no es usable en
