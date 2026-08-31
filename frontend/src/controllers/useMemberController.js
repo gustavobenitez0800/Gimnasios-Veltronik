@@ -1,5 +1,17 @@
 import { useState, useCallback } from 'react';
 import { memberService } from '../services/MemberService';
+import { useQueryCache, invalidateQueries } from '../hooks';
+
+// Una sola lista vacía compartida: con `data?.x || []` se crea un array NUEVO en cada
+// render mientras no hay datos, y los useMemo de la página que dependen de ella dejan
+// de memorizar nada.
+const EMPTY = [];
+
+// Cuánto vale lo que ya se tiene antes de volver a preguntar. Un minuto: la lista solo
+// cambia cuando alguien da de alta, edita o cobra — y las tres cosas invalidan la caché
+// a mano acá abajo. Lo único que podría quedar viejo un minuto es un cambio hecho desde
+// OTRA máquina, y para una lista de socios eso no le rompe el día a nadie.
+const STALE_MS = 60 * 1000;
 
 /**
  * Estado + operaciones de la página de Socios.
@@ -67,65 +79,115 @@ function toApi(member) {
   };
 }
 
-export function useMemberController() {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [totalRecords, setTotalRecords] = useState(0);
+/**
+ * @param {number} initialPageSize  El tamaño de página de la pantalla. Se pasa para que la
+ *   PRIMERA consulta salga ya con el tamaño real: si el controller arrancara con otro, se
+ *   pediría una página que nadie va a mirar y recién después la buena.
+ */
+export function useMemberController(initialPageSize = 25) {
+  // ─── Volver a Socios ya no es esperar de nuevo ───
+  //
+  // Esta pantalla pedía la lista de cero en CADA visita: ir a Accesos y volver era otro
+  // spinner en blanco. Es la misma queja de "va lento" que se arregló en el mostrador, y
+  // la solución ya estaba escrita en el proyecto (`useQueryCache`): pintar al instante lo
+  // último que se sabía y refrescar por detrás.
+  //
+  // La clave lleva negocio + página + tamaño + búsqueda, porque el backend pagina y busca
+  // del lado del servidor: cada combinación es una respuesta distinta. El negocio va en la
+  // clave por lo mismo que en el dashboard: si `current_org_id` todavía no está (el Lobby
+  // lo escribe antes de navegar, pero el contexto tarda), la clave cambia cuando llega y
+  // no queda pegada una lista que no es de esta sucursal.
+  const orgId = localStorage.getItem('current_org_id');
+  const [query, setQuery] = useState({ page: 0, size: initialPageSize, search: '' });
 
-  const loadMembers = useCallback(async (page = 0, pageSize = 50, search = '') => {
-    setLoading(true);
-    try {
-      // Paginación + búsqueda en el BACKEND: solo trae la página pedida,
-      // no los cientos de socios de una (menos transferencia y memoria).
-      const pageData = await memberService.getMembersPaged(page, pageSize, search);
-      setMembers((pageData.content || []).map(fromApi));
-      setTotalRecords(pageData.totalElements || 0);
-    } catch (err) {
-      console.error('Error loading members:', err);
-    } finally {
-      setLoading(false);
-    }
+  const fetchMembers = useCallback(async () => {
+    // Paginación + búsqueda en el BACKEND: solo trae la página pedida,
+    // no los cientos de socios de una (menos transferencia y memoria).
+    const pageData = await memberService.getMembersPaged(query.page, query.size, query.search);
+    return {
+      members: (pageData.content || []).map(fromApi),
+      totalRecords: pageData.totalElements || 0,
+    };
+  }, [query]);
+
+  const { data, loading, isFetching, mutate, invalidate } = useQueryCache(
+    ['members', orgId, query.page, query.size, query.search],
+    fetchMembers,
+    { staleTime: STALE_MS },
+  );
+
+  const members = data?.members || EMPTY;
+  const totalRecords = data?.totalRecords || 0;
+
+  // La página sigue llamando a esto igual que antes; ahora solo anota QUÉ hay que mostrar
+  // y la caché decide si hace falta pedirlo. Si los parámetros no cambiaron devuelve el
+  // mismo objeto, así que no dispara ni un render de más.
+  const loadMembers = useCallback((page = 0, pageSize = 50, search = '') => {
+    setQuery((prev) => (
+      prev.page === page && prev.size === pageSize && prev.search === search
+        ? prev
+        : { page, size: pageSize, search }
+    ));
   }, []);
 
-  // Devuelve el socio guardado, pero NO toca la lista: la página recarga con loadMembers
-  // para que la tabla y el contador queden con lo que realmente hay en la base.
+  // ─── Después de tocar un socio hay que invalidar TODAS las páginas ───
+  //
+  // No solo la que se está mirando: si se edita un socio en la página 1 y después se va a
+  // la 2, esa seguiría guardada como estaba. Antes no hacía falta porque no se guardaba
+  // nada; con caché, no invalidar sería inventar un bug donde no lo había.
+  //
+  // El dashboard y retención también: cuentan socios activos y vencidos, y esos números
+  // acaban de cambiar.
+  const invalidarDerivados = useCallback(() => {
+    invalidateQueries('members');
+    invalidateQueries('gym_dashboard');
+    invalidateQueries('retention_analytics');
+  }, []);
+
+  // Devuelve el socio guardado, pero NO toca la lista: la página llama a refresh() para
+  // que la tabla y el contador queden con lo que realmente hay en la base.
   const saveMember = async (memberData) => {
-    setLoading(true);
     try {
       const dto = toApi(memberData);
       const saved = memberData.id
         ? await memberService.updateMember(memberData.id, dto)
         : await memberService.createMember(dto);
+      invalidarDerivados();
       return fromApi(saved);
     } catch (err) {
       console.error('Error saving member:', err);
       // El backend manda el motivo real (DNI repetido, etc.); sin él el toast dice cualquier cosa.
       throw new Error(err.response?.data?.message || err.message || 'Error al guardar socio');
-    } finally {
-      setLoading(false);
     }
   };
 
   const deleteMember = async (id) => {
-    setLoading(true);
     try {
       await memberService.deleteMember(id);
-      // Saca la fila al toque, sin esperar la recarga.
-      setMembers(prev => prev.filter(m => m.id !== id));
-      setTotalRecords(t => (t > 0 ? t - 1 : 0));
+      // Saca la fila al toque, sin esperar la recarga…
+      mutate({
+        members: members.filter((m) => m.id !== id),
+        totalRecords: totalRecords > 0 ? totalRecords - 1 : 0,
+      });
+      // …y después se pide la verdad, porque al borrar una fila la página se corre: el
+      // primero de la página siguiente ahora entra en esta.
+      invalidarDerivados();
+      invalidate();
     } catch (err) {
       console.error('Error deleting member:', err);
       throw new Error(err.response?.data?.message || err.message || 'Error al eliminar socio');
-    } finally {
-      setLoading(false);
     }
   };
 
   return {
     members,
-    loading,
+    // Para la página "está cargando" es una sola cosa: o no hay nada que mostrar, o lo que
+    // se muestra se está refrescando por detrás. De ahí salen el "Actualizando datos...",
+    // el spinner de la tabla vacía y el atenuado de las filas.
+    loading: loading || isFetching,
     totalRecords,
     loadMembers,
+    refresh: invalidate,
     saveMember,
     deleteMember,
   };

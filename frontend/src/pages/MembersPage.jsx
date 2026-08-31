@@ -67,15 +67,17 @@ export default function MembersPage() {
   const membersLabelLower = membersLabel.toLowerCase();
   const canDelete = orgRole === 'owner' || orgRole === 'admin';
 
-  // Controller
+  // Controller. Recibe el tamaño de página para que la primera consulta salga ya con el
+  // tamaño real y no se pida una página que nadie va a mirar.
   const {
     members: controllerMembers,
     loading: isFetching,
     totalRecords,
     loadMembers,
+    refresh,
     saveMember,
     deleteMember
-  } = useMemberController();
+  } = useMemberController(PAGE_SIZE);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -149,8 +151,9 @@ export default function MembersPage() {
       
       await saveMember(data);
       // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador.
-      // Usa la página/tamaño EFECTIVOS para no romper la vista cuando hay filtro de estado.
-      loadMembers(fetchPage, fetchSize, search);
+      // `refresh` pide de nuevo la MISMA vista que se está mirando; guardar ya marcó viejas
+      // las demás páginas, que también dejaron de ser ciertas.
+      refresh();
       
       showToast(`${memberLabel} guardado exitosamente`, 'success');
       modal.close();
