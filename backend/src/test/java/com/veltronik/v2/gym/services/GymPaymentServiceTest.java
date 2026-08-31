@@ -40,6 +40,7 @@ class GymPaymentServiceTest {
 
     private GymPaymentRepository repository;
     private GymMemberService memberService;
+    private GymPlanService planService;
     private GymPaymentService service;
 
     private GymMember socio;
@@ -48,7 +49,8 @@ class GymPaymentServiceTest {
     void setUp() {
         repository = mock(GymPaymentRepository.class);
         memberService = mock(GymMemberService.class);
-        service = new GymPaymentService(repository, memberService);
+        planService = mock(GymPlanService.class);
+        service = new GymPaymentService(repository, memberService, planService);
 
         TenantContextHolder.setTenantId(TENANT);
 

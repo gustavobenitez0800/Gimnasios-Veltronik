@@ -5,6 +5,7 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.dto.CoverageGapDTO;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.entities.GymPayment;
+import com.veltronik.v2.gym.entities.GymPlan;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,10 +28,13 @@ public class GymPaymentService {
 
     private final GymPaymentRepository repository;
     private final GymMemberService memberService;
+    private final GymPlanService planService;
 
-    public GymPaymentService(GymPaymentRepository repository, GymMemberService memberService) {
+    public GymPaymentService(GymPaymentRepository repository, GymMemberService memberService,
+                             GymPlanService planService) {
         this.repository = repository;
         this.memberService = memberService;
+        this.planService = planService;
     }
 
     public List<GymPayment> findAllForCurrentTenant() {
@@ -79,9 +83,46 @@ public class GymPaymentService {
             payment.setMember(member);
         }
 
+        // ── El arancel manda sobre el período ──
+        //
+        // Si el cobro trae un arancel, la cobertura la define el PLAN, no lo que haya escrito
+        // quien atiende. Antes el período se tipeaba a mano en cada cobro, y olvidarse de
+        // correr el "hasta" al vender un trimestral dejaba al socio con un mes — sin que nadie
+        // se enterara hasta que no lo dejaban entrar.
+        //
+        // Se resuelve ANTES de guardar para que el pago quede grabado con el período que
+        // realmente se le va a aplicar al socio: si el pago dijera una cosa y la cobertura
+        // otra, tendríamos otra vez dos verdades para el mismo hecho.
+        if (payment.getPlan() != null && payment.getPlan().getId() != null) {
+            GymPlan plan = planService.findByIdAndVerifyOwnership(payment.getPlan().getId());
+            payment.setPlan(plan);
+            aplicarPeriodoDelPlan(payment, plan, member);
+        }
+
         GymPayment saved = repository.save(payment);
         extenderCobertura(saved, member);
         return saved;
+    }
+
+    /**
+     * Calcula el período que cubre este pago a partir del arancel.
+     *
+     * <p>Arranca donde termina la cobertura vigente del socio —no "hoy"—: el que paga el 25
+     * teniendo cuota hasta el 30 no pierde esos cinco días, se le suman. Si está vencido o es
+     * nuevo, arranca hoy.</p>
+     *
+     * <p>Un arancel de 0 días (un pack de clases sueltas) no toca el período: solo suma
+     * visitas. Por eso el período queda en null y {@code aplicarCobertura} no mueve la fecha.</p>
+     */
+    private void aplicarPeriodoDelPlan(GymPayment payment, GymPlan plan, GymMember member) {
+        if (plan.getDurationDays() <= 0) return;
+
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        LocalDateTime vigente = (member != null) ? member.getMembershipEnd() : null;
+        LocalDateTime desde = (vigente != null && vigente.isAfter(ahora)) ? vigente : ahora;
+
+        payment.setPeriodStart(desde);
+        payment.setPeriodEnd(desde.plusDays(plan.getDurationDays()));
     }
 
     /**
@@ -108,6 +149,29 @@ public class GymPaymentService {
         if (member == null) return;                       // pago sin socio: nada que extender
         if (!estaCobrado(payment.getStatus())) return;    // pendiente o anulado: la plata no entró
         aplicarCobertura(member, payment.getPeriodEnd());
+        sumarClasesDelPlan(payment, member);
+    }
+
+    /**
+     * Le suma al socio las visitas que otorga el arancel cobrado.
+     *
+     * <p><b>Suma, no reemplaza.</b> Si le quedaban 5 clases y compra un abono de 30, queda con
+     * 35: esas 5 las pagó. Es la misma lógica que la fecha, que se extiende desde el
+     * vencimiento vigente en vez de arrancar de hoy — quien renueva antes de que se le acabe
+     * no pierde lo que le sobraba.</p>
+     *
+     * <p><b>Un arancel sin clases (NULL) no toca el contador.</b> No lo pone en cero ni lo
+     * borra: si un gimnasio vende una mensualidad libre a alguien que tenía cupo, sacarle el
+     * cupo en silencio sería decidir por él. Eso se cambia a mano desde la ficha del socio,
+     * que es donde se ve lo que está pasando.</p>
+     */
+    private void sumarClasesDelPlan(GymPayment payment, GymMember member) {
+        GymPlan plan = payment.getPlan();
+        if (plan == null || plan.getClasses() == null || plan.getClasses() <= 0) return;
+
+        int actuales = member.getClassesRemaining() != null ? member.getClassesRemaining() : 0;
+        member.setClassesRemaining(actuales + plan.getClasses());
+        memberService.saveForCurrentTenant(member);
     }
 
     /**

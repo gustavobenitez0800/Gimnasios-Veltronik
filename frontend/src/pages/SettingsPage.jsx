@@ -26,6 +26,7 @@ import GymLogo from '../components/GymLogo';
 import TerminalSettings from '../components/TerminalSettings';
 import CoverageGaps from '../components/CoverageGaps';
 import CashierSettings from '../components/CashierSettings';
+import ArancelesSettings from '../components/ArancelesSettings';
 
 /**
  * `SubscriptionActions` llega por prop desde la tabla de rutas (Fase 4).
@@ -485,6 +486,10 @@ export default function SettingsPage({ SubscriptionActions }) {
             A diferencia de las acciones de suscripción, este componente no arrastra nada
             pesado, así que no necesita el patrón de inyección desde la tabla de rutas:
             alcanza con no dibujarlo. Él mismo se esconde si no hay puente de Electron. */}
+        {/* Aranceles: el catálogo de lo que vende el gimnasio. Solo dueño/admin, porque
+            cambiar un precio es una decisión del negocio y no del mostrador. */}
+        {(currentRole === 'owner' || currentRole === 'admin') && <ArancelesSettings />}
+
         {CONFIG.IS_DESKTOP && <TerminalSettings />}
 
         {/* Equipos (Fase 1: registro + bautizo) */}

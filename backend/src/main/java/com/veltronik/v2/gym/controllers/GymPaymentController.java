@@ -72,6 +72,13 @@ public class GymPaymentController {
         GymPayment payment = new GymPayment();
         // setMemberId arma la referencia mínima (id); el service la resuelve y verifica el tenant.
         if (input.getMemberId() != null) payment.setMemberId(input.getMemberId());
+        // El arancel viaja por referencia: el service lo resuelve y verifica que sea del mismo
+        // gimnasio, igual que hace con el socio.
+        if (input.getPlanId() != null) {
+            com.veltronik.v2.gym.entities.GymPlan p = new com.veltronik.v2.gym.entities.GymPlan();
+            p.setId(input.getPlanId());
+            payment.setPlan(p);
+        }
         if (input.getAmount() != null) payment.setAmount(input.getAmount());
         payment.setPaymentDate(input.getPaymentDate() != null ? input.getPaymentDate() : LocalDateTime.now(BUSINESS_ZONE));
         if (input.getPaymentMethod() != null) payment.setPaymentMethod(input.getPaymentMethod());

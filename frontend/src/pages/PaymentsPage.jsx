@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { memberService, errorService } from '../services';
+import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates, addOneMonth } from '../lib/utils';
 import { useModal, useConfirmDialog } from '../hooks';
@@ -41,6 +41,7 @@ function getInitialForm() {
     notes: '',
     periodStart: today,
     periodEnd: addOneMonth(today),
+    plan_id: '',
   };
 }
 
@@ -55,6 +56,7 @@ const PAYMENT_MAP_FN = (p) => ({
   notes: p.notes || '',
   periodStart: p.periodStart || '',
   periodEnd: p.periodEnd || '',
+  plan_id: p.plan?.id || '',
 });
 
 export default function PaymentsPage() {
@@ -230,6 +232,47 @@ export default function PaymentsPage() {
 
       return updated;
     });
+  };
+
+  // ─── Aranceles ───
+  // Se cargan una vez al montar. Si el gimnasio no cargó ninguno, el selector no aparece y
+  // cobrar sigue funcionando exactamente como antes: escribiendo monto y fechas.
+  const [aranceles, setAranceles] = useState([]);
+  useEffect(() => {
+    let cancelado = false;
+    planService.getVigentes()
+      .then(a => { if (!cancelado) setAranceles(a || []); })
+      .catch(() => { /* sin aranceles se cobra a mano, no es un error */ });
+    return () => { cancelado = true; };
+  }, []);
+
+  /** "· 1 mes y 30 clases" — para que el que cobra vea qué está vendiendo. */
+  const describirArancel = (a) => {
+    const partes = [];
+    if (a.durationDays > 0) {
+      partes.push(a.durationDays % 30 === 0 && a.durationDays >= 30
+        ? `${a.durationDays / 30} ${a.durationDays === 30 ? 'mes' : 'meses'}`
+        : `${a.durationDays} ${a.durationDays === 1 ? 'día' : 'días'}`);
+    }
+    if (a.classes != null) partes.push(`${a.classes} clases`);
+    return partes.length ? ` · ${partes.join(' y ')}` : '';
+  };
+
+  /**
+   * Al elegir arancel se completa el monto, pero el período NO se toca acá.
+   *
+   * Lo calcula el backend al guardar, desde el propio plan y desde la cobertura vigente del
+   * socio. Si lo calculáramos también en el navegador tendríamos dos cuentas para lo mismo
+   * — que es exactamente el problema que ya nos costó los días de vencimiento en cinco
+   * lugares y los rangos de fecha en dos.
+   */
+  const elegirArancel = (planId) => {
+    const a = aranceles.find(x => x.id === planId);
+    modal.setForm(prev => ({
+      ...prev,
+      plan_id: planId || '',
+      amount: a ? String(a.price ?? '') : prev.amount,
+    }));
   };
 
   const handleMemberSelect = (member) => {
@@ -565,6 +608,31 @@ export default function PaymentsPage() {
               <input type="number" className="form-input" placeholder="0"
                 value={modal.form.amount} onChange={(e) => handleFormChange('amount', e.target.value)} />
             </div>
+
+            {/* ─── El arancel decide, no la memoria de quien atiende ───
+                Elegir el plan completa el monto y hace que el backend aplique los días y las
+                clases que corresponden. Antes había que escribir el período a mano en cada
+                cobro: vender un trimestral y olvidarse de correr el "hasta" dejaba al socio
+                con un mes, y nadie se enteraba hasta que no lo dejaban entrar. */}
+            {aranceles.length > 0 && (
+              <div className="form-group full-width">
+                <label className="form-label">Arancel</label>
+                <select className="form-select" value={modal.form.plan_id || ''}
+                  onChange={(e) => elegirArancel(e.target.value)}>
+                  <option value="">Sin arancel (importe suelto)</option>
+                  {aranceles.map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} — {formatCurrency(a.price)}{describirArancel(a)}
+                    </option>
+                  ))}
+                </select>
+                <small className="form-hint">
+                  {modal.form.plan_id
+                    ? 'El período y las clases los aplica el arancel: no hace falta tocar las fechas de abajo.'
+                    : 'Sin arancel, el período lo escribís vos.'}
+                </small>
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label">Fecha de pago</label>
               <input type="date" className="form-input" value={modal.form.paymentDate}
