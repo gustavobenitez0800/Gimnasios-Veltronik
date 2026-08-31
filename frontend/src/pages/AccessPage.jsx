@@ -55,6 +55,30 @@ export default function AccessPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // ── El mostrador se entera solo de lo que pasa en la puerta ──
+  //
+  // Antes esta pantalla cargaba UNA vez, al abrirla, y nunca más. Con el mostrador manual no
+  // se notaba: la recepcionista marcaba y la lista se refrescaba después de su propio clic.
+  // Con el QR el que marca es el socio desde su celular, así que acá no llegaba nada — había
+  // que salir del módulo y volver a entrar para que apareciera, y lo mismo al salir.
+  //
+  // Solo con la pestaña a la vista: un terminal olvidado abierto toda la noche no tiene por
+  // qué seguir preguntando. Y al volver a la pestaña refresca en el acto, sin esperar el
+  // próximo ciclo — que es justo cuando la recepcionista vuelve a mirar la pantalla.
+  useEffect(() => {
+    const refrescarSiVisible = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+    const t = setInterval(refrescarSiVisible, 15000);
+    document.addEventListener('visibilitychange', refrescarSiVisible);
+    window.addEventListener('focus', refrescarSiVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', refrescarSiVisible);
+      window.removeEventListener('focus', refrescarSiVisible);
+    };
+  }, [loadData]);
+
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
   // refresca sola cada tanto, en el fondo y sin que nadie la espere.

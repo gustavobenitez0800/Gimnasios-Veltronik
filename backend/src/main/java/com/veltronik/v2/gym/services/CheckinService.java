@@ -189,8 +189,14 @@ public class CheckinService {
         // El rebote no es un evento: es el mismo gesto contado dos veces. Se lo confirmamos con
         // calma en vez de decirle que salió, que sería mentira y lo haría escanear otra vez.
         if (scan.direction() == AccessLogService.Direction.REBOTE) {
+            // El texto NO puede decir "tu entrada quedó marcada": el rebote también salta
+            // cuando alguien está intentando SALIR y toca dos veces, y ahí decirle "entrada"
+            // lo hace pensar que el sistema entendió al revés. Se le confirma el gesto sin
+            // nombrar la dirección, que es lo único cierto en los dos casos.
             return new CheckinResult(true, punto.getGymName(), nombre, dir, v.status().name(),
-                    "Ya estabas registrado", "Tu entrada de hoy ya quedó marcada.", false, false);
+                    "Listo, ya lo registramos",
+                    "Tu marca de recién quedó guardada. No hace falta escanear de nuevo.",
+                    false, false);
         }
 
         boolean esEntrada = scan.direction() == AccessLogService.Direction.ENTRADA;
@@ -198,7 +204,12 @@ public class CheckinService {
         String detalle = esEntrada ? "Entrada registrada." : "Salida registrada. Buen entrenamiento.";
 
         if (scan.recuperado()) {
-            detalle += " (La vez anterior te fuiste sin marcar la salida.)";
+            // Este es el caso más confuso de todos: el socio venía a marcar la SALIDA y el
+            // sistema le registra una ENTRADA, porque su visita anterior era tan vieja que ya
+            // no podía ser real. Si el mensaje no lo dice de frente, la persona cree que el
+            // sistema entendió al revés y vuelve a escanear — y ahí sí se traba de verdad.
+            detalle = "Registramos tu ENTRADA. La vez anterior te fuiste sin marcar la salida, "
+                    + "así que aquella visita la cerramos nosotros.";
         }
 
         // La situación de la cuota solo se avisa al ENTRAR. Al que ya entrenó y se está yendo no

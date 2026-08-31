@@ -159,11 +159,21 @@ public class AccessLogService {
         return registerScan(memberId, method, null, null).log();
     }
 
+    /**
+     * ¿Esta visita abierta es alguien adentro, o alguien que se fue sin marcar?
+     *
+     * <p><b>Solo cuenta el tiempo transcurrido.</b> La primera versión agregaba "o cambió el
+     * día", y eso rompía a cualquier gimnasio abierto después de medianoche: el socio que
+     * entraba a las 23:00 y salía a las 00:30 tenía una visita de hora y media —vivísima— pero
+     * el cambio de fecha la marcaba como abandonada. Resultado: su salida se convertía en una
+     * ENTRADA nueva. Tocaba "marcar salida", el sistema le contestaba "entrada registrada", y
+     * el botón volvía a decir "marcar salida". Parecía trabado, y en cierto modo lo estaba.</p>
+     *
+     * <p>La cláusula del día tampoco agregaba nada: el caso que decía cubrir —entró 23:00,
+     * vuelve 7:00— son ocho horas, y el umbral de tiempo ya lo atrapa solo.</p>
+     */
     private boolean esAbandonada(LocalDateTime entrada, LocalDateTime now) {
-        // Dos criterios, cualquiera alcanza: pasó demasiado tiempo, o cambió el día. El segundo
-        // atrapa al que entró a las 23:00 y marca a las 7:00 — solo 8 horas, pero es otra visita.
-        return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras
-                || !entrada.toLocalDate().equals(now.toLocalDate());
+        return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras;
     }
 
     /**

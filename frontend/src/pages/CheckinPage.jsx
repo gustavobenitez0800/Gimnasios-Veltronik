@@ -95,7 +95,11 @@ function vibrar(patron) {
 // calle y el wifi todavía no enganchó. Si la pantalla espera sola un rato con él ahí parado,
 // buena parte se resuelve sin que nadie haga nada. Pasado ese rato ya no es un parpadeo:
 // es un corte de verdad, y hacerlo esperar más sería perder su tiempo.
-const INSISTIR_MS = 90_000;
+// Bajado de 90 a 30 segundos. Noventa era el número para "el socio viene de la calle y el
+// wifi todavía no enganchó", pero mirado desde la puerta del gimnasio es una eternidad: la
+// persona está parada con el teléfono en la mano y a los veinte segundos ya asume que se
+// trabó. Treinta alcanza para un enganche de wifi y falla a la vista en vez de colgarse.
+const INSISTIR_MS = 30_000;
 
 /**
  * Espera {@code ms}, o menos si vuelve la conexión antes.
