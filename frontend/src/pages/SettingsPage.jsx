@@ -26,7 +26,6 @@ import GymLogo from '../components/GymLogo';
 import TerminalSettings from '../components/TerminalSettings';
 import CoverageGaps from '../components/CoverageGaps';
 import CashierSettings from '../components/CashierSettings';
-import CheckinQrSettings from '../components/CheckinQrSettings';
 
 /**
  * `SubscriptionActions` llega por prop desde la tabla de rutas (Fase 4).
@@ -462,7 +461,6 @@ export default function SettingsPage({ SubscriptionActions }) {
         {/* Quién atiende el mostrador, con su PIN. A partir de la primera persona cargada,
             cada cobro y cada acceso quedan firmados. */}
         {canManageDevices && <CashierSettings />}
-        {canManageDevices && <CheckinQrSettings />}
 
         {/* Socios que pagaron y quedaron figurando vencidos (restos del bug de los dos
             pasos al cobrar). Se esconde solo cuando no hay nada que revisar. */}

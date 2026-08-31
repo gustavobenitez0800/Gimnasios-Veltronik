@@ -37,14 +37,14 @@ class AccessService {
   }
 
   /**
-   * Socios que entraron por QR y necesitan que alguien les hable.
+   * TODO lo del mostrador en UN pedido: quién está adentro, qué pasó hoy y los avisos.
    *
-   * La pantalla del mostrador la consulta cada 20 segundos, así que va con timeout corto: si
-   * no llegó, no pasa nada — vuelve a intentar en el próximo ciclo, y mientras tanto no puede
-   * colgar la pantalla donde hay gente esperando.
+   * Antes eran tres viajes de ida y vuelta, repetidos cada quince segundos. Sobre la conexión
+   * de un gimnasio eso se siente exactamente como "el sistema va lento". Y además llegaban con
+   * segundos de diferencia entre sí, así que alguien podía aparecer en una lista y no en la otra.
    */
-  async getAvisos() {
-    const response = await apiClient.get('/gym/access/avisos', { timeout: 8000 });
+  async getMostrador(opts = {}) {
+    const response = await apiClient.get('/gym/access/mostrador', { timeout: 8000, ...opts });
     return response.data;
   }
 
