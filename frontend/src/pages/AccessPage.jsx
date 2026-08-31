@@ -106,21 +106,29 @@ export default function AccessPage() {
     doSearch(val);
   };
 
-  // Days remaining helper
-  const getDaysInfo = (membershipEnd) => {
-    if (!membershipEnd) return { days: null, label: 'Sin fecha', type: 'unknown' };
-    const diff = Math.ceil((new Date(membershipEnd) - new Date()) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return { days: Math.abs(diff), label: `${Math.abs(diff)}d vencido`, type: 'expired' };
-    if (diff <= 3) return { days: diff, label: `${diff}d restantes`, type: 'danger' };
-    if (diff <= 7) return { days: diff, label: `${diff}d restantes`, type: 'warning' };
-    return { days: diff, label: `${diff}d restantes`, type: 'ok' };
+  // ─── La situación del socio la dice el BACKEND ───
+  //
+  // Acá también se calculaba a mano, con su propio redondeo. Sumado al de la lista de socios
+  // y al del check-in, el mismo socio podía deber una cantidad de días distinta en cada
+  // pantalla — y eso efectivamente pasó: "hace 2 días" en el aviso, "4d vencido" en la lista.
+  const getDaysInfo = (member) => {
+    const { situacion, diasVencido, diasRestantes } = member || {};
+    if (!situacion || situacion === 'SIN_DATOS') return { label: 'Sin fecha', type: 'unknown' };
+    if (situacion === 'INACTIVO') return { label: 'Dado de baja', type: 'expired' };
+    if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
+      return { label: `${diasVencido}d vencido`, type: 'expired' };
+    }
+    const d = diasRestantes ?? 0;
+    if (d <= 3) return { label: `${d}d restantes`, type: 'danger' };
+    if (d <= 7) return { label: `${d}d restantes`, type: 'warning' };
+    return { label: `${d}d restantes`, type: 'ok' };
   };
 
   // Check-in
   const handleCheckIn = async (member) => {
     try {
       await accessService.checkIn(member.id, 'manual');
-      const daysInfo = getDaysInfo(member.membershipEnd);
+      const daysInfo = getDaysInfo(member);
 
       // Show success popup
       setPopup({
@@ -214,7 +222,7 @@ export default function AccessPage() {
           {searchResults.length > 0 && (
             <div className="search-results">
               {searchResults.map(member => {
-                const daysInfo = getDaysInfo(member.membershipEnd);
+                const daysInfo = getDaysInfo(member);
                 const isExpired = daysInfo.type === 'expired';
                 return (
                   <div key={member.id} className="search-result-item">

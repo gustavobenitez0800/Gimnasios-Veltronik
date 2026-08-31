@@ -42,7 +42,8 @@ public class MemberAccessPolicy {
         INACTIVO
     }
 
-    public record Verdict(Status status, LocalDateTime membershipEnd, long diasVencido) {
+    public record Verdict(Status status, LocalDateTime membershipEnd, long diasVencido,
+                          long diasRestantes) {
         /** ¿Le mostramos algo distinto a "pasá"? */
         public boolean necesitaAviso() {
             return status != Status.AL_DIA;
@@ -68,24 +69,27 @@ public class MemberAccessPolicy {
      * complete, no para acusarlo.</p>
      */
     public Verdict evaluate(GymMember member, LocalDateTime now) {
-        if (member == null) return new Verdict(Status.INACTIVO, null, 0);
+        if (member == null) return new Verdict(Status.INACTIVO, null, 0, 0);
 
         // La baja manda sobre todo lo demás: el que fue dado de baja no "debe", ya no es socio.
         if (!member.isActive()) {
-            return new Verdict(Status.INACTIVO, member.getMembershipEnd(), 0);
+            return new Verdict(Status.INACTIVO, member.getMembershipEnd(), 0, 0);
         }
 
         LocalDateTime end = member.getMembershipEnd();
         if (end == null) {
-            return new Verdict(Status.SIN_DATOS, null, 0);
+            return new Verdict(Status.SIN_DATOS, null, 0, 0);
         }
 
         if (end.isAfter(now)) {
-            return new Verdict(Status.AL_DIA, end, 0);
+            // Se redondea HACIA ARRIBA: al que le quedan 12 horas le faltan "1 día", no cero.
+            // Decirle "0 días" a alguien que todavía puede entrenar hoy es alarmarlo de más.
+            long faltan = (long) Math.ceil(java.time.Duration.between(now, end).toMinutes() / 1440.0);
+            return new Verdict(Status.AL_DIA, end, 0, Math.max(1, faltan));
         }
 
         long dias = java.time.Duration.between(end, now).toDays();
         Status s = dias <= graceDays ? Status.EN_GRACIA : Status.VENCIDO;
-        return new Verdict(s, end, dias);
+        return new Verdict(s, end, dias, 0);
     }
 }

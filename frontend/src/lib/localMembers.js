@@ -110,6 +110,11 @@ function comprimir(m) {
     email: m.email || '',
     membershipEnd: m.membershipEnd || null,
     isActive: m.isActive !== false,
+    // La situación la calcula el backend. Se guarda tal cual: recalcularla acá sería volver
+    // a tener dos cuentas distintas para el mismo socio, que es el bug que esto vino a cerrar.
+    situacion: m.situacion || null,
+    diasVencido: m.diasVencido ?? null,
+    diasRestantes: m.diasRestantes ?? null,
     // Precalculado UNA vez, al guardar, y no en cada tecla: con dos mil socios, normalizar
     // al vuelo en cada pulsación es trabajo repetido miles de veces por búsqueda.
     _busqueda: `${m.firstName || ''} ${m.lastName || ''} ${m.dni || m.document || ''}`
@@ -212,6 +217,9 @@ function vista(s) {
     email: s.email,
     membershipEnd: s.membershipEnd,
     isActive: s.isActive,
+    situacion: s.situacion,
+    diasVencido: s.diasVencido,
+    diasRestantes: s.diasRestantes,
   };
 }
 

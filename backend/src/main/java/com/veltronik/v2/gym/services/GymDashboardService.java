@@ -36,6 +36,7 @@ public class GymDashboardService {
     private final GymMemberRepository memberRepository;
     private final GymPaymentRepository paymentRepository;
     private final GymMemberMapper memberMapper;
+    private final com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy;
 
     public Map<String, Object> getDashboardStats() {
         UUID tenantId = TenantContextHolder.getTenantId();
@@ -91,8 +92,8 @@ public class GymDashboardService {
         // DTO (no la entidad cruda): el front lee fullName/membershipEnd/phone. Con la entidad
         // cruda llegaban firstName/lastName (NO fullName) → los socios salían sin nombre, y se
         // exponia la entidad JPA (con su tenant lazy → riesgo de 500). Mandamiento #5.
-        analytics.put("expiring_soon", memberMapper.toDtoList(expiringSoon));
-        analytics.put("at_risk", memberMapper.toDtoList(atRisk));
+        analytics.put("expiring_soon", memberMapper.toDtoList(expiringSoon, accessPolicy));
+        analytics.put("at_risk", memberMapper.toDtoList(atRisk, accessPolicy));
 
         return analytics;
     }

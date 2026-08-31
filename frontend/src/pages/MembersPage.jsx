@@ -84,10 +84,11 @@ export default function MembersPage() {
   // cuando hay filtro). "expired" se calcula por fecha de vencimiento en el cliente.
   const filteredMembers = useMemo(() => {
     if (!statusFilter) return controllerMembers;
-    const today = new Date();
     return controllerMembers.filter((m) => {
+      // 'Vencido' lo dice el backend, igual que la columna de días. Comparar fechas acá
+      // volvía a abrir la misma grieta: la del navegador contra la del servidor.
       if (statusFilter === 'expired') {
-        return m.membershipEnd && new Date(m.membershipEnd) < today;
+        return m.situacion === 'VENCIDO' || m.situacion === 'EN_GRACIA';
       }
       return m.status === statusFilter;
     });
@@ -233,17 +234,28 @@ export default function MembersPage() {
     window.open(`https://wa.me/54${phone}`, '_blank');
   };
 
-  // ─── DAYS REMAINING ───
-  const getDaysInfo = (membershipEnd) => {
-    if (!membershipEnd) return { text: '-', className: 'days-none' };
-    const today = new Date();
-    const end = new Date(membershipEnd);
-    const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+  // ─── DÍAS: lo dice el BACKEND, acá solo se pinta ───
+  //
+  // Esta función calculaba los días por su cuenta y daba MAL. Para el mismo socio, el aviso
+  // del mostrador decía "hace 2 días" y esta lista "4d vencido". Dos errores que se sumaban:
+  //   · el socio llegaba acá con la hora del vencimiento recortada (solo la fecha), y
+  //   · un texto "2026-08-27" en JavaScript se lee como UTC — en Argentina, tres horas antes.
+  //
+  // Ahora el número viene calculado por la misma clase del backend que decide qué ve el socio
+  // al escanear el QR y qué se le avisa al mostrador. Un socio no puede deber dos cantidades
+  // distintas de días según qué pantalla se mire.
+  const getDaysInfo = (member) => {
+    const { situacion, diasVencido, diasRestantes } = member || {};
+    if (!situacion || situacion === 'SIN_DATOS') return { text: '-', className: 'days-none' };
+    if (situacion === 'INACTIVO') return { text: 'baja', className: 'days-none' };
 
-    if (diff < 0) return { text: `${Math.abs(diff)}d vencido`, className: 'days-expired' };
-    if (diff <= 3) return { text: `${diff}d`, className: 'days-danger' };
-    if (diff <= 7) return { text: `${diff}d`, className: 'days-warning' };
-    return { text: `${diff}d`, className: 'days-ok' };
+    if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
+      return { text: `${diasVencido}d vencido`, className: 'days-expired' };
+    }
+    const d = diasRestantes ?? 0;
+    if (d <= 3) return { text: `${d}d`, className: 'days-danger' };
+    if (d <= 7) return { text: `${d}d`, className: 'days-warning' };
+    return { text: `${d}d`, className: 'days-ok' };
   };
 
   return (
@@ -310,7 +322,7 @@ export default function MembersPage() {
                 </tr>
               ) : (
                 pagedMembers.map((member) => {
-                  const daysInfo = getDaysInfo(member.membershipEnd);
+                  const daysInfo = getDaysInfo(member);
                   return (
                     <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
