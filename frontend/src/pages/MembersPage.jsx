@@ -10,7 +10,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
-import { formatDate, formatCurrency, getMethodLabel } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
@@ -25,18 +25,35 @@ const PAGE_SIZE = 25;
 // el estado sobre TODOS los socios, no solo la página actual del backend.
 const LARGE_SIZE = 1000;
 
-const INITIAL_FORM = {
-  fullName: '',
-  dni: '',
-  phone: '',
-  email: '',
-  birthDate: '',
-  membershipStart: '',
-  membershipEnd: '',
-  status: 'active',
-  notes: '',
-  attendanceDays: [],
-};
+/**
+ * Formulario de un socio NUEVO, con la membresía ya sugerida: hoy → dentro de un mes.
+ *
+ * Antes nacía con las dos fechas vacías, y eso no era solo incómodo. Un socio sin fecha
+ * de vencimiento cae en SIN_DATOS, que este sistema trata —a propósito— como "es un dato
+ * que falta, no es un moroso": no aparece en vencidos, no dispara aviso en el mostrador,
+ * no entra en las alertas. O sea que se podía dar de alta a alguien y que el sistema
+ * nunca dijera nada sobre él, hasta que alguien preguntara por qué nunca figuró.
+ *
+ * Sugerido, no impuesto: las dos fechas se editan, igual que el período en Registrar Pago.
+ *
+ * Es una función y no una constante porque "hoy" cambia. Se evalúa al montar la pantalla,
+ * no al cargar el módulo, que es lo que dejaba la fecha congelada en el día del arranque.
+ */
+function getInitialMemberForm() {
+  const hoy = toLocalDateString(new Date());
+  return {
+    fullName: '',
+    dni: '',
+    phone: '',
+    email: '',
+    birthDate: '',
+    membershipStart: hoy,
+    membershipEnd: addOneMonth(hoy),
+    status: 'active',
+    notes: '',
+    attendanceDays: [],
+  };
+}
 
 const MEMBER_MAP_FN = (m) => ({
   fullName: m.fullName || '',
@@ -114,7 +131,18 @@ export default function MembersPage() {
 
   // Modal. Con `?action=new` (atajo "Nuevo socio" del Dashboard) arranca abierto:
   // se resuelve en el primer render, sin efecto que lo abra después.
-  const modal = useModal(INITIAL_FORM, searchParams.get('action') === 'new');
+  // El form inicial se congela al montar: recalcularlo en cada render le cambiaría la
+  // identidad a los callbacks de useModal, que dependen de él.
+  const [initialForm] = useState(getInitialMemberForm);
+  const modal = useModal(initialForm, searchParams.get('action') === 'new');
+
+  // Mover el inicio corre el fin con él, como hace el período en Registrar Pago: si
+  // alguien empezó el 10, su mes termina el 10 del que viene. Sigue siendo editable —
+  // se toca el fin después y queda lo que se haya puesto.
+  const cambiarInicioMembresia = (value) => {
+    if (!value) { modal.handleChange('membershipStart', value); return; }
+    modal.handleMultiChange({ membershipStart: value, membershipEnd: addOneMonth(value) });
+  };
 
   // Delete confirmation
   const deleteDialog = useConfirmDialog();
@@ -429,12 +457,16 @@ export default function MembersPage() {
             <div className="form-group">
               <label className="form-label">Inicio de membresía</label>
               <input type="date" className="form-input"
-                value={modal.form.membershipStart} onChange={(e) => modal.handleChange('membershipStart', e.target.value)} />
+                value={modal.form.membershipStart} onChange={(e) => cambiarInicioMembresia(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Fin de membresía</label>
               <input type="date" className="form-input"
                 value={modal.form.membershipEnd} onChange={(e) => modal.handleChange('membershipEnd', e.target.value)} />
+              <small className="form-hint">
+                Hasta cuándo puede entrar. Cobrarle la cuota la corre sola: acá se toca
+                solo para dar de alta a alguien que ya venía pagando, o para corregir.
+              </small>
             </div>
             <div className="form-group">
               <label className="form-label">Estado</label>
