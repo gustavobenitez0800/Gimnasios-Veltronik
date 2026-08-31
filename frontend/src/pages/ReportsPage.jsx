@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, paymentService, accessService } from '../services';
-import { getStatusLabel, getMethodLabel, toLocalDateString } from '../lib/utils';
+import { getStatusLabel, getMethodLabel, getQuickDates } from '../lib/utils';
 import { downloadExcel, downloadPDF } from '../lib/reportExport';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
@@ -19,29 +19,6 @@ function deriveMemberStatus(m) {
   if (m.active === false) return 'inactive';
   if (m.membershipEnd && new Date(m.membershipEnd) < new Date()) return 'expired';
   return 'active';
-}
-
-function getQuickDates(period) {
-  const today = new Date();
-  let from, to;
-  switch (period) {
-    case 'today': from = to = toLocalDateString(today); break;
-    case 'week': {
-      const ws = new Date(today);
-      ws.setDate(today.getDate() - today.getDay() + 1);
-      from = toLocalDateString(ws);
-      to = toLocalDateString(today);
-      break;
-    }
-    case 'month':
-      from = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
-      to = toLocalDateString(today); break;
-    case 'year':
-      from = toLocalDateString(new Date(today.getFullYear(), 0, 1));
-      to = toLocalDateString(today); break;
-    default: break;
-  }
-  return { from, to };
 }
 
 export default function ReportsPage() {

@@ -110,7 +110,7 @@ export function useMemberController(initialPageSize = 25) {
     };
   }, [query]);
 
-  const { data, loading, isFetching, mutate, invalidate } = useQueryCache(
+  const { data, loading, isFetching, error, mutate, invalidate } = useQueryCache(
     ['members', orgId, query.page, query.size, query.search],
     fetchMembers,
     { staleTime: STALE_MS },
@@ -181,6 +181,9 @@ export function useMemberController(initialPageSize = 25) {
 
   return {
     members,
+    // Mismo motivo que en Pagos: una lista vacía porque falló el pedido NO es lo mismo
+    // que un gimnasio sin socios, y la pantalla tiene que poder distinguirlas.
+    error,
     // Para la página "está cargando" es una sola cosa: o no hay nada que mostrar, o lo que
     // se muestra se está refrescando por detrás. De ahí salen el "Actualizando datos...",
     // el spinner de la tabla vacía y el atenuado de las filas.
