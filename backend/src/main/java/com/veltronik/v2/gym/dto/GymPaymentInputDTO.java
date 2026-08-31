@@ -28,4 +28,12 @@ public class GymPaymentInputDTO {
     /** Socio asociado. El frontend lo manda como {@code member_id}. */
     @JsonProperty("member_id")
     private UUID memberId;
+
+    /**
+     * Arancel que se cobra. Si viene, EL PLAN define el período y las clases — lo que se haya
+     * escrito a mano en periodStart/periodEnd se recalcula. Puede ser null: un importe suelto
+     * (una clase de prueba, un ajuste) no tiene arancel.
+     */
+    @JsonProperty("plan_id")
+    private UUID planId;
 }

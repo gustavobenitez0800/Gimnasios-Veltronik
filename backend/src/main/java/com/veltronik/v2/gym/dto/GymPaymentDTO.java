@@ -30,4 +30,7 @@ public class GymPaymentDTO {
 
     /** Socio asociado al pago. Es null para ventas sueltas (sin socio). */
     private GymMemberSummaryDTO member;
+
+    /** Arancel cobrado, si el cobro pasó por el catálogo. */
+    private GymPlanDTO plan;
 }

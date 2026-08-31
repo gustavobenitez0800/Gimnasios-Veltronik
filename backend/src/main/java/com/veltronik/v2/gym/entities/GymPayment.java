@@ -20,6 +20,19 @@ public class GymPayment extends TenantAwareEntity {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private GymMember member;
 
+    /**
+     * Qué arancel se cobró. Puede ser null: los pagos migrados y los importes sueltos
+     * ("le cobré una clase suelta") no tienen plan asociado.
+     *
+     * <p>Guardarlo —y no solo el monto— es lo que después permite responder "¿cuántos Pase
+     * Libre se vendieron en agosto?" sin deducirlo del importe, que cambia cada vez que
+     * suben los precios.</p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private GymPlan plan;
+
     @Column(nullable = false)
     private BigDecimal amount;
 

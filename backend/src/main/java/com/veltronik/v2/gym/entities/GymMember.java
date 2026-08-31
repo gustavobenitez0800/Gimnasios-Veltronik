@@ -66,6 +66,21 @@ public class GymMember extends TenantAwareEntity {
     @Column(name = "user_id")
     private java.util.UUID userId;
 
+    /**
+     * Visitas que le quedan al socio.
+     *
+     * <p><b>NULL significa "este gimnasio no lleva cupo de clases"</b>, y entonces la cobertura
+     * la decide solo la fecha — que es como funcionó Veltronik siempre. Por eso todos los socios
+     * que ya existían quedaron en NULL: nada cambia para quien no usa esto.</p>
+     *
+     * <p>NULL y 0 son cosas distintas y no hay que confundirlas: 0 es "se le acabaron las
+     * clases" (no puede entrar), NULL es "acá no se cuentan clases".</p>
+     *
+     * <p>Baja de a una al registrar una ENTRADA. Nunca por debajo de cero.</p>
+     */
+    @Column(name = "classes_remaining")
+    private Integer classesRemaining;
+
     // Helpers de display. Antes tenían @JsonGetter (cuando la entidad se serializaba cruda como
     // member anidado en AccessLog/GymPayment). Ahora esos endpoints usan DTOs, así que ya no se
     // serializa esta entidad; se conservan los métodos por si algún servicio los usa.

@@ -114,16 +114,27 @@ export default function AccessPage() {
   // y al del check-in, el mismo socio podía deber una cantidad de días distinta en cada
   // pantalla — y eso efectivamente pasó: "hace 2 días" en el aviso, "4d vencido" en la lista.
   const getDaysInfo = (member) => {
-    const { situacion, diasVencido, diasRestantes } = member || {};
+    const { situacion, diasVencido, diasRestantes, clasesRestantes } = member || {};
     if (!situacion || situacion === 'SIN_DATOS') return { label: 'Sin fecha', type: 'unknown' };
     if (situacion === 'INACTIVO') return { label: 'Dado de baja', type: 'expired' };
+
+    // Se le acabó el cupo de visitas del abono, con la cuota al día. En la puerta la
+    // diferencia con "vencido" es toda: a este socio no hay que cobrarle una deuda, hay que
+    // venderle más clases.
+    if (situacion === 'SIN_CLASES') return { label: 'Sin clases', type: 'expired' };
+
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
       return { label: `${diasVencido}d vencido`, type: 'expired' };
     }
     const d = diasRestantes ?? 0;
-    if (d <= 3) return { label: `${d}d restantes`, type: 'danger' };
-    if (d <= 7) return { label: `${d}d restantes`, type: 'warning' };
-    return { label: `${d}d restantes`, type: 'ok' };
+    // Con cupo, se muestran las clases: es el número que le importa a quien viene seguido,
+    // y el que se va a acabar antes que la fecha.
+    const label = clasesRestantes != null
+      ? `${clasesRestantes} clases · ${d}d`
+      : `${d}d restantes`;
+    if (d <= 3 || (clasesRestantes != null && clasesRestantes <= 2)) return { label, type: 'danger' };
+    if (d <= 7 || (clasesRestantes != null && clasesRestantes <= 5)) return { label, type: 'warning' };
+    return { label, type: 'ok' };
   };
 
   // ─── ¿Este socio está adentro AHORA? ───

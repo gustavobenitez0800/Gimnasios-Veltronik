@@ -18,6 +18,8 @@ export { errorService } from './ErrorService';
 export { deviceService } from './DeviceService';
 // Personas del mostrador (PIN por turno): no son usuarios, no tienen cuenta.
 export { cashierService } from './CashierService';
+// Aranceles: el catálogo de lo que vende el gimnasio (días y/o clases por plan).
+export { planService } from './PlanService';
 
 // Analytics
 import InsightsService from './InsightsService';
