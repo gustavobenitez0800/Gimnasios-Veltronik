@@ -120,6 +120,48 @@ public class CheckinService {
         }
     }
 
+    /** Si el socio está adentro ahora mismo. Lo pregunta el teléfono para escribir el botón. */
+    public record EstadoSocio(boolean adentro, LocalDateTime desde) {}
+
+    /**
+     * ¿Este socio está adentro del gimnasio en este momento?
+     *
+     * <p><b>Por qué existe.</b> El teléfono necesita saber si escribir "Marcar entrada" o
+     * "Marcar salida" ANTES de que la persona toque el botón. Antes se lo guardaba él mismo,
+     * y esa memoria era una copia de un dato ajeno: si el mostrador marcaba la salida, o el
+     * cierre nocturno cerraba la visita, el teléfono seguía creyendo lo suyo y ofrecía marcar
+     * una salida que ya no existía — con lo cual abría una entrada y el socio quedaba
+     * "adentro" después de haberse ido.</p>
+     *
+     * <p><b>No revela absolutamente nada.</b> Devuelve lo mismo —"no está adentro"— para un
+     * documento inexistente, para uno de otro gimnasio y para un socio que está afuera. Sin
+     * nombre, sin confirmación de existencia: no sirve para averiguar quién es socio de dónde,
+     * que es la única cosa que un cartel colgado en la pared podría filtrar.</p>
+     */
+    @Transactional(readOnly = true)
+    public EstadoSocio estado(String token, String documento) {
+        var lookup = pointRepository.findByToken(token);
+        if (lookup.isEmpty() || lookup.get().getTenantId() == null) return new EstadoSocio(false, null);
+
+        String normalizado = normalizarDocumento(documento);
+        if (normalizado.isEmpty()) return new EstadoSocio(false, null);
+
+        UUID anterior = TenantContextHolder.getTenantId();
+        try {
+            TenantContextHolder.setTenantId(lookup.get().getTenantId());
+            List<GymMember> encontrados = memberRepository
+                    .findByDocumentoNormalizado(lookup.get().getTenantId(), normalizado);
+            if (encontrados.size() != 1) return new EstadoSocio(false, null);
+
+            return accessLogService.visitaAbiertaDe(encontrados.get(0).getId())
+                    .map(a -> new EstadoSocio(true, a.getCheckInAt()))
+                    .orElse(new EstadoSocio(false, null));
+        } finally {
+            if (anterior != null) TenantContextHolder.setTenantId(anterior);
+            else TenantContextHolder.clear();
+        }
+    }
+
     /**
      * Deja el documento en su esencia: solo letras y números, en mayúsculas.
      *

@@ -406,6 +406,92 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         }
     }
 
+    /**
+     * La consulta que reemplazó a la memoria del teléfono. Antes el celular guardaba la última
+     * dirección y esa copia se volvía mentira apenas el mostrador tocaba algo: ofrecía "marcar
+     * salida", el servidor no encontraba visita abierta, y abría una ENTRADA — el socio
+     * quedaba adentro del gimnasio después de haberse ido.
+     */
+    @Nested
+    @DisplayName("el teléfono pregunta en vez de acordarse")
+    class EstadoDelSocio {
+
+        @Test
+        @Transactional
+        @DisplayName("recién entrado, está adentro")
+        void reciénEntradoEstaAdentro() {
+            UUID gym = crearGimnasio("Gimnasio Estado A");
+            crearSocio(gym, "Bruno", "24111222", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "24111222", null);
+            em.flush();
+
+            assertTrue(checkinService.estado(token, "24111222").adentro());
+        }
+
+        /** El caso del dueño: el mostrador cierra la visita y el teléfono tiene que enterarse. */
+        @Test
+        @Transactional
+        @DisplayName("si el mostrador marca la salida, el teléfono se entera")
+        void elMostradorCierraYElTelefonoSeEntera() {
+            UUID gym = crearGimnasio("Gimnasio Estado B");
+            UUID socio = crearSocio(gym, "Carla", "25333444", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "25333444", null);
+            em.flush();
+            assertTrue(checkinService.estado(token, "25333444").adentro());
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                accessLogService.registerScan(socio, "manual", null, null);
+                em.flush();
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+
+            assertTrue(!checkinService.estado(token, "25333444").adentro(),
+                    "sin esto el teléfono ofrecía marcar una salida que ya no existía, "
+                    + "y terminaba abriendo una entrada fantasma");
+        }
+
+        /**
+         * Lo que ve un curioso. El cartel cuelga de una pared: hay que asumir que alguien va a
+         * probar documentos ajenos para ver quién es socio.
+         */
+        @Test
+        @Transactional
+        @DisplayName("no revela nada: lo mismo para un documento que no existe que para uno afuera")
+        void noRevelaNada() {
+            UUID gym = crearGimnasio("Gimnasio Estado C");
+            crearSocio(gym, "Elsa", "26555666", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            var socioAfuera = checkinService.estado(token, "26555666");
+            var inexistente = checkinService.estado(token, "99999999");
+
+            assertEquals(socioAfuera.adentro(), inexistente.adentro());
+            assertEquals(socioAfuera.desde(), inexistente.desde());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("un cartel de otra sucursal no dice nada del socio")
+        void noCruzaSucursales() {
+            UUID centro = crearGimnasio("Estado Centro");
+            UUID norte = crearGimnasio("Estado Norte");
+            crearSocio(norte, "Hugo", "27777888", LocalDateTime.now().plusDays(10));
+            String tokenCentro = crearCartel(centro);
+            em.flush();
+
+            assertTrue(!checkinService.estado(tokenCentro, "27777888").adentro());
+        }
+    }
+
     @Test
     @Transactional
     @DisplayName("un cartel apagado deja de funcionar")

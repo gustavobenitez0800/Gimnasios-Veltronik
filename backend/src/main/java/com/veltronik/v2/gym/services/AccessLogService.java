@@ -159,6 +159,16 @@ public class AccessLogService {
         return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, false);
     }
 
+    /**
+     * La visita abierta de este socio, si tiene una. La consulta el teléfono —a través del
+     * check-in— para saber si ofrecerle marcar entrada o salida.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AccessLog> visitaAbiertaDe(UUID memberId) {
+        return accessLogRepository.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(
+                TenantContextHolder.getTenantId(), memberId);
+    }
+
     /** Compatibilidad con el mostrador, que ya llamaba así. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {

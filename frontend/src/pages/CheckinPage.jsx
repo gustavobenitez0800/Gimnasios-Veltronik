@@ -19,15 +19,6 @@ import apiClient from '../lib/apiClient';
 // distinto (con puntos, sin puntos). Una clave por lugar evita que un lugar rompa el otro.
 const memoriaKey = (token) => `veltronik_checkin_doc_${token}`;
 
-// Lo último que hizo este socio en este lugar: 'ENTRADA' o 'SALIDA'. Sirve SOLO para escribir
-// bien el botón antes de tocarlo — "Marcar salida" cuando se está yendo, en vez de invitarlo
-// siempre a entrar.
-//
-// NO es el estado real: la verdad de si está adentro la tiene el servidor, que puede haber
-// cerrado su visita de anoche o registrado una marca desde otro teléfono. Si el celular está
-// desactualizado, la pantalla del resultado lo corrige. El teléfono elige la etiqueta; el
-// backend decide el hecho.
-const ultimaKey = (token) => `veltronik_checkin_ultima_${token}`;
 
 // Identificador anónimo de ESTE teléfono. Un número al azar que el propio aparato se genera:
 // no sale de ningún dato del dispositivo ni de la persona, y si se borran los datos del
@@ -129,7 +120,15 @@ export default function CheckinPage() {
   const [recordado, setRecordado] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState(null);
-  const [ultima, setUltima] = useState(null);
+  // El estado NO se guarda en el teléfono: se le pregunta al servidor.
+  //
+  // Antes se guardaba acá la última dirección, y eso era una copia de un dato ajeno. Si el
+  // mostrador marcaba la salida, o el cierre nocturno cerraba la visita, el teléfono seguía
+  // creyendo lo suyo: ofrecía "Marcar salida", el servidor no encontraba visita abierta y
+  // abría una ENTRADA — el socio quedaba adentro del gimnasio después de haberse ido.
+  //
+  // null = todavía no sabemos. Y no saber se muestra como "Marcar", nunca como una adivinanza.
+  const [adentro, setAdentro] = useState(null);
   const [reintentando, setReintentando] = useState(false);
   // Si el socio se va de la pantalla, dejamos de insistir: no tiene sentido seguir mandando
   // la marca de alguien que ya no está mirando.
@@ -148,12 +147,28 @@ export default function CheckinPage() {
     try {
       const guardado = localStorage.getItem(memoriaKey(token));
       if (guardado) { setDocumento(guardado); setRecordado(true); }
-      setUltima(localStorage.getItem(ultimaKey(token)));
     } catch { /* navegación privada: pide el documento como la primera vez */ }
   }, [token]);
 
-  // Si la última vez entró, lo próximo que va a hacer es salir.
-  const vaASalir = ultima === 'ENTRADA';
+  // Se le pregunta al servidor si el socio está adentro, para escribir bien el botón.
+  //
+  // Mientras no llegue la respuesta —o si no llega nunca— el botón dice "Marcar" a secas.
+  // Una etiqueta neutra siempre es cierta; una adivinada puede no serlo, y una etiqueta que
+  // miente es la que hace que la persona escanee de nuevo creyendo que se trabó.
+  //
+  // No revela nada: el servidor contesta lo mismo para un documento que no existe que para
+  // un socio que está afuera.
+  useEffect(() => {
+    if (!recordado || !documento) return undefined;
+    let vigente = true;
+    apiClient.post('/public/checkin/estado', { token, documento }, { timeout: 8000 })
+      .then(({ data }) => { if (vigente) setAdentro(!!data?.adentro); })
+      .catch(() => { /* sin respuesta = seguimos sin saber, y el botón queda neutro */ });
+    return () => { vigente = false; };
+  }, [token, documento, recordado]);
+
+  // Si está adentro, lo próximo que va a hacer es salir.
+  const vaASalir = adentro === true;
 
   // Guarda la pantalla para que abra sin señal. Se registra SOLO acá, así que el service
   // worker se instala únicamente en los teléfonos de los socios que escanean el cartel —
@@ -216,10 +231,10 @@ export default function CheckinPage() {
           localStorage.setItem(memoriaKey(token), doc);
           // La dirección la dice el SERVIDOR, no lo que el teléfono suponía. Así, si el celular
           // estaba desactualizado, la próxima etiqueta ya sale bien sin que nadie haga nada.
-          if (data.direccion === 'ENTRADA' || data.direccion === 'SALIDA') {
-            localStorage.setItem(ultimaKey(token), data.direccion);
-            setUltima(data.direccion);
-          }
+          // El estado nuevo lo dice la respuesta, así que no hace falta volver a
+          // preguntar: si registró una ENTRADA, ahora está adentro.
+          if (data.direccion === 'ENTRADA') setAdentro(true);
+          else if (data.direccion === 'SALIDA') setAdentro(false);
           setRecordado(true);
         } catch { /* sin memoria */ }
         if (data.sonar) { bip(true); vibrar([120, 80, 120]); } else { bip(false); vibrar(60); }
@@ -251,10 +266,9 @@ export default function CheckinPage() {
   const olvidar = () => {
     try {
       localStorage.removeItem(memoriaKey(token));
-      // También la dirección: la del socio anterior no dice nada del nuevo.
-      localStorage.removeItem(ultimaKey(token));
     } catch { /* nada */ }
-    setDocumento(''); setRecordado(false); setResultado(null); setUltima(null);
+    // El estado del socio anterior no dice nada del nuevo: se vuelve a 'no sabemos'.
+    setDocumento(''); setRecordado(false); setResultado(null); setAdentro(null);
   };
 
   const entrada = resultado?.direccion === 'ENTRADA';
@@ -268,7 +282,10 @@ export default function CheckinPage() {
           <>
             <div className="checkin-brand">Veltronik</div>
             <h1 className="checkin-title">
-              {!recordado ? 'Bienvenido' : vaASalir ? 'Marcá tu salida' : 'Marcá tu entrada'}
+              {!recordado ? 'Bienvenido'
+                : adentro === null ? 'Hola de nuevo'
+                : vaASalir ? 'Marcá tu salida'
+                : 'Marcá tu entrada'}
             </h1>
             <p className="checkin-sub">
               {recordado
@@ -295,6 +312,7 @@ export default function CheckinPage() {
                 {reintentando ? 'Buscando señal…'
                   : enviando ? 'Un segundo…'
                   : !recordado ? 'Entrar'
+                  : adentro === null ? 'Marcar'
                   : vaASalir ? 'Marcar salida'
                   : 'Marcar entrada'}
               </button>
