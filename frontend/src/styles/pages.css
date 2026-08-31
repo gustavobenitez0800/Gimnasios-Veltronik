@@ -1387,22 +1387,18 @@
   gap: 0.5rem;
   font-size: 1rem;
   font-weight: 700;
-  margin: 0 0 0.35rem;
+  margin: 0 0 1rem;
   color: var(--text-primary);
 }
-.qr-panel-head p {
-  margin: 0 0 1rem;
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-  max-width: 52ch;
-}
 
+/* Una sola columna centrada: los botones arriba y el código debajo, al medio. Antes era
+   una fila (código a la izquierda, botones a la derecha) con textos explicativos que solo
+   servían la primera vez; en una pantalla que se mira todos los días, sobraban. */
 .qr-panel-body {
   display: flex;
-  gap: 1.5rem;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 /* El QR SIEMPRE sobre blanco, en cualquier tema. Un código sobre fondo oscuro no lo lee
@@ -1417,27 +1413,13 @@
 
 .qr-panel-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.6rem;
-  align-items: flex-start;
-  min-width: 15rem;
-  flex: 1;
-}
-
-.qr-panel-hint {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-  max-width: 40ch;
+  justify-content: center;
 }
 
 @media (max-width: 640px) {
-  .qr-panel-body { flex-direction: column; align-items: stretch; }
-  /* El código centrado y los botones a lo ancho: en un teléfono, un botón angosto al lado
-     de un QR grande queda desbalanceado y es más difícil de acertar. */
-  .qr-panel-code { align-self: center; }
-  .qr-panel-actions { min-width: 0; align-items: stretch; }
-  .qr-panel-actions .btn { width: 100%; justify-content: center; }
-  .qr-panel-hint { text-align: center; max-width: none; }
+  /* En un teléfono los botones van a lo ancho: uno angosto es más difícil de acertar. */
+  .qr-panel-actions { align-self: stretch; }
+  .qr-panel-actions .btn { flex: 1 1 12rem; justify-content: center; }
 }

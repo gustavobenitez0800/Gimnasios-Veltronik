@@ -238,13 +238,15 @@ export default function AccessPage() {
 
       {/* Check-in + Currently In */}
       <div className="access-grid">
-        {/* Los avisos van ARRIBA del buscador: si un socio entró vencido, eso pasa antes
-            que lo que la recepcionista esté por hacer ahora. */}
-        <AvisosMostrador avisos={avisos} onAtendido={loadData} />
-
         {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
             configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
         <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
+
+        {/* Los avisos van DEBAJO del cartel y ARRIBA del buscador. Lo segundo es lo que
+            importa y no cambió: si un socio entró vencido, eso tiene que verse antes que
+            lo que la recepcionista esté por hacer ahora. El cartel del QR no compite por
+            esa atención — no es una acción, es un papel que se imprime una vez. */}
+        <AvisosMostrador avisos={avisos} onAtendido={loadData} />
 
         {/* Check-in Search */}
         <div className="checkin-section">

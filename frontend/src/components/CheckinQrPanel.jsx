@@ -90,12 +90,11 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
 
   return (
     <div className="qr-panel">
+      {/* Sin textos explicativos: el panel es de uso diario para quien ya sabe qué es el
+          cartel. Los dos botones y el código dicen todo lo que hay que decir, y lo dicen
+          en un vistazo — que es como se mira una pantalla de mostrador. */}
       <div className="qr-panel-head">
         <h3><Icon name="qrCode" size="1em" /> Cartel de entrada</h3>
-        <p>
-          El socio lo escanea con su celular y queda registrada su entrada o su salida, sin que
-          nadie del mostrador tenga que hacer nada.
-        </p>
       </div>
 
       {cargando && <p className="text-muted">Cargando…</p>}
@@ -108,6 +107,17 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
 
       {!cargando && punto && (
         <div className="qr-panel-body">
+          {/* Los botones ARRIBA del código y centrados. El QR es lo que se mira; las dos
+              acciones son lo que se toca, y quedan donde caía el texto que estaba de más. */}
+          <div className="qr-panel-actions">
+            <button className="btn btn-primary" onClick={descargar}>
+              <Icon name="download" size="1em" /> Descargar imagen
+            </button>
+            <button className="btn btn-secondary" disabled={trabajando} onClick={() => setConfirmarRotar(true)}>
+              Generar uno nuevo
+            </button>
+          </div>
+
           <div className="qr-panel-code" ref={cajaQr}>
             {/* Nivel Q de corrección: el cartel va a vivir pegado a una pared y va a juntar
                 dedos, humedad y algún raspón. Con nivel Q sigue leyéndose con hasta un cuarto
@@ -120,19 +130,6 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
               bgColor="#ffffff"
               fgColor="#000000"
             />
-          </div>
-
-          <div className="qr-panel-actions">
-            <button className="btn btn-primary" onClick={descargar}>
-              <Icon name="download" size="1em" /> Descargar imagen
-            </button>
-            <button className="btn btn-secondary" disabled={trabajando} onClick={() => setConfirmarRotar(true)}>
-              Generar uno nuevo
-            </button>
-            <p className="qr-panel-hint">
-              Se baja el código solo, en grande. Imprimilo del tamaño que quieras, plastificalo
-              y pegalo donde te sirva.
-            </p>
           </div>
         </div>
       )}
