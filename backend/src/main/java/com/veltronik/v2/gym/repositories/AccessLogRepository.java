@@ -11,6 +11,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
+
+    /** El acceso que ya se guardó con este identificador de terminal, si existe. */
+    Optional<AccessLog> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
+
     
     List<AccessLog> findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(UUID tenantId, LocalDateTime start, LocalDateTime end);
 

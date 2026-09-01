@@ -32,7 +32,6 @@ const DEFAULTS = Object.freeze({
      * y cerrar la app deja al gimnasio sin sistema hasta que alguien la vuelva a abrir.
      * Para salir de verdad está "Salir de Veltronik", en el menú y en la bandeja.
      */
-    closeToTray: true,
     /** Última posición y tamaño de la ventana (null = decidir solo). */
     windowBounds: null,
     /** ¿La ventana estaba maximizada? */

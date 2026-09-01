@@ -75,4 +75,18 @@ public class AccessLog extends TenantAwareEntity {
 
     @Column(columnDefinition = "text")
     private String notes;
+
+    /**
+     * Identificador que genera el TERMINAL antes de mandar el acceso.
+     *
+     * <p>Es lo que permite reintentar sin duplicar: el terminal guarda el acceso en su cola
+     * con este número y lo manda tantas veces como haga falta hasta que el servidor confirme.
+     * La garantía de que no entre dos veces la da un índice único en la base (V54), no un
+     * chequeo en el código: dos vaciados de cola simultáneos pasarían por el medio de un
+     * "buscá y si no está insertá", pero no pueden pasar por el medio de un índice.</p>
+     *
+     * <p>NULL en los accesos registrados con conexión, que no necesitan cola.</p>
+     */
+    @Column(name = "client_ref")
+    private java.util.UUID clientRef;
 }

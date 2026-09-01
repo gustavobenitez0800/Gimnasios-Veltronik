@@ -128,7 +128,28 @@ export default function ReportsPage() {
       }
       
       const headers = ['Socio', 'DNI', 'Entrada', 'Salida', 'Método'];
-      const rows = (logs || []).map(l => [l.member?.fullName || '', l.member?.dni || '', l.checkInAt || '', l.checkOutAt || '', l.accessMethod || '']);
+      const hora = (iso) => (iso ? new Date(iso).toLocaleString('es-AR') : '');
+      const METODO_ES = { manual: 'Mostrador', qr: 'QR' };
+      const rows = (logs || []).map(l => [
+        l.member?.fullName || '',
+        l.member?.dni || '',
+        hora(l.checkInAt),
+        l.checkOutAt ? hora(l.checkOutAt) : 'Sigue adentro',
+        METODO_ES[(l.accessMethod || '').toLowerCase()] || l.accessMethod || '',
+      ]);
+
+      // Los tres números que antes vivían arriba de la pantalla de Accesos. Se mudaron acá
+      // porque no son información de la PUERTA: nadie decide nada con ellos mientras hay un
+      // socio esperando del otro lado del mostrador. Van al pie, como el total de pagos.
+      const adentro = (logs || []).filter((l) => !l.checkOutAt).length;
+      const cerradas = (logs || []).filter((l) => l.checkOutAt);
+      const promedio = cerradas.length
+        ? Math.round(cerradas.reduce((suma, l) => suma + (new Date(l.checkOutAt) - new Date(l.checkInAt)), 0) / cerradas.length / 60000)
+        : null;
+      rows.push(['', '', '', '', '']);
+      rows.push(['TOTAL DE ACCESOS', String((logs || []).length), '', '', '']);
+      rows.push(['SIGUEN ADENTRO', String(adentro), '', '', '']);
+      rows.push(['TIEMPO PROMEDIO', promedio != null ? `${promedio} min` : 'sin datos', '', '', '']);
       
       if (format === 'excel') {
         await downloadExcel(`accesos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
@@ -190,7 +211,7 @@ export default function ReportsPage() {
   const reports = [
     { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: 'users', color: 'primary', action: exportMembers },
     { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: 'dollarSign', color: 'success', action: exportPayments },
-    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: 'doorOpen', color: 'accent', action: exportAccess },
+    { key: 'access', title: 'Reporte de Asistencia', desc: 'Entradas y salidas, con el total del período, cuántos siguen adentro y el tiempo promedio.', icon: 'doorOpen', color: 'accent', action: exportAccess },
     { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: 'chart', color: 'warning', action: exportSummary },
   ];
 
