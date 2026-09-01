@@ -37,6 +37,16 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
      * ella: la pantalla le muestra el estado del socio cuando lo elige de la lista. El aviso
      * existe justamente para los que entraron SIN que nadie los mirara.</p>
      */
+    /**
+     * Los pasos por QR desde un momento dado, sin filtrar por aviso.
+     *
+     * <p>Distinto del de abajo: aquel trae solo los que le faltan atención al mostrador.
+     * Este trae TODOS, porque la pantalla ahora también saluda al socio que está al día
+     * para mostrarle cuánto le queda.</p>
+     */
+    List<AccessLog> findByTenantIdAndAccessMethodAndCheckInAtAfterOrderByCheckInAtDesc(
+            UUID tenantId, String accessMethod, LocalDateTime desde);
+
     List<AccessLog> findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
             UUID tenantId, String accessMethod, LocalDateTime desde);
 
