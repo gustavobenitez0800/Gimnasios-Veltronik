@@ -15,7 +15,7 @@ import { GYM, roleLabel } from '../lib/gym';
 import { useWorkspace } from '../hooks/useWorkspace';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
-import logoSrc from '../assets/LogotipoSecundario.png';
+import GymLogo from './GymLogo';
 
 // Navegación del sistema. Antes vivía en el registry de verticales, que la generaba
 // por rubro; con un solo rubro esa indirección solo escondía la lista. Es estática y
@@ -133,11 +133,16 @@ export default function Sidebar({ isOpen, onClose }) {
   const workspace = useWorkspace(gym?.id);
   const navSections = getNavSections(orgRole, workspace?.modules);
 
-  // Nombre del gimnasio en el que está parado el usuario. El subtítulo de acá antes
-  // decía el RUBRO ("Kiosco", "Pilates"), un dato que ya no existe y que además nunca
-  // le sirvió a nadie: lo que el dueño de tres sucursales necesita saber de un vistazo
-  // es EN CUÁL está.
+  // Nombre del gimnasio en el que está parado el usuario.
   const currentGymName = gym?.name || orgName || '';
+
+  // La cabecera muestra la marca DEL CLIENTE, no la de Veltronik: su logo y su nombre.
+  // Adentro del sistema el gimnasio es la marca; la de la plataforma vive donde el dueño
+  // trata con Veltronik (login, lobby, portal de cobro), no encima del mostrador.
+  //
+  // El fallback a "Veltronik" cubre el instante entre que el sidebar pinta y el tenant
+  // llega: sin él la cabecera aparece vacía y parece rota.
+  const marca = currentGymName || 'Veltronik';
 
   const [confirmarSalida, setConfirmarSalida] = useState(false);
 
@@ -186,18 +191,14 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Header */}
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <img
-              src={logoSrc}
-              alt="Veltronik"
-              className="sidebar-logo-icon"
-              style={{ width: 32, height: 32, objectFit: 'contain' }}
-              loading="lazy"
+            <GymLogo
+              logoUrl={gym?.logoUrl}
+              logoEmoji={gym?.logoEmoji}
+              name={currentGymName}
+              size={32}
             />
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <span className="sidebar-logo-text">Veltronik</span>
-              {currentGymName && (
-                <span className="sidebar-logo-sub" title={currentGymName}>{currentGymName}</span>
-              )}
+              <span className="sidebar-logo-text" title={marca}>{marca}</span>
             </div>
           </div>
           <div className="sidebar-header-actions">

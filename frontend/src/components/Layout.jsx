@@ -8,7 +8,7 @@ import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
-import logoSrc from '../assets/LogotipoSecundario.png';
+import GymLogo from './GymLogo';
 
 import ErrorBoundary from './ErrorBoundary';
 
@@ -67,7 +67,7 @@ function useAutoHideHeader() {
  */
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { loading, subscription } = useAuth();
+  const { loading, subscription, gym, orgName } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toggleRef = useRef(null);
@@ -144,7 +144,17 @@ export function AppLayout() {
             <Icon name="menu" />
             <span className="sidebar-toggle-label">Menú</span>
           </button>
-          <img src={logoSrc} alt="Veltronik" className="mobile-header-logo" />
+          {/* La marca del cliente, igual que en el sidebar: adentro del sistema el
+              gimnasio es la marca. */}
+          <span className="mobile-header-brand">
+            <GymLogo
+              logoUrl={gym?.logoUrl}
+              logoEmoji={gym?.logoEmoji}
+              name={gym?.name || orgName || ''}
+              size={28}
+            />
+            <span className="mobile-header-brand-text">{gym?.name || orgName || 'Veltronik'}</span>
+          </span>
           <span className="mobile-header-spacer" aria-hidden="true" />
         </header>
 
