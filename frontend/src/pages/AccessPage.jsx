@@ -100,16 +100,30 @@ export default function AccessPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Search
-  const doSearch = useMemo(() => debounce(async (query) => {
-    if (!query || query.length < 2) { setSearchResults([]); return; }
+  // ── Buscar, en dos capas ──
+  //
+  // `buscar` consulta y devuelve. `doSearch` es la versión retrasada que además pinta la
+  // lista mientras se tipea. Están separadas porque Enter NO puede depender del retraso:
+  // quien atiende teclea el DNI y aprieta Enter en menos de 300 ms, y si Enter mirara lo
+  // que la búsqueda retrasada dejó, encontraría la lista vacía y no haría nada. En un
+  // mostrador eso se ve como que el sistema se colgó.
+  const buscar = useCallback(async (query) => {
+    const q = (query || '').trim();
+    if (q.length < 2) return [];
     setSearching(true);
     try {
-      const results = await memberService.searchForAccess(query);
-      setSearchResults(results || []);
-    } catch { setSearchResults([]); }
-    finally { setSearching(false); }
-  }, 300), []);
+      return (await memberService.searchForAccess(q)) || [];
+    } catch {
+      return [];
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const doSearch = useMemo(() => debounce(async (query) => {
+    if (!query || query.trim().length < 2) { setSearchResults([]); return; }
+    setSearchResults(await buscar(query));
+  }, 300), [buscar]);
 
   const handleSearch = (val) => {
     setSearchQuery(val);
@@ -200,20 +214,43 @@ export default function AccessPage() {
     setTimeout(() => setPopup(null), 6000);
   }, [ingresosQr]);
 
-  // Enter registra, si no hay ninguna duda de quién es.
+  // Enter BUSCA y registra, en un solo gesto.
   //
-  // Con un solo resultado no hay ambigüedad y el socio no toca el mouse: teclea su DNI y
-  // entra. Con varios NO se elige por él —registrarle la entrada a la persona equivocada
-  // deja dos datos mal: uno que entró sin estar y otro que estaba sin figurar— así que se
-  // le muestra la lista y alguien decide.
-  const alTeclear = (e) => {
+  // No espera a la búsqueda retrasada: consulta él mismo. Así el socio teclea su DNI,
+  // aprieta Enter y entra, sin que nadie toque el mouse.
+  //
+  // Con un solo resultado no hay ambigüedad. Con varios NO se elige por él —registrarle la
+  // entrada a la persona equivocada deja dos datos mal: uno que entró sin estar y otro que
+  // estaba sin figurar— así que se muestra la lista y alguien decide.
+  //
+  // Y cuando no aparece nadie lo DICE. Antes no pasaba nada y quien atiende no tenía forma
+  // de saber si el sistema no encontró al socio o si simplemente no la escuchó.
+  const registrando = useRef(false);
+  const alTeclear = async (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (searching) return;
-    if (searchResults.length === 1) {
-      handleCheckIn(searchResults[0]);
-    } else if (searchResults.length > 1) {
-      showToast('Hay varios socios con esos datos. Elegí cuál.', 'info');
+
+    // Dos Enter seguidos registrarían entrada y en seguida SALIDA, porque la dirección la
+    // decide el servidor según si el socio ya está adentro. El socio se iría "afuera" sin
+    // haberse ido.
+    if (registrando.current) return;
+
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+
+    registrando.current = true;
+    try {
+      const encontrados = await buscar(q);
+      setSearchResults(encontrados);
+      if (encontrados.length === 1) {
+        await handleCheckIn(encontrados[0]);
+      } else if (!encontrados.length) {
+        showToast(`No encontré a nadie con "${q}"`, 'error');
+      } else {
+        showToast('Hay varios socios con esos datos. Elegí cuál.', 'info');
+      }
+    } finally {
+      registrando.current = false;
     }
   };
 
