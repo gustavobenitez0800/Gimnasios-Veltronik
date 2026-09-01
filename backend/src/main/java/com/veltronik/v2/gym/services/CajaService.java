@@ -45,10 +45,27 @@ public class CajaService {
 
     private final CajaCierreRepository cierreRepository;
     private final GymPaymentRepository paymentRepository;
+    private final com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository;
 
-    public CajaService(CajaCierreRepository cierreRepository, GymPaymentRepository paymentRepository) {
+    public CajaService(CajaCierreRepository cierreRepository, GymPaymentRepository paymentRepository,
+                       com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository) {
         this.cierreRepository = cierreRepository;
         this.paymentRepository = paymentRepository;
+        this.ajusteRepository = ajusteRepository;
+    }
+
+    /**
+     * Los cobros que se tocaron en el período abierto.
+     *
+     * <p>Es la otra mitad del arqueo. Un cierre puede cuadrar perfecto y aun así haber algo
+     * raro: si alguien registró un cobro de $48.000, después lo bajó a $40.000 y se guardó
+     * la diferencia, el cajón cuadra con lo que el sistema espera — porque el sistema fue
+     * cambiado. Lo único que lo delata es que ese cobro se tocó.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<com.veltronik.v2.gym.entities.GymPaymentAjuste> ajustesDelPeriodo() {
+        return ajusteRepository.findByTenantIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE));
     }
 
     /** Lo que lleva acumulado el período abierto, sin cerrarlo. */

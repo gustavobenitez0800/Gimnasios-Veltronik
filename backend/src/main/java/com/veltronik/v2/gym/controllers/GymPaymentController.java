@@ -90,8 +90,20 @@ public class GymPaymentController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<GymPaymentDTO> updatePayment(@PathVariable UUID id, @RequestBody GymPaymentInputDTO input) {
+    public ResponseEntity<GymPaymentDTO> updatePayment(@PathVariable UUID id, @RequestBody GymPaymentInputDTO input,
+                                                       @RequestHeader(value = "X-Cashier-Name", required = false) String quien) {
         GymPayment existingPayment = paymentService.findByIdAndVerifyOwnership(id);
+
+        // Foto del ANTES, para poder anotar qué cambió. Se copia a mano y no se guarda la
+        // entidad: la de JPA es la misma instancia que se está por modificar, así que
+        // quedarse con la referencia daría el "antes" ya pisado por el "después".
+        GymPayment antes = new GymPayment();
+        antes.setId(existingPayment.getId());
+        antes.setAmount(existingPayment.getAmount());
+        antes.setPaymentMethod(existingPayment.getPaymentMethod());
+        antes.setStatus(existingPayment.getStatus());
+        antes.setMember(existingPayment.getMember());
+        antes.setPaymentDate(existingPayment.getPaymentDate());
 
         // Parche parcial. El socio NO se reasigna en un update (igual que el comportamiento previo).
         if (input.getAmount() != null) existingPayment.setAmount(input.getAmount());
@@ -102,12 +114,27 @@ public class GymPaymentController {
         if (input.getPeriodStart() != null) existingPayment.setPeriodStart(input.getPeriodStart());
         if (input.getPeriodEnd() != null) existingPayment.setPeriodEnd(input.getPeriodEnd());
 
-        return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(existingPayment)));
+        GymPayment guardado = paymentService.saveForCurrentTenant(existingPayment);
+        paymentService.anotarEdicion(antes, guardado, quien);
+        return ResponseEntity.ok(paymentMapper.toDto(guardado));
     }
 
+    /**
+     * Borra un cobro. <b>Solo dueño o admin.</b>
+     *
+     * <p>Acá estaba el agujero más grande del sistema: cualquiera podía borrar. El robo era
+     * registrar el cobro —el socio se va contento y su vencimiento se corre—, y más tarde
+     * borrarlo y quedarse la plata. Y como borrar un cobro NO recalcula la cobertura, el
+     * socio seguía figurando al día y nunca reclamaba: nadie se enteraba jamás.</p>
+     *
+     * <p>Quien atiende puede corregir un cobro (queda el rastro), pero no hacerlo
+     * desaparecer. Si hay que borrar, lo borra el dueño.</p>
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePayment(@PathVariable UUID id) {
-        paymentService.deleteAndVerifyOwnership(id);
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<Void> deletePayment(@PathVariable UUID id,
+                                              @RequestHeader(value = "X-Cashier-Name", required = false) String quien) {
+        paymentService.deleteAndVerifyOwnership(id, quien);
         return ResponseEntity.noContent().build();
     }
 

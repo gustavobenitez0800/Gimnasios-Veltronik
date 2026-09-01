@@ -36,7 +36,9 @@ class CajaServiceTest {
     void setUp() {
         cierres = mock(CajaCierreRepository.class);
         pagos = mock(GymPaymentRepository.class);
-        service = new CajaService(cierres, pagos);
+        // El rastro de ajustes se simula: acá se prueba el arqueo, no el rastro.
+        service = new CajaService(cierres, pagos,
+                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class));
         TenantContextHolder.setTenantId(TENANT);
         when(cierres.save(any(CajaCierre.class))).thenAnswer(i -> i.getArgument(0));
         when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.empty());

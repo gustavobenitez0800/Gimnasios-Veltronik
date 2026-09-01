@@ -5,6 +5,8 @@ import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.dto.CoverageGapDTO;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.entities.GymPayment;
+import com.veltronik.v2.gym.entities.GymPaymentAjuste;
+import com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository;
 import com.veltronik.v2.gym.entities.GymPlan;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import org.springframework.http.HttpStatus;
@@ -29,12 +31,14 @@ public class GymPaymentService {
     private final GymPaymentRepository repository;
     private final GymMemberService memberService;
     private final GymPlanService planService;
+    private final GymPaymentAjusteRepository ajusteRepository;
 
     public GymPaymentService(GymPaymentRepository repository, GymMemberService memberService,
-                             GymPlanService planService) {
+                             GymPlanService planService, GymPaymentAjusteRepository ajusteRepository) {
         this.repository = repository;
         this.memberService = memberService;
         this.planService = planService;
+        this.ajusteRepository = ajusteRepository;
     }
 
     public List<GymPayment> findAllForCurrentTenant() {
@@ -278,8 +282,82 @@ public class GymPaymentService {
         return payment;
     }
     
-    public void deleteAndVerifyOwnership(UUID id) {
+    /**
+     * Borra un cobro, DEJANDO RASTRO.
+     *
+     * <p>El rastro se guarda ANTES de borrar y no tiene FK al cobro: si la tuviera, el
+     * borrado en cascada se llevaría puesta justamente la prueba de que se borró.</p>
+     *
+     * <p>⚠️ Borrar un cobro NO recalcula la cobertura del socio. Eso es a propósito —el
+     * backend nunca acorta una membresía hacia atrás— pero significa que un cobro borrado
+     * deja al socio figurando al día. Sin este rastro, esa plata desaparecía sin que nadie
+     * pudiera notarlo nunca.</p>
+     */
+    @Transactional
+    public void deleteAndVerifyOwnership(UUID id, String hechoPor) {
         GymPayment payment = findByIdAndVerifyOwnership(id);
+        anotar(payment.getId(), GymPaymentAjuste.BORRADO, null, resumirCobro(payment), null, hechoPor);
         repository.delete(payment);
+    }
+
+    /** Firma vieja, para los llamadores que todavía no pasan el nombre. */
+    @Transactional
+    public void deleteAndVerifyOwnership(UUID id) {
+        deleteAndVerifyOwnership(id, null);
+    }
+
+    /**
+     * Anota que un cobro cambió, campo por campo.
+     *
+     * <p>Solo se comparan los campos que MUEVEN PLATA: monto, método, estado y socio.
+     * Corregir una nota o la fecha no es sospechoso, y anotarlo sería ruido que hace que
+     * nadie mire la lista.</p>
+     */
+    @Transactional
+    public void anotarEdicion(GymPayment antes, GymPayment despues, String hechoPor) {
+        comparar(antes.getId(), "monto", texto(antes.getAmount()), texto(despues.getAmount()), hechoPor);
+        comparar(antes.getId(), "método", antes.getPaymentMethod(), despues.getPaymentMethod(), hechoPor);
+        comparar(antes.getId(), "estado", antes.getStatus(), despues.getStatus(), hechoPor);
+        comparar(antes.getId(), "socio",
+                antes.getMember() != null ? String.valueOf(antes.getMember().getId()) : null,
+                despues.getMember() != null ? String.valueOf(despues.getMember().getId()) : null,
+                hechoPor);
+    }
+
+    private void comparar(UUID pagoId, String campo, String antes, String despues, String hechoPor) {
+        String a = antes == null ? "" : antes;
+        String d = despues == null ? "" : despues;
+        if (a.equalsIgnoreCase(d)) return;
+        anotar(pagoId, GymPaymentAjuste.EDICION, campo, antes, despues, hechoPor);
+    }
+
+    private void anotar(UUID pagoId, String tipo, String campo, String antes, String despues, String hechoPor) {
+        GymPaymentAjuste ajuste = new GymPaymentAjuste();
+        Tenant tenant = new Tenant();
+        tenant.setId(TenantContextHolder.getTenantId());
+        ajuste.setTenant(tenant);
+        ajuste.setPaymentId(pagoId);
+        ajuste.setTipo(tipo);
+        ajuste.setCampo(campo);
+        ajuste.setAntes(recortar(antes));
+        ajuste.setDespues(recortar(despues));
+        ajuste.setHechoPorNombre(hechoPor);
+        ajusteRepository.save(ajuste);
+    }
+
+    private static String resumirCobro(GymPayment p) {
+        return String.format("%s %s el %s",
+                texto(p.getAmount()),
+                p.getPaymentMethod() != null ? p.getPaymentMethod() : "",
+                p.getPaymentDate() != null ? p.getPaymentDate().toLocalDate() : "");
+    }
+
+    private static String texto(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private static String recortar(String s) {
+        if (s == null) return null;
+        return s.length() > 255 ? s.substring(0, 255) : s;
     }
 }

@@ -49,6 +49,9 @@ public class CajaController {
         body.put("otros", r.otros());
         body.put("cantidadCobros", r.cantidadCobros());
         body.put("ultimoCierre", cajaService.ultimo().map(CajaCierre::getHasta).orElse(null));
+        // La otra mitad del arqueo: un cierre puede cuadrar y aun así haber algo raro, si
+        // alguien bajó el monto de un cobro después de haberlo registrado.
+        body.put("ajustes", cajaService.ajustesDelPeriodo());
         return ResponseEntity.ok(body);
     }
 
