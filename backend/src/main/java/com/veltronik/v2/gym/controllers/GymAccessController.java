@@ -71,6 +71,10 @@ public class GymAccessController {
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
         body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
         body.put("avisos", accessService.avisosPendientes());
+        // Los pasos por QR de los últimos minutos: la pantalla los convierte en el mismo
+        // cartel que aparece cuando la entrada se registra a mano, así el socio que escaneó
+        // ve ahí cuántos días le quedan.
+        body.put("ingresos", accessService.ingresosRecientes());
         return ResponseEntity.ok(body);
     }
 

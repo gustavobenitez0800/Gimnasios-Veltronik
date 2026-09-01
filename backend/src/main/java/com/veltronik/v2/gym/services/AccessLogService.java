@@ -40,6 +40,9 @@ public class AccessLogService {
     /** Zona del negocio (Argentina): "hoy" y los rangos se calculan en hora AR, no UTC. */
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
+    /** Cuántos minutos hacia atrás cuenta como "recién entró". */
+    private static final int VENTANA_INGRESOS_MIN = 5;
+
     public List<AccessLog> getTodayAccesses() {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime startOfDay = today.atStartOfDay();
@@ -273,6 +276,53 @@ public class AccessLogService {
     // ─────────────────────────────────────────────────────────────────────────
     // Avisos para el mostrador
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Un socio que acaba de pasar por el QR, con su situación resuelta.
+     *
+     * <p>Lleva los MISMOS campos que la búsqueda del mostrador ({@code situacion},
+     * {@code diasRestantes}, {@code clasesRestantes}) para que la pantalla lo pinte con el
+     * mismo código que usa cuando la recepcionista registra la entrada a mano. Si acá se
+     * inventara otro formato, habría dos maneras de decir lo mismo y una se iba a quedar
+     * atrás.</p>
+     */
+    public record Ingreso(UUID accesoId, UUID socioId, String nombre, String situacion,
+                          long diasVencido, long diasRestantes, Integer clasesRestantes,
+                          LocalDateTime hora) {}
+
+    /**
+     * Los pasos por QR de los últimos minutos, al día o no.
+     *
+     * <p><b>Por qué existe.</b> Cuando el socio escanea el cartel, la confirmación aparece en
+     * SU teléfono. La pantalla del mostrador —que está a la vista de todos— no decía nada:
+     * el socio no tenía dónde mirar cuántos días le quedan sin preguntarle a alguien. Ahora
+     * el mostrador muestra lo mismo que cuando la entrada se registra a mano.</p>
+     *
+     * <p>La ventana es corta a propósito. Esto no es un historial —para eso está la lista de
+     * hoy— sino "lo que acaba de pasar": lo que la pantalla convierte en un cartel de unos
+     * segundos. Traer todo el día haría crecer un pedido que se repite cada quince segundos
+     * para mostrar, casi siempre, nada nuevo.</p>
+     */
+    public List<Ingreso> ingresosRecientes() {
+        LocalDateTime desde = LocalDateTime.now(BUSINESS_ZONE).minusMinutes(VENTANA_INGRESOS_MIN);
+        List<AccessLog> accesos = accessLogRepository
+                .findByTenantIdAndAccessMethodAndCheckInAtAfterOrderByCheckInAtDesc(
+                        TenantContextHolder.getTenantId(), "QR", desde);
+
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<Ingreso> ingresos = new java.util.ArrayList<>();
+        for (AccessLog a : accesos) {
+            GymMember m = a.getMember();
+            if (m == null) continue;
+            MemberAccessPolicy.Verdict v = accessPolicy.evaluate(m, ahora);
+            ingresos.add(new Ingreso(
+                    a.getId(), m.getId(),
+                    (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim(),
+                    v.status().name(), v.diasVencido(), v.diasRestantes(), v.clasesRestantes(),
+                    a.getCheckInAt()));
+        }
+        return ingresos;
+    }
 
     /** Un socio que entró por QR y necesita que alguien le hable. */
     public record Aviso(UUID accesoId, UUID socioId, String nombre, String estado,

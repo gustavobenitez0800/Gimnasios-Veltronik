@@ -107,3 +107,55 @@
 .popup-progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: rgba(0,0,0,0.2); border-radius: 0 0 24px 24px; overflow: hidden; }
 .popup-progress-bar { height: 100%; background: rgba(255,255,255,0.5); width: 100%; animation: progressShrink 3s linear forwards; }
 @keyframes progressShrink { from { width: 100%; } to { width: 0%; } }
+
+/* ─── RECIÉN ENTRARON POR QR ───
+   El socio escanea en la puerta y camina hasta el mostrador. El cartel que se levanta al
+   detectarlo dura unos segundos, y entre que escanea y que la pantalla se entera pueden
+   pasar hasta quince: puede llegar y encontrarlo cerrado. Esta lista no se va — es donde
+   se busca a sí mismo y ve cuánto le queda sin preguntarle a nadie. Se vacía sola, porque
+   el servidor solo manda los últimos minutos. */
+.ingresos-qr {
+  margin: 0.85rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--primary-500) 7%, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--primary-500) 22%, transparent);
+}
+
+.ingresos-qr-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary-400);
+  margin-bottom: 0.7rem;
+}
+
+.ingresos-qr-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ingresos-qr-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ingresos-qr-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+.ingresos-qr-datos .member-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.ingresos-qr-datos .member-dni {
+  font-size: 0.72rem;
+}
