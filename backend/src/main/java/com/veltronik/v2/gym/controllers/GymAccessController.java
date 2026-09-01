@@ -69,15 +69,13 @@ public class GymAccessController {
     public ResponseEntity<Map<String, Object>> mostrador() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
-        // El registro del día ya NO viaja acá. Se mudó a Reportes, y este pedido se repite
-        // cada quince segundos: mandarle todo el día a una pantalla que solo necesita saber
-        // quién está adentro es pagar ese peso una y otra vez sobre la conexión del gimnasio.
-        // Reportes lo pide aparte, por rango de fechas, cuando alguien lo abre.
+        body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
         body.put("avisos", accessService.avisosPendientes());
-        // Los pasos por QR de los últimos minutos: la pantalla los convierte en el mismo
-        // cartel que aparece cuando la entrada se registra a mano, así el socio que escaneó
-        // ve ahí cuántos días le quedan.
-        body.put("ingresos", accessService.ingresosRecientes());
+        // NOTA: acá viajaban también los "ingresos" recientes por QR, para que el mostrador
+        // levantara un cartel con los días del socio que escaneó. La pantalla que los usaba
+        // se dio de baja al volver a la 2.6.17, y este pedido se repite cada quince segundos:
+        // mandar un dato que nadie lee es pagar esa consulta para siempre. El método
+        // `ingresosRecientes()` sigue estando, listo para cuando la pantalla vuelva.
         return ResponseEntity.ok(body);
     }
 

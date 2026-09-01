@@ -373,19 +373,6 @@ export function AuthProvider({ children }) {
     const handleUnauthorized = () => logout();
     const handlePaymentRequired = () => navigate(CONFIG.ROUTES.BLOCKED, { replace: true });
     const handleForbiddenTenant = () => {
-      // ⚠️ EN EL ESCRITORIO NO SE EXPULSA A NADIE.
-      //
-      // Acá el mostrador terminaba en DeviceGate —la pantalla de enrolar el equipo— en
-      // plena atención. Una vez que alguien entró, del escritorio se sale de UNA sola
-      // manera: cerrando sesión a propósito y confirmando el aviso.
-      //
-      // El terminal ya sabe cuál es su sucursal, así que no hay nada que preguntarle: si el
-      // servidor sigue rechazando, lo va a decir en la acción que se intente, con un
-      // mensaje, y no arrancándole la pantalla de las manos a quien está atendiendo.
-      if (CONFIG.IS_DESKTOP) {
-        showToast('El servidor rechazó esta sucursal. Si sigue pasando, cerrá sesión y volvé a entrar.', 'error', 8000);
-        return;
-      }
       // El negocio seleccionado dejó de ser accesible: limpiar contexto y volver al Lobby.
       setGym(null);
       setSubscription(null);
@@ -403,7 +390,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener('auth-payment-required', handlePaymentRequired);
       window.removeEventListener('auth-forbidden-tenant', handleForbiddenTenant);
     };
-  }, [initAuth, navigate, showToast]);
+  }, [initAuth, navigate]);
 
   // Route protection
   useEffect(() => {
@@ -436,21 +423,7 @@ export function AuthProvider({ children }) {
 
     // Logged in, needs org context but none selected
     if (user && needsOrg) {
-      let orgId = localStorage.getItem('current_org_id');
-
-      // En el escritorio, el terminal ya sabe cuál es su sucursal: la dejó anotada
-      // DeviceGate la primera vez y no cambia. Si el contexto se perdió en el camino se
-      // restaura en silencio, en vez de mandar a la recepcionista a una pantalla de
-      // configuración. Esa expulsión es exactamente lo que el cliente reportó como "me
-      // saca al lobby", y en el escritorio no puede pasar ni por accidente.
-      if (!orgId && CONFIG.IS_DESKTOP) {
-        const delTerminal = localStorage.getItem('terminal_org_id');
-        if (delTerminal) {
-          localStorage.setItem('current_org_id', delTerminal);
-          orgId = delTerminal;
-        }
-      }
-
+      const orgId = localStorage.getItem('current_org_id');
       if (!orgId) {
         navigate(CONFIG.ROUTES.LOBBY, { replace: true });
         return;
