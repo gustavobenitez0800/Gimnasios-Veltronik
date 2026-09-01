@@ -30,21 +30,52 @@ import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';
 import { getShiftId } from './shift';
 
+/**
+ * El token de la sesión, insistiendo un poco.
+ *
+ * <p>{@code getSession()} puede fallar o colgarse por contención del lock de Supabase, y
+ * también puede devolver vacío durante los milisegundos en que el token se está renovando.
+ * Las dos cosas son pasajeras. Tres intentos cortos cubren esa ventana sin hacer esperar a
+ * nadie de más; si después de eso no hay token, el problema es real.</p>
+ */
+async function tokenDeLaSesion() {
+  for (let intento = 0; intento < 3; intento++) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) return session.access_token;
+    } catch (e) {
+      console.warn('apiClient: no se pudo leer la sesión:', e?.message);
+    }
+    if (intento < 2) await new Promise((r) => setTimeout(r, 300 * (intento + 1)));
+  }
+  return null;
+}
+
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
   async (config) => {
-    // Obtener sesión activa de Supabase. Envuelto en try/catch: getSession() puede fallar o
-    // colgarse por contención del lock de Supabase; si se propagara, rompería la request (y
-    // podría disparar el ErrorBoundary). Ante fallo seguimos SIN token → el backend responde
-    // 401 → lo maneja el interceptor de respuesta (logout limpio), sin crashear la UI.
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-      }
-    } catch (e) {
-      console.warn('apiClient: no se pudo obtener la sesión de Supabase:', e?.message);
+    // ⚠️ UN PEDIDO SIN TOKEN ES UN 401 GARANTIZADO, Y UN 401 CIERRA LA SESIÓN.
+    //
+    // Acá antes, si `getSession()` fallaba o se colgaba, el pedido salía igual sin la
+    // cabecera. El comentario decía que el 401 lo resolvía "un logout limpio" — y ese
+    // logout es el que los dueños ven como "me pide usuario y contraseña de nuevo".
+    //
+    // Le pega sobre todo al ESCRITORIO: el refresco del token de Supabase puede tardar
+    // hasta 30 segundos (10 s de timeout por intento, 3 intentos) y el mostrador consulta
+    // cada 15. Un terminal prendido todo el día, con el internet de un gimnasio, cae en esa
+    // ventana seguido. La web se abre, se usa y se cierra: casi no se expone.
+    //
+    // Ahora se insiste un poco —el refresco suele estar en curso, no perdido— y si aun así
+    // no hay token, el pedido NO SALE. Falla como un error de red, que la app ya sabe
+    // reintentar, en vez de quemar la sesión.
+    const token = await tokenDeLaSesion();
+    if (!token) {
+      const sinSesion = new Error('No se pudo leer la sesión. Reintentando…');
+      sinSesion.sinSesion = true;
+      sinSesion.config = config;
+      throw sinSesion;
     }
+    config.headers.Authorization = `Bearer ${token}`;
 
     // Inyectar el Tenant seleccionado (Gimnasio).
     // Respeta un X-Tenant-ID seteado explícitamente por-request (ej: el Lobby, que
@@ -111,9 +142,32 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response && error.response.status === 401) {
+      // ── Antes de cerrarle la sesión a nadie, se intenta renovarla UNA vez ──
+      //
+      // Un 401 no siempre significa "esta sesión murió": puede ser un token que venció
+      // entre que el pedido salió y llegó. Cerrar la sesión ahí obliga a quien atiende a
+      // buscar la contraseña con un socio esperando en el mostrador.
+      //
+      // Se intenta una sola vez y se marca el pedido, para que un token que el servidor
+      // rechaza de verdad no entre en un ciclo infinito de renovar y reintentar.
+      if (config && !config.__reintentoAuth) {
+        config.__reintentoAuth = true;
+        try {
+          const { data } = await supabase.auth.refreshSession();
+          if (data?.session?.access_token) {
+            // No hace falta poner el token acá: al reintentar, el interceptor de request
+            // vuelve a correr y lo toma ya renovado. Escribirlo a mano sería una línea
+            // muerta que hace creer que el reintento depende de ella.
+            return apiClient(config);
+          }
+        } catch {
+          // La renovación tampoco pudo: es un cierre de sesión de verdad.
+        }
+      }
+
       if (!unauthorizedHandled) {
         unauthorizedHandled = true;
-        // Token expirado o inválido: Forzar logout visual
+        // Token expirado o inválido, y la renovación no lo salvó: cerrar sesión.
         supabase.auth.signOut();
 
         // Emitir un evento global para que AuthContext reaccione (UNA sola vez)
