@@ -2,7 +2,23 @@
 // VELTRONIK - Tests del color de marca
 // ============================================
 import { describe, it, expect } from 'vitest';
-import { hexAHsl, hslAHex, derivarPaleta, contrasteConBlanco, colorDominante, COLOR_VELTRONIK, COLORES_SUGERIDOS } from './brandColor';
+import { hexAHsl, hslAHex, derivarPaleta, contrasteConBlanco, colorDominante } from './brandColor';
+
+// El azul original de Veltronik y una batería de tonos que cubre la rueda. Viven acá
+// —y no en el módulo— porque ya no hay ningún selector que los ofrezca: son datos de
+// prueba, no del producto. Sirven para verificar que la derivación se porta bien en
+// toda la rueda, no solo en el color que hoy usa un cliente.
+const COLOR_VELTRONIK = '#3b82f6';
+const COLORES_SUGERIDOS = [
+  { nombre: 'Azul', hex: '#3b82f6' },
+  { nombre: 'Rojo', hex: '#e11d48' },
+  { nombre: 'Naranja', hex: '#ea580c' },
+  { nombre: 'Verde', hex: '#16a34a' },
+  { nombre: 'Violeta', hex: '#7c3aed' },
+  { nombre: 'Turquesa', hex: '#0891b2' },
+  { nombre: 'Rosa', hex: '#db2777' },
+  { nombre: 'Grafito', hex: '#475569' },
+];
 
 describe('conversión de color', () => {
   it('lee el azul de Veltronik como el HSL que se midió del CSS', () => {

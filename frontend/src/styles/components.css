@@ -263,10 +263,6 @@
   border-bottom: none;
 }
 
-[data-theme="light"] .table th {
-  background: transparent;
-}
-
 /* Floating row styling */
 .table tbody tr {
   background: var(--bg-secondary);

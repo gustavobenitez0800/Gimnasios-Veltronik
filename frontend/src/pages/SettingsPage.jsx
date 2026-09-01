@@ -10,7 +10,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { gymService, errorService, deviceService } from '../services';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { GYM } from '../lib/gym';
@@ -22,7 +21,6 @@ import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
-import BrandColorPicker from '../components/BrandColorPicker';
 import GymLogo from '../components/GymLogo';
 import TerminalSettings from '../components/TerminalSettings';
 import CoverageGaps from '../components/CoverageGaps';
@@ -43,7 +41,6 @@ import ArancelesSettings from '../components/ArancelesSettings';
 export default function SettingsPage({ SubscriptionActions }) {
   const { showToast } = useToast();
   const { user, gym: authGym, profile, logout, refreshAuth, orgRole } = useAuth();
-  const { preference, setTheme } = useTheme();
   const currentRole = orgRole;
   const orgLabel = GYM.placeLabel;
   const orgLabelCap = GYM.placeLabelCap;
@@ -70,9 +67,6 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Equipos (Fase 1: registro + bautizo — docs/FASE1-PLAN.md)
   const canManageDevices = ['owner', 'admin'].includes(currentRole);
-  // El color lo define el negocio, no quien está sentado: mismo criterio que el resto
-  // de los datos del gimnasio.
-  const canEditGym = ['owner', 'admin'].includes(currentRole);
   const thisDeviceId = getDeviceId();
   const [devices, setDevices] = useState([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -263,13 +257,6 @@ export default function SettingsPage({ SubscriptionActions }) {
     await guardarGimnasio();
   };
 
-  // El color se guarda en el acto: es una decisión visual, y hacer que el dueño
-  // baje hasta un botón "Guardar" para ver si le gusta rompe la prueba y error.
-  const elegirColor = async (hex) => {
-    setGymForm((f) => ({ ...f, brandColor: hex }));
-    await guardarGimnasio({ brandColor: hex });
-  };
-
   // Subir el logo TRAE el color puesto.
   //
   // Elegir un color es una decisión de diseño que el dueño de un gimnasio no tiene por
@@ -287,7 +274,7 @@ export default function SettingsPage({ SubscriptionActions }) {
       brandColor: colorDetectado || f.brandColor,
     }));
     if (colorDetectado) {
-      showToast('Tomamos el color de tu logo. Podés cambiarlo abajo, en Apariencia.', 'success');
+      showToast('Listo: el sistema tomó el color de tu logo.', 'success');
     }
   };
 
@@ -622,42 +609,6 @@ export default function SettingsPage({ SubscriptionActions }) {
             )}
           </div>
         )}
-
-        {/* Appearance */}
-        <div className="settings-section">
-          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
-            Elegí el tema de la interfaz. <strong>Es tuyo y de esta computadora</strong>: cada
-            persona del equipo puede tenerlo distinto.
-          </p>
-          <div className="theme-options">
-            <div className={`theme-option ${preference === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
-              <div className="theme-option-icon sun"><Icon name="sun" size="1.5rem" /></div>
-              <span className="theme-option-text">Claro</span>
-            </div>
-            <div className={`theme-option ${preference === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}>
-              <div className="theme-option-icon moon"><Icon name="moon" size="1.5rem" /></div>
-              <span className="theme-option-text">Oscuro</span>
-            </div>
-            <div className={`theme-option ${preference === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')}>
-              <div className="theme-option-icon system"><Icon name="monitor" size="1.5rem" /></div>
-              <span className="theme-option-text">Sistema</span>
-            </div>
-          </div>
-
-          {/* El color del gimnasio. A diferencia del tema de arriba —que es de cada
-              persona y de cada computadora— este lo elige el dueño una vez y lo ve
-              todo el equipo. Por eso está separado y por eso solo lo toca quien manda. */}
-          {canEditGym && (
-            <div className="brand-color-block">
-              <h3 className="brand-color-title">El color de tu gimnasio</h3>
-              <p className="brand-color-sub">
-                Lo elegís una vez y lo ve <strong>todo el equipo</strong>, en todas las computadoras.
-              </p>
-              <BrandColorPicker value={gymForm.brandColor} onChange={elegirColor} disabled={saving} />
-            </div>
-          )}
-        </div>
 
         {/* Danger Zone */}
         <div className="danger-zone-container">

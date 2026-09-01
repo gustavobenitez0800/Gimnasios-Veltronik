@@ -184,10 +184,6 @@
   -webkit-backdrop-filter: blur(20px);
 }
 
-[data-theme="light"] .page-header {
-  background: rgba(248, 250, 252, 0.8);
-}
-
 .page-header-info {
   display: flex;
   align-items: center;
@@ -409,12 +405,6 @@
   background: linear-gradient(135deg, #ffffff 30%, rgba(255,255,255,0.5));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-[data-theme="light"] .lobby-title {
-  background: linear-gradient(135deg, #0f172a 30%, rgba(15,23,42,0.5));
-  -webkit-background-clip: text;
   background-clip: text;
 }
 
@@ -662,33 +652,6 @@
 }
 
 /* ─── Light Mode Glass Overrides ─── */
-[data-theme="light"] .liquid-bg {
-  background: var(--bg-primary);
-}
-
-[data-theme="light"] .liquid-orb {
-  opacity: 0.35; /* Softer orbs for light mode */
-}
-
-[data-theme="light"] .lobby-header {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="light"] .lobby-card {
-  background: rgba(255, 255, 255, 0.5);
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: 
-    0 16px 40px -8px rgba(0, 0, 0, 0.06), 
-    inset 0 0 0 1px rgba(255, 255, 255, 1);
-}
-
-[data-theme="light"] .lobby-card:hover {
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 
-    0 24px 50px -12px rgba(0, 0, 0, 0.1), 
-    inset 0 0 0 1px rgba(255, 255, 255, 1);
-}
-
 /* ─── Blocked Card ─── */
 
 .lobby-card-blocked {

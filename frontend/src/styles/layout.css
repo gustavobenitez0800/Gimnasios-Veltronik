@@ -81,25 +81,6 @@
   align-items: center;
   gap: 0.5rem;
 }
-
-.sidebar-theme-toggle {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-sm);
-  padding: 0.5rem;
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  transition: all var(--transition-fast);
-}
-
-.sidebar-theme-toggle:hover {
-  background: var(--bg-elevated);
-  color: var(--primary-400);
-  border-color: var(--primary-500);
-}
-
 /* Botón de cerrar el drawer: oculto por defecto; el responsive lo muestra en mobile */
 .sidebar-close {
   display: none;

@@ -9,7 +9,6 @@ import { getShift } from '../lib/shift';
 // Directo desde ui/ y NO desde Layout: Layout importa este mismo archivo, así que
 // traerlo de ahí crearía un ciclo entre los dos módulos.
 import ConfirmDialog from './ui/ConfirmDialog';
-import { useTheme } from '../contexts/ThemeContext';
 import { getInitials } from '../lib/utils';
 import { GYM, roleLabel } from '../lib/gym';
 import { useWorkspace } from '../hooks/useWorkspace';
@@ -123,7 +122,6 @@ function getNavSections(role, allowedModules) {
 
 export default function Sidebar({ isOpen, onClose }) {
   const { profile, logout, gym, orgRole, orgName } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   const userName = profile?.fullName || 'Usuario';
   const userRole = roleLabel(orgRole);
@@ -202,14 +200,6 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
           </div>
           <div className="sidebar-header-actions">
-            <button
-              className="sidebar-theme-toggle"
-              onClick={toggleTheme}
-              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-              aria-label={theme === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'}
-            >
-              <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-            </button>
             {/* Cerrar el drawer: visible solo en mobile (CSS). En desktop el sidebar es fijo. */}
             <button
               className="sidebar-close"

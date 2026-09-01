@@ -206,18 +206,3 @@ export function colorDominante(pixeles) {
   const dos = (v) => Math.round(v / mejor.n).toString(16).padStart(2, '0');
   return `#${dos(mejor.r)}${dos(mejor.g)}${dos(mejor.b)}`;
 }
-
-/** Colores sugeridos, para que elegir sea un clic y no una decisión de diseño. */
-export const COLORES_SUGERIDOS = [
-  { nombre: 'Azul', hex: '#3b82f6' },
-  { nombre: 'Rojo', hex: '#e11d48' },
-  { nombre: 'Naranja', hex: '#ea580c' },
-  { nombre: 'Verde', hex: '#16a34a' },
-  { nombre: 'Violeta', hex: '#7c3aed' },
-  { nombre: 'Turquesa', hex: '#0891b2' },
-  { nombre: 'Rosa', hex: '#db2777' },
-  { nombre: 'Grafito', hex: '#475569' },
-];
-
-/** El de Veltronik, para el botón "volver al original". */
-export const COLOR_VELTRONIK = '#3b82f6';
