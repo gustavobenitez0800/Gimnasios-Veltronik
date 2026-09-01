@@ -6,7 +6,7 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
@@ -17,6 +17,7 @@ import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
+import CobroRapido from '../components/CobroRapido';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
@@ -78,7 +79,6 @@ const STATUS_FILTER_OPTIONS = [
 export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { orgRole } = useAuth();
   const { memberLabel, membersLabel } = GYM;
   const membersLabelLower = membersLabel.toLowerCase();
@@ -149,6 +149,11 @@ export default function MembersPage() {
 
   // Payments history
   const [paymentsModal, setPaymentsModal] = useState(false);
+
+  // El socio al que se le está cobrando. Antes este botón NAVEGABA a Pagos con el socio en
+  // la URL: para asignarle un arancel había que ir de Socios a Pagos y volver, eligiendo al
+  // socio de nuevo. Ahora se cobra donde está.
+  const [cobrando, setCobrando] = useState(null);
   const [paymentsMember, setPaymentsMember] = useState(null);
   const [memberPayments, setMemberPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -387,7 +392,7 @@ export default function MembersPage() {
                         <div className="table-actions">
                           <button
                             className="action-btn-quick action-btn-charge"
-                            onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
+                            onClick={() => setCobrando(member)}
                             title="Cobrar cuota"
                           ><Icon name="dollarSign" size="1em" /></button>
                           {member.phone && (
@@ -502,6 +507,21 @@ export default function MembersPage() {
           <ModalActions onCancel={modal.close} saving={modal.saving} />
         </form>
       </Modal>
+
+      {/* ─── COBRO RÁPIDO ─── */}
+      <CobroRapido
+        socio={cobrando}
+        abierto={!!cobrando}
+        onCerrar={() => setCobrando(null)}
+        onCobrado={() => {
+          const nombre = cobrando?.fullName || 'El socio';
+          setCobrando(null);
+          showToast(`Cobrado. ${nombre} quedó al día.`, 'success');
+          // La lista se vuelve a pedir: cobrar movió el vencimiento y la fila lo muestra.
+          refresh();
+        }}
+        onError={(e) => showToast(typeof e === 'string' ? e : errorService.getMessage(e), 'error')}
+      />
 
       {/* ─── PAYMENTS HISTORY MODAL ─── */}
       <Modal
