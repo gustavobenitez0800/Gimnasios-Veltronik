@@ -123,11 +123,14 @@
   --font-size-4xl: 2.25rem;
 }
 
-/* â”€â”€â”€ Dark Mode (Default) — INK & SIGNAL â”€â”€â”€ */
+/* ─── LA PALETA — INK & SIGNAL ─── */
+/* Veltronik es oscuro y nada más. Acá vivía también un bloque [data-theme="light"]
+   con su selector en Ajustes y su botón de sol en el sidebar; se dieron de baja
+   porque el sistema se mira en el mostrador de un gimnasio, no en una oficina, y
+   mantener dos paletas costaba el doble en cada pantalla nueva. */
 /* Tinta NEUTRA (no slate azulado): fondo casi-negro, capas reales por elevación,
    texto off-white (nunca blanco puro), bordes hairline. Estética Linear/Vercel. */
-:root,
-[data-theme="dark"] {
+:root {
   --bg-primary: #0b0e14;     /* ink base */
   --bg-secondary: #12151c;   /* cards / superficies */
   --bg-tertiary: #1a1e27;    /* inputs / hover */
@@ -153,29 +156,6 @@
 }
 
 /* â”€â”€â”€ Light Mode â”€â”€â”€ */
-[data-theme="light"] {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --bg-elevated: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --border-color: rgba(15, 23, 42, 0.08);
-  --border-color-hover: rgba(15, 23, 42, 0.15);
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(15, 23, 42, 0.06);
-  --card-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(241, 245, 249, 0.6));
-
-  /* ── Glass card system (modo claro): vidrio blanco translúcido ── */
-  --card-bg: rgba(255, 255, 255, 0.55);
-  --card-backdrop: blur(20px) saturate(1.4);
-  --card-border: 1px solid rgba(255, 255, 255, 0.65);
-  --card-highlight: rgba(255, 255, 255, 0.90);
-  --card-shadow-base: 0 8px 32px rgba(0, 0, 0, 0.08);
-  --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.14);
-}
-
 /* ─── PALETA ───
    Veltronik tiene UNA identidad visual: la del gimnasio, definida arriba en :root.
 

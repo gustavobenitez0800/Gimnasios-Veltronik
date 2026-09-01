@@ -12,10 +12,10 @@
   overflow: hidden;
   background: #0a0e1a;
 
-  /* El fondo aurora es SIEMPRE oscuro (hardcodeado arriba), pero los tokens de texto
-     cambian con data-theme: en modo claro --text-primary pasa a casi-negro y las
-     palabras desaparecen sobre el vidrio oscuro. Fijamos acá los tokens del tema
-     oscuro para que las pantallas de auth se vean igual en ambos modos. */
+  /* Los tokens se repiten acá aunque hoy sean los mismos que en :root: el fondo
+     aurora está hardcodeado en esta pantalla, así que su texto no puede depender de
+     una paleta que se cambie desde afuera. Cuando existía el modo claro, sin esto
+     --text-primary pasaba a casi-negro y las palabras desaparecían sobre el vidrio. */
   --text-primary: #e8eaed;
   --text-secondary: #a0a6b0;
   --text-muted: #98a0ab;

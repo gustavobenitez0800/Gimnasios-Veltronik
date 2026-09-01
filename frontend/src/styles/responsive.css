@@ -86,7 +86,6 @@ button, a, input, select, textarea, [role="button"] {
   .lobby-card-delete { width: 36px; height: 36px; }
   .chip-remove { width: 32px; height: 32px; }
   .sidebar-logout { padding: 0.75rem; }
-  .sidebar-theme-toggle { padding: 0.7rem; }
   .toast-close { padding: 0.4rem; }
 
   /* El orbe que sigue al mouse no tiene sentido sin mouse (y quema GPU) */

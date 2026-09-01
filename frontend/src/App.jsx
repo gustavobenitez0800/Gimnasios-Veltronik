@@ -18,7 +18,6 @@
 
 import { HashRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 
@@ -37,13 +36,11 @@ export default function App({ routes }) {
   return (
     <QueryClientProvider client={queryClient}>
       <HashRouter>
-        <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
               {routes}
             </AuthProvider>
           </ToastProvider>
-        </ThemeProvider>
       </HashRouter>
     </QueryClientProvider>
   );
