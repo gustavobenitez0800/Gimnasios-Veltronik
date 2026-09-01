@@ -31,9 +31,7 @@
 // confirmó, o cuando lo rechazó por algo que no se arregla reintentando. Un error de red
 // se reintenta indefinidamente: perder una visita es perderle datos al gimnasio.
 
-const DB = 'veltronik-local';
-const STORE = 'cola-accesos';
-const VERSION = 2; // la 1 la creó localMembers con su propio almacén
+import { ALMACENES, conAlmacen, pedir } from './db';
 
 /** Tope de la cola. Un mostrador hace decenas de accesos por día; 5000 son semanas. */
 const MAX_EN_COLA = 5000;
@@ -43,46 +41,8 @@ const AVISAR_TRAS_INTENTOS = 5;
 
 let candado = false;
 
-function abrirDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      // `members` puede existir ya (localMembers). Se crea solo lo que falte.
-      if (!db.objectStoreNames.contains('members')) db.createObjectStore('members');
-      if (!db.objectStoreNames.contains(STORE)) {
-        // keyPath = el sello. Encolar dos veces el mismo acceso lo pisa, no lo duplica.
-        const store = db.createObjectStore(STORE, { keyPath: 'clientRef' });
-        // Se lee SIEMPRE por orden de ocurrencia: es la regla 3.
-        store.createIndex('porMomento', 'ocurridoEn');
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-const pedir = (req) => new Promise((resolve, reject) => {
-  req.onsuccess = () => resolve(req.result);
-  req.onerror = () => reject(req.error);
-});
-
-async function conStore(modo, fn) {
-  const db = await abrirDB();
-  try {
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, modo);
-      const store = tx.objectStore(STORE);
-      let resultado;
-      Promise.resolve(fn(store)).then((r) => { resultado = r; }).catch(reject);
-      tx.oncomplete = () => resolve(resultado);
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } finally {
-    db.close();
-  }
-}
+/** Atajo sobre el almacén de la cola. El esquema vive en db.js, que es su dueño. */
+const conStore = (modo, fn) => conAlmacen(ALMACENES.COLA_ACCESOS, modo, fn);
 
 /** Guarda un acceso para mandarlo cuando haya internet. Devuelve el sello. */
 export async function encolar({ memberId, method, memberName, ocurridoEn, tenantId }) {

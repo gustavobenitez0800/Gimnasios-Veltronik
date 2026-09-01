@@ -32,9 +32,7 @@
 
 import apiClient from './apiClient';
 
-const DB = 'veltronik-local';
-const STORE = 'members';
-const VERSION = 1;
+import { ALMACENES, conAlmacen, pedir } from './db';
 
 // Cada cuánto se refresca sola mientras la app está abierta. Cinco minutos es el punto
 // donde el dato es lo bastante fresco para el mostrador sin castigar una conexión pobre.
@@ -47,32 +45,15 @@ let memoria = { tenantId: null, socios: [], actualizado: null };
 let cargando = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Guardado en el navegador (IndexedDB, sin librerías)
+// Guardado en el navegador. El esquema NO vive acá: lo declara db.js, que es el único
+// dueño de la base. Tener dos módulos abriéndola con su propia versión es exactamente lo
+// que dejó al mostrador sin poder buscar socios.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function abrirDB() {
-  return new Promise((resolve, reject) => {
-    if (!('indexedDB' in window)) { reject(new Error('sin indexedDB')); return; }
-    const req = indexedDB.open(DB, VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
 
 async function guardar(tenantId, datos) {
   try {
-    const db = await abrirDB();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(datos, tenantId);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
+    await conAlmacen(ALMACENES.SOCIOS, 'readwrite', (store) => pedir(store.put(datos, tenantId)));
   } catch {
     // Sin almacenamiento (modo privado, permisos): la app sigue andando con la copia en
     // memoria. Se pierde al cerrar, pero mientras esté abierta funciona igual de rápido.
@@ -81,15 +62,8 @@ async function guardar(tenantId, datos) {
 
 async function leer(tenantId) {
   try {
-    const db = await abrirDB();
-    const datos = await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly');
-      const req = tx.objectStore(STORE).get(tenantId);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-    db.close();
-    return datos;
+    const datos = await conAlmacen(ALMACENES.SOCIOS, 'readonly', (store) => pedir(store.get(tenantId)));
+    return datos || null;
   } catch {
     return null;
   }
