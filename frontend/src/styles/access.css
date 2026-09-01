@@ -2,16 +2,12 @@
    PHASE 3: ACCESS PAGE
    ============================================ */
 
-/* ─── UNA SOLA COLUMNA ───
-   Acá vivía una grilla de dos columnas donde las cosas caían donde entraran. En un
-   mostrador eso se paga caro: el cartel del QR —que se imprime una vez— ocupaba el lugar
-   de más peso y el campo del DNI quedaba abajo. Una pila vertical no se puede desordenar,
-   y se acomoda sola lo mismo en una notebook que en la pantalla del terminal. */
-.access-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+.access-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
 }
+@media (max-width: 1024px) { .access-grid { grid-template-columns: 1fr; } }
 
 .checkin-section {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1));
@@ -21,19 +17,13 @@
 }
 
 .search-box { position: relative; margin-bottom: 1rem; }
-/* El campo más importante del sistema: acá se teclea el DNI de cada socio que entra.
-   Grande y con números tabulares —todos los dígitos del mismo ancho— para que un DNI mal
-   tecleado se vea de un vistazo. */
 .search-input {
-  width: 100%; padding: 1.15rem 1.25rem;
+  width: 100%; padding: 1rem;
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   background: var(--bg-primary); color: var(--text-primary);
-  font-size: 1.35rem; font-weight: 600; letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-  transition: all 0.2s;
+  font-size: var(--font-size-lg); transition: all 0.2s;
 }
-.search-input::placeholder { font-size: 1rem; font-weight: 400; letter-spacing: 0; }
 .search-input:focus { border-color: var(--primary-500); outline: none; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2); }
 
 .search-results { background: var(--bg-secondary); border-radius: var(--border-radius-md); max-height: 300px; overflow-y: auto; }
@@ -117,77 +107,3 @@
 .popup-progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: rgba(0,0,0,0.2); border-radius: 0 0 24px 24px; overflow: hidden; }
 .popup-progress-bar { height: 100%; background: rgba(255,255,255,0.5); width: 100%; animation: progressShrink 3s linear forwards; }
 @keyframes progressShrink { from { width: 100%; } to { width: 0%; } }
-
-/* ─── RECIÉN ENTRARON POR QR ───
-   El socio escanea en la puerta y camina hasta el mostrador. El cartel que se levanta al
-   detectarlo dura unos segundos, y entre que escanea y que la pantalla se entera pueden
-   pasar hasta quince: puede llegar y encontrarlo cerrado. Esta lista no se va — es donde
-   se busca a sí mismo y ve cuánto le queda sin preguntarle a nadie. Se vacía sola, porque
-   el servidor solo manda los últimos minutos. */
-.ingresos-qr {
-  margin: 0.85rem 0;
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-md, 10px);
-  background: color-mix(in srgb, var(--primary-500) 7%, var(--bg-tertiary));
-  border: 1px solid color-mix(in srgb, var(--primary-500) 22%, transparent);
-}
-
-.ingresos-qr-titulo {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--primary-400);
-  margin-bottom: 0.7rem;
-}
-
-.ingresos-qr-lista {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.ingresos-qr-item {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-}
-
-.ingresos-qr-datos {
-  flex: 1;
-  min-width: 0;
-}
-
-.ingresos-qr-datos .member-name {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
-.ingresos-qr-datos .member-dni {
-  font-size: 0.72rem;
-}
-
-/* ─── LO QUE ESPERA A QUE VUELVA INTERNET ───
-   Aparece solo cuando hay algo en la cola. Un cartel que dice "0 pendientes" todo el día
-   es ruido que se aprende a ignorar, y el día que diga 12 nadie lo va a mirar. */
-.cola-accesos {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.7rem 0.9rem;
-  margin-bottom: 0.9rem;
-  border-radius: var(--radius-md, 10px);
-  font-size: var(--font-size-sm);
-  background: color-mix(in srgb, var(--warning-500) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning-500) 30%, transparent);
-  color: var(--text-primary);
-}
-
-/* Cuando ya viene fallando hace rato deja de ser informativo y pasa a pedir atención. */
-.cola-trabada {
-  background: color-mix(in srgb, var(--error-500) 12%, transparent);
-  border-color: color-mix(in srgb, var(--error-500) 32%, transparent);
-}

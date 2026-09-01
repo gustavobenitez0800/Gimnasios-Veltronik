@@ -5,7 +5,7 @@
 // quién está adentro ahora mismo.
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
@@ -14,7 +14,6 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { hayProblema } from '../lib/colaAccesos';
 import { useQueryCache } from '../hooks';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
@@ -32,13 +31,6 @@ export default function AccessPage() {
 
   // Success popup
   const [popup, setPopup] = useState(null);
-
-  // ── El teclado apunta al buscador, siempre ──
-  //
-  // El socio llega al mostrador y teclea su DNI. Antes había que hacer clic en el campo
-  // primero, y si nadie lo hacía las teclas se perdían: el primer par de dígitos no
-  // entraba y el DNI quedaba cortado, que es peor que no escribir nada.
-  const buscadorRef = useRef(null);
 
   // ─── Un pedido, y la vuelta a la pantalla es instantánea ───
   //
@@ -60,8 +52,8 @@ export default function AccessPage() {
   );
 
   const checkedIn = useMemo(() => data?.adentro || [], [data]);
+  const todayLogs = useMemo(() => data?.hoy || [], [data]);
   const avisos = useMemo(() => data?.avisos || [], [data]);
-  const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
   const loadData = invalidate;
 
@@ -100,30 +92,16 @@ export default function AccessPage() {
     return () => clearInterval(t);
   }, []);
 
-  // ── Buscar, en dos capas ──
-  //
-  // `buscar` consulta y devuelve. `doSearch` es la versión retrasada que además pinta la
-  // lista mientras se tipea. Están separadas porque Enter NO puede depender del retraso:
-  // quien atiende teclea el DNI y aprieta Enter en menos de 300 ms, y si Enter mirara lo
-  // que la búsqueda retrasada dejó, encontraría la lista vacía y no haría nada. En un
-  // mostrador eso se ve como que el sistema se colgó.
-  const buscar = useCallback(async (query) => {
-    const q = (query || '').trim();
-    if (q.length < 2) return [];
+  // Search
+  const doSearch = useMemo(() => debounce(async (query) => {
+    if (!query || query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     try {
-      return (await memberService.searchForAccess(q)) || [];
-    } catch {
-      return [];
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const doSearch = useMemo(() => debounce(async (query) => {
-    if (!query || query.trim().length < 2) { setSearchResults([]); return; }
-    setSearchResults(await buscar(query));
-  }, 300), [buscar]);
+      const results = await memberService.searchForAccess(query);
+      setSearchResults(results || []);
+    } catch { setSearchResults([]); }
+    finally { setSearching(false); }
+  }, 300), []);
 
   const handleSearch = (val) => {
     setSearchQuery(val);
@@ -175,222 +153,10 @@ export default function AccessPage() {
   );
 
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
-  // ── El QR también se anuncia en el mostrador ──
-  //
-  // Cuando el socio escanea el cartel, la confirmación aparece en SU teléfono. Acá no
-  // pasaba nada: el socio no tenía dónde ver cuántos días le quedan sin preguntarle a
-  // alguien, y la recepcionista solo se enteraba si el socio tenía un problema (eso ya lo
-  // hacían los avisos). Ahora entrar por QR levanta el MISMO cartel que registrar la
-  // entrada a mano.
-  //
-  // Los ya anunciados se recuerdan para no repetir el cartel en cada refresco. En la
-  // primera carga se marcan todos sin mostrarlos: abrir la pantalla no tiene por qué
-  // disparar los ingresos de los últimos cinco minutos como si acabaran de pasar.
-  const anunciados = useRef(null);
-  useEffect(() => {
-    if (!ingresosQr.length && anunciados.current === null) return;
-
-    if (anunciados.current === null) {
-      anunciados.current = new Set(ingresosQr.map((i) => i.accesoId));
-      return;
-    }
-
-    const nuevos = ingresosQr.filter((i) => !anunciados.current.has(i.accesoId));
-    if (!nuevos.length) return;
-    nuevos.forEach((i) => anunciados.current.add(i.accesoId));
-
-    // El más reciente es el que está parado frente a la pantalla.
-    const ultimo = nuevos.reduce((a, b) => (a.hora > b.hora ? a : b));
-    const info = getDaysInfo(ultimo);
-    setPopup({
-      name: ultimo.nombre,
-      type: info.type === 'expired' ? 'error' : info.type === 'danger' ? 'warning' : 'success',
-      accion: 'Entrada por QR',
-      daysLabel: info.label,
-      initials: getInitials(ultimo.nombre),
-    });
-    // Más que el manual: al que registra la recepcionista ya le habló una persona; el que
-    // escaneó solo tiene esta pantalla para enterarse de cuánto le queda.
-    setTimeout(() => setPopup(null), 6000);
-  }, [ingresosQr]);
-
-  // ── Lo que se registró sin internet se manda solo ──
-  //
-  // Tres disparadores, porque ninguno alcanza por su cuenta:
-  //   · al abrir la pantalla — cubre el caso de haber cerrado la app con cosas pendientes;
-  //   · cuando el navegador avisa que volvió la conexión — es el camino rápido;
-  //   · y un temporizador de respaldo, porque el evento 'online' MIENTE: dice que hay red,
-  //     no que el servidor esté del otro lado. Un router que revive antes que el internet
-  //     dispara el evento con la nube todavía inalcanzable.
-  //
-  // El vaciado es seguro de llamar de más: tiene candado adentro y los accesos van
-  // sellados, así que dos disparos a la vez no mandan nada dos veces.
-  const [pendientes, setPendientes] = useState(0);
-  const [colaTrabada, setColaTrabada] = useState(false);
-
-  const sincronizar = useCallback(async () => {
-    try {
-      const r = await accessService.sincronizarPendientes();
-      setPendientes(r.quedan);
-      setColaTrabada(await hayProblema());
-      if (r.enviados > 0) {
-        showToast(`Se enviaron ${r.enviados} ${r.enviados === 1 ? 'acceso guardado' : 'accesos guardados'} sin conexión.`, 'success');
-        loadData();
-      }
-      if (r.descartados > 0) {
-        // No se puede tragar en silencio: son visitas que el servidor rechazó y que ya no
-        // van a existir. El gimnasio tiene derecho a saber que pasó.
-        showToast(`${r.descartados} acceso(s) no se pudieron registrar y se descartaron.`, 'error', 10000);
-      }
-    } catch {
-      // Sigue sin haber servidor. Se reintenta en el próximo disparo.
-      setPendientes(await accessService.pendientesDeEnviar());
-    }
-  }, [showToast, loadData]);
-
-  useEffect(() => {
-    sincronizar();
-    const alVolverLaRed = () => sincronizar();
-    window.addEventListener('online', alVolverLaRed);
-    const t = setInterval(sincronizar, 30000);
-    return () => {
-      window.removeEventListener('online', alVolverLaRed);
-      clearInterval(t);
-    };
-  }, [sincronizar]);
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  //  EL TECLADO NUNCA SE APAGA
-  // ══════════════════════════════════════════════════════════════════════════════
-  //
-  // Esta pantalla se usa como un molinete: el socio llega, teclea su DNI y entra. Que el
-  // campo tenga el foco no es una comodidad, es LA función. Y el foco se perdía por
-  // motivos que nadie en un mostrador puede adivinar: alguien tocó la pantalla en un lugar
-  // vacío, apretó un botón, volvió de otra sección. A partir de ahí las teclas caían en la
-  // nada y el sistema parecía colgado.
-  //
-  // Se ataca por los tres lados por los que se perdía:
-  //
-  //   1. TECLA SUELTA — si alguien escribe con el foco en cualquier otro lado, la primera
-  //      tecla se lleva el foco al campo Y SE ESCRIBE. Sin esto el primer dígito del DNI
-  //      se perdía, que es peor que no escribir nada: el número queda cortado y el socio
-  //      "no existe".
-  //   2. CLIC EN CUALQUIER LADO — después de tocar la pantalla el foco vuelve al campo.
-  //   3. VOLVER A LA VENTANA — al minimizar y volver, o al cambiar de sección y regresar.
-  //
-  // Lo que NO se toca: si el foco está en otro campo de texto o en un diálogo, no se lo
-  // roba. Alguien puede estar escribiendo en el buscador del cartel del QR, y arrancarle
-  // el teclado de las manos sería el mismo bug al revés.
-  const enfocarBuscador = useCallback(() => {
-    const el = buscadorRef.current;
-    if (!el || document.activeElement === el) return;
-    // Ni diálogos ni otros campos: ahí el foco es de quien lo tiene.
-    const activo = document.activeElement;
-    if (activo && activo !== document.body) {
-      const tag = activo.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || activo.isContentEditable) return;
-      if (activo.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
-    }
-    el.focus();
-  }, []);
-
-  useEffect(() => {
-    const esCampoAjeno = (t) =>
-      !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
-
-    const alTeclearSuelto = (e) => {
-      if (e.ctrlKey || e.altKey || e.metaKey) return;      // atajos del sistema
-      if (esCampoAjeno(e.target)) return;                   // ya está escribiendo en otro lado
-      if (e.target?.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
-      // Un solo carácter imprimible, o borrar. Las flechas, Tab y F5 siguen siendo suyas.
-      const escribible = e.key.length === 1 || e.key === 'Backspace';
-      if (!escribible) return;
-      const el = buscadorRef.current;
-      if (!el || document.activeElement === el) return;
-      el.focus();
-      // La tecla que disparó esto se procesa igual porque el navegador la entrega DESPUÉS
-      // del focus(), así que no hay que reescribirla a mano. Si algún día deja de ser así,
-      // acá va: setSearchQuery(q => q + e.key).
-    };
-
-    const alTocar = () => setTimeout(enfocarBuscador, 0); // después del clic, no durante
-
-    document.addEventListener('keydown', alTeclearSuelto);
-    document.addEventListener('pointerup', alTocar);
-    window.addEventListener('focus', enfocarBuscador);
-    return () => {
-      document.removeEventListener('keydown', alTeclearSuelto);
-      document.removeEventListener('pointerup', alTocar);
-      window.removeEventListener('focus', enfocarBuscador);
-    };
-  }, [enfocarBuscador]);
-
-  // Enter BUSCA y registra, en un solo gesto.
-  //
-  // No espera a la búsqueda retrasada: consulta él mismo. Así el socio teclea su DNI,
-  // aprieta Enter y entra, sin que nadie toque el mouse.
-  //
-  // Con un solo resultado no hay ambigüedad. Con varios NO se elige por él —registrarle la
-  // entrada a la persona equivocada deja dos datos mal: uno que entró sin estar y otro que
-  // estaba sin figurar— así que se muestra la lista y alguien decide.
-  //
-  // Y cuando no aparece nadie lo DICE. Antes no pasaba nada y quien atiende no tenía forma
-  // de saber si el sistema no encontró al socio o si simplemente no la escuchó.
-  const registrando = useRef(false);
-  const alTeclear = async (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-
-    // Dos Enter seguidos registrarían entrada y en seguida SALIDA, porque la dirección la
-    // decide el servidor según si el socio ya está adentro. El socio se iría "afuera" sin
-    // haberse ido.
-    if (registrando.current) return;
-
-    const q = searchQuery.trim();
-    if (q.length < 2) return;
-
-    registrando.current = true;
-    try {
-      const encontrados = await buscar(q);
-      setSearchResults(encontrados);
-      if (encontrados.length === 1) {
-        await handleCheckIn(encontrados[0]);
-      } else if (!encontrados.length) {
-        showToast(`No encontré a nadie con "${q}"`, 'error');
-      } else {
-        showToast('Hay varios socios con esos datos. Elegí cuál.', 'info');
-      }
-    } finally {
-      registrando.current = false;
-    }
-  };
-
   const handleCheckIn = async (member) => {
     try {
-      const r = await accessService.checkIn(member.id, 'manual', member.fullName);
+      const r = await accessService.checkIn(member.id, 'manual');
       const daysInfo = getDaysInfo(member);
-
-      // Sin internet el acceso quedó guardado, pero NO se sabe si fue entrada o salida:
-      // eso lo decide el servidor mirando el estado del socio. Adivinarlo acá es
-      // exactamente el bug que ya apareció dos veces en este proyecto —el cartel decía
-      // "entrada" y se grababa una salida—, así que se dice lo único que es cierto:
-      // quedó guardado y se va a mandar.
-      if (r?.encolado) {
-        setPendientes(await accessService.pendientesDeEnviar());
-        setPopup({
-          name: member.fullName,
-          type: daysInfo.type === 'expired' ? 'error' : 'success',
-          accion: 'Guardado sin conexión',
-          daysLabel: daysInfo.label,
-          initials: getInitials(member.fullName),
-        });
-        setTimeout(() => setPopup(null), 4000);
-        setSearchQuery('');
-        setSearchResults([]);
-        buscadorRef.current?.focus();
-        return;
-      }
-
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
 
@@ -411,9 +177,6 @@ export default function AccessPage() {
       setSearchQuery('');
       setSearchResults([]);
       loadData();
-      // El foco vuelve al campo: la fila del mostrador no tiene por qué agarrar el mouse
-      // entre un socio y el siguiente.
-      buscadorRef.current?.focus();
 
       // El mensaje nombra la dirección REAL. Antes decía "registrado" a secas y la
       // recepcionista no tenía forma de saber qué había quedado grabado.
@@ -441,26 +204,55 @@ export default function AccessPage() {
     }
   };
 
-  // Las estadísticas del día —cuántos entraron, cuánto se quedan— y el registro de hoy
-  // se mudaron a Reportes. No es información de la PUERTA: nadie decide nada con ella
-  // mientras hay un socio esperando del otro lado del mostrador, y ocupaba la mitad de la
-  // pantalla que la recepcionista mira todo el día.
+  // Stats
+  const stats = useMemo(() => ({
+    inGym: checkedIn.length,
+    totalToday: todayLogs.length,
+    avgTime: todayLogs.length > 0 ? (() => {
+      const completed = todayLogs.filter(l => l.checkOutAt);
+      if (completed.length === 0) return '-';
+      const avg = completed.reduce((sum, l) => {
+        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
+      }, 0) / completed.length;
+      return `${Math.round(avg / 60000)} min`;
+    })() : '-',
+  }), [checkedIn, todayLogs]);
 
   return (
     <div className="access-page">
-      <PageHeader title="Entrada" subtitle="El socio escribe su DNI y aprieta Enter, o escanea el cartel" icon="door" />
+      <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
+
+      {/* Stats */}
+      <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="stat-card">
+          <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
+          <div className="stat-content">
+            <div className="stat-value">{stats.inGym}</div>
+            <div className="stat-label">En el {orgLabel}</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon stat-icon-primary"><Icon name="door" /></div>
+          <div className="stat-content">
+            <div className="stat-value">{stats.totalToday}</div>
+            <div className="stat-label">Accesos hoy</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon stat-icon-accent"><Icon name="clock" /></div>
+          <div className="stat-content">
+            <div className="stat-value">{stats.avgTime}</div>
+            <div className="stat-label">Tiempo promedio</div>
+          </div>
+        </div>
+      </div>
 
       {/* Check-in + Currently In */}
-      {/* ── UNA SOLA COLUMNA, DE ARRIBA HACIA ABAJO ──
-          Antes esto era una grilla de dos columnas y las cosas caían donde entraran: el
-          cartel del QR —que se imprime una vez y no se toca más— quedaba arriba a la
-          izquierda, en el lugar de más peso de la pantalla, y el campo donde se teclea el
-          DNI cien veces por día quedaba abajo.
-          Ahora el orden es el de la puerta: primero lo que hay que atender, después lo que
-          se usa siempre, después quién está adentro, y el cartel al final. Una sola
-          columna además se acomoda sola en cualquier pantalla, que es lo que necesita un
-          cliente con una PC y otro con dos. */}
-      <div className="access-stack">
+      <div className="access-grid">
+        {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
+            configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
+        <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
+
         {/* Los avisos van DEBAJO del cartel y ARRIBA del buscador. Lo segundo es lo que
             importa y no cambió: si un socio entró vencido, eso tiene que verse antes que
             lo que la recepcionista esté por hacer ahora. El cartel del QR no compite por
@@ -471,67 +263,9 @@ export default function AccessPage() {
         <div className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
-            <input
-              ref={buscadorRef}
-              type="text"
-              className="search-input"
-              placeholder="Escribí el DNI o el nombre y apretá Enter"
-              value={searchQuery}
-              onChange={e => handleSearch(e.target.value)}
-              onKeyDown={alTeclear}
-              autoFocus
-              autoComplete="off"
-              // El teclado numérico en tablets: el mostrador tipea DNIs todo el día.
-              inputMode="text"
-            />
+            <input type="text" className="search-input" placeholder="Buscar por nombre o DNI..."
+              value={searchQuery} onChange={e => handleSearch(e.target.value)} />
           </div>
-          {/* ── Los que acaban de entrar por QR ──
-              El cartel dura unos segundos y el mostrador se refresca cada quince, así que
-              el socio que escaneó en la puerta puede llegar acá y encontrárselo ya cerrado.
-              Esta lista NO se va: el socio camina hasta el mostrador, se busca y ve cuánto
-              le queda sin tener que preguntarle a nadie. Se vacía sola —el servidor manda
-              solo los últimos minutos— así que no hay que limpiarla ni ocultarla. */}
-          {ingresosQr.length > 0 && (
-            <div className="ingresos-qr">
-              <div className="ingresos-qr-titulo">
-                <Icon name="qrCode" size="0.95em" /> Recién entraron por QR
-              </div>
-              <div className="ingresos-qr-lista">
-                {ingresosQr.map((i) => {
-                  const info = getDaysInfo(i);
-                  return (
-                    <div key={i.accesoId} className="ingresos-qr-item">
-                      <div className="member-avatar">{getInitials(i.nombre)}</div>
-                      <div className="ingresos-qr-datos">
-                        <div className="member-name">{i.nombre}</div>
-                        <div className="member-dni">
-                          {new Date(i.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <div className={`days-countdown ${info.type === 'ok' ? 'days-ok' : info.type === 'warning' ? 'days-warning' : info.type === 'expired' || info.type === 'danger' ? 'days-danger' : 'days-none'}`}>
-                        {info.label}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Lo que se registró sin internet. Se muestra SOLO cuando hay algo esperando:
-              una pantalla que dice "0 pendientes" todo el día es ruido que se aprende a
-              ignorar, y el día que diga 12 nadie lo va a mirar. */}
-          {pendientes > 0 && (
-            <div className={`cola-accesos ${colaTrabada ? 'cola-trabada' : ''}`}>
-              <Icon name={colaTrabada ? 'alertTriangle' : 'wifiOff'} size="1em" />
-              <span>
-                {colaTrabada
-                  ? `${pendientes} acceso(s) esperando hace rato. Revisá la conexión: se van a mandar solos cuando vuelva.`
-                  : `${pendientes} acceso(s) guardado(s) sin conexión. Se mandan solos.`}
-              </span>
-            </div>
-          )}
-
           <EstadoCopiaLocal />
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
           {searchResults.length > 0 && (
@@ -620,10 +354,39 @@ export default function AccessPage() {
         </div>
       </div>
 
-      {/* El cartel del QR va último: se imprime una vez y se pega en la pared. Vive en esta
-          pantalla —y no en Ajustes— porque es parte de operar la puerta, pero no compite
-          por el lugar de arriba con lo que se usa todo el día. */}
-      <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
+      {/* Today's Log */}
+      <div className="card mt-3">
+        <div className="table-header">
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
+          <span className="text-muted">{todayLogs.length} accesos</span>
+        </div>
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
+            <tbody>
+              {todayLogs.length === 0 ? (
+                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
+              ) : todayLogs.slice(0, 30).map(log => {
+                const member = log.member;
+                return (
+                <tr key={log.id}>
+                  <td data-label="Socio"><strong>{member?.fullName || 'Socio'}</strong></td>
+                  <td data-label="DNI">{member?.dni || '-'}</td>
+                  <td data-label="Entrada">{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td data-label="Salida">{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
+                  <td data-label="Método">
+                    {(log.accessMethod || '').toLowerCase() === 'manual' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
+                    ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="qrCode" size="0.9em" /> QR</span>
+                    ) : (log.accessMethod || '-')}
+                  </td>
+                </tr>
+              )})}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Success Popup */}
       {popup && (

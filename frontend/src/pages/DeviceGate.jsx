@@ -74,11 +74,6 @@ export default function DeviceGate() {
   /** Deja la sucursal fija para esta sesión y entra. */
   const entrarA = useCallback(async (orgId, orgName, role) => {
     localStorage.setItem('current_org_id', orgId);
-    // Copia DURABLE de a qué sucursal pertenece ESTE equipo. Sobrevive al cierre de sesión
-    // a propósito: la sucursal la decide el equipo, no la persona que se loguea. Es lo que
-    // permite que el escritorio se recupere solo si el contexto se pierde en el camino, en
-    // vez de mostrarle esta pantalla de configuración a una recepcionista.
-    localStorage.setItem('terminal_org_id', orgId);
     localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', orgName || '');
     navigate(landingRoute(role), { replace: true });
