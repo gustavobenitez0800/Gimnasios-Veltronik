@@ -34,9 +34,11 @@ export default function LogoPicker({ logoUrl, logoEmoji, name = '', onChange, on
 
     setProcessing(true);
     try {
-      const dataUrl = await fileToSquareDataUrl(file);
+      const { dataUrl, colorDetectado } = await fileToSquareDataUrl(file);
       // Al subir una imagen el emoji se descarta: no hay dos identidades a la vez.
-      onChange({ logoUrl: dataUrl, logoEmoji: null });
+      // colorDetectado viaja como dato: quien recibe decide si lo usa (Ajustes sí,
+      // el alta del gimnasio todavía no tiene dónde ponerlo).
+      onChange({ logoUrl: dataUrl, logoEmoji: null, colorDetectado });
     } catch (err) {
       onError?.(err.message || 'No pudimos procesar esa imagen.');
     } finally {

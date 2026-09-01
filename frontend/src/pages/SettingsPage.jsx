@@ -270,6 +270,27 @@ export default function SettingsPage({ SubscriptionActions }) {
     await guardarGimnasio({ brandColor: hex });
   };
 
+  // Subir el logo TRAE el color puesto.
+  //
+  // Elegir un color es una decisión de diseño que el dueño de un gimnasio no tiene por
+  // qué saber tomar; su logo, en cambio, ya la tiene tomada. Se le saca el color a la
+  // imagen y se aplica solo. Si el logo no tiene ninguno —blanco y negro— no se toca
+  // nada: inventar un color sería peor que dejar el que había.
+  //
+  // Pisa un color anterior a propósito: cambiar el logo es cambiar la identidad, y el
+  // aviso dice qué pasó y dónde deshacerlo.
+  const alCambiarLogo = ({ logoUrl, logoEmoji, colorDetectado }) => {
+    setGymForm((f) => ({
+      ...f,
+      logoUrl,
+      logoEmoji,
+      brandColor: colorDetectado || f.brandColor,
+    }));
+    if (colorDetectado) {
+      showToast('Tomamos el color de tu logo. Podés cambiarlo abajo, en Apariencia.', 'success');
+    }
+  };
+
   // NOTA: el flujo viejo de "cambiar método de pago" (redirección al link de MP vía
   // /update-payment-method) fue reemplazado por el Card Payment Brick embebido
   // (showCardForm + <CardCheckout/>), que cobra sin redirección. Se eliminó el handler muerto.
@@ -394,7 +415,7 @@ export default function SettingsPage({ SubscriptionActions }) {
                     logoUrl={gymForm.logoUrl}
                     logoEmoji={gymForm.logoEmoji}
                     name={gymForm.name}
-                    onChange={({ logoUrl, logoEmoji }) => setGymForm(f => ({ ...f, logoUrl, logoEmoji }))}
+                    onChange={alCambiarLogo}
                     onError={(msg) => showToast(msg, 'error')}
                   />
                 </div>

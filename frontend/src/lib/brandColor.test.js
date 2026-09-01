@@ -2,7 +2,7 @@
 // VELTRONIK - Tests del color de marca
 // ============================================
 import { describe, it, expect } from 'vitest';
-import { hexAHsl, hslAHex, derivarPaleta, contrasteConBlanco, COLOR_VELTRONIK, COLORES_SUGERIDOS } from './brandColor';
+import { hexAHsl, hslAHex, derivarPaleta, contrasteConBlanco, colorDominante, COLOR_VELTRONIK, COLORES_SUGERIDOS } from './brandColor';
 
 describe('conversión de color', () => {
   it('lee el azul de Veltronik como el HSL que se midió del CSS', () => {
@@ -134,5 +134,77 @@ describe('el botón se tiene que poder leer', () => {
     const luces = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]
       .map((paso) => hexAHsl(p[`--primary-${paso}`])[2]);
     for (let i = 1; i < luces.length; i++) expect(luces[i]).toBeLessThan(luces[i - 1]);
+  });
+});
+
+// Arma píxeles RGBA como los que devuelve el canvas.
+function pixeles(lista) {
+  const out = [];
+  for (const [hex, veces, alfa = 255] of lista) {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    for (let n = 0; n < veces; n++) out.push(r, g, b, alfa);
+  }
+  return new Uint8ClampedArray(out);
+}
+
+describe('colorDominante', () => {
+  it('encuentra el color de la marca', () => {
+    expect(colorDominante(pixeles([['#e11d48', 300], ['#ffffff', 900]]))).toBe('#e11d48');
+  });
+
+  it('ignora el fondo blanco, el negro y lo transparente', () => {
+    // El caso real: un logo es mayormente fondo. Si ganara por recuento, todos los
+    // logos darían blanco.
+    const p = pixeles([['#ffffff', 5000], ['#000000', 800], ['#16a34a', 200], ['#16a34a', 4000, 0]]);
+    expect(colorDominante(p)).toBe('#16a34a');
+  });
+
+  it('el gris no es una marca', () => {
+    expect(colorDominante(pixeles([['#808080', 4000], ['#7c3aed', 100]]))).toBe('#7c3aed');
+  });
+
+  it('un detalle saturado le gana a una masa apagada', () => {
+    // Logo con mucho azul grisáceo y poco naranja fuerte: la marca es el naranja.
+    const p = pixeles([['#8a97a8', 400], ['#ea580c', 220]]);
+    expect(hexAHsl(colorDominante(p))[0]).toBeLessThan(60);
+  });
+
+  it('un logo sin color devuelve null en vez de inventar uno', () => {
+    // Blanco y negro puros. Poner un color aca seria peor que no poner ninguno.
+    expect(colorDominante(pixeles([['#ffffff', 4000], ['#000000', 2000]]))).toBeNull();
+    expect(colorDominante(null)).toBeNull();
+    expect(colorDominante(new Uint8ClampedArray(0))).toBeNull();
+  });
+
+  it('unos pocos píxeles de color no alcanzan para llamarlo marca', () => {
+    expect(colorDominante(pixeles([['#ffffff', 5000], ['#e11d48', 3]]))).toBeNull();
+  });
+});
+
+describe('el amarillo, que es el color imposible', () => {
+  // Un amarillo no puede ser oscuro y seguir siendo amarillo: al bajarle la luz se
+  // vuelve caqui. Este caso es real — el logo de HaA Fitness es #fff000 puro.
+  it('un amarillo puro no termina en color barro', () => {
+    const boton = derivarPaleta('#fff000')['--primary-500'];
+    const [tono, sat] = hexAHsl(boton);
+    expect(tono).toBeLessThan(45);        // se corrió hacia el ámbar
+    expect(tono).toBeGreaterThan(20);     // pero no llegó al rojo
+    expect(sat).toBeGreaterThan(60);      // sigue vivo, no es marrón apagado
+  });
+
+  it('el amarillo se lee, y sin oscurecerse de más', () => {
+    // Oscurecer hasta 5,7 de contraste "funciona" pero apaga el color al pedo: el
+    // piso son 3,5. Este test fija que la segunda pasada siga estando.
+    const c = contrasteConBlanco(derivarPaleta('#fff000')['--primary-500']);
+    expect(c).toBeGreaterThanOrEqual(3.4);
+    expect(c).toBeLessThan(4.5);
+  });
+
+  it('los tonos que ya funcionan no se corren ni un grado', () => {
+    for (const hex of ['#3b82f6', '#e11d48', '#16a34a', '#0891b2', '#7c3aed']) {
+      const antes = hexAHsl(hex)[0];
+      const despues = hexAHsl(derivarPaleta(hex)['--primary-500'])[0];
+      expect(Math.abs(despues - antes), hex).toBeLessThanOrEqual(3);
+    }
   });
 });
