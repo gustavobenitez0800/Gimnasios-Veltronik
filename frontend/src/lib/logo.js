@@ -19,6 +19,8 @@
 const SIZE = 256;
 
 /** Techo duro del data URI resultante. El backend rechaza cualquier cosa más grande. */
+import { colorDominante } from './brandColor';
+
 export const MAX_LOGO_BYTES = 200 * 1024;
 
 /** Objetivo al que apuntamos bajando calidad antes de rendirnos. */
@@ -101,5 +103,17 @@ export async function fileToSquareDataUrl(file) {
   if (out.length > MAX_LOGO_BYTES) {
     throw new Error('No pudimos comprimir esa imagen lo suficiente. Probá con un logo más simple.');
   }
-  return out;
+
+  // El color de la marca sale del MISMO canvas que ya se dibujó: no hay que decodificar
+  // la imagen otra vez. Si el navegador marca el canvas como "sucio" (no debería: la
+  // imagen viene de un archivo local, no de otro dominio) getImageData tira y se sigue
+  // sin color, que es exactamente como se comportaba antes.
+  let colorDetectado = null;
+  try {
+    colorDetectado = colorDominante(ctx.getImageData(0, 0, SIZE, SIZE).data);
+  } catch {
+    colorDetectado = null;
+  }
+
+  return { dataUrl: out, colorDetectado };
 }
