@@ -141,7 +141,7 @@ button, a, input, select, textarea, [role="button"] {
     padding: 1rem 0.5rem;
   }
   .sidebar-logo { justify-content: center; }
-  .sidebar-logo > div { display: none !important; } /* texto "Veltronik" + subtítulo */
+  .sidebar-logo > div { display: none !important; } /* el nombre del gimnasio: en riel angosto solo queda el logo */
 
   /* Navegación: íconos centrados, sin etiquetas */
   .sidebar-nav { padding: 0.75rem 0.5rem; }

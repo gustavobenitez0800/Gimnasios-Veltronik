@@ -61,12 +61,6 @@
   gap: 0.75rem;
 }
 
-.sidebar-logo-icon {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-}
-
 .sidebar-logo-text {
   font-size: var(--font-size-lg);
   font-weight: 800;
@@ -74,20 +68,12 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-/* Nombre del gimnasio bajo la marca. Se recorta con "…" en vez de romper el header
-   (hay gimnasios con nombres largos y el drawer mide 310px). */
-.sidebar-logo-sub {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-weight: 600;
+  /* Antes decía siempre "Veltronik" y entraba seguro. Ahora lleva el nombre del
+     gimnasio, que puede ser largo: se recorta con "…" en vez de romper el header. */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: 170px;
 }
 
 .sidebar-header-actions {
@@ -296,13 +282,23 @@
   transform: translateY(calc(-100% - 1px));
 }
 
-.mobile-header-logo {
-  height: 30px;
-  width: auto;
-  max-width: 150px;
-  object-fit: contain;
+/* Marca del cliente en el header móvil: su logo y su nombre, igual que en el sidebar. */
+.mobile-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   justify-self: center;
-  display: block;
+  min-width: 0;
+}
+
+.mobile-header-brand-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
 }
 
 /* Columna derecha: solo existe para equilibrar la izquierda y centrar el logo. */
