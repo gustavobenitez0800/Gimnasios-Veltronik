@@ -47,15 +47,22 @@ export default function CobroRapido({ socio, abierto, onCerrar, onCobrado, onErr
 
   useEffect(() => {
     if (!abierto) return;
-    setPlanId('');
-    setMonto('');
     setMetodo('cash');
     let cancelado = false;
     planService.getVigentes()
-      .then((a) => { if (!cancelado) setAranceles(a || []); })
+      .then((lista) => {
+        if (cancelado) return;
+        setAranceles(lista || []);
+        // ⭐ VIENE ELEGIDO EL DEL SOCIO. Es el punto de tener el arancel en la ficha: quien
+        // atiende no elige nada, solo confirma. Elegir de memoria en cada cobro es como se
+        // cobra el arancel equivocado, y como un socio termina con el vencimiento corrido.
+        const suyo = (lista || []).find((a) => a.id === socio?.planId);
+        setPlanId(suyo ? suyo.id : '');
+        setMonto(suyo ? String(suyo.price ?? '') : '');
+      })
       .catch(() => { /* sin aranceles se cobra a mano; no es un error */ });
     return () => { cancelado = true; };
-  }, [abierto]);
+  }, [abierto, socio]);
 
   const elegir = (id) => {
     setPlanId(id);
@@ -120,6 +127,12 @@ export default function CobroRapido({ socio, abierto, onCerrar, onCobrado, onErr
           <p className="form-hint">
             <Icon name="checkCircle" size="0.9em" /> Le suma <strong>{queOtorga(elegido)}</strong>.
             El vencimiento lo calcula el sistema desde lo que ya tiene pago.
+          </p>
+        )}
+        {!socio?.planId && aranceles.length > 0 && (
+          <p className="form-hint">
+            Este socio no tiene arancel asignado. Se le puede poner uno fijo desde su ficha,
+            y no hay que elegirlo nunca más.
           </p>
         )}
         {!aranceles.length && (

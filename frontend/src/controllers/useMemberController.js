@@ -39,6 +39,9 @@ function fromApi(dto) {
   return {
     id: dto.id,
     fullName: `${dto.firstName || ''} ${dto.lastName || ''}`.trim(),
+    // El arancel del socio, para mostrarlo en la lista y pre-elegirlo al cobrar.
+    planId: dto.planId || '',
+    planNombre: dto.planNombre || '',
     dni: dto.document || dto.dni || '',
     email: dto.email || '',
     phone: dto.phone || '',
@@ -76,6 +79,12 @@ function toApi(member) {
     // El backend solo distingue alta/baja: cualquier estado que no sea 'active'
     // (inactivo, vencido, suspendido) viaja como baja.
     active: (member.status || 'active').toLowerCase() === 'active',
+
+    // EL ARANCEL DEL SOCIO. Va con la marca de "vino en el pedido" porque el update es un
+    // parche parcial: sin ella, mandar vacío se leería como "no lo tocaron" y no habría
+    // forma de sacarle el arancel a nadie.
+    planId: member.planId || null,
+    planIdPresente: true,
   };
 }
 

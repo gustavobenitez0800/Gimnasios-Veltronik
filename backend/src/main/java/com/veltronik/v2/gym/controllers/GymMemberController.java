@@ -27,11 +27,17 @@ public class GymMemberController {
     private final GymMemberMapper memberMapper;
     private final com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy;
 
+    private final com.veltronik.v2.gym.services.GymPlanService planService;
+
     public GymMemberController(GymMemberService memberService, GymMemberMapper memberMapper,
-                               com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy) {
+                               com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy,
+                               com.veltronik.v2.gym.services.GymPlanService planService) {
         this.memberService = memberService;
         this.memberMapper = memberMapper;
         this.accessPolicy = accessPolicy;
+        // Se resuelve el arancel por el servicio y no por el id crudo: así un socio no puede
+        // quedar apuntando a un arancel de OTRO gimnasio si alguien manda un id ajeno.
+        this.planService = planService;
     }
 
     @GetMapping
@@ -103,5 +109,12 @@ public class GymMemberController {
         if (in.getGender() != null) m.setGender(in.getGender());
         if (in.getObjectives() != null) m.setObjectives(in.getObjectives());
         if (in.getPhotoUrl() != null) m.setPhotoUrl(in.getPhotoUrl());
+
+        // El arancel se distingue de los demás campos: "no vino" (no tocar) no es lo mismo
+        // que "vino vacío" (sacárselo). Sin esa marca no habría forma de dejar a un socio
+        // SIN arancel, porque un null se lee igual que un campo ausente.
+        if (Boolean.TRUE.equals(in.getPlanIdPresente()) || in.getPlanId() != null) {
+            m.setPlan(in.getPlanId() == null ? null : planService.findByIdAndVerifyOwnership(in.getPlanId()));
+        }
     }
 }

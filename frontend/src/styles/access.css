@@ -107,3 +107,74 @@
 .popup-progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: rgba(0,0,0,0.2); border-radius: 0 0 24px 24px; overflow: hidden; }
 .popup-progress-bar { height: 100%; background: rgba(255,255,255,0.5); width: 100%; animation: progressShrink 3s linear forwards; }
 @keyframes progressShrink { from { width: 100%; } to { width: 0%; } }
+
+/* ─── LA FILA DEL MOSTRADOR ───
+   Acá había un cartel con una capa que tapaba la pantalla y se cerraba a los 3 segundos.
+   Con cinco personas esperando, eso hace imposible encadenar: cada registro le corta el
+   paso al siguiente. Un mostrador es una FILA, no un diálogo.
+   Estos avisos se apilan a un costado, NO bloquean nada, y el campo del DNI sigue
+   esperando. El socio lee sus días caminando al vestuario. */
+.fila-avisos {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(340px, calc(100vw - 2.5rem));
+  /* No captura clics: si los capturara, taparía lo que hay debajo — que es justamente el
+     problema que este diseño viene a resolver. */
+  pointer-events: none;
+}
+
+.fila-aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-elevated, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary-500);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: fila-entra 0.18s ease-out;
+}
+
+@keyframes fila-entra {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.fila-ok    { border-left-color: var(--success-500); }
+.fila-aviso.fila-aviso { border-left-color: var(--warning-500); }
+.fila-error { border-left-color: var(--error-500); }
+
+.fila-iniciales {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--primary-500) 20%, transparent);
+  color: var(--primary-400);
+  font-size: 0.78rem; font-weight: 700;
+}
+
+.fila-datos { flex: 1; min-width: 0; }
+.fila-nombre {
+  font-weight: 700; font-size: var(--font-size-sm); color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fila-accion { font-size: 0.75rem; color: var(--text-muted); }
+
+/* Los días, que es lo que el socio viene a mirar. */
+.fila-dias {
+  flex-shrink: 0;
+  font-size: 0.78rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* En el celular van abajo: arriba a la derecha está el botón del menú. */
+@media (max-width: 640px) {
+  .fila-avisos { top: auto; bottom: 1rem; right: 1rem; left: 1rem; width: auto; }
+}

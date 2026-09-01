@@ -1,7 +1,11 @@
 package com.veltronik.v2.gym.entities;
 
 import com.veltronik.v2.core.entities.TenantAwareEntity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -34,6 +38,21 @@ public class GymMember extends TenantAwareEntity {
     @Column(name = "membership_start")
     private LocalDateTime membershipStart;
     
+    /**
+     * El arancel que paga este socio.
+     *
+     * <p>Antes el arancel era del PAGO y quien atendía lo elegía en cada cobro, de memoria.
+     * Eso es al revés de como funciona un gimnasio: el socio <i>es</i> de Pase Libre, y eso
+     * no cambia mes a mes. Con el arancel en la ficha, cobrar deja de ser una decisión.</p>
+     *
+     * <p>LAZY porque el listado de socios no lo necesita casi nunca; cuando hace falta lo
+     * trae el mapper. NULL = sin arancel, y se cobra un importe a mano como siempre.</p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private GymPlan plan;
+
     @Column(name = "membership_end")
     private LocalDateTime membershipEnd;
 

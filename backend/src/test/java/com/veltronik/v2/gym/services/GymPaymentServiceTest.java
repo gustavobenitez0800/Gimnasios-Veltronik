@@ -50,7 +50,10 @@ class GymPaymentServiceTest {
         repository = mock(GymPaymentRepository.class);
         memberService = mock(GymMemberService.class);
         planService = mock(GymPlanService.class);
-        service = new GymPaymentService(repository, memberService, planService);
+        // El rastro de ajustes no es lo que se prueba acá: se simula para que el servicio
+        // pueda construirse. Los tests del rastro viven aparte.
+        service = new GymPaymentService(repository, memberService, planService,
+                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class));
 
         TenantContextHolder.setTenantId(TENANT);
 

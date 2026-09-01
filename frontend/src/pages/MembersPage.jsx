@@ -18,6 +18,7 @@ import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../compone
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import CobroRapido from '../components/CobroRapido';
+import { planService } from '../services/PlanService';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
@@ -154,6 +155,26 @@ export default function MembersPage() {
   // la URL: para asignarle un arancel había que ir de Socios a Pagos y volver, eligiendo al
   // socio de nuevo. Ahora se cobra donde está.
   const [cobrando, setCobrando] = useState(null);
+
+  // Los aranceles vigentes, para el selector de la ficha. Se piden una vez por visita: son
+  // pocos y no cambian mientras alguien edita un socio.
+  const [aranceles, setAranceles] = useState([]);
+  useEffect(() => {
+    let cancelado = false;
+    planService.getVigentes()
+      .then((a) => { if (!cancelado) setAranceles(a || []); })
+      .catch(() => { /* sin aranceles el selector queda en "sin arancel"; no es un error */ });
+    return () => { cancelado = true; };
+  }, []);
+
+  /** "1 mes y 12 clases" — lo que ese arancel le otorga al socio. */
+  const describirArancel = (a) => {
+    const d = a.durationDays || 0;
+    const tiempo = d === 0 ? 'sin días'
+      : d % 30 === 0 && d >= 30 ? `${d / 30} ${d / 30 === 1 ? 'mes' : 'meses'}`
+      : `${d} ${d === 1 ? 'día' : 'días'}`;
+    return a.classes ? `${tiempo} y ${a.classes} clases` : tiempo;
+  };
   const [paymentsMember, setPaymentsMember] = useState(null);
   const [memberPayments, setMemberPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -345,6 +366,7 @@ export default function MembersPage() {
                 <th>Nombre</th>
                 <th>DNI</th>
                 <th>Teléfono</th>
+                <th>Arancel</th>
                 <th>Estado</th>
                 <th>Asistencia</th>
                 <th>Días</th>
@@ -380,6 +402,11 @@ export default function MembersPage() {
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
+                      <td data-label="Arancel">
+                        {member.planNombre
+                          ? <span className="arancel-chip">{member.planNombre}</span>
+                          : <span className="text-muted">—</span>}
+                      </td>
                       <td data-label="Estado"><Badge status={member.status} /></td>
                       <td data-label="Asistencia">
                         <DaySelector selectedDays={member.attendanceDays || []} readOnly />
@@ -467,6 +494,28 @@ export default function MembersPage() {
               <input type="date" className="form-input"
                 value={modal.form.birthDate} onChange={(e) => modal.handleChange('birthDate', e.target.value)} />
             </div>
+            {/* ─── EL ARANCEL DEL SOCIO ───
+                Antes esto se elegía en cada cobro, en la pantalla de Pagos, de memoria.
+                Pero un socio "es" de Pase Libre: no es una decisión que se tome de nuevo
+                cada mes. Asignándolo acá, cobrarle deja de ser una decisión y pasa a ser
+                un botón. */}
+            <div className="form-group">
+              <label className="form-label">Arancel</label>
+              <select
+                className="form-select"
+                value={modal.form.planId || ''}
+                onChange={(e) => modal.handleChange('planId', e.target.value)}
+              >
+                <option value="">Sin arancel (se le cobra a mano)</option>
+                {aranceles.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name} — {describirArancel(a)}</option>
+                ))}
+              </select>
+              <small className="form-hint">
+                Lo que paga habitualmente. Al cobrarle ya viene elegido, con su precio.
+              </small>
+            </div>
+
             <div className="form-group">
               <label className="form-label">Inicio de membresía</label>
               <input type="date" className="form-input"

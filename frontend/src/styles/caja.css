@@ -1,0 +1,80 @@
+/* ─── CIERRE DE CAJA ─── */
+
+.caja-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 900px) { .caja-grid { grid-template-columns: 1fr; } }
+
+.caja-abierto, .caja-historial { padding: 1.25rem; }
+.caja-abierto h3, .caja-historial h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0 0 1rem; color: var(--text-primary); font-size: var(--font-size-base);
+}
+
+.caja-desde { color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: 1rem; }
+
+.caja-metodos { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+.caja-metodos > div {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);
+}
+.caja-metodos span { color: var(--text-muted); font-size: var(--font-size-sm); }
+.caja-metodos strong { font-variant-numeric: tabular-nums; }
+
+.caja-acciones { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+/* La forma más fácil de esconder algo no es mentir en el cierre: es no cerrar. */
+.caja-alarma {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.8rem 1rem; margin-bottom: 1.25rem;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--warning-500) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-500) 32%, transparent);
+  color: var(--text-primary); font-size: var(--font-size-sm); font-weight: 600;
+}
+
+/* ─── El conteo ─── */
+
+.caja-aviso { margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 0.4rem; }
+
+.caja-billetes {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.7rem;
+}
+.caja-billete { display: flex; flex-direction: column; gap: 0.25rem; }
+.caja-billete span { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+.caja-billete .form-input { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Su propia cuenta, no la del sistema: el número del sistema no aparece hasta confirmar. */
+.caja-total-contado {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 1.25rem; padding: 0.9rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+.caja-total-contado span { color: var(--text-muted); font-size: var(--font-size-sm); }
+.caja-total-contado strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+
+/* ─── El resultado ─── */
+
+.caja-resultado-cifra {
+  text-align: center; font-size: 1.5rem; font-weight: 800;
+  padding: 1.1rem; border-radius: var(--radius-md, 10px); margin-bottom: 1.25rem;
+}
+.caja-resultado-cifra.ok {
+  background: color-mix(in srgb, var(--success-500, #22c55e) 14%, transparent);
+  color: var(--success-500, #22c55e);
+}
+.caja-resultado-cifra.falta {
+  background: color-mix(in srgb, var(--error-500) 14%, transparent); color: var(--error-500);
+}
+.caja-resultado-cifra.sobra {
+  background: color-mix(in srgb, var(--warning-500) 14%, transparent); color: var(--warning-500);
+}
+
+.caja-ok    { color: var(--success-500, #22c55e); font-weight: 600; }
+.caja-falta { color: var(--error-500); font-weight: 700; font-variant-numeric: tabular-nums; }
+.caja-sobra { color: var(--warning-500); font-weight: 600; font-variant-numeric: tabular-nums; }
