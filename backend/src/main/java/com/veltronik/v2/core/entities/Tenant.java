@@ -67,6 +67,18 @@ public class Tenant extends BaseEntity {
     @Column(name = "logo_emoji", length = 16)
     private String logoEmoji;
 
+    /**
+     * Color con el que el dueño pinta SU sistema, en {@code #RRGGBB}.
+     *
+     * <p>Se guarda un solo color y la paleta de diez pasos se deriva en el navegador. Guardar
+     * los diez sería congelar una decisión de diseño en cada fila: al afinar la curva habría
+     * que migrar todos los gimnasios en vez de cambiar una función.</p>
+     *
+     * <p><b>NULL no es negro: es "no eligió"</b>, y entonces manda la paleta de Veltronik.</p>
+     */
+    @Column(name = "brand_color", length = 7)
+    private String brandColor;
+
     /** Fecha en que finaliza el período de prueba gratuita de 30 días. */
     @Column(name = "trial_ends_at")
     private LocalDateTime trialEndsAt;
