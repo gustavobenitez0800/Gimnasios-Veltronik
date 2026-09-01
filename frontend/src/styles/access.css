@@ -2,12 +2,16 @@
    PHASE 3: ACCESS PAGE
    ============================================ */
 
-.access-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+/* ─── UNA SOLA COLUMNA ───
+   Acá vivía una grilla de dos columnas donde las cosas caían donde entraran. En un
+   mostrador eso se paga caro: el cartel del QR —que se imprime una vez— ocupaba el lugar
+   de más peso y el campo del DNI quedaba abajo. Una pila vertical no se puede desordenar,
+   y se acomoda sola lo mismo en una notebook que en la pantalla del terminal. */
+.access-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
-@media (max-width: 1024px) { .access-grid { grid-template-columns: 1fr; } }
 
 .checkin-section {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1));
@@ -17,13 +21,19 @@
 }
 
 .search-box { position: relative; margin-bottom: 1rem; }
+/* El campo más importante del sistema: acá se teclea el DNI de cada socio que entra.
+   Grande y con números tabulares —todos los dígitos del mismo ancho— para que un DNI mal
+   tecleado se vea de un vistazo. */
 .search-input {
-  width: 100%; padding: 1rem;
+  width: 100%; padding: 1.15rem 1.25rem;
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   background: var(--bg-primary); color: var(--text-primary);
-  font-size: var(--font-size-lg); transition: all 0.2s;
+  font-size: 1.35rem; font-weight: 600; letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  transition: all 0.2s;
 }
+.search-input::placeholder { font-size: 1rem; font-weight: 400; letter-spacing: 0; }
 .search-input:focus { border-color: var(--primary-500); outline: none; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2); }
 
 .search-results { background: var(--bg-secondary); border-radius: var(--border-radius-md); max-height: 300px; overflow-y: auto; }

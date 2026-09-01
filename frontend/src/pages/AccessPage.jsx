@@ -59,7 +59,6 @@ export default function AccessPage() {
   );
 
   const checkedIn = useMemo(() => data?.adentro || [], [data]);
-  const todayLogs = useMemo(() => data?.hoy || [], [data]);
   const avisos = useMemo(() => data?.avisos || [], [data]);
   const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
@@ -214,6 +213,72 @@ export default function AccessPage() {
     setTimeout(() => setPopup(null), 6000);
   }, [ingresosQr]);
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  EL TECLADO NUNCA SE APAGA
+  // ══════════════════════════════════════════════════════════════════════════════
+  //
+  // Esta pantalla se usa como un molinete: el socio llega, teclea su DNI y entra. Que el
+  // campo tenga el foco no es una comodidad, es LA función. Y el foco se perdía por
+  // motivos que nadie en un mostrador puede adivinar: alguien tocó la pantalla en un lugar
+  // vacío, apretó un botón, volvió de otra sección. A partir de ahí las teclas caían en la
+  // nada y el sistema parecía colgado.
+  //
+  // Se ataca por los tres lados por los que se perdía:
+  //
+  //   1. TECLA SUELTA — si alguien escribe con el foco en cualquier otro lado, la primera
+  //      tecla se lleva el foco al campo Y SE ESCRIBE. Sin esto el primer dígito del DNI
+  //      se perdía, que es peor que no escribir nada: el número queda cortado y el socio
+  //      "no existe".
+  //   2. CLIC EN CUALQUIER LADO — después de tocar la pantalla el foco vuelve al campo.
+  //   3. VOLVER A LA VENTANA — al minimizar y volver, o al cambiar de sección y regresar.
+  //
+  // Lo que NO se toca: si el foco está en otro campo de texto o en un diálogo, no se lo
+  // roba. Alguien puede estar escribiendo en el buscador del cartel del QR, y arrancarle
+  // el teclado de las manos sería el mismo bug al revés.
+  const enfocarBuscador = useCallback(() => {
+    const el = buscadorRef.current;
+    if (!el || document.activeElement === el) return;
+    // Ni diálogos ni otros campos: ahí el foco es de quien lo tiene.
+    const activo = document.activeElement;
+    if (activo && activo !== document.body) {
+      const tag = activo.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || activo.isContentEditable) return;
+      if (activo.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
+    }
+    el.focus();
+  }, []);
+
+  useEffect(() => {
+    const esCampoAjeno = (t) =>
+      !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+
+    const alTeclearSuelto = (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;      // atajos del sistema
+      if (esCampoAjeno(e.target)) return;                   // ya está escribiendo en otro lado
+      if (e.target?.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
+      // Un solo carácter imprimible, o borrar. Las flechas, Tab y F5 siguen siendo suyas.
+      const escribible = e.key.length === 1 || e.key === 'Backspace';
+      if (!escribible) return;
+      const el = buscadorRef.current;
+      if (!el || document.activeElement === el) return;
+      el.focus();
+      // La tecla que disparó esto se procesa igual porque el navegador la entrega DESPUÉS
+      // del focus(), así que no hay que reescribirla a mano. Si algún día deja de ser así,
+      // acá va: setSearchQuery(q => q + e.key).
+    };
+
+    const alTocar = () => setTimeout(enfocarBuscador, 0); // después del clic, no durante
+
+    document.addEventListener('keydown', alTeclearSuelto);
+    document.addEventListener('pointerup', alTocar);
+    window.addEventListener('focus', enfocarBuscador);
+    return () => {
+      document.removeEventListener('keydown', alTeclearSuelto);
+      document.removeEventListener('pointerup', alTocar);
+      window.removeEventListener('focus', enfocarBuscador);
+    };
+  }, [enfocarBuscador]);
+
   // Enter BUSCA y registra, en un solo gesto.
   //
   // No espera a la búsqueda retrasada: consulta él mismo. Así el socio teclea su DNI,
@@ -308,55 +373,26 @@ export default function AccessPage() {
     }
   };
 
-  // Stats
-  const stats = useMemo(() => ({
-    inGym: checkedIn.length,
-    totalToday: todayLogs.length,
-    avgTime: todayLogs.length > 0 ? (() => {
-      const completed = todayLogs.filter(l => l.checkOutAt);
-      if (completed.length === 0) return '-';
-      const avg = completed.reduce((sum, l) => {
-        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
-      }, 0) / completed.length;
-      return `${Math.round(avg / 60000)} min`;
-    })() : '-',
-  }), [checkedIn, todayLogs]);
+  // Las estadísticas del día —cuántos entraron, cuánto se quedan— y el registro de hoy
+  // se mudaron a Reportes. No es información de la PUERTA: nadie decide nada con ella
+  // mientras hay un socio esperando del otro lado del mostrador, y ocupaba la mitad de la
+  // pantalla que la recepcionista mira todo el día.
 
   return (
     <div className="access-page">
-      <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
-
-      {/* Stats */}
-      <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.inGym}</div>
-            <div className="stat-label">En el {orgLabel}</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-primary"><Icon name="door" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalToday}</div>
-            <div className="stat-label">Accesos hoy</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-accent"><Icon name="clock" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.avgTime}</div>
-            <div className="stat-label">Tiempo promedio</div>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="Entrada" subtitle="El socio escribe su DNI y aprieta Enter, o escanea el cartel" icon="door" />
 
       {/* Check-in + Currently In */}
-      <div className="access-grid">
-        {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
-            configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
-        <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
-
+      {/* ── UNA SOLA COLUMNA, DE ARRIBA HACIA ABAJO ──
+          Antes esto era una grilla de dos columnas y las cosas caían donde entraran: el
+          cartel del QR —que se imprime una vez y no se toca más— quedaba arriba a la
+          izquierda, en el lugar de más peso de la pantalla, y el campo donde se teclea el
+          DNI cien veces por día quedaba abajo.
+          Ahora el orden es el de la puerta: primero lo que hay que atender, después lo que
+          se usa siempre, después quién está adentro, y el cartel al final. Una sola
+          columna además se acomoda sola en cualquier pantalla, que es lo que necesita un
+          cliente con una PC y otro con dos. */}
+      <div className="access-stack">
         {/* Los avisos van DEBAJO del cartel y ARRIBA del buscador. Lo segundo es lo que
             importa y no cambió: si un socio entró vencido, eso tiene que verse antes que
             lo que la recepcionista esté por hacer ahora. El cartel del QR no compite por
@@ -502,39 +538,10 @@ export default function AccessPage() {
         </div>
       </div>
 
-      {/* Today's Log */}
-      <div className="card mt-3">
-        <div className="table-header">
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
-          <span className="text-muted">{todayLogs.length} accesos</span>
-        </div>
-        <div className="table-container">
-          <table className="table">
-            <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
-            <tbody>
-              {todayLogs.length === 0 ? (
-                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
-              ) : todayLogs.slice(0, 30).map(log => {
-                const member = log.member;
-                return (
-                <tr key={log.id}>
-                  <td data-label="Socio"><strong>{member?.fullName || 'Socio'}</strong></td>
-                  <td data-label="DNI">{member?.dni || '-'}</td>
-                  <td data-label="Entrada">{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                  <td data-label="Salida">{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
-                  <td data-label="Método">
-                    {(log.accessMethod || '').toLowerCase() === 'manual' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
-                    ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="qrCode" size="0.9em" /> QR</span>
-                    ) : (log.accessMethod || '-')}
-                  </td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* El cartel del QR va último: se imprime una vez y se pega en la pared. Vive en esta
+          pantalla —y no en Ajustes— porque es parte de operar la puerta, pero no compite
+          por el lugar de arriba con lo que se usa todo el día. */}
+      <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
 
       {/* Success Popup */}
       {popup && (

@@ -69,7 +69,10 @@ public class GymAccessController {
     public ResponseEntity<Map<String, Object>> mostrador() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
-        body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
+        // El registro del día ya NO viaja acá. Se mudó a Reportes, y este pedido se repite
+        // cada quince segundos: mandarle todo el día a una pantalla que solo necesita saber
+        // quién está adentro es pagar ese peso una y otra vez sobre la conexión del gimnasio.
+        // Reportes lo pide aparte, por rango de fechas, cuando alguien lo abre.
         body.put("avisos", accessService.avisosPendientes());
         // Los pasos por QR de los últimos minutos: la pantalla los convierte en el mismo
         // cartel que aparece cuando la entrada se registra a mano, así el socio que escaneó
