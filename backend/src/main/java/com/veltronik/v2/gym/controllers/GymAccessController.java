@@ -116,8 +116,9 @@ public class GymAccessController {
      */
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> registerAccess(@RequestBody AccessRegisterInputDTO input) {
-        AccessLogService.ScanResult r =
-                accessService.registerScan(input.getMemberId(), input.getMethod(), null, null);
+        AccessLogService.ScanResult r = accessService.registerScan(
+                input.getMemberId(), input.getMethod(), null, null,
+                input.getClientRef(), input.getOcurridoEn());
 
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("acceso", accessMapper.toDto(r.log()));

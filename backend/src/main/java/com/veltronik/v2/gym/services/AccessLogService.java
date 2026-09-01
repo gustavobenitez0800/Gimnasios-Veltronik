@@ -43,6 +43,14 @@ public class AccessLogService {
     /** Cuántos minutos hacia atrás cuenta como "recién entró". */
     private static final int VENTANA_INGRESOS_MIN = 5;
 
+    /**
+     * Hasta cuántas horas atrás se le cree al reloj del terminal.
+     *
+     * <p>36 horas cubre el caso real —el internet se cayó ayer y volvió hoy— sin abrir la
+     * puerta a que un reloj desconfigurado escriba visitas en meses ya cerrados.</p>
+     */
+    private static final int ATRASO_MAXIMO_HORAS = 36;
+
     public List<AccessLog> getTodayAccesses() {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime startOfDay = today.atStartOfDay();
@@ -122,10 +130,34 @@ public class AccessLogService {
      * entrada nueva. Así un olvido cuesta UNA visita imprecisa y nunca contamina lo que viene
      * después.</p>
      */
+    /**
+     * <p><b>Los accesos que llegan tarde.</b> El terminal del mostrador registra sin internet y
+     * manda cuando vuelve. Eso obliga a dos cosas más:</p>
+     *
+     * <ul>
+     *   <li>{@code clientRef}: si este acceso ya se guardó, se devuelve el que está y no se
+     *       hace nada. Un reintento no puede duplicar — y sobre todo no puede INVERTIR, que
+     *       es lo que pasaría si se procesara de nuevo: la dirección se deduce del estado, así
+     *       que la segunda vez daría salida donde hubo entrada.</li>
+     *   <li>{@code ocurridoEn}: la dirección se evalúa contra el momento en que PASÓ, no
+     *       contra el momento en que llegó. Un acceso de las 10:00 que llega 10:45 tiene que
+     *       leerse con el mundo de las 10:00, o sale al revés.</li>
+     * </ul>
+     */
     @Transactional
-    public ScanResult registerScan(UUID memberId, String method, UUID checkinPointId, UUID scannerId) {
+    public ScanResult registerScan(UUID memberId, String method, UUID checkinPointId, UUID scannerId,
+                                   UUID clientRef, LocalDateTime ocurridoEn) {
+        // (0) ¿Ya lo guardamos? Antes de tocar nada.
+        if (clientRef != null) {
+            Optional<AccessLog> yaEstaba = accessLogRepository
+                    .findByTenantIdAndClientRef(TenantContextHolder.getTenantId(), clientRef);
+            if (yaEstaba.isPresent()) {
+                return new ScanResult(yaEstaba.get(), direccionDe(yaEstaba.get()), false);
+            }
+        }
+
         GymMember member = memberService.findByIdAndVerifyOwnership(memberId);
-        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+        LocalDateTime now = momentoDelHecho(ocurridoEn);
 
         Optional<AccessLog> abierta = accessLogRepository
                 .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(
@@ -151,15 +183,57 @@ public class AccessLogService {
                 log.setCheckOutAt(cierreEstimado(log.getCheckInAt(), now));
                 log.setAutoClosed(true);
                 accessLogRepository.save(log);
-                return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, true);
+                return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now, clientRef), Direction.ENTRADA, true);
             }
 
             // (3) Visita normal en curso → esto es la salida.
+            //
+            // El sello del terminal se guarda TAMBIÉN en la salida. Si no, un reintento de
+            // una salida no se reconocería como repetida, y al reprocesarse abriría una
+            // visita nueva: el socio quedaría "adentro" justo después de haberse ido.
             log.setCheckOutAt(now);
+            if (clientRef != null) log.setClientRef(clientRef);
             return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
         }
 
-        return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now), Direction.ENTRADA, false);
+        return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now, clientRef), Direction.ENTRADA, false);
+    }
+
+    /**
+     * Cuándo pasó este acceso, con el reloj del terminal puesto en su lugar.
+     *
+     * <p><b>El reloj del cliente no se cree, se acota.</b> La máquina de un mostrador puede
+     * tener la hora mal por meses —nadie la mira— y con ella se decide si un socio entró o
+     * salió, y en qué día contó su visita. Se aceptan solo momentos verosímiles:</p>
+     *
+     * <ul>
+     *   <li><b>En el futuro</b> → se usa ahora. Un acceso no puede haber pasado todavía, y
+     *       aceptarlo dejaría al socio "adentro" hasta que el reloj del servidor lo alcance.</li>
+     *   <li><b>Más viejo que el límite</b> → se usa el límite. Un corte de internet de un día
+     *       es creíble; uno de tres meses es un reloj roto, y meter esa visita en marzo
+     *       ensuciaría un mes ya cerrado.</li>
+     * </ul>
+     *
+     * <p>Se acota en vez de rechazar a propósito: el acceso PASÓ, alguien entró al gimnasio.
+     * Perderlo por no confiar en un reloj sería peor que guardarlo con la hora corrida.</p>
+     */
+    private LocalDateTime momentoDelHecho(LocalDateTime ocurridoEn) {
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        if (ocurridoEn == null) return ahora;
+        if (ocurridoEn.isAfter(ahora)) return ahora;
+        LocalDateTime masViejoAceptable = ahora.minusHours(ATRASO_MAXIMO_HORAS);
+        return ocurridoEn.isBefore(masViejoAceptable) ? masViejoAceptable : ocurridoEn;
+    }
+
+    /**
+     * Qué fue este acceso, mirando el registro guardado.
+     *
+     * <p>Se usa al reconocer un reintento: hay que contestarle al terminal lo MISMO que se le
+     * contestó la primera vez, y la dirección no se guarda —se deduce—. Con la salida puesta
+     * fue una salida; sin ella, la entrada sigue abierta.</p>
+     */
+    private static Direction direccionDe(AccessLog log) {
+        return log.getCheckOutAt() != null ? Direction.SALIDA : Direction.ENTRADA;
     }
 
     /**
@@ -172,10 +246,10 @@ public class AccessLogService {
                 TenantContextHolder.getTenantId(), memberId);
     }
 
-    /** Compatibilidad con el mostrador, que ya llamaba así. */
+    /** Compatibilidad con el mostrador, que ya llamaba así. Sin cola: pasa ahora. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {
-        return registerScan(memberId, method, null, null).log();
+        return registerScan(memberId, method, null, null, null, null).log();
     }
 
     /**
@@ -217,7 +291,7 @@ public class AccessLogService {
     }
 
     private AccessLog abrirVisita(GymMember member, String method, UUID checkinPointId,
-                                  UUID scannerId, LocalDateTime now) {
+                                  UUID scannerId, LocalDateTime now, UUID clientRef) {
         AccessLog log = new AccessLog();
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
@@ -228,6 +302,7 @@ public class AccessLogService {
         log.setAccessMethod(method != null ? method : "MANUAL");
         log.setCheckinPointId(checkinPointId);
         log.setScannerId(scannerId);
+        log.setClientRef(clientRef);
         AccessLog guardado = accessLogRepository.save(log);
 
         consumirClase(member);

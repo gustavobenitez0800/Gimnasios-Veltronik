@@ -14,6 +14,7 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
+import { hayProblema } from '../lib/colaAccesos';
 import { useQueryCache } from '../hooks';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
@@ -213,6 +214,51 @@ export default function AccessPage() {
     setTimeout(() => setPopup(null), 6000);
   }, [ingresosQr]);
 
+  // ── Lo que se registró sin internet se manda solo ──
+  //
+  // Tres disparadores, porque ninguno alcanza por su cuenta:
+  //   · al abrir la pantalla — cubre el caso de haber cerrado la app con cosas pendientes;
+  //   · cuando el navegador avisa que volvió la conexión — es el camino rápido;
+  //   · y un temporizador de respaldo, porque el evento 'online' MIENTE: dice que hay red,
+  //     no que el servidor esté del otro lado. Un router que revive antes que el internet
+  //     dispara el evento con la nube todavía inalcanzable.
+  //
+  // El vaciado es seguro de llamar de más: tiene candado adentro y los accesos van
+  // sellados, así que dos disparos a la vez no mandan nada dos veces.
+  const [pendientes, setPendientes] = useState(0);
+  const [colaTrabada, setColaTrabada] = useState(false);
+
+  const sincronizar = useCallback(async () => {
+    try {
+      const r = await accessService.sincronizarPendientes();
+      setPendientes(r.quedan);
+      setColaTrabada(await hayProblema());
+      if (r.enviados > 0) {
+        showToast(`Se enviaron ${r.enviados} ${r.enviados === 1 ? 'acceso guardado' : 'accesos guardados'} sin conexión.`, 'success');
+        loadData();
+      }
+      if (r.descartados > 0) {
+        // No se puede tragar en silencio: son visitas que el servidor rechazó y que ya no
+        // van a existir. El gimnasio tiene derecho a saber que pasó.
+        showToast(`${r.descartados} acceso(s) no se pudieron registrar y se descartaron.`, 'error', 10000);
+      }
+    } catch {
+      // Sigue sin haber servidor. Se reintenta en el próximo disparo.
+      setPendientes(await accessService.pendientesDeEnviar());
+    }
+  }, [showToast, loadData]);
+
+  useEffect(() => {
+    sincronizar();
+    const alVolverLaRed = () => sincronizar();
+    window.addEventListener('online', alVolverLaRed);
+    const t = setInterval(sincronizar, 30000);
+    return () => {
+      window.removeEventListener('online', alVolverLaRed);
+      clearInterval(t);
+    };
+  }, [sincronizar]);
+
   // ══════════════════════════════════════════════════════════════════════════════
   //  EL TECLADO NUNCA SE APAGA
   // ══════════════════════════════════════════════════════════════════════════════
@@ -321,8 +367,30 @@ export default function AccessPage() {
 
   const handleCheckIn = async (member) => {
     try {
-      const r = await accessService.checkIn(member.id, 'manual');
+      const r = await accessService.checkIn(member.id, 'manual', member.fullName);
       const daysInfo = getDaysInfo(member);
+
+      // Sin internet el acceso quedó guardado, pero NO se sabe si fue entrada o salida:
+      // eso lo decide el servidor mirando el estado del socio. Adivinarlo acá es
+      // exactamente el bug que ya apareció dos veces en este proyecto —el cartel decía
+      // "entrada" y se grababa una salida—, así que se dice lo único que es cierto:
+      // quedó guardado y se va a mandar.
+      if (r?.encolado) {
+        setPendientes(await accessService.pendientesDeEnviar());
+        setPopup({
+          name: member.fullName,
+          type: daysInfo.type === 'expired' ? 'error' : 'success',
+          accion: 'Guardado sin conexión',
+          daysLabel: daysInfo.label,
+          initials: getInitials(member.fullName),
+        });
+        setTimeout(() => setPopup(null), 4000);
+        setSearchQuery('');
+        setSearchResults([]);
+        buscadorRef.current?.focus();
+        return;
+      }
+
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
 
@@ -447,6 +515,20 @@ export default function AccessPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Lo que se registró sin internet. Se muestra SOLO cuando hay algo esperando:
+              una pantalla que dice "0 pendientes" todo el día es ruido que se aprende a
+              ignorar, y el día que diga 12 nadie lo va a mirar. */}
+          {pendientes > 0 && (
+            <div className={`cola-accesos ${colaTrabada ? 'cola-trabada' : ''}`}>
+              <Icon name={colaTrabada ? 'alertTriangle' : 'wifiOff'} size="1em" />
+              <span>
+                {colaTrabada
+                  ? `${pendientes} acceso(s) esperando hace rato. Revisá la conexión: se van a mandar solos cuando vuelva.`
+                  : `${pendientes} acceso(s) guardado(s) sin conexión. Se mandan solos.`}
+              </span>
             </div>
           )}
 

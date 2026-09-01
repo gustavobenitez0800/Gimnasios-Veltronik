@@ -21,7 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,7 +87,7 @@ class AccessLogServiceTest {
         void primerEscaneoEsEntrada() {
             sinVisitaAbierta();
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction());
             assertFalse(r.recuperado());
@@ -96,7 +98,7 @@ class AccessLogServiceTest {
         void segundoEscaneoEsSalida() {
             visitaAbiertaDesde(LocalDateTime.now().minusHours(1));
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.SALIDA, r.direction());
             assertTrue(r.log().getCheckOutAt() != null, "la salida tiene que quedar grabada");
@@ -113,7 +115,7 @@ class AccessLogServiceTest {
         void dobleEscaneoNoCuentaDosVeces() {
             AccessLog abierta = visitaAbiertaDesde(LocalDateTime.now().minusSeconds(3));
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.REBOTE, r.direction());
             assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
@@ -135,7 +137,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             visitaAbiertaDesde(ayer);
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction(),
                     "si esto vuelve a ser SALIDA, la visita de hoy no se registra nunca");
@@ -148,7 +150,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             AccessLog vieja = visitaAbiertaDesde(ayer);
 
-            service.registerScan(MEMBER, "QR", null, null);
+            service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertTrue(vieja.getCheckOutAt() != null, "no puede quedar abierta para siempre");
             assertTrue(vieja.isAutoClosed(), "sin la marca, envenena el promedio de permanencia");
@@ -160,7 +162,7 @@ class AccessLogServiceTest {
             LocalDateTime ayer = LocalDateTime.now().minusDays(1).withHour(9);
             AccessLog vieja = visitaAbiertaDesde(ayer);
 
-            service.registerScan(MEMBER, "QR", null, null);
+            service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(ayer.toLocalDate(), vieja.getCheckOutAt().toLocalDate(),
                     "cerrar 'ahora' grabaría visitas de 25 horas");
@@ -180,7 +182,7 @@ class AccessLogServiceTest {
             LocalDateTime anoche = LocalDateTime.now().minusHours(2);
             visitaAbiertaDesde(anoche);
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.SALIDA, r.direction(),
                     "dos horas es una visita viva, cruce o no cruce la medianoche");
@@ -192,7 +194,7 @@ class AccessLogServiceTest {
         void masDeSeisHorasEsAbandono() {
             visitaAbiertaDesde(LocalDateTime.now().minusHours(7));
 
-            var r = service.registerScan(MEMBER, "QR", null, null);
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction(), "nadie entrena siete horas");
             assertTrue(r.recuperado());
@@ -228,6 +230,131 @@ class AccessLogServiceTest {
             verify(repo).findByCheckOutAtIsNullAndCheckInAtBefore(limite.capture());
             assertEquals(LocalTime.MIDNIGHT, limite.getValue().toLocalTime(),
                     "el corte es el arranque de hoy; si fuera 'ahora' echaría a los que están entrenando");
+        }
+    }
+
+    @Nested
+    @DisplayName("los accesos que llegan tarde (sin internet)")
+    class SinInternet {
+
+        @Test
+        @DisplayName("un acceso que ya se guardó no se procesa de nuevo")
+        void reintentoNoDuplica() {
+            // ⭐ EL TEST QUE SOSTIENE TODO. Sin esto, un reintento no duplica: INVIERTE.
+            // La dirección se deduce del estado, así que procesar dos veces la misma entrada
+            // da salida la segunda vez, y el socio queda "afuera" sin haberse ido.
+            UUID sello = UUID.randomUUID();
+            AccessLog yaGuardado = new AccessLog();
+            yaGuardado.setCheckInAt(LocalDateTime.now().minusMinutes(20));
+            yaGuardado.setClientRef(sello);
+            when(repo.findByTenantIdAndClientRef(TENANT, sello)).thenReturn(Optional.of(yaGuardado));
+
+            var r = service.registerScan(MEMBER, "manual", null, null, sello, null);
+
+            assertEquals(AccessLogService.Direction.ENTRADA, r.direction());
+            assertSame(yaGuardado, r.log());
+            // Y sobre todo: no se guardó NADA nuevo ni se tocó al socio.
+            verify(repo, never()).save(any(AccessLog.class));
+            verify(memberService, never()).findByIdAndVerifyOwnership(any());
+        }
+
+        @Test
+        @DisplayName("el reintento de una salida se reconoce como salida")
+        void reintentoDeSalida() {
+            UUID sello = UUID.randomUUID();
+            AccessLog cerrado = new AccessLog();
+            cerrado.setCheckInAt(LocalDateTime.now().minusHours(2));
+            cerrado.setCheckOutAt(LocalDateTime.now().minusMinutes(5));
+            cerrado.setClientRef(sello);
+            when(repo.findByTenantIdAndClientRef(TENANT, sello)).thenReturn(Optional.of(cerrado));
+
+            var r = service.registerScan(MEMBER, "manual", null, null, sello, null);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+            verify(repo, never()).save(any(AccessLog.class));
+        }
+
+        @Test
+        @DisplayName("la entrada se graba con la hora en que PASÓ, no con la de llegada")
+        void guardaElMomentoReal() {
+            sinVisitaAbierta();
+            LocalDateTime cuandoPaso = LocalDateTime.now().minusHours(3);
+
+            service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), cuandoPaso);
+
+            ArgumentCaptor<AccessLog> cap = ArgumentCaptor.forClass(AccessLog.class);
+            verify(repo).save(cap.capture());
+            assertEquals(cuandoPaso, cap.getValue().getCheckInAt());
+        }
+
+        @Test
+        @DisplayName("la dirección se decide con el mundo de ESE momento, no con el de ahora")
+        void laDireccionMiraElPasado() {
+            // El socio entró a las 08:00 y salió a las 09:00, y las dos marcas viajaron en la
+            // cola. Cuando llega la SALIDA, la visita de las 08:00 sigue abierta y hace tres
+            // horas que empezó. Si se evaluara contra "ahora" caería en la regla de visita
+            // abandonada y abriría una entrada nueva — el socio quedaría adentro después de
+            // haberse ido. Evaluada a las 09:00, la visita tiene una hora y es una salida.
+            LocalDateTime entrada = LocalDateTime.now().withHour(8).withMinute(0).withSecond(0).withNano(0);
+            LocalDateTime salida = entrada.plusHours(1);
+            AccessLog abierta = visitaAbiertaDesde(entrada);
+
+            var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), salida);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+            assertEquals(salida, abierta.getCheckOutAt());
+        }
+
+        @Test
+        @DisplayName("la salida guarda el sello, para que su reintento se reconozca")
+        void laSalidaTambienSeSella() {
+            UUID sello = UUID.randomUUID();
+            AccessLog abierta = visitaAbiertaDesde(LocalDateTime.now().minusHours(1));
+
+            service.registerScan(MEMBER, "manual", null, null, sello, null);
+
+            assertEquals(sello, abierta.getClientRef());
+        }
+
+        @Test
+        @DisplayName("un reloj adelantado no manda visitas al futuro")
+        void relojAdelantado() {
+            sinVisitaAbierta();
+            LocalDateTime dentroDeUnaSemana = LocalDateTime.now().plusDays(7);
+
+            service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), dentroDeUnaSemana);
+
+            ArgumentCaptor<AccessLog> cap = ArgumentCaptor.forClass(AccessLog.class);
+            verify(repo).save(cap.capture());
+            assertTrue(cap.getValue().getCheckInAt().isBefore(LocalDateTime.now().plusMinutes(1)),
+                    "una visita no puede quedar registrada en el futuro");
+        }
+
+        @Test
+        @DisplayName("un reloj atrasado meses no escribe en un mes ya cerrado")
+        void relojAtrasado() {
+            sinVisitaAbierta();
+            LocalDateTime haceTresMeses = LocalDateTime.now().minusMonths(3);
+
+            service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), haceTresMeses);
+
+            ArgumentCaptor<AccessLog> cap = ArgumentCaptor.forClass(AccessLog.class);
+            verify(repo).save(cap.capture());
+            assertTrue(cap.getValue().getCheckInAt().isAfter(LocalDateTime.now().minusDays(2)),
+                    "se acota al límite en vez de ensuciar un mes viejo");
+        }
+
+        @Test
+        @DisplayName("sin sello, todo sigue exactamente como antes")
+        void sinSelloNoCambiaNada() {
+            // Los accesos online no traen sello ni momento. Este test fija que la función
+            // vieja no cambió de comportamiento: es la que usan todos los gimnasios.
+            sinVisitaAbierta();
+
+            var r = service.registerScan(MEMBER, "QR", null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.ENTRADA, r.direction());
+            verify(repo, never()).findByTenantIdAndClientRef(any(), any());
         }
     }
 }

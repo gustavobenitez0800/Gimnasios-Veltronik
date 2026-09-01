@@ -208,7 +208,7 @@ public class CheckinService {
         MemberAccessPolicy.Verdict veredicto = accessPolicy.evaluate(member, now);
 
         AccessLogService.ScanResult scan =
-                accessLogService.registerScan(member.getId(), "QR", punto.getPointId(), scannerId);
+                accessLogService.registerScan(member.getId(), "QR", punto.getPointId(), scannerId, null, null);
 
         return armarRespuesta(punto, member, veredicto, scan, scannerId);
     }

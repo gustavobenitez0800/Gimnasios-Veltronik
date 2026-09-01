@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { encolar, vaciar, cuantosPendientes } from '../lib/colaAccesos';
 
 /**
  * Servicio de Control de Acceso.
@@ -18,12 +19,53 @@ class AccessService {
     return response.data;
   }
 
-  async checkIn(memberId, accessMethod = 'manual') {
-    const response = await apiClient.post('/gym/access/register', {
-      memberId: memberId,
-      method: accessMethod
-    });
-    return response.data;
+  /**
+   * Registra el paso de un socio. Anda con internet y sin internet.
+   *
+   * <p>Con conexión manda y devuelve lo que el servidor decidió. Sin conexión guarda el
+   * acceso en la cola y devuelve {@code {encolado: true}}: la pantalla tiene que decir
+   * "guardado", no inventar si fue entrada o salida. Esa la decide el servidor mirando el
+   * estado del socio, y adivinarla acá es exactamente el bug que ya apareció dos veces.</p>
+   *
+   * <p>Va SIEMPRE con sello y con la hora del hecho, incluso online: si la respuesta se
+   * pierde en el camino —el pedido llegó pero la contestación no— el reintento desde la
+   * cola se reconoce como repetido en vez de invertir la visita.</p>
+   */
+  async checkIn(memberId, accessMethod = 'manual', memberName = '') {
+    const clientRef = crypto.randomUUID();
+    const ocurridoEn = new Date().toISOString();
+
+    try {
+      const response = await apiClient.post('/gym/access/register', {
+        memberId, method: accessMethod, clientRef, ocurridoEn,
+      });
+      return response.data;
+    } catch (error) {
+      // Si el servidor CONTESTÓ rechazando, encolar no arregla nada: el reintento va a
+      // fallar igual. Solo se encola cuando no hubo respuesta (sin red, timeout) o cuando
+      // el servidor está caído, que sí se arregla solo.
+      const status = error?.response?.status;
+      const vaAServirDeNuevo = !status || status >= 500 || status === 408 || status === 429;
+      if (!vaAServirDeNuevo) throw error;
+
+      await encolar({ memberId, method: accessMethod, memberName, ocurridoEn });
+      return { encolado: true, clientRef, ocurridoEn };
+    }
+  }
+
+  /** Manda lo que haya esperando. Devuelve cuántos salieron y cuántos quedan. */
+  async sincronizarPendientes() {
+    return vaciar((item) => apiClient.post('/gym/access/register', {
+      memberId: item.memberId,
+      method: item.method,
+      clientRef: item.clientRef,
+      ocurridoEn: item.ocurridoEn,
+    }));
+  }
+
+  /** Cuántos accesos esperan a que vuelva internet. */
+  async pendientesDeEnviar() {
+    return cuantosPendientes();
   }
 
   async checkOut(accessLogId) {

@@ -361,7 +361,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
                 checkinService.scan(token, "27222111", null);
                 em.flush();
                 // …y el mostrador le marca la salida a mano.
-                var salida = accessLogService.registerScan(socio, "manual", null, null);
+                var salida = accessLogService.registerScan(socio, "manual", null, null, null, null);
                 em.flush();
                 assertEquals(AccessLogService.Direction.SALIDA, salida.direction(),
                         "el mostrador tiene que poder cerrar una visita que abrió el QR");
@@ -386,7 +386,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
 
             com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
             try {
-                accessLogService.registerScan(socio, "manual", null, null);
+                accessLogService.registerScan(socio, "manual", null, null, null, null);
                 em.flush();
             } finally {
                 com.veltronik.v2.core.security.TenantContextHolder.clear();
@@ -447,7 +447,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
 
             com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
             try {
-                accessLogService.registerScan(socio, "manual", null, null);
+                accessLogService.registerScan(socio, "manual", null, null, null, null);
                 em.flush();
             } finally {
                 com.veltronik.v2.core.security.TenantContextHolder.clear();
