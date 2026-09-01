@@ -35,6 +35,7 @@ const NAV_SECTIONS = [
   {
     title: 'Administración',
     items: [
+      { to: CONFIG.ROUTES.CAJA, icon: 'dollarSign', label: 'Cierre de caja', module: 'payments' },
       { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
       { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
