@@ -35,6 +35,16 @@ public class GymMemberInputDTO {
     private String objectives;
     private String photoUrl;
 
+    /**
+     * El arancel que se le asigna. Se manda vacío para sacárselo.
+     *
+     * <p>Se distingue "no lo mandaron" (no tocar) de "lo mandaron vacío" (sacarlo) con
+     * {@link #planIdPresente}, porque el update es un parche parcial: sin esa marca, no
+     * habría forma de dejar a un socio SIN arancel.</p>
+     */
+    private java.util.UUID planId;
+    private Boolean planIdPresente;
+
     /** Documento efectivo: prioriza {@code document}, cae a {@code dni} (compat front legacy). */
     public String resolveDocument() {
         if (document != null && !document.isBlank()) return document;

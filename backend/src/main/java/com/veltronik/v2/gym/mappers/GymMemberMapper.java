@@ -37,6 +37,11 @@ public interface GymMemberMapper {
 
     @Mapping(target = "dni", source = "document")
     @Mapping(target = "fullName", expression = "java(buildFullName(entity))")
+    // El arancel viaja APLANADO —id y nombre— y no como objeto anidado: la pantalla solo
+    // necesita mostrarlo y pre-elegirlo, y mandar el plan entero en cada socio infla una
+    // lista de 400 filas para nada.
+    @Mapping(target = "planId", source = "plan.id")
+    @Mapping(target = "planNombre", source = "plan.name")
     GymMemberDTO toDto(GymMember entity, @Context MemberAccessPolicy policy);
 
     List<GymMemberDTO> toDtoList(List<GymMember> entities, @Context MemberAccessPolicy policy);
