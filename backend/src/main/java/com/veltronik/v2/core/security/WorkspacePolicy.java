@@ -25,7 +25,7 @@ public final class WorkspacePolicy {
     /** Todas las claves de módulo conocidas (hoy solo gym + compartidos). */
     public static final Set<String> ALL_MODULES = Set.of(
             "dashboard", "members", "payments", "classes", "access", "retention",
-            "reports", "team", "settings", "lobby"
+            "reports", "team", "settings", "lobby", "caja"
     );
 
     /**
@@ -39,7 +39,12 @@ public final class WorkspacePolicy {
      * RECEPCIÓN: el mostrador. Acceso/check-in, ajustes y el cambio de sistema. (Espejo de allowedPaths.)
      */
     private static final Set<String> RECEPTION_ALLOWED = Set.of(
-            "access", "settings", "lobby"
+            "access", "settings", "lobby",
+            // El cierre de caja SÍ es de recepción: es quien tiene el cajón adelante y quien
+            // cuenta la plata. Va aparte de "payments" a propósito — ese módulo abre el
+            // listado de cobros y los ingresos del mes, que son del dueño. Meter el arqueo
+            // ahí adentro dejaba la función inalcanzable justo para quien la usa.
+            "caja"
     );
 
     /** Módulos que el rol puede VER en la navegación. */

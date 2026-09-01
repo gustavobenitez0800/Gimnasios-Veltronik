@@ -35,7 +35,7 @@ const NAV_SECTIONS = [
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.CAJA, icon: 'dollarSign', label: 'Cierre de caja', module: 'payments' },
+      { to: CONFIG.ROUTES.CAJA, icon: 'dollarSign', label: 'Cierre de caja', module: 'caja' },
       { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
       { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
@@ -95,6 +95,8 @@ function getNavSections(role, allowedModules) {
     // Espejo exacto de RECEPTION_ALLOWED en WorkspacePolicy (backend).
     const allowedPaths = [
       CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
+      // El cierre de caja también: es quien tiene el cajón adelante.
+      CONFIG.ROUTES.CAJA,
     ];
     return porEnvase(NAV_SECTIONS.map(section => ({
       ...section,
