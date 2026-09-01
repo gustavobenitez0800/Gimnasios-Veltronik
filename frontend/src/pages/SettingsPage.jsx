@@ -22,6 +22,7 @@ import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
+import BrandColorPicker from '../components/BrandColorPicker';
 import GymLogo from '../components/GymLogo';
 import TerminalSettings from '../components/TerminalSettings';
 import CoverageGaps from '../components/CoverageGaps';
@@ -51,7 +52,7 @@ export default function SettingsPage({ SubscriptionActions }) {
   const [saving, setSaving] = useState(false);
 
   // Gym form
-  const [gymForm, setGymForm] = useState({ name: '', address: '', phone: '', email: '', logoUrl: null, logoEmoji: null });
+  const [gymForm, setGymForm] = useState({ name: '', address: '', phone: '', email: '', logoUrl: null, logoEmoji: null, brandColor: null });
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
@@ -69,6 +70,9 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Equipos (Fase 1: registro + bautizo — docs/FASE1-PLAN.md)
   const canManageDevices = ['owner', 'admin'].includes(currentRole);
+  // El color lo define el negocio, no quien está sentado: mismo criterio que el resto
+  // de los datos del gimnasio.
+  const canEditGym = ['owner', 'admin'].includes(currentRole);
   const thisDeviceId = getDeviceId();
   const [devices, setDevices] = useState([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -94,6 +98,7 @@ export default function SettingsPage({ SubscriptionActions }) {
         email: gymData.email || '',
         logoUrl: gymData.logoUrl || null,
         logoEmoji: gymData.logoEmoji || null,
+        brandColor: gymData.brandColor || null,
       });
 
       // Subscription info
@@ -219,30 +224,50 @@ export default function SettingsPage({ SubscriptionActions }) {
     }
   };
 
-  // Save gym settings
-  const handleSaveGym = async (e) => {
-    e.preventDefault();
-    if (!gymForm.name.trim()) { showToast('El nombre es requerido', 'error'); return; }
+  // ── Un solo escritor para los datos del gimnasio ──
+  //
+  // El PUT reemplaza el negocio entero: lo que no viaja en el cuerpo queda en null. Si
+  // cada pantallita mandara "sus" campos, guardar el color borraría el logo y guardar el
+  // nombre borraría el color. Por eso todo pasa por acá, que parte del estado completo
+  // del formulario y le encima el cambio puntual.
+  const guardarGimnasio = async (cambios = {}) => {
+    const datos = { ...gymForm, ...cambios };
+    if (!datos.name.trim()) { showToast('El nombre es requerido', 'error'); return false; }
 
     setSaving(true);
     try {
       const saved = await gymService.updateCurrent({
-        name: gymForm.name.trim(),
-        address: gymForm.address.trim() || null,
-        phone: gymForm.phone.trim() || null,
-        email: gymForm.email.trim() || null,
-        logoUrl: gymForm.logoUrl,
-        logoEmoji: gymForm.logoEmoji,
+        name: datos.name.trim(),
+        address: datos.address.trim() || null,
+        phone: datos.phone.trim() || null,
+        email: datos.email.trim() || null,
+        logoUrl: datos.logoUrl,
+        logoEmoji: datos.logoEmoji,
+        brandColor: datos.brandColor || null,
       });
-      // Refrescamos el contexto para que el logo nuevo aparezca YA en el resto de la
-      // app (sidebar, lobby) en vez de recién al volver a entrar.
+      // Refrescamos el contexto para que el logo y el color nuevos aparezcan YA en el
+      // resto de la app en vez de recién al volver a entrar.
       if (saved && refreshAuth) { try { await refreshAuth(); } catch { /* ignore */ } }
       showToast('Configuración guardada', 'success');
+      return true;
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveGym = async (e) => {
+    e.preventDefault();
+    await guardarGimnasio();
+  };
+
+  // El color se guarda en el acto: es una decisión visual, y hacer que el dueño
+  // baje hasta un botón "Guardar" para ver si le gusta rompe la prueba y error.
+  const elegirColor = async (hex) => {
+    setGymForm((f) => ({ ...f, brandColor: hex }));
+    await guardarGimnasio({ brandColor: hex });
   };
 
   // NOTA: el flujo viejo de "cambiar método de pago" (redirección al link de MP vía
@@ -581,7 +606,8 @@ export default function SettingsPage({ SubscriptionActions }) {
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="palette" size="1.1em" /> Apariencia</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: 'var(--font-size-sm)' }}>
-            Elige el tema de la interfaz
+            Elegí el tema de la interfaz. <strong>Es tuyo y de esta computadora</strong>: cada
+            persona del equipo puede tenerlo distinto.
           </p>
           <div className="theme-options">
             <div className={`theme-option ${preference === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}>
@@ -597,6 +623,19 @@ export default function SettingsPage({ SubscriptionActions }) {
               <span className="theme-option-text">Sistema</span>
             </div>
           </div>
+
+          {/* El color del gimnasio. A diferencia del tema de arriba —que es de cada
+              persona y de cada computadora— este lo elige el dueño una vez y lo ve
+              todo el equipo. Por eso está separado y por eso solo lo toca quien manda. */}
+          {canEditGym && (
+            <div className="brand-color-block">
+              <h3 className="brand-color-title">El color de tu gimnasio</h3>
+              <p className="brand-color-sub">
+                Lo elegís una vez y lo ve <strong>todo el equipo</strong>, en todas las computadoras.
+              </p>
+              <BrandColorPicker value={gymForm.brandColor} onChange={elegirColor} disabled={saving} />
+            </div>
+          )}
         </div>
 
         {/* Danger Zone */}

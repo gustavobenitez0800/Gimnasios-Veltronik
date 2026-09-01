@@ -9,6 +9,7 @@ import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 import GymLogo from './GymLogo';
+import { derivarPaleta } from '../lib/brandColor';
 
 import ErrorBoundary from './ErrorBoundary';
 
@@ -122,12 +123,23 @@ export function AppLayout() {
     return null;
   }, [subscription]);
 
+  // La paleta del gimnasio, derivada de UN color elegido por el dueño.
+  //
+  // Va acá y no en :root a propósito: AppLayout envuelve exactamente lo que el gimnasio
+  // considera "el sistema" (dashboard, socios, pagos, accesos). El lobby, el login y el
+  // portal de cobro quedan afuera con la identidad de Veltronik, porque ahí el dueño no
+  // está usando su gimnasio: está tratando con su proveedor.
+  //
+  // Sin color elegido devuelve {}, que no pisa ninguna variable. Eso es lo que hace que
+  // esto no toque a ningún gimnasio que no lo use.
+  const paleta = useMemo(() => derivarPaleta(gym?.brandColor), [gym?.brandColor]);
+
   if (loading) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" style={paleta}>
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       <main className="main-content">

@@ -257,3 +257,131 @@
   font-weight: 700;
   font-size: var(--font-size-sm);
 }
+
+/* ─── COLOR DEL GIMNASIO (Ajustes → Apariencia) ───
+   Separado del selector de tema por una línea, porque son cosas distintas: el tema
+   es de cada persona y de cada máquina; el color es del negocio y lo ven todos. */
+.brand-color-block {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.brand-color-title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem;
+}
+
+.brand-color-sub {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0 0 1rem;
+}
+
+.brand-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+}
+
+.brand-color-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch, var(--primary-500));
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12) inset;
+}
+
+.brand-color-swatch:hover:not(:disabled) { transform: scale(1.08); }
+.brand-color-swatch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* El elegido lleva un anillo separado del color, para que se lea sobre cualquier tono
+   (un borde del mismo color desaparecería justo en el que está seleccionado). */
+.brand-color-swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 4px var(--text-primary);
+}
+
+/* "Otro color": la rueda cromática del sistema operativo, que ya sabe hacer esto bien. */
+.brand-color-custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: conic-gradient(#ef4444, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
+}
+
+.brand-color-custom input[type='color'] {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* La muestra usa las MISMAS variables que el sistema, con la paleta derivada aplicada
+   encima: lo que se ve acá es literalmente lo que va a verse en las pantallas. */
+.brand-color-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  margin-bottom: 0.9rem;
+}
+
+.brand-color-preview-btn {
+  background: var(--primary-500);
+  color: #fff;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm, 8px);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.brand-color-preview-chip {
+  background: color-mix(in srgb, var(--primary-500) 18%, transparent);
+  color: var(--primary-400);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.brand-color-preview-link {
+  color: var(--primary-400);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.brand-color-hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.brand-color-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-400);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.brand-color-reset:disabled { opacity: 0.5; cursor: not-allowed; }
