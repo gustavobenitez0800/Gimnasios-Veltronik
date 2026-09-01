@@ -1,6 +1,7 @@
 package com.veltronik.v2.core.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -51,6 +52,10 @@ public class TenantDTO {
     /** Emoji elegido como identidad cuando el dueño no sube una imagen. */
     @Size(max = 16, message = "Ícono inválido")
     private String logoEmoji;
+
+    /** Color de marca del sistema, {@code #RRGGBB}. NULL = paleta de Veltronik. */
+    @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "El color debe ser #RRGGBB")
+    private String brandColor;
 
     private LocalDateTime trialEndsAt;
     private boolean isActive;
