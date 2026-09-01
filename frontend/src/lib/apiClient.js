@@ -1,4 +1,5 @@
 import axios from 'axios';
+import CONFIG from './config';
 
 // Instancia base de Axios apuntando al backend de Java (Fase 3)
 // `timeout`: sin esto, una request a un backend lento/inalcanzable quedaba colgada
@@ -136,8 +137,20 @@ apiClient.interceptors.response.use(
       //                                   este terminal está atado y no es la que se pidió.
       // En los dos casos limpiamos el contexto y volvemos a la puerta de entrada, que en la
       // web es el Lobby y en el escritorio es DeviceGate — la misma ruta.
-      localStorage.removeItem('current_org_id');
-      localStorage.removeItem('current_org_name');
+      // ⚠️ EN EL ESCRITORIO NO SE BORRA NADA.
+      //
+      // Acá esto expulsaba al mostrador a DeviceGate —la pantalla de enrolar el equipo— en
+      // medio de la atención, por un 403 que puede ser pasajero (una carrera al renovar el
+      // token, por ejemplo). Para la recepcionista es el sistema cerrándose solo y
+      // mostrándole una pantalla de configuración que no entiende ni tiene por qué tocar.
+      //
+      // El terminal ya sabe a qué sucursal pertenece y el servidor lo va a seguir
+      // rechazando o no; borrarle el contexto no arregla nada y rompe la atención. En la
+      // web sí se limpia: ahí el Lobby es un lugar razonable donde caer.
+      if (!CONFIG.IS_DESKTOP) {
+        localStorage.removeItem('current_org_id');
+        localStorage.removeItem('current_org_name');
+      }
       window.dispatchEvent(new Event('auth-forbidden-tenant'));
     }
     

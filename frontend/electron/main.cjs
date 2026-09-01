@@ -15,7 +15,6 @@ const { isAllowedUrl } = require('./portal.cjs');
 const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
-const { createTray, destroyTray, notifyHiddenToTray, getTray } = require('./tray.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
@@ -107,16 +106,6 @@ let mainWindow = null;
 
 // ============================================
 // MODO TERMINAL (Fase 5)
-// ============================================
-// La bandera que separa "esconder" de "salir". Con "cerrar → bandeja" activo, el evento
-// 'close' de la ventana significa las dos cosas según quién lo haya disparado: la X de la
-// ventana (esconder) o un pedido real de salir (cerrar). Se levanta en 'before-quit', que
-// dispara CUALQUIER camino de salida —el menú, la bandeja, app.quit(), apagar Windows— así
-// que no hay forma de salir que se olvide de bajarla.
-let isQuitting = false;
-
-/** ¿Ya avisamos que cerrar esconde? Se avisa una sola vez por ejecución. */
-let avisoDeBandejaMostrado = false;
 
 // ============================================
 // DEEP LINKS veltronik:// (Fase 2)
@@ -235,30 +224,14 @@ function createWindow() {
         flushPending();
     });
 
-
-    // ─── Cerrar la ventana NO cierra el sistema (Fase 5) ───
-    // En un mostrador la X la toca cualquiera sin querer, y hasta ahora eso dejaba al
-    // gimnasio sin poder cobrar ni registrar accesos hasta que alguien se diera cuenta.
-    // Ahora se esconde en la bandeja. Salir de verdad es una acción aparte y explícita
-    // ("Salir de Veltronik", en el menú o en la bandeja), que levanta `isQuitting`.
-    mainWindow.on('close', (event) => {
-        // `getTray()` en la condición, y no solo la preferencia: esconder una ventana
-        // cuando NO hay ícono de bandeja dejaría un proceso invisible y sin forma de
-        // recuperarlo salvo matándolo desde el Administrador de tareas. Prefiero que
-        // cerrar cierre a que el cliente se quede con un fantasma.
-        if (isQuitting || !store.get('closeToTray') || !getTray()) return;
-
-        event.preventDefault();
-        mainWindow.hide();
-
-        // La primera vez hay que decirlo: si no, el cliente cree que cerró la app y no
-        // entiende por qué el ícono sigue ahí (o peor: por qué no vuelve a abrir).
-        if (!avisoDeBandejaMostrado) {
-            avisoDeBandejaMostrado = true;
-            notifyHiddenToTray();
-        }
-    });
-
+    // Cerrar la ventana CIERRA el sistema.
+    //
+    // Acá la X escondía la app en la bandeja del reloj. La idea era proteger al mostrador
+    // de un clic sin querer, pero el precio lo pagaba el cliente: creía haber cerrado
+    // Veltronik, el proceso seguía vivo, y como electron-updater instala al arrancar, LAS
+    // ACTUALIZACIONES NO LLEGABAN NUNCA — salvo que alguien supiera ir a la flechita al
+    // lado del reloj y elegir "Salir". Para un gimnasio que no maneja computadoras, eso
+    // es un sistema que se queda viejo para siempre.
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -313,23 +286,6 @@ if (IS_PRIMARY_INSTANCE) app.whenReady().then(() => {
 
     createWindow();
 
-    // ─── Modo terminal (Fase 5) ───
-    // Ícono al lado del reloj: es a dónde va la ventana cuando la cierran, y de dónde se
-    // la trae de vuelta. Si el sistema no soporta bandeja (algunos escritorios de Linux),
-    // createTray devuelve null y cerrar vuelve a significar salir — nunca se queda un
-    // proceso escondido sin forma de recuperarlo.
-    // Si devuelve null, el propio handler de 'close' lo detecta y cerrar vuelve a
-    // significar salir. No se toca la preferencia guardada: un fallo puntual de la
-    // bandeja no tiene por qué borrarle al dueño una decisión que tomó.
-    createTray({
-        getWindow: () => mainWindow,
-        onQuit: () => app.quit(),   // 'before-quit' levanta isQuitting y el cierre procede
-        onCheckUpdates: () => {
-            const { checkForUpdates } = require('./updater.cjs');
-            checkForUpdates();
-        },
-    });
-
     // Arranque con Windows: la preferencia manda, y se re-aplica en cada arranque porque
     // el usuario puede haberla sacado desde el propio Windows (Administrador de tareas →
     // Inicio). Así el sistema operativo y la app no se contradicen.
@@ -343,17 +299,12 @@ if (IS_PRIMARY_INSTANCE) app.whenReady().then(() => {
     });
 });
 
-// Cualquier camino de salida pasa por acá: el menú, la bandeja, app.quit(), o Windows
-// apagándose. Es lo que distingue "cerrar la ventana" de "cerrar el sistema".
-app.on('before-quit', () => {
-    isQuitting = true;
-    destroyTray();
-});
-
-// Cerrar cuando todas las ventanas se cierren (excepto macOS).
-// Con "cerrar → bandeja" activo esto casi no se dispara: la ventana se esconde, no se
-// destruye, así que sigue existiendo. Queda para el caso en que la preferencia esté
-// apagada, o cuando no se pudo crear la bandeja.
+// Cerrar la última ventana cierra el sistema (salvo en macOS, donde no es la costumbre).
+//
+// Ahora esto SÍ se dispara siempre: es el camino normal de salida. Y que sea el normal es
+// justamente lo que hace que las actualizaciones lleguen — electron-updater instala lo
+// descargado en el próximo arranque, así que un sistema que nunca se cierra es un sistema
+// que nunca se actualiza.
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
@@ -363,8 +314,7 @@ app.on('window-all-closed', () => {
 /**
  * Aplica (o saca) el arranque automático con el sistema.
  *
- * `openAsHidden` en macOS arranca sin robar el foco. En Windows se arranca normal y, si
- * la preferencia de bandeja está puesta, el usuario puede cerrar la ventana y seguir.
+ * `openAsHidden` en macOS arranca sin robar el foco. En Windows arranca normal.
  */
 function aplicarArranqueAutomatico(activo) {
     try {
@@ -408,10 +358,6 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('terminal-settings:get', () => ({
     openAtLogin: !!store.get('openAtLogin'),
-    closeToTray: !!store.get('closeToTray'),
-    // Si no hay bandeja, la opción de "cerrar → bandeja" no se puede ofrecer: la UI la
-    // esconde en vez de mostrar un interruptor que no hace nada.
-    trayAvailable: !!getTray(),
 }));
 
 ipcMain.handle('terminal-settings:set', (_event, changes) => {
@@ -425,10 +371,6 @@ ipcMain.handle('terminal-settings:set', (_event, changes) => {
         } else {
             return { ok: false, error: 'No se pudo configurar el arranque con Windows.' };
         }
-    }
-
-    if (typeof changes.closeToTray === 'boolean') {
-        store.set('closeToTray', changes.closeToTray);
     }
 
     return { ok: true };
