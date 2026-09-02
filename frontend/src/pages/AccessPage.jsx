@@ -23,35 +23,16 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
-import { getInitials, getRelativeTime, debounce } from '../lib/utils';
+import { getInitials, debounce } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { useQueryCache } from '../hooks';
-import { GYM } from '../lib/gym';
+import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
-/**
- * Cada cuánto le pregunta el mostrador al servidor qué pasó en la puerta.
- *
- * Son dos ritmos porque son dos situaciones distintas. Con la ventana adelante hay alguien
- * atendiendo y puede haber un socio escaneando el QR ahora mismo: 3 segundos es lo que
- * tarda en caminar del cartel al mostrador, así que llega y su cartel ya está en pantalla.
- * De fondo no lo mira nadie, y preguntar seguido solo gasta.
- *
- * ⚠️ No bajar de 3 s sin pensarlo: son ~20 pedidos por minuto y por terminal contra el
- * backend. Y no subirlo: arriba de eso el socio llega antes que su propio cartel, que es
- * exactamente la queja que esto arregla.
- */
-const RITMO_EN_LA_PUERTA = 3000;
-const RITMO_DE_FONDO = 15000;
-
 export default function AccessPage() {
-  const orgLabel = GYM.placeLabel;
-  const orgLabelCap = GYM.placeLabelCap;
-
   const { showToast } = useToast();
   const { orgRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,14 +73,13 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, invalidate, isFetching } = useQueryCache(
+  const { data, invalidate, isFetching } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
   );
 
   const checkedIn = useMemo(() => data?.adentro || [], [data]);
-  const todayLogs = useMemo(() => data?.hoy || [], [data]);
   const avisos = useMemo(() => data?.avisos || [], [data]);
   const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
@@ -107,72 +87,14 @@ export default function AccessPage() {
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
-  // Antes esta pantalla cargaba UNA vez, al abrirla, y nunca más. Con el mostrador manual no
-  // se notaba: la recepcionista marcaba y la lista se refrescaba después de su propio clic.
-  // Con el QR el que marca es el socio desde su celular, así que acá no llegaba nada — había
-  // que salir del módulo y volver a entrar para que apareciera, y lo mismo al salir.
+  // Antes esta pantalla cargaba UNA vez, al abrirla, y nunca más. Con el mostrador manual
+  // no se notaba: la recepcionista marcaba y la lista se refrescaba después de su propio
+  // clic. Con el QR el que marca es el socio desde su celular, así que acá no llegaba nada.
   //
-  // Solo con la pestaña a la vista: un terminal olvidado abierto toda la noche no tiene por
-  // qué seguir preguntando. Y al volver a la pestaña refresca en el acto, sin esperar el
-  // próximo ciclo — que es justo cuando la recepcionista vuelve a mirar la pantalla.
-  // ⚠️⚠️ EL EFECTO SE MONTA UNA SOLA VEZ (deps `[]`) Y LEE POR REFERENCIA. NO PONER
-  // `loadData` EN LAS DEPENDENCIAS.
-  //
-  // Ahí estaba el bug de "por QR tarda". `loadData` es el `invalidate` del caché, que
-  // nacía nuevo en cada render (ya está memoizado, pero esto no puede volver a depender
-  // de eso): tenerlo de dependencia desarmaba el temporizador y lo arrancaba de cero en
-  // CADA render. Y acá se renderiza todo el tiempo —cada tecla del DNI, cada cartel que
-  // aparece y se va a los 4 segundos—, así que la cuenta no llegaba al final casi nunca.
-  // Con alguien tecleando en el mostrador, el refresco podía no dispararse en minutos.
-  //
-  // A mano nunca se notó porque el cartel lo pinta el propio handler, con la respuesta
-  // del POST. Por QR el que marca es el socio desde su celular: la pantalla se entera
-  // SOLO por este ciclo, y lo que se sentía como "el QR es lento" era esto.
-  const loadDataRef = useRef(loadData);
-  const enVueloRef = useRef(false);
-  // Al día después de cada render (no DURANTE: escribir un ref mientras se renderiza está
-  // prohibido y el lint lo marca). En el primer render ya valen, por el valor inicial.
-  useEffect(() => {
-    loadDataRef.current = loadData;
-    enVueloRef.current = isFetching;
-  });
-
-  useEffect(() => {
-    let ultimoPedido = 0;
-
-    const pedir = (forzado = false) => {
-      // Un terminal olvidado abierto toda la noche no tiene por qué seguir preguntando.
-      if (document.visibilityState !== 'visible') return;
-
-      // Con la ventana adelante hay alguien parado en la puerta: se pregunta seguido, y
-      // el que escanea ve su cartel antes de llegar al mostrador. De fondo (la app abierta
-      // detrás de otra cosa) alcanza el ritmo de siempre: nadie está mirando.
-      const ritmo = document.hasFocus?.() ? RITMO_EN_LA_PUERTA : RITMO_DE_FONDO;
-      if (!forzado && Date.now() - ultimoPedido < ritmo) return;
-
-      // Si el pedido anterior sigue en vuelo, este ciclo se saltea: con mala conexión,
-      // encimar pedidos no trae la respuesta antes — solo agrega pedidos.
-      if (enVueloRef.current) return;
-
-      ultimoPedido = Date.now();
-      loadDataRef.current();
-    };
-
-    // El latido es corto y casi siempre no hace nada: quien decide si toca pedir es
-    // `pedir`, mirando el reloj. Así el ritmo cambia con el foco sin rearmar nada.
-    const t = setInterval(pedir, 1000);
-
-    // Al volver a la pantalla se refresca en el acto, sin esperar el próximo ciclo — que
-    // es justo cuando la recepcionista vuelve a mirar.
-    const alVolver = () => pedir(true);
-    document.addEventListener('visibilitychange', alVolver);
-    window.addEventListener('focus', alVolver);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener('visibilitychange', alVolver);
-      window.removeEventListener('focus', alVolver);
-    };
-  }, []);
+  // El latido vive en `useRefrescoAutomatico` y no acá: lo comparte con "En el gimnasio", y
+  // la forma de escribirlo mal —depender de la identidad de `invalidate`— es el bug que
+  // hacía que el cartel del QR tardara. Está explicado en el hook, en un solo lugar.
+  useRefrescoAutomatico(loadData, isFetching);
 
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
@@ -476,80 +398,10 @@ export default function AccessPage() {
     }
   };
 
-  // Check-out
-  const handleCheckOut = async (logId, memberName) => {
-    try {
-      await accessService.checkOut(logId);
-      showToast(`${memberName} salió`, 'success');
-      loadData();
-    } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
-    }
-  };
-
-  // Stats
-  //
-  // ⚠️ EL TOTAL Y EL PROMEDIO LOS MANDA EL BACKEND, no salen de `todayLogs`.
-  //
-  // `hoy` llega RECORTADO: la pantalla muestra 30 filas, y mandar los 250 accesos de un día
-  // entero —cada uno con la ficha completa del socio— es cientos de fichas viajando por la
-  // conexión del gimnasio cada quince segundos para pintar 30 renglones. Contar esa lista
-  // diría "60 accesos" en un gimnasio que tuvo 250, y el promedio saldría de una muestra
-  // cortada. El backend los calcula sobre el día COMPLETO y los manda aparte.
-  //
-  // Se conserva la cuenta local como respaldo: contra un backend que todavía no los mande,
-  // un número aproximado es mejor que un hueco en la pantalla.
-  const stats = useMemo(() => {
-    // `null` en el promedio es una respuesta válida —"ninguna visita cerró todavía"— y es
-    // distinto de que este backend no mande el dato. Por eso se pregunta por la CLAVE.
-    const resumenDelBackend = !!data && 'hoyTotal' in data;
-    const promedioLocal = () => {
-      const completed = todayLogs.filter(l => l.checkOutAt);
-      if (completed.length === 0) return '-';
-      const avg = completed.reduce((sum, l) => {
-        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
-      }, 0) / completed.length;
-      return `${Math.round(avg / 60000)} min`;
-    };
-    return {
-      inGym: checkedIn.length,
-      totalToday: resumenDelBackend ? data.hoyTotal : todayLogs.length,
-      avgTime: resumenDelBackend
-        ? (data.hoyPromedioMin == null ? '-' : `${data.hoyPromedioMin} min`)
-        : promedioLocal(),
-    };
-  }, [checkedIn, todayLogs, data]);
-
   return (
     <div className="access-page">
       <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
 
-      {/* Stats */}
-      <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.inGym}</div>
-            <div className="stat-label">En el {orgLabel}</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-primary"><Icon name="door" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalToday}</div>
-            <div className="stat-label">Accesos hoy</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-accent"><Icon name="clock" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.avgTime}</div>
-            <div className="stat-label">Tiempo promedio</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Check-in + Currently In */}
       <div className="access-grid">
         {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
             configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
@@ -562,7 +414,9 @@ export default function AccessPage() {
         <AvisosMostrador avisos={avisos} onAtendido={loadData} />
 
         {/* Check-in Search */}
-        <div className="checkin-section">
+        {/* A lo ancho de las dos columnas: desde que "En el gimnasio" es su propio
+            módulo, el buscador no comparte fila con nadie — y es LO que se usa acá. */}
+        <div className="checkin-section" style={{ gridColumn: '1 / -1' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
@@ -628,72 +482,6 @@ export default function AccessPage() {
           )}
         </div>
 
-        {/* Currently In Gym */}
-        <div className="card currently-in">
-          <div className="table-header">
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon name="building" size="1.2em" />
-              En el {orgLabelCap}
-            </h3>
-            <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
-          </div>
-          <div className="checked-in-list" style={{ padding: '0 1rem 1rem' }}>
-            {loading ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
-            ) : checkedIn.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
-            ) : checkedIn.map(log => {
-              const member = log.member;
-              const memberName = member?.fullName || 'Socio';
-              return (
-              <div key={log.id} className="checked-in-item">
-                <div className="member-avatar">{getInitials(memberName)}</div>
-                <div className="member-info">
-                  <div className="member-name">{memberName}</div>
-                  <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
-                </div>
-                <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
-                  <Icon name="handWave" size="1em" /> Salida
-                </button>
-              </div>
-            )})}
-          </div>
-        </div>
-      </div>
-
-      {/* Today's Log */}
-      <div className="card mt-3">
-        <div className="table-header">
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
-          {/* El total real del día, no el largo de la lista recortada. */}
-          <span className="text-muted">{stats.totalToday} accesos</span>
-        </div>
-        <div className="table-container">
-          <table className="table">
-            <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
-            <tbody>
-              {todayLogs.length === 0 ? (
-                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
-              ) : todayLogs.slice(0, 30).map(log => {
-                const member = log.member;
-                return (
-                <tr key={log.id}>
-                  <td data-label="Socio"><strong>{member?.fullName || 'Socio'}</strong></td>
-                  <td data-label="DNI">{member?.dni || '-'}</td>
-                  <td data-label="Entrada">{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                  <td data-label="Salida">{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
-                  <td data-label="Método">
-                    {(log.accessMethod || '').toLowerCase() === 'manual' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
-                    ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="qrCode" size="0.9em" /> QR</span>
-                    ) : (log.accessMethod || '-')}
-                  </td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       {/* ─── El aviso de entrada, al costado izquierdo ───

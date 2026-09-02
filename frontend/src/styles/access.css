@@ -74,6 +74,20 @@
 .checkin-time { font-size: var(--font-size-xs); color: var(--text-muted); }
 
 /* ────────────────────────────────────────────────────────────
+   "EN EL GIMNASIO": LA MISMA LISTA, PERO CON LA PÁGINA ENTERA
+
+   En el mostrador esta lista vive en media pantalla y con scroll propio (400px): ahí es
+   lo secundario, al lado del buscador. En su módulo es LO PRINCIPAL, así que se reparte
+   en columnas y crece con la página — con 30 personas adentro, un cajita con scroll
+   interno obliga a buscar dentro de la pantalla en vez de leer de un vistazo. */
+.adentro-lista {
+  max-height: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.5rem;
+}
+
+/* ────────────────────────────────────────────────────────────
    EL AVISO DE ENTRADA, AL COSTADO IZQUIERDO
 
    ⚠️ Acá vivía un overlay de pantalla completa (negro al 70%, con blur) más un cartelón

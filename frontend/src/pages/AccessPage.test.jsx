@@ -55,16 +55,22 @@ const mostrador = vi.hoisted(() => ({
   /** Cuántas veces la pantalla pidió novedades de la puerta. */
   refrescos: 0,
 }));
-vi.mock('../hooks', () => ({
-  useQueryCache: () => ({
-    data: mostrador.datos,
-    loading: false,
-    isFetching: false,
-    // ⚠️ Nace NUEVA en cada render A PROPÓSITO: así era el `invalidate` que rompía el
-    // refresco (ver el test del latido, abajo). La pantalla tiene que aguantarlo igual.
-    invalidate: () => { mostrador.refrescos += 1; },
-  }),
-}));
+// ⚠️ El caché se reemplaza, pero `useRefrescoAutomatico` va REAL: es justo lo que prueba el
+// test del latido, y mockearlo lo dejaría verificando nada.
+vi.mock('../hooks', async () => {
+  const { useRefrescoAutomatico } = await vi.importActual('../hooks/useRefrescoAutomatico');
+  return {
+    useRefrescoAutomatico,
+    useQueryCache: () => ({
+      data: mostrador.datos,
+      loading: false,
+      isFetching: false,
+      // ⚠️ Nace NUEVA en cada render A PROPÓSITO: así era el `invalidate` que rompía el
+      // refresco (ver el test del latido, abajo). La pantalla tiene que aguantarlo igual.
+      invalidate: () => { mostrador.refrescos += 1; },
+    }),
+  };
+});
 
 vi.mock('../components/EstadoCopiaLocal', () => ({ default: () => null }));
 vi.mock('../components/AvisosMostrador', () => ({ default: () => null }));

@@ -25,7 +25,7 @@ public final class WorkspacePolicy {
     /** Todas las claves de módulo conocidas (hoy solo gym + compartidos). */
     public static final Set<String> ALL_MODULES = Set.of(
             "dashboard", "members", "payments", "classes", "access", "retention",
-            "reports", "team", "settings", "lobby", "caja"
+            "reports", "team", "settings", "lobby", "caja", "adentro"
     );
 
     /**
@@ -40,6 +40,12 @@ public final class WorkspacePolicy {
      */
     private static final Set<String> RECEPTION_ALLOWED = Set.of(
             "access", "settings", "lobby",
+            // "En el gimnasio" (quién está adentro ahora + el registro del día) es del
+            // mostrador tanto como el check-in: es la pantalla que se mira cuando alguien
+            // pregunta "¿está fulano?" o hay que cerrar y ver quién quedó sin marcar salida.
+            // Sale del MISMO endpoint que ya usa recepción (/gym/access/mostrador), así que
+            // no abre ningún dato nuevo: solo lo muestra en su propio lugar.
+            "adentro",
             // El cierre de caja SÍ es de recepción: es quien tiene el cajón adelante y quien
             // cuenta la plata. Va aparte de "payments" a propósito — ese módulo abre el
             // listado de cobros y los ingresos del mes, que son del dueño. Meter el arqueo

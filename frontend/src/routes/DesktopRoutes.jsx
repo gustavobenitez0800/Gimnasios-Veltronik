@@ -34,6 +34,7 @@ import PaymentsPage from '../pages/PaymentsPage';
 import CajaPage from '../pages/CajaPage';
 import ClassesPage from '../pages/ClassesPage';
 import AccessPage from '../pages/AccessPage';
+import AdentroPage from '../pages/AdentroPage';
 import RetentionPage from '../pages/RetentionPage';
 import TeamPage from '../pages/TeamPage';
 import SettingsPage from '../pages/SettingsPage';
@@ -83,6 +84,7 @@ export default function DesktopRoutes() {
         <Route path={CONFIG.ROUTES.CAJA} element={<CajaPage />} />
         <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
         <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
+        <Route path={CONFIG.ROUTES.ADENTRO} element={<AdentroPage />} />
         <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />
         <Route path={CONFIG.ROUTES.TEAM} element={<TeamPage />} />
         {/* Ajustes SIN la sección de suscripción: la cuenta y el cobro son del portal.

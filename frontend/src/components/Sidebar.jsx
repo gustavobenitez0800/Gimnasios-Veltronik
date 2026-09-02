@@ -28,6 +28,9 @@ const NAV_SECTIONS = [
       { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos', module: 'payments' },
       { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases', module: 'classes' },
       { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso', module: 'access' },
+      // Va PEGADO a Acceso: son la misma puerta vista de dos maneras — en Acceso se
+      // registra el paso de la gente, acá se mira quién quedó adentro.
+      { to: CONFIG.ROUTES.ADENTRO, icon: 'dumbbell', label: `En el ${GYM.placeLabelCap}`, module: 'adentro' },
       { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención', module: 'retention' },
       { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
     ],
@@ -94,7 +97,7 @@ function getNavSections(role, allowedModules) {
     // Recepción: el mostrador del gimnasio — check-in/acceso, ajustes y cambiar de sucursal.
     // Espejo exacto de RECEPTION_ALLOWED en WorkspacePolicy (backend).
     const allowedPaths = [
-      CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
+      CONFIG.ROUTES.ACCESS, CONFIG.ROUTES.ADENTRO, CONFIG.ROUTES.SETTINGS, CONFIG.ROUTES.LOBBY,
       // El cierre de caja también: es quien tiene el cajón adelante.
       CONFIG.ROUTES.CAJA,
     ];

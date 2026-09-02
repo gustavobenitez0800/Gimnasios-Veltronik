@@ -71,6 +71,10 @@ const CONFIG = {
     CLASSES: '/classes',
     REPORTS: '/reports',
     ACCESS: '/access',
+    // Quién está en el gimnasio AHORA, con el resumen del día y el registro de hoy. Se
+    // separó del mostrador a propósito: ahí se registra el paso de la gente (y todo lo que
+    // no sea eso estorba), acá se mira quién hay adentro.
+    ADENTRO: '/adentro',
     RETENTION: '/retention',
     RESET_PASSWORD: '/reset-password',
     LOBBY: '/lobby',
