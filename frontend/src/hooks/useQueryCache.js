@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { readEntry, writeEntry, markStale, invalidateQueries, clearQueryCache } from './queryCacheStore';
 
 // El Map vive en ./queryCacheStore (se puede probar sin React, y se puede invalidar
@@ -94,11 +94,14 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
 
   /**
    * Actualiza el valor de la caché manualmente (ej: después de una mutación CRUD)
+   *
+   * ⚠️ MEMOIZADA, como `invalidate`. El porqué está abajo: quien la use como dependencia
+   * de un efecto tiene que poder confiar en que no cambia sola.
    */
-  const mutate = (newData) => {
+  const mutate = useCallback((newData) => {
     writeEntry(key, ns, newData);
     setData(newData);
-  };
+  }, [key, ns]);
 
   /**
    * Invalida la caché para forzar un refetch inmediato.
@@ -108,11 +111,25 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
    * caché se prende el `loading` — el mostrador se refresca solo cada 15 segundos, así
    * que la lista de quién está adentro se reemplazaba por un spinner en cada ciclo (y
    * cuanto peor la conexión, más rato). Justo la pantalla que se quería acelerar.
+   *
+   * ⚠️⚠️ VA MEMOIZADA, Y NO ES COSMÉTICA.
+   *
+   * Sin `useCallback` esta función nacía DE NUEVO en cada render, y el mostrador la usa
+   * como dependencia del efecto que monta su `setInterval` de refresco. Resultado: cada
+   * render desarmaba el temporizador y lo arrancaba de cero. Y esa pantalla renderiza
+   * todo el tiempo —cada tecla del DNI, cada cartel de entrada que aparece y se va a los
+   * 4 segundos, y el propio refresco al traer datos—, así que la cuenta **casi nunca
+   * llegaba al final**: el mostrador podía pasar minutos sin refrescarse.
+   *
+   * Se notaba justo en lo que depende de ese ciclo y no de un clic: las entradas por QR,
+   * que las marca el socio desde su celular. A mano era instantáneo (lo pinta el propio
+   * handler) y por QR "tardaba" — no 15 segundos: lo que tardara la pantalla en quedarse
+   * quieta. Con la mano en el teclado, no se quedaba nunca.
    */
-  const invalidate = () => {
+  const invalidate = useCallback(() => {
     markStale(key);
     setTrigger(t => t + 1);
-  };
+  }, [key]);
 
   return { data, loading, error, isFetching, mutate, invalidate };
 }

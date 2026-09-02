@@ -33,6 +33,21 @@ import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
+/**
+ * Cada cuánto le pregunta el mostrador al servidor qué pasó en la puerta.
+ *
+ * Son dos ritmos porque son dos situaciones distintas. Con la ventana adelante hay alguien
+ * atendiendo y puede haber un socio escaneando el QR ahora mismo: 3 segundos es lo que
+ * tarda en caminar del cartel al mostrador, así que llega y su cartel ya está en pantalla.
+ * De fondo no lo mira nadie, y preguntar seguido solo gasta.
+ *
+ * ⚠️ No bajar de 3 s sin pensarlo: son ~20 pedidos por minuto y por terminal contra el
+ * backend. Y no subirlo: arriba de eso el socio llega antes que su propio cartel, que es
+ * exactamente la queja que esto arregla.
+ */
+const RITMO_EN_LA_PUERTA = 3000;
+const RITMO_DE_FONDO = 15000;
+
 export default function AccessPage() {
   const orgLabel = GYM.placeLabel;
   const orgLabelCap = GYM.placeLabelCap;
@@ -77,7 +92,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, invalidate } = useQueryCache(
+  const { data, loading, invalidate, isFetching } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -100,19 +115,64 @@ export default function AccessPage() {
   // Solo con la pestaña a la vista: un terminal olvidado abierto toda la noche no tiene por
   // qué seguir preguntando. Y al volver a la pestaña refresca en el acto, sin esperar el
   // próximo ciclo — que es justo cuando la recepcionista vuelve a mirar la pantalla.
+  // ⚠️⚠️ EL EFECTO SE MONTA UNA SOLA VEZ (deps `[]`) Y LEE POR REFERENCIA. NO PONER
+  // `loadData` EN LAS DEPENDENCIAS.
+  //
+  // Ahí estaba el bug de "por QR tarda". `loadData` es el `invalidate` del caché, que
+  // nacía nuevo en cada render (ya está memoizado, pero esto no puede volver a depender
+  // de eso): tenerlo de dependencia desarmaba el temporizador y lo arrancaba de cero en
+  // CADA render. Y acá se renderiza todo el tiempo —cada tecla del DNI, cada cartel que
+  // aparece y se va a los 4 segundos—, así que la cuenta no llegaba al final casi nunca.
+  // Con alguien tecleando en el mostrador, el refresco podía no dispararse en minutos.
+  //
+  // A mano nunca se notó porque el cartel lo pinta el propio handler, con la respuesta
+  // del POST. Por QR el que marca es el socio desde su celular: la pantalla se entera
+  // SOLO por este ciclo, y lo que se sentía como "el QR es lento" era esto.
+  const loadDataRef = useRef(loadData);
+  const enVueloRef = useRef(false);
+  // Al día después de cada render (no DURANTE: escribir un ref mientras se renderiza está
+  // prohibido y el lint lo marca). En el primer render ya valen, por el valor inicial.
   useEffect(() => {
-    const refrescarSiVisible = () => {
-      if (document.visibilityState === 'visible') loadData();
+    loadDataRef.current = loadData;
+    enVueloRef.current = isFetching;
+  });
+
+  useEffect(() => {
+    let ultimoPedido = 0;
+
+    const pedir = (forzado = false) => {
+      // Un terminal olvidado abierto toda la noche no tiene por qué seguir preguntando.
+      if (document.visibilityState !== 'visible') return;
+
+      // Con la ventana adelante hay alguien parado en la puerta: se pregunta seguido, y
+      // el que escanea ve su cartel antes de llegar al mostrador. De fondo (la app abierta
+      // detrás de otra cosa) alcanza el ritmo de siempre: nadie está mirando.
+      const ritmo = document.hasFocus?.() ? RITMO_EN_LA_PUERTA : RITMO_DE_FONDO;
+      if (!forzado && Date.now() - ultimoPedido < ritmo) return;
+
+      // Si el pedido anterior sigue en vuelo, este ciclo se saltea: con mala conexión,
+      // encimar pedidos no trae la respuesta antes — solo agrega pedidos.
+      if (enVueloRef.current) return;
+
+      ultimoPedido = Date.now();
+      loadDataRef.current();
     };
-    const t = setInterval(refrescarSiVisible, 15000);
-    document.addEventListener('visibilitychange', refrescarSiVisible);
-    window.addEventListener('focus', refrescarSiVisible);
+
+    // El latido es corto y casi siempre no hace nada: quien decide si toca pedir es
+    // `pedir`, mirando el reloj. Así el ritmo cambia con el foco sin rearmar nada.
+    const t = setInterval(pedir, 1000);
+
+    // Al volver a la pantalla se refresca en el acto, sin esperar el próximo ciclo — que
+    // es justo cuando la recepcionista vuelve a mirar.
+    const alVolver = () => pedir(true);
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
     return () => {
       clearInterval(t);
-      document.removeEventListener('visibilitychange', refrescarSiVisible);
-      window.removeEventListener('focus', refrescarSiVisible);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
     };
-  }, [loadData]);
+  }, []);
 
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se

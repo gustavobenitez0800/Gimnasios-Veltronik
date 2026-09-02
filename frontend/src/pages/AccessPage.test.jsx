@@ -52,9 +52,18 @@ vi.mock('../lib/gym', () => ({ GYM: { placeLabel: 'gimnasio', placeLabelCap: 'Gi
 // un objeto fijo no habría forma de simular "llegó alguien nuevo".
 const mostrador = vi.hoisted(() => ({
   datos: { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null },
+  /** Cuántas veces la pantalla pidió novedades de la puerta. */
+  refrescos: 0,
 }));
 vi.mock('../hooks', () => ({
-  useQueryCache: () => ({ data: mostrador.datos, loading: false, invalidate: vi.fn() }),
+  useQueryCache: () => ({
+    data: mostrador.datos,
+    loading: false,
+    isFetching: false,
+    // ⚠️ Nace NUEVA en cada render A PROPÓSITO: así era el `invalidate` que rompía el
+    // refresco (ver el test del latido, abajo). La pantalla tiene que aguantarlo igual.
+    invalidate: () => { mostrador.refrescos += 1; },
+  }),
 }));
 
 vi.mock('../components/EstadoCopiaLocal', () => ({ default: () => null }));
@@ -127,6 +136,7 @@ beforeEach(() => {
   // Cada test arranca con el mostrador vacío: si uno dejara un ingreso puesto, el siguiente
   // vería un cartel que no disparó él.
   mostrador.datos = { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null };
+  mostrador.refrescos = 0;
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
@@ -369,5 +379,39 @@ describe('entrar por QR levanta el mismo cartel', () => {
     expect(aviso.className).toContain('error');
     expect(aviso.querySelector('.acceso-aviso-cifra strong').textContent).toBe('9');
     expect(aviso.textContent).toContain('vencido');
+  });
+});
+
+describe('el mostrador se entera solo de lo que pasa en la puerta', () => {
+
+  // ⚠️⚠️ ESTE TEST ES LA QUEJA "POR QR TARDA BASTANTE", CONVERTIDA EN PRUEBA.
+  //
+  // A mano el cartel lo pinta el propio handler, con la respuesta del POST: instantáneo,
+  // siempre. Por QR el que marca es el socio desde su celular, así que la pantalla se
+  // entera SOLO por este latido. Y el latido colgaba de `invalidate`, que nacía nueva en
+  // cada render: cada tecla del DNI y cada cartel que se iba lo reiniciaban de cero. Con
+  // alguien usando el mostrador, la cuenta no llegaba al final nunca.
+  //
+  // Por eso el mock de arriba devuelve una `invalidate` nueva en cada render: si el efecto
+  // vuelve a depender de su identidad, este test se pone rojo.
+  it('⚠️ sigue preguntando aunque la pantalla renderice sin parar', async () => {
+    vi.useFakeTimers();
+    try {
+      await pintar();
+      mostrador.refrescos = 0;
+
+      // Veinte segundos de mostrador vivo: renders todo el tiempo mientras corre el reloj.
+      for (let i = 0; i < 20; i += 1) {
+        await act(async () => { root.render(<AccessPage />); });
+        await act(async () => { vi.advanceTimersByTime(1000); });
+      }
+
+      expect(
+        mostrador.refrescos,
+        'en 20 segundos el mostrador tiene que haber preguntado por la puerta',
+      ).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -21,7 +21,7 @@
 // muro, la expulsión por FORBIDDEN_TENANT) sigue funcionando sin tocar nada.
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -71,16 +71,57 @@ export default function DeviceGate() {
   /** Aviso cuando el equipo YA estaba activado en otra sucursal y se lo va a reasignar. */
   const [avisoReasignacion, setAvisoReasignacion] = useState('');
 
+  /**
+   * ⚠️⚠️ LAS FUNCIONES DEL CONTEXTO SE LEEN POR REFERENCIA, Y ES LO QUE ARREGLA EL CUELGUE.
+   *
+   * `refreshOrgContext` depende de `user`, y `user` se REEMPLAZA por un objeto nuevo cada
+   * vez que Supabase emite TOKEN_REFRESHED (AuthContext llama a initAuth). O sea: una
+   * función que cambia de identidad sola, en cualquier momento, sin que nadie toque nada.
+   *
+   * Con ella en las dependencias, `entrarA` → `identificar` → el efecto de abajo se
+   * re-disparaban en medio de una identificación en curso. Y `identificar` arranca
+   * BORRANDO `current_org_id`, así que la segunda pasada borraba la sucursal que la
+   * primera acababa de escribir: el guard de rutas veía "no hay sucursal", rebotaba al
+   * lobby (que en el escritorio es esta misma pantalla), y de ahí no salía más. Se veía
+   * como "Identificando este equipo…" para siempre, sin error y sin avanzar.
+   *
+   * Pasa sobre todo al abrir la app a la mañana: el token venció durante la noche, así
+   * que el refresco llega a los pocos segundos del arranque — justo encima de esto.
+   */
+  const navigateRef = useRef(navigate);
+  const refreshOrgContextRef = useRef(refreshOrgContext);
+  // Al día después de cada render (no DURANTE: escribir un ref mientras se renderiza está
+  // prohibido y el lint lo marca). En el primer render ya valen, por el valor inicial.
+  useEffect(() => {
+    navigateRef.current = navigate;
+    refreshOrgContextRef.current = refreshOrgContext;
+  });
+
+  /** Corrida en curso: lo que devuelva una vieja se descarta (ver `vigente`). */
+  const corridaRef = useRef(0);
+
   /** Deja la sucursal fija para esta sesión y entra. */
   const entrarA = useCallback(async (orgId, orgName, role) => {
     localStorage.setItem('current_org_id', orgId);
     localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', orgName || '');
-    navigate(landingRoute(role), { replace: true });
-    refreshOrgContext(orgId);
-  }, [navigate, refreshOrgContext]);
+    navigateRef.current(landingRoute(role), { replace: true });
+    // A propósito NO se espera: la pantalla ya navegó y el contexto termina de cargar
+    // por detrás. Pero sí lleva red — antes, si esto fallaba, era una promesa rechazada
+    // que no miraba nadie: el contexto quedaba a medias, el guard rebotaba para acá y la
+    // pantalla se quedaba con el spinner, sin decir nunca qué había pasado.
+    Promise.resolve(refreshOrgContextRef.current(orgId)).catch((e) => {
+      console.error('[DeviceGate] no se pudo cargar el contexto de la sucursal', e);
+    });
+  }, []);
 
   const identificar = useCallback(async () => {
+    // Si llegara a arrancar una identificación nueva con otra en vuelo, la vieja se calla:
+    // lo único peor que no contestar es contestar tarde y pisar lo que ya se resolvió.
+    const corrida = corridaRef.current + 1;
+    corridaRef.current = corrida;
+    const vigente = () => corridaRef.current === corrida;
+
     setEstado('cargando');
     setDetalleError('');
     setAvisoReasignacion('');
@@ -97,6 +138,8 @@ export default function DeviceGate() {
         deviceService.me(),
         gymService.getUserGyms().catch(() => []),
       ]);
+
+      if (!vigente()) return;
 
       const lista = Array.from(new Map((misSucursales || []).map((o) => [o.id, o])).values());
       setSucursales(lista);
@@ -157,12 +200,38 @@ export default function DeviceGate() {
       setElegida(activables[0].id);
       setEstado('activar');
     } catch (error) {
+      if (!vigente()) return;
       setEstado('error');
       setDetalleError(errorService.getMessage(error));
     }
   }, [entrarA]);
 
+  // ⚠️ Corre UNA vez por montaje, y de eso depende que la pantalla no se trabe: `identificar`
+  // es estable porque `entrarA` lo es (ver los refs de arriba). Si alguna vez vuelve a
+  // depender de algo que cambia solo, esto se re-dispara solo — que es el bug de origen.
   useEffect(() => { identificar(); }, [identificar]);
+
+  // ─── RED DE SEGURIDAD: NUNCA MÁS UN SPINNER ETERNO ───
+  //
+  // El camino feliz de `identificar` no cambia de estado: entra, navega, y la pantalla
+  // desaparece. Elegante mientras la navegación ocurra — pero si algo la deshace (el guard
+  // que rebota al lobby, un contexto que no cargó), no queda NADA que sacar a la pantalla
+  // del "Identificando…", y la única salida era cerrar la app y volver a abrirla.
+  //
+  // 25 s: más que el timeout con reintentos del apiClient (20 s), para no cortarle la mano
+  // a una consulta lenta que todavía puede llegar bien.
+  useEffect(() => {
+    if (estado !== 'cargando') return undefined;
+    const t = setTimeout(() => {
+      corridaRef.current += 1; // lo que llegue de la corrida colgada ya no pisa nada
+      setEstado('error');
+      setDetalleError(
+        'La identificación de este equipo está tardando demasiado. Puede ser la conexión. '
+        + 'Probá de nuevo; si sigue igual, cerrá sesión y volvé a entrar.',
+      );
+    }, 25000);
+    return () => clearTimeout(t);
+  }, [estado]);
 
   const activar = async () => {
     const sucursal = sucursales.find((o) => o.id === elegida);

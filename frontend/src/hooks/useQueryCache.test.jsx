@@ -127,4 +127,31 @@ describe('useQueryCache', () => {
     expect(vista.ultimo().data).toEqual(['página 0']);
     vista.desmontar();
   });
+
+  // ⚠️ ESTE TEST EXISTE POR UN BUG REAL, Y NO SE VE ACÁ SINO EN EL MOSTRADOR.
+  //
+  // `invalidate` nacía de nuevo en cada render. Quien la use como dependencia de un efecto
+  // —el mostrador la usa para montar su `setInterval` de refresco— desarma y rearma ese
+  // efecto en cada render, y la cuenta empieza de cero cada vez. En una pantalla que
+  // renderiza todo el tiempo, el temporizador no llega al final NUNCA.
+  //
+  // Se notó en las entradas por QR: las marca el socio desde su celular, así que la única
+  // forma que tiene el mostrador de enterarse es ese ciclo. "El QR va lento" era esto.
+  it('⚠️ `invalidate` y `mutate` no cambian de identidad entre renders', async () => {
+    const traer = vi.fn().mockResolvedValue(['ana']);
+    const vista = montar(() => useQueryCache(['socios'], traer, { staleTime: 60000 }));
+    await esperar();
+
+    const primera = vista.ultimo();
+
+    // Un re-render como los que sobran en una pantalla viva (una tecla, un cartel que se va).
+    act(() => { primera.mutate(['ana', 'beto']); });
+    await esperar();
+
+    const segunda = vista.ultimo();
+    expect(segunda.data, 'hubo re-render de verdad').toEqual(['ana', 'beto']);
+    expect(segunda.invalidate).toBe(primera.invalidate);
+    expect(segunda.mutate).toBe(primera.mutate);
+    vista.desmontar();
+  });
 });
