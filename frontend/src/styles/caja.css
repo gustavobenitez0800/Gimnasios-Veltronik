@@ -95,3 +95,42 @@
 }
 .caja-fallo > div { flex: 1; }
 .caja-fallo div div { color: var(--text-muted); margin-top: 0.2rem; }
+
+/* ─── El resultado, línea por línea ───
+   Efectivo y digital se muestran separados y NUNCA sumados: un faltante de efectivo y un
+   sobrante digital son dos hechos distintos, y sumarlos los borra a los dos. */
+.caja-linea {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-top: 0.85rem;
+}
+
+.caja-linea-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.caja-linea-titulo > span {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.caja-linea-titulo > strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.caja-linea-titulo > strong.ok { color: var(--success); }
+.caja-linea-titulo > strong.falta { color: var(--danger); }
+.caja-linea-titulo > strong.sobra { color: var(--warning); }
+
+/* El total del período: cierra la lista de métodos, separado por una línea. */
+.caja-metodos-total {
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  font-weight: 700;
+}

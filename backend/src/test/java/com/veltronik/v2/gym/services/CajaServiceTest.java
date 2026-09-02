@@ -94,8 +94,22 @@ class CajaServiceTest {
         @Test
         @DisplayName("un método raro cae en 'otros' en vez de perderse")
         void metodoDesconocido() {
-            hayPagos(pago("MERCADOPAGO", "paid", "30000"));
+            hayPagos(pago("CHEQUE", "paid", "30000"));
             assertEquals(0, service.resumenAbierto().otros().compareTo(new BigDecimal("30000")));
+        }
+
+        // ⭐ EL BUG: Mercado Pago es una de las cuatro opciones que ofrece el sistema al
+        // cobrar, pero el cierre no lo reconocía y lo mandaba a "otros" con los métodos
+        // raros. Un gimnasio que cobra por MP no veía esa plata en ninguna parte del arqueo.
+        @Test
+        @DisplayName("Mercado Pago tiene su propia cuenta, no cae en 'otros'")
+        void mercadoPagoSeReconoce() {
+            hayPagos(pago("MERCADOPAGO", "paid", "30000"));
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.mercadopago().compareTo(new BigDecimal("30000")));
+            assertEquals(0, r.otros().signum(), "no puede estar contado dos veces");
         }
     }
 
@@ -110,7 +124,7 @@ class CajaServiceTest {
             hayPagos(pago("CASH", "paid", "50000"));
 
             var e = assertThrows(ResponseStatusException.class,
-                    () -> service.cerrar(null, null, "Carla", false));
+                    () -> service.cerrar(null, null, null, "Carla", false));
 
             assertTrue(e.getMessage().contains("contar"));
             verify(cierres, never()).save(any());
@@ -123,7 +137,7 @@ class CajaServiceTest {
             // que contó sería peor: el historial mostraría un arqueo que nunca existió.
             hayPagos(pago("CASH", "paid", "50000"));
 
-            CajaCierre c = service.cerrar(null, null, "Hugo", true);
+            CajaCierre c = service.cerrar(null, null, null, "Hugo", true);
 
             assertFalse(c.isConArqueo());
             assertNull(c.getDeclaradoEfectivo());
@@ -135,7 +149,7 @@ class CajaServiceTest {
         void cuadra() {
             hayPagos(pago("CASH", "paid", "50000"), pago("TRANSFER", "paid", "45000"));
 
-            CajaCierre c = service.cerrar(new BigDecimal("50000"), null, "Carla", false);
+            CajaCierre c = service.cerrar(new BigDecimal("50000"), BigDecimal.ZERO, null, "Carla", false);
 
             assertEquals(0, c.getDiferencia().signum());
             assertTrue(c.isConArqueo());
@@ -148,7 +162,7 @@ class CajaServiceTest {
             // faltantes, y un signo al revés convertiría un robo en un sobrante.
             hayPagos(pago("CASH", "paid", "50000"));
 
-            CajaCierre c = service.cerrar(new BigDecimal("47500"), "di mal el vuelto", "Carla", false);
+            CajaCierre c = service.cerrar(new BigDecimal("47500"), BigDecimal.ZERO, "di mal el vuelto", "Carla", false);
 
             assertEquals(0, c.getDiferencia().compareTo(new BigDecimal("-2500")));
             assertEquals("di mal el vuelto", c.getNota());
@@ -162,11 +176,86 @@ class CajaServiceTest {
             // función se volvería ruido que nadie mira.
             hayPagos(pago("CASH", "paid", "50000"), pago("TRANSFER", "paid", "200000"));
 
-            CajaCierre c = service.cerrar(new BigDecimal("50000"), null, "Carla", false);
+            CajaCierre c = service.cerrar(new BigDecimal("50000"), BigDecimal.ZERO, null, "Carla", false);
 
             assertEquals(0, c.getDiferencia().signum());
             assertEquals(0, c.getEsperadoTransferencia().compareTo(new BigDecimal("200000")),
                     "pero sí se guarda, para conciliar contra el banco");
+        }
+
+
+        // ⭐ EL FRAUDE QUE ESTO CIERRA
+        //
+        // Quien atiende cobra $48.000 en efectivo, se guarda la plata, y registra el cobro
+        // como "transferencia". El cajón cuadra PERFECTO —el sistema no espera ese
+        // efectivo— y la transferencia que el sistema da por recibida nunca existió.
+        // Contando solo el cajón, esto no lo detecta nadie, nunca.
+        @Test
+        @DisplayName("cobrar en efectivo y anotarlo como transferencia queda a la vista")
+        void elEfectivoDisfrazadoDeTransferencia() {
+            hayPagos(pago("TRANSFER", "paid", "48000"));
+
+            // Cuenta el cajón: no hay efectivo, y el sistema tampoco lo espera. Cuadra.
+            // Después mira el banco: no entró nada.
+            CajaCierre c = service.cerrar(BigDecimal.ZERO, BigDecimal.ZERO, null, "Carla", false);
+
+            assertEquals(0, c.getDiferencia().signum(), "el cajón cuadra: por eso no alcanzaba");
+            assertEquals(0, c.getDiferenciaDigital().compareTo(new BigDecimal("-48000")),
+                    "pero el banco dice que esa transferencia no existió");
+        }
+
+        @Test
+        @DisplayName("transferencias y Mercado Pago se cuentan juntos")
+        void loDigitalVaJunto() {
+            // Quien cuenta abre la app y mira cuánto entró. Es un solo gesto: pedirle dos
+            // números para la misma revisión es friccion sin nada a cambio.
+            hayPagos(pago("TRANSFER", "paid", "30000"), pago("MERCADOPAGO", "paid", "20000"));
+
+            CajaCierre c = service.cerrar(BigDecimal.ZERO, new BigDecimal("50000"), null, "Carla", false);
+
+            assertEquals(0, c.getDiferenciaDigital().signum());
+        }
+
+        @Test
+        @DisplayName("RECEPCIÓN tampoco puede cerrar sin contar lo digital")
+        void hayQueContarLoDigital() {
+            // Si se pudiera saltear, el agujero vuelve a estar abierto: alcanzaría con no
+            // declarar nunca las transferencias.
+            hayPagos(pago("CASH", "paid", "50000"));
+
+            assertThrows(ResponseStatusException.class,
+                    () -> service.cerrar(new BigDecimal("50000"), null, null, "Carla", false));
+        }
+
+        @Test
+        @DisplayName("el dueño que corta sin contar no declara ninguna de las dos")
+        void elCorteDelDuenoNoDeclaraNada() {
+            hayPagos(pago("CASH", "paid", "50000"), pago("TRANSFER", "paid", "20000"));
+
+            CajaCierre c = service.cerrar(null, null, null, "Dueño", true);
+
+            assertNull(c.getDiferencia());
+            assertNull(c.getDiferenciaDigital(), "no se contó: no puede figurar como que cuadró");
+        }
+
+        @Test
+        @DisplayName("tampoco se acepta un digital negativo")
+        void nadaDeDigitalNegativo() {
+            hayPagos(pago("CASH", "paid", "50000"));
+            assertThrows(ResponseStatusException.class,
+                    () -> service.cerrar(BigDecimal.ZERO, new BigDecimal("-1"), null, "Carla", false));
+        }
+
+        @Test
+        @DisplayName("si entró MÁS plata de la registrada, la diferencia es positiva")
+        void entroDeMas() {
+            // Pasa cuando alguien transfiere y el cobro no se cargó. No es robo, pero es
+            // plata sin dueño: hay que buscar de quién fue.
+            hayPagos(pago("TRANSFER", "paid", "30000"));
+
+            CajaCierre c = service.cerrar(BigDecimal.ZERO, new BigDecimal("48000"), null, "Carla", false);
+
+            assertEquals(0, c.getDiferenciaDigital().compareTo(new BigDecimal("18000")));
         }
 
         @Test
@@ -174,7 +263,7 @@ class CajaServiceTest {
         void nadaDeNegativos() {
             hayPagos(pago("CASH", "paid", "50000"));
             assertThrows(ResponseStatusException.class,
-                    () -> service.cerrar(new BigDecimal("-1"), null, "Carla", false));
+                    () -> service.cerrar(new BigDecimal("-1"), BigDecimal.ZERO, null, "Carla", false));
         }
 
         @Test
@@ -184,7 +273,7 @@ class CajaServiceTest {
             // cierre tiene que seguir diciendo quién lo hizo: sin nombres no hay patrón por
             // persona, que es para lo que existe el historial.
             hayPagos(pago("CASH", "paid", "1000"));
-            assertEquals("Carla", service.cerrar(new BigDecimal("1000"), null, "Carla", false).getCerradoPorNombre());
+            assertEquals("Carla", service.cerrar(new BigDecimal("1000"), BigDecimal.ZERO, null, "Carla", false).getCerradoPorNombre());
         }
     }
 
@@ -201,7 +290,7 @@ class CajaServiceTest {
             when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.of(anterior));
             hayPagos(pago("CASH", "paid", "1000"));
 
-            CajaCierre c = service.cerrar(new BigDecimal("1000"), null, "Carla", false);
+            CajaCierre c = service.cerrar(new BigDecimal("1000"), BigDecimal.ZERO, null, "Carla", false);
 
             assertEquals(finAnterior, c.getDesde(), "sin esto, un período contaría cobros ya arqueados");
         }
@@ -214,7 +303,7 @@ class CajaServiceTest {
             // estrenar la función.
             hayPagos(pago("CASH", "paid", "1000"));
 
-            CajaCierre c = service.cerrar(new BigDecimal("1000"), null, "Carla", false);
+            CajaCierre c = service.cerrar(new BigDecimal("1000"), BigDecimal.ZERO, null, "Carla", false);
 
             assertTrue(c.getDesde().isAfter(LocalDateTime.now().minusDays(31)));
         }

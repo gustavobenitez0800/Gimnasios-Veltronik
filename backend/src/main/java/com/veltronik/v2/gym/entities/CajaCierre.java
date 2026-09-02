@@ -47,6 +47,14 @@ public class CajaCierre extends TenantAwareEntity {
     @Column(name = "esperado_tarjeta", nullable = false)
     private BigDecimal esperadoTarjeta = BigDecimal.ZERO;
 
+    /**
+     * Mercado Pago. Tiene su propia casilla al cobrar, pero el cierre no lo reconocía y lo
+     * mandaba a "otros" junto con los métodos raros: un gimnasio que cobra por MP no veía
+     * esa plata en ninguna parte del arqueo.
+     */
+    @Column(name = "esperado_mercadopago", nullable = false)
+    private BigDecimal esperadoMercadopago = BigDecimal.ZERO;
+
     @Column(name = "esperado_otros", nullable = false)
     private BigDecimal esperadoOtros = BigDecimal.ZERO;
 
@@ -68,6 +76,24 @@ public class CajaCierre extends TenantAwareEntity {
     /** Declarado menos esperado. Negativo = falta plata. NULL si no hubo conteo. */
     @Column(name = "diferencia")
     private BigDecimal diferencia;
+
+    /**
+     * Lo que la persona dice que entró por transferencia y Mercado Pago, mirando el banco
+     * o la app.
+     *
+     * <p><b>Por qué se declara.</b> Sin esto quedaba abierto el agujero más grande del
+     * módulo: cobrar $48.000 en efectivo, guardarse la plata y registrar el cobro como
+     * "transferencia". El cajón cuadra perfecto —el sistema no espera ese efectivo— y la
+     * transferencia que el sistema da por recibida nunca existió.</p>
+     *
+     * <p>Van juntos porque son un solo gesto: se abre la app y se mira cuánto entró.</p>
+     */
+    @Column(name = "declarado_digital")
+    private BigDecimal declaradoDigital;
+
+    /** Negativo = el sistema dice que entró plata que en la cuenta no está. */
+    @Column(name = "diferencia_digital")
+    private BigDecimal diferenciaDigital;
 
     /**
      * {@code true} = alguien contó el cajón. {@code false} = corte contable sin contar.

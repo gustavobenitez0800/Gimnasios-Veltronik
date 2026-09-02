@@ -85,6 +85,7 @@ public class CajaController {
 
         return ResponseEntity.ok(cajaService.cerrar(
                 input.getDeclaradoEfectivo(),
+                input.getDeclaradoDigital(),
                 input.getNota(),
                 input.getCerradoPor(),
                 puedeCerrarSinContar));
@@ -119,12 +120,16 @@ public class CajaController {
     public static class CierreInput {
         /** El efectivo contado. NULL = corte sin conteo (solo dueño/admin). */
         private BigDecimal declaradoEfectivo;
+        /** Lo que entró por transferencia y Mercado Pago, mirando el banco o la app. */
+        private BigDecimal declaradoDigital;
         private String nota;
         /** Quién cerró, para congelar el nombre en el registro. */
         private String cerradoPor;
 
         public BigDecimal getDeclaradoEfectivo() { return declaradoEfectivo; }
         public void setDeclaradoEfectivo(BigDecimal v) { this.declaradoEfectivo = v; }
+        public BigDecimal getDeclaradoDigital() { return declaradoDigital; }
+        public void setDeclaradoDigital(BigDecimal v) { this.declaradoDigital = v; }
         public String getNota() { return nota; }
         public void setNota(String v) { this.nota = v; }
         public String getCerradoPor() { return cerradoPor; }

@@ -27,10 +27,11 @@ class CajaService {
   /**
    * Cierra el período.
    *
-   * @param declaradoEfectivo lo contado. null = corte sin conteo (solo dueño/admin).
+   * @param declaradoEfectivo lo contado en el cajón. null = corte sin conteo (solo dueño).
+   * @param declaradoDigital  lo que entró por transferencia y Mercado Pago.
    */
-  async cerrar({ declaradoEfectivo, nota, cerradoPor }) {
-    const { data } = await apiClient.post('/gym/caja/cierre', { declaradoEfectivo, nota, cerradoPor });
+  async cerrar({ declaradoEfectivo, declaradoDigital, nota, cerradoPor }) {
+    const { data } = await apiClient.post('/gym/caja/cierre', { declaradoEfectivo, declaradoDigital, nota, cerradoPor });
     return data;
   }
 

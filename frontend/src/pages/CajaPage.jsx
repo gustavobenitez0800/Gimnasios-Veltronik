@@ -62,6 +62,10 @@ export default function CajaPage() {
   // gente deje de cerrar caja. Y una caja que no se cierra no sirve para nada.
   const [contando, setContando] = useState(false);
   const [efectivo, setEfectivo] = useState('');
+  // Transferencias y Mercado Pago van en un solo campo: quien cuenta abre la app del banco
+  // o de MP y mira cuánto entró. Es un solo gesto; pedir dos números para la misma
+  // revisión es fricción sin nada a cambio.
+  const [digital, setDigital] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   // El resultado, recién revelado. Es el único momento en que quien contó ve el número.
@@ -89,9 +93,11 @@ export default function CajaPage() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const totalContado = useMemo(() => parseFloat(efectivo) || 0, [efectivo]);
+  const totalDigital = useMemo(() => parseFloat(digital) || 0, [digital]);
 
   const abrirConteo = () => {
     setEfectivo('');
+    setDigital('');
     setResultado(null);
     setExplicacion('');
     setContando(true);
@@ -105,11 +111,16 @@ export default function CajaPage() {
       showToast('Escribí cuánto efectivo hay. Si no hay nada, poné 0.', 'error');
       return;
     }
+    if (digital.trim() === '') {
+      showToast('Escribí cuánto entró por transferencia y Mercado Pago. Si no entró nada, poné 0.', 'error');
+      return;
+    }
     setGuardando(true);
     try {
       const turno = getShift();
       const cierre = await cajaService.cerrar({
         declaradoEfectivo: totalContado,
+        declaradoDigital: totalDigital,
         nota: null,
         cerradoPor: turno?.name || profile?.fullName || 'Sin identificar',
       });
@@ -129,7 +140,7 @@ export default function CajaPage() {
     setConfirmandoCorte(false);
     setGuardando(true);
     try {
-      await cajaService.cerrar({ declaradoEfectivo: null, nota: null, cerradoPor: profile?.fullName || 'Dueño' });
+      await cajaService.cerrar({ declaradoEfectivo: null, declaradoDigital: null, nota: null, cerradoPor: profile?.fullName || 'Dueño' });
       showToast('Período cerrado sin conteo.', 'success');
       cargar();
     } catch (err) {
@@ -157,7 +168,7 @@ export default function CajaPage() {
     <div className="caja-page">
       <PageHeader
         title="Cierre de caja"
-        subtitle="Contá el efectivo y el sistema te dice si coincide"
+        subtitle="Contá la plata y el sistema te dice si coincide"
         icon="dollarSign"
       />
 
@@ -193,10 +204,22 @@ export default function CajaPage() {
                 <div className="caja-metodos">
                   <div><span>Efectivo</span><strong>{formatCurrency(abierto.efectivo)}</strong></div>
                   <div><span>Transferencia</span><strong>{formatCurrency(abierto.transferencia)}</strong></div>
+                  {/* Mercado Pago tenía su casilla al cobrar pero no acá: esa plata venía
+                      cayendo en "Otros", junto con los métodos raros. Un gimnasio que cobra
+                      por MP no la veía en ninguna parte del arqueo. */}
+                  <div><span>Mercado Pago</span><strong>{formatCurrency(abierto.mercadopago)}</strong></div>
                   <div><span>Tarjeta</span><strong>{formatCurrency(abierto.tarjeta)}</strong></div>
                   {Number(abierto.otros) > 0 && (
                     <div><span>Otros</span><strong>{formatCurrency(abierto.otros)}</strong></div>
                   )}
+                  <div className="caja-metodos-total">
+                    <span>Total del período</span>
+                    <strong>{formatCurrency(
+                      Number(abierto.efectivo || 0) + Number(abierto.transferencia || 0)
+                      + Number(abierto.mercadopago || 0) + Number(abierto.tarjeta || 0)
+                      + Number(abierto.otros || 0),
+                    )}</strong>
+                  </div>
                 </div>
               )}
 
@@ -212,7 +235,8 @@ export default function CajaPage() {
               </div>
               {!esDueno && (
                 <p className="form-hint">
-                  Contá el efectivo del cajón. El sistema te dice después si coincide.
+                  Contá el efectivo del cajón y fijate cuánto entró por transferencia y
+                  Mercado Pago. El sistema te dice después si coincide.
                 </p>
               )}
             </>
@@ -228,11 +252,12 @@ export default function CajaPage() {
             ) : (
               <table className="table">
                 <thead>
-                  <tr><th>Cuándo</th><th>Quién</th><th>Sistema</th><th>Contado</th><th>Diferencia</th></tr>
+                  <tr><th>Cuándo</th><th>Quién</th><th>Sistema</th><th>Contado</th><th>Efectivo</th><th>Transf. y MP</th></tr>
                 </thead>
                 <tbody>
                   {historial.map((c) => {
                     const dif = c.diferencia == null ? null : Number(c.diferencia);
+                    const difD = c.diferenciaDigital == null ? null : Number(c.diferenciaDigital);
                     return (
                       <tr key={c.id}>
                         <td data-label="Cuándo">{fecha(c.hasta)}</td>
@@ -242,12 +267,22 @@ export default function CajaPage() {
                           {c.conArqueo ? formatCurrency(c.declaradoEfectivo)
                             : <span className="text-muted">sin contar</span>}
                         </td>
-                        <td data-label="Diferencia">
+                        <td data-label="Efectivo">
                           {dif === null ? <span className="text-muted">—</span>
                             : dif === 0 ? <span className="caja-ok">exacto</span>
                             : <span className={dif < 0 ? 'caja-falta' : 'caja-sobra'} title={c.nota || ''}>
                                 {dif > 0 ? '+' : ''}{formatCurrency(dif)}
                                 {c.nota ? ' 💬' : ''}
+                              </span>}
+                        </td>
+                        {/* Los cierres viejos —de antes de que se contara lo digital— quedan
+                            en "—" a propósito: en esos días nadie lo contó, y mostrar
+                            "exacto" diría que se revisó y dio bien. */}
+                        <td data-label="Transf. y MP">
+                          {difD === null ? <span className="text-muted">—</span>
+                            : difD === 0 ? <span className="caja-ok">exacto</span>
+                            : <span className={difD < 0 ? 'caja-falta' : 'caja-sobra'}>
+                                {difD > 0 ? '+' : ''}{formatCurrency(difD)}
                               </span>}
                         </td>
                       </tr>
@@ -289,7 +324,7 @@ export default function CajaPage() {
       <Modal
         isOpen={contando}
         onClose={() => setContando(false)}
-        title="Contá el efectivo del cajón"
+        title="Contá la caja"
         actions={<ModalActions onCancel={() => setContando(false)} saving={guardando} submitText="Confirmar y cerrar" />}
       >
         <form onSubmit={confirmar} noValidate>
@@ -299,23 +334,35 @@ export default function CajaPage() {
           </p>
 
           <div className="form-group">
-            <label className="form-label">¿Cuánto efectivo hay en la caja?</label>
+            <label className="form-label">Efectivo en el cajón</label>
             <input
-              type="number"
-              inputMode="decimal"
-              min="0"
+              type="number" inputMode="decimal" min="0"
               className="form-input caja-monto"
-              value={efectivo}
-              placeholder="0"
-              autoFocus
+              value={efectivo} placeholder="0" autoFocus
               onChange={(e) => setEfectivo(e.target.value)}
             />
+          </div>
+
+          {/* ⚠️ ESTE CAMPO ES EL QUE CIERRA EL AGUJERO MÁS GRANDE.
+              Sin él: se cobra $48.000 en efectivo, se guarda la plata, y el cobro se
+              registra como "transferencia". El cajón cuadra perfecto —el sistema no espera
+              ese efectivo— y la transferencia que el sistema da por recibida nunca existió.
+              Contando solo el cajón, eso no lo detecta nadie. */}
+          <div className="form-group">
+            <label className="form-label">Transferencias y Mercado Pago</label>
+            <input
+              type="number" inputMode="decimal" min="0"
+              className="form-input caja-monto"
+              value={digital} placeholder="0"
+              onChange={(e) => setDigital(e.target.value)}
+            />
+            <small className="form-hint">Mirá el banco o la app de Mercado Pago: cuánto entró desde el último cierre.</small>
           </div>
 
           {/* Su propia cuenta, no la del sistema. */}
           <div className="caja-total-contado">
             <span>Estás declarando</span>
-            <strong>{formatCurrency(totalContado)}</strong>
+            <strong>{formatCurrency(totalContado + totalDigital)}</strong>
           </div>
         </form>
       </Modal>
@@ -329,19 +376,67 @@ export default function CajaPage() {
       >
         {resultado && (() => {
           const dif = Number(resultado.diferencia || 0);
+          const difD = Number(resultado.diferenciaDigital || 0);
+          // Las dos por separado, nunca sumadas: un faltante de efectivo y un sobrante
+          // digital son dos hechos distintos, y sumarlos los borra a los dos.
+          // ⚠️ Sin conteo no hay nada que cuadre. Este modal solo se abre desde el arqueo,
+          // pero si algún día se abriera con un corte sin contar, decir "¡Cuadra todo!"
+          // sería exactamente la mentira que este módulo existe para no decir.
+          const seConto = resultado.conArqueo !== false;
+          const cuadraTodo = seConto && dif === 0 && difD === 0;
+          const cuantas = (dif !== 0 ? 1 : 0) + (difD !== 0 ? 1 : 0);
+          // Un faltante y un sobrante no son lo mismo: al que falta plata hay que buscarla.
+          const hayFaltante = dif < 0 || difD < 0;
+          const frase = (d) => d === 0 ? 'Cuadra'
+            : d < 0 ? `Faltan ${formatCurrency(Math.abs(d))}`
+            : `Sobran ${formatCurrency(d)}`;
+          const clase = (d) => d === 0 ? 'ok' : d < 0 ? 'falta' : 'sobra';
+          const esperadoDigital = Number(resultado.esperadoTransferencia || 0)
+            + Number(resultado.esperadoMercadopago || 0);
           return (
             <div className="caja-resultado">
-              <div className={`caja-resultado-cifra ${dif === 0 ? 'ok' : dif < 0 ? 'falta' : 'sobra'}`}>
-                {dif === 0 ? '¡Cuadra exacto!' : dif < 0
-                  ? `Faltan ${formatCurrency(Math.abs(dif))}`
-                  : `Sobran ${formatCurrency(dif)}`}
-              </div>
-              <div className="caja-metodos">
-                <div><span>El sistema esperaba</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></div>
-                <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoEfectivo)}</strong></div>
+              <div className={`caja-resultado-cifra ${
+                cuadraTodo ? 'ok' : hayFaltante ? 'falta' : 'sobra'
+              }`}>
+                {!seConto ? 'Cerrado sin contar'
+                  : cuadraTodo ? '¡Cuadra todo!'
+                  : cuantas === 1 ? 'Hay una diferencia'
+                  : 'Hay diferencias'}
               </div>
 
-              {dif !== 0 && !resultado.nota && (
+              <div className="caja-linea">
+                <div className="caja-linea-titulo">
+                  <span>Efectivo</span>
+                  <strong className={clase(dif)}>{frase(dif)}</strong>
+                </div>
+                <div className="caja-metodos">
+                  <div><span>El sistema esperaba</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></div>
+                  <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoEfectivo)}</strong></div>
+                </div>
+              </div>
+
+              <div className="caja-linea">
+                <div className="caja-linea-titulo">
+                  <span>Transferencias y Mercado Pago</span>
+                  <strong className={clase(difD)}>{frase(difD)}</strong>
+                </div>
+                <div className="caja-metodos">
+                  <div><span>El sistema esperaba</span><strong>{formatCurrency(esperadoDigital)}</strong></div>
+                  <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoDigital)}</strong></div>
+                </div>
+                {difD < 0 && (
+                  /* No es un descuido de conteo: la plata digital no se cae del cajón. O el
+                     cobro se registró con el método equivocado, o esa transferencia nunca
+                     llegó. Las dos cosas hay que mirarlas hoy, no a fin de mes. */
+                  <p className="form-hint caja-aviso">
+                    <Icon name="alertTriangle" size="0.9em" /> El sistema da por cobrada plata
+                    que no está en la cuenta. Revisá si algún cobro se registró con el método
+                    equivocado.
+                  </p>
+                )}
+              </div>
+
+              {!cuadraTodo && !resultado.nota && (
                 <div className="form-group" style={{ marginTop: '1rem' }}>
                   <label className="form-label">¿Qué pasó? (opcional)</label>
                   <input

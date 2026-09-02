@@ -81,17 +81,29 @@ public class CajaService {
      *
      * @param declaradoEfectivo lo que la persona dice tener en el cajón. NULL = corte sin
      *                          conteo, que solo puede pedir un dueño o admin.
+     * @param declaradoDigital  lo que dice haber entrado por transferencia y Mercado Pago.
+     *
+     * <p><b>Por qué se declaran los dos.</b> Contando solo el cajón quedaba abierto el
+     * agujero más grande: cobrar en efectivo, guardarse la plata y registrar el cobro como
+     * "transferencia". El cajón cuadra perfecto —el sistema no espera ese efectivo— y la
+     * transferencia que el sistema da por recibida nunca existió. Con las dos declaraciones,
+     * ese movimiento deja un faltante digital que no se puede tapar.</p>
      */
     @Transactional
-    public CajaCierre cerrar(BigDecimal declaradoEfectivo, String nota, String cerradoPor, boolean puedeCerrarSinContar) {
-        if (declaradoEfectivo == null && !puedeCerrarSinContar) {
+    public CajaCierre cerrar(BigDecimal declaradoEfectivo, BigDecimal declaradoDigital,
+                             String nota, String cerradoPor, boolean puedeCerrarSinContar) {
+        boolean conteoCompleto = declaradoEfectivo != null && declaradoDigital != null;
+        if (!conteoCompleto && !puedeCerrarSinContar) {
             // Recepción no tiene esta salida: es la que tiene el cajón adelante. Si pudiera
-            // cerrar sin contar, el arqueo no significaría nada.
+            // cerrar sin contar —o contando solo una mitad— el arqueo no significaría nada.
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Hay que contar el efectivo para cerrar la caja.");
+                    "Hay que contar el efectivo y las transferencias para cerrar la caja.");
         }
         if (declaradoEfectivo != null && declaradoEfectivo.signum() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El efectivo no puede ser negativo.");
+        }
+        if (declaradoDigital != null && declaradoDigital.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las transferencias no pueden ser negativas.");
         }
 
         LocalDateTime desde = inicioDelPeriodo();
@@ -107,14 +119,18 @@ public class CajaService {
         cierre.setHasta(hasta);
         cierre.setEsperadoEfectivo(r.efectivo());
         cierre.setEsperadoTransferencia(r.transferencia());
+        cierre.setEsperadoMercadopago(r.mercadopago());
         cierre.setEsperadoTarjeta(r.tarjeta());
         cierre.setEsperadoOtros(r.otros());
         cierre.setCantidadCobros(r.cantidadCobros());
-        cierre.setConArqueo(declaradoEfectivo != null);
+        cierre.setConArqueo(conteoCompleto);
         cierre.setDeclaradoEfectivo(declaradoEfectivo);
+        cierre.setDeclaradoDigital(declaradoDigital);
         // Negativo = falta plata. Se guarda calculado y no se deduce al leer: si mañana
         // alguien corrige un cobro viejo, la diferencia de este día no puede cambiar.
         cierre.setDiferencia(declaradoEfectivo == null ? null : declaradoEfectivo.subtract(r.efectivo()));
+        // Negativo = el sistema dice que entró plata que en la cuenta no está.
+        cierre.setDiferenciaDigital(declaradoDigital == null ? null : declaradoDigital.subtract(r.digital()));
         cierre.setNota(nota != null && !nota.isBlank() ? nota.trim() : null);
         cierre.setCerradoPorNombre(cerradoPor);
 
@@ -176,6 +192,7 @@ public class CajaService {
 
         BigDecimal efectivo = BigDecimal.ZERO;
         BigDecimal transferencia = BigDecimal.ZERO;
+        BigDecimal mercadopago = BigDecimal.ZERO;
         BigDecimal tarjeta = BigDecimal.ZERO;
         BigDecimal otros = BigDecimal.ZERO;
         int cuantos = 0;
@@ -187,11 +204,15 @@ public class CajaService {
             switch (nullSafe(p.getPaymentMethod()).toUpperCase()) {
                 case "CASH" -> efectivo = efectivo.add(monto);
                 case "TRANSFER" -> transferencia = transferencia.add(monto);
+                // Mercado Pago es una de las opciones que ofrece el sistema al cobrar, pero
+                // acá no estaba y caía en "otros" con los métodos raros: el gimnasio que
+                // cobra por MP no veía esa plata en ninguna parte del arqueo.
+                case "MERCADOPAGO", "MERCADO_PAGO", "MP" -> mercadopago = mercadopago.add(monto);
                 case "CARD" -> tarjeta = tarjeta.add(monto);
                 default -> otros = otros.add(monto);
             }
         }
-        return new Resumen(desde, hasta, efectivo, transferencia, tarjeta, otros, cuantos);
+        return new Resumen(desde, hasta, efectivo, transferencia, mercadopago, tarjeta, otros, cuantos);
     }
 
     private static String nullSafe(String s) {
@@ -201,5 +222,12 @@ public class CajaService {
     /** Lo que el sistema contó en un período. */
     public record Resumen(LocalDateTime desde, LocalDateTime hasta,
                           BigDecimal efectivo, BigDecimal transferencia,
-                          BigDecimal tarjeta, BigDecimal otros, int cantidadCobros) {}
+                          BigDecimal mercadopago, BigDecimal tarjeta,
+                          BigDecimal otros, int cantidadCobros) {
+
+        /** Transferencias y Mercado Pago juntos: es lo que se revisa de una sola mirada. */
+        public BigDecimal digital() {
+            return transferencia.add(mercadopago);
+        }
+    }
 }
