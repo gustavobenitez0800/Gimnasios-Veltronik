@@ -45,9 +45,25 @@ public class CajaController {
         body.put("hasta", r.hasta());
         body.put("efectivo", r.efectivo());
         body.put("transferencia", r.transferencia());
+        // ⚠️ FALTABA, y la pantalla lo muestra igual: el renglón "Mercado Pago" del dueño
+        // venía vacío desde que se agregó (V58). El servicio lo calculaba, la pantalla lo
+        // pedía, y en el medio nadie lo mandaba — un gimnasio que cobra por MP veía un cero.
+        body.put("mercadopago", r.mercadopago());
         body.put("tarjeta", r.tarjeta());
         body.put("otros", r.otros());
         body.put("cantidadCobros", r.cantidadCobros());
+        // Lo que salió del cajón, que es lo que hay que mirar cuando la caja cuadra demasiado
+        // bien: un egreso inventado la hace cuadrar exacto.
+        body.put("egresos", r.egresosEfectivo());
+        body.put("ingresosManuales", r.ingresosEfectivo());
+        body.put("cantidadMovimientos", r.cantidadMovimientos());
+        // La cuenta completa, calculada en UN solo lugar (Resumen.enElCajon): fondo + cobrado
+        // en efectivo + ingresos manuales - egresos. Repetirla en la pantalla es garantizar
+        // que en algún lado quede mal.
+        body.put("esperadoEnElCajon", r.enElCajon(
+                cajaService.sesionAbierta()
+                        .map(com.veltronik.v2.gym.entities.CajaSesion::getFondoInicial)
+                        .orElse(java.math.BigDecimal.ZERO)));
         body.put("ultimoCierre", cajaService.ultimo().map(CajaCierre::getHasta).orElse(null));
         // La otra mitad del arqueo: un cierre puede cuadrar y aun así haber algo raro, si
         // alguien bajó el monto de un cobro después de haberlo registrado.
@@ -122,6 +138,84 @@ public class CajaController {
     }
 
     private static String nvl(String s) { return s == null ? "" : s; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Movimientos de caja: los gastos y las entradas que no son cobros
+    //
+    // ⚠️ La ruta se llama `movimientos-de-caja` y no `movimientos` porque ese nombre ya está
+    // tomado por los COBROS del período (arriba), y son escritorios instalados los que lo
+    // consumen: renombrarlo dejaría sin pantalla a los clientes que todavía no actualizaron.
+    // Un nombre largo es más barato que una versión rota.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Anota un gasto o una entrada de plata que no es un cobro de socio.
+     *
+     * <p><b>Lo puede hacer recepción</b>, que es quien tiene el cajón adelante. Si solo pudiera
+     * el dueño, cada gasto del día esperaría a que él lo cargue — y mientras tanto esa plata
+     * aparecería como FALTANTE, echándole la culpa a quien atendió.</p>
+     *
+     * <p>⚠️ <b>Esto no cierra el agujero del egreso inventado, y hay que decirlo:</b> se escribe
+     * "Proveedor $20.000", se guarda la plata, y el cajón cuadra exacto. Ningún software puede
+     * impedirlo, porque la plata sale igual. Lo que se hace es dejarlo A LA VISTA: firmado, con
+     * detalle obligatorio, y congelado en el cierre para que aparezca al lado de la diferencia.
+     * El control es que el dueño lo mire; para eso primero tiene que existir el renglón.</p>
+     */
+    @PostMapping("/movimientos-de-caja")
+    public ResponseEntity<com.veltronik.v2.gym.entities.CajaMovimiento> registrarMovimiento(
+            @RequestBody MovimientoInput input) {
+        return ResponseEntity.ok(cajaService.registrar(
+                input.getTipo(), input.getCategoria(), input.getDetalle(),
+                input.getMonto(), input.getMetodo(), input.getHechoPor()));
+    }
+
+    /**
+     * Los movimientos del período, anulados incluidos (tachados).
+     *
+     * <p>A diferencia de los cobros, <b>esto lo ve cualquiera</b>. No rompe el conteo a ciegas:
+     * quien cuenta ya sabe cuánto sacó del cajón —lo sacó ella— y sabiendo el fondo y los
+     * egresos todavía le falta el número grande, que es lo cobrado en efectivo. Y necesita
+     * verlo para no cargar dos veces el mismo gasto.</p>
+     */
+    @GetMapping("/movimientos-de-caja")
+    public ResponseEntity<List<com.veltronik.v2.gym.entities.CajaMovimiento>> movimientosDeCaja() {
+        return ResponseEntity.ok(cajaService.movimientosDeCaja());
+    }
+
+    /** Anula un movimiento. No lo borra: borrarlo sería poder borrar la prueba. */
+    @PostMapping("/movimientos-de-caja/{id}/anular")
+    public ResponseEntity<com.veltronik.v2.gym.entities.CajaMovimiento> anularMovimiento(
+            @PathVariable java.util.UUID id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(cajaService.anular(id, body.get("motivo"), body.get("anuladoPor")));
+    }
+
+    /** Lo que manda la pantalla al anotar un movimiento. */
+    public static class MovimientoInput {
+        /** INGRESO o EGRESO. Decide el signo. */
+        private String tipo;
+        /** Limpieza, adelanto, proveedor… */
+        private String categoria;
+        /** Obligatorio en los egresos: es lo que hace la lista revisable. */
+        private String detalle;
+        private BigDecimal monto;
+        /** CASH por defecto. Solo el efectivo mueve el arqueo. */
+        private String metodo;
+        /** Quién lo hizo, para congelar el nombre. */
+        private String hechoPor;
+
+        public String getTipo() { return tipo; }
+        public void setTipo(String v) { this.tipo = v; }
+        public String getCategoria() { return categoria; }
+        public void setCategoria(String v) { this.categoria = v; }
+        public String getDetalle() { return detalle; }
+        public void setDetalle(String v) { this.detalle = v; }
+        public BigDecimal getMonto() { return monto; }
+        public void setMonto(BigDecimal v) { this.monto = v; }
+        public String getMetodo() { return metodo; }
+        public void setMetodo(String v) { this.metodo = v; }
+        public String getHechoPor() { return hechoPor; }
+        public void setHechoPor(String v) { this.hechoPor = v; }
+    }
 
     /**
      * Cierra el período y devuelve el resultado, con la diferencia ya revelada.

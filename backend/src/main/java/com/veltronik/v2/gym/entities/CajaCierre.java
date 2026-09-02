@@ -70,6 +70,30 @@ public class CajaCierre extends TenantAwareEntity {
     @Column(name = "cantidad_cobros", nullable = false)
     private int cantidadCobros;
 
+    // ─── Lo que SALIÓ y lo que entró sin ser un cobro ───
+
+    /**
+     * Lo que se sacó del cajón en el período: limpieza, adelantos, proveedores.
+     *
+     * <p>Se congela acá por lo mismo que el fondo: si no, el esperado de un martes cambiaría
+     * en junio porque alguien anuló un egreso viejo, y un historial que se reescribe solo no
+     * sirve para comparar nada.</p>
+     *
+     * <p>⚠️ Este número es el que hay que mirar cuando la caja cuadra demasiado bien. Un
+     * egreso inventado hace cuadrar el cajón exacto: la plata salió y el sistema la esperaba
+     * afuera. Por eso viaja junto a la diferencia y no escondido en otra pantalla.</p>
+     */
+    @Column(name = "egresos_efectivo", nullable = false)
+    private BigDecimal egresosEfectivo = BigDecimal.ZERO;
+
+    /** Plata que entró al cajón sin ser un cobro de socio (una venta suelta, un aporte). */
+    @Column(name = "ingresos_efectivo", nullable = false)
+    private BigDecimal ingresosEfectivo = BigDecimal.ZERO;
+
+    /** Cuántos movimientos se cargaron a mano. Diez egresos en un día es un dato en sí mismo. */
+    @Column(name = "cantidad_movimientos", nullable = false)
+    private int cantidadMovimientos;
+
     // ─── Lo que declaró la PERSONA ───
 
     /**
