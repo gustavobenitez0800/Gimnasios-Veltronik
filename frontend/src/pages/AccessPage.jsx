@@ -86,6 +86,7 @@ export default function AccessPage() {
   const checkedIn = useMemo(() => data?.adentro || [], [data]);
   const todayLogs = useMemo(() => data?.hoy || [], [data]);
   const avisos = useMemo(() => data?.avisos || [], [data]);
+  const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
   const loadData = invalidate;
 
@@ -215,18 +216,33 @@ export default function AccessPage() {
   // Acá también se calculaba a mano, con su propio redondeo. Sumado al de la lista de socios
   // y al del check-in, el mismo socio podía deber una cantidad de días distinta en cada
   // pantalla — y eso efectivamente pasó: "hace 2 días" en el aviso, "4d vencido" en la lista.
-  const getDaysInfo = (member) => {
+  // Además del `label` corto —el que va en la lista de resultados, donde hay poco lugar—
+  // devuelve el dato PARTIDO en dos: `valor` es el número solo, para poder mostrarlo
+  // enorme en el cartel de la puerta, y `unidad` es la aclaración chiquita de abajo.
+  // Partirlo acá y no en el cartel es lo que evita que alguien lo recomponga con una
+  // expresión regular sobre el texto ya armado.
+  const getDaysInfo = useCallback((member) => {
     const { situacion, diasVencido, diasRestantes, clasesRestantes } = member || {};
-    if (!situacion || situacion === 'SIN_DATOS') return { label: 'Sin fecha', type: 'unknown' };
-    if (situacion === 'INACTIVO') return { label: 'Dado de baja', type: 'expired' };
+    if (!situacion || situacion === 'SIN_DATOS') {
+      return { label: 'Sin fecha', type: 'unknown', valor: '—', unidad: 'sin fecha cargada' };
+    }
+    if (situacion === 'INACTIVO') {
+      return { label: 'Dado de baja', type: 'expired', valor: '—', unidad: 'dado de baja' };
+    }
 
     // Se le acabó el cupo de visitas del abono, con la cuota al día. En la puerta la
     // diferencia con "vencido" es toda: a este socio no hay que cobrarle una deuda, hay que
     // venderle más clases.
-    if (situacion === 'SIN_CLASES') return { label: 'Sin clases', type: 'expired' };
+    if (situacion === 'SIN_CLASES') {
+      return { label: 'Sin clases', type: 'expired', valor: '0', unidad: 'clases restantes' };
+    }
 
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
-      return { label: `${diasVencido}d vencido`, type: 'expired' };
+      return {
+        label: `${diasVencido}d vencido`, type: 'expired',
+        valor: String(diasVencido ?? 0),
+        unidad: diasVencido === 1 ? 'día vencido' : 'días vencido',
+      };
     }
     const d = diasRestantes ?? 0;
     // Con cupo, se muestran las clases: es el número que le importa a quien viene seguido,
@@ -234,10 +250,74 @@ export default function AccessPage() {
     const label = clasesRestantes != null
       ? `${clasesRestantes} clases · ${d}d`
       : `${d}d restantes`;
-    if (d <= 3 || (clasesRestantes != null && clasesRestantes <= 2)) return { label, type: 'danger' };
-    if (d <= 7 || (clasesRestantes != null && clasesRestantes <= 5)) return { label, type: 'warning' };
-    return { label, type: 'ok' };
-  };
+    // El número grande es siempre el de DÍAS: lo tienen todos los socios, y es lo que la
+    // gente pregunta en la puerta. Las clases, cuando el gimnasio las cuenta, van en la
+    // línea de abajo — salvo que sean el límite que se va a agotar primero, y ahí pasan
+    // adelante: de nada sirve un cartel que dice "20 días" al que no le quedan clases.
+    const clasesMandan = clasesRestantes != null && clasesRestantes <= 3 && clasesRestantes < d;
+    const detalle = clasesMandan
+      ? { valor: String(clasesRestantes), unidad: clasesRestantes === 1 ? 'clase · quedan días' : `clases · ${d}d de plazo` }
+      : {
+        valor: String(d),
+        unidad: clasesRestantes != null
+          ? `días · ${clasesRestantes} clases`
+          : (d === 1 ? 'día restante' : 'días restantes'),
+      };
+
+    if (d <= 3 || (clasesRestantes != null && clasesRestantes <= 2)) return { label, type: 'danger', ...detalle };
+    if (d <= 7 || (clasesRestantes != null && clasesRestantes <= 5)) return { label, type: 'warning', ...detalle };
+    return { label, type: 'ok', ...detalle };
+  }, []);
+
+  // ─── ENTRAR POR QR LEVANTA EL MISMO CARTEL QUE ENTRAR A MANO ───
+  //
+  // Cuando el socio escanea, la confirmación aparece en SU teléfono y ahí moría: en la
+  // pantalla del gimnasio no pasaba nada. El socio no tenía dónde ver cuántos días le
+  // quedan sin preguntarle a alguien, y la recepcionista solo se enteraba si el socio tenía
+  // un PROBLEMA (para eso están los avisos de arriba). El que estaba al día, invisible.
+  //
+  // Los ya anunciados se recuerdan para no repetir el cartel en cada refresco. ⚠️ Y en la
+  // PRIMERA carga se marcan todos sin mostrarlos: abrir la pantalla no tiene por qué
+  // disparar los ingresos de los últimos cinco minutos como si acabaran de pasar.
+  const anunciados = useRef(null);
+  useEffect(() => {
+    // Todavía no llegó el primer pedido: no hay nada que sembrar ni que anunciar.
+    if (!data) return;
+
+    // ⚠️ LA SIEMBRA VA CON EL PRIMER PEDIDO, NO CON EL PRIMER INGRESO.
+    //
+    // Acá decía `if (!ingresosQr.length && anunciados.current === null) return;`, que parece
+    // razonable y SE COMÍA AL PRIMER SOCIO QUE ESCANEABA. Lo normal es abrir la pantalla sin
+    // ingresos de los últimos cinco minutos: con la lista vacía no se sembraba nada, y
+    // cuando llegaba el primero se lo tomaba por "el estado inicial" y se lo guardaba sin
+    // mostrarlo. Recién aparecía el segundo.
+    //
+    // Sembrando con el primer pedido —venga vacío o no— la marca de "esto ya estaba" queda
+    // puesta desde el arranque, y todo lo que llega después es nuevo de verdad.
+    if (anunciados.current === null) {
+      anunciados.current = new Set(ingresosQr.map((i) => i.accesoId));
+      return;
+    }
+
+    const nuevos = ingresosQr.filter((i) => !anunciados.current.has(i.accesoId));
+    if (!nuevos.length) return;
+    nuevos.forEach((i) => anunciados.current.add(i.accesoId));
+
+    // El más reciente es el que está parado frente a la pantalla.
+    const ultimo = nuevos.reduce((a, b) => (a.hora > b.hora ? a : b));
+    const info = getDaysInfo(ultimo);
+    mostrarAviso({
+      name: ultimo.nombre,
+      type: info.type === 'expired' ? 'error' : info.type === 'danger' ? 'warning' : 'success',
+      accion: 'Entrada por QR',
+      valor: info.valor,
+      unidad: info.unidad,
+      daysLabel: info.label,
+      initials: getInitials(ultimo.nombre),
+      // Más tiempo que el manual: al que registra la recepcionista ya le habló una persona;
+      // el que escaneó solo tiene esta pantalla para enterarse de cuánto le queda.
+    }, 6000);
+  }, [data, ingresosQr, getDaysInfo, mostrarAviso]);
 
   // ─── ¿Este socio está adentro AHORA? ───
   //
@@ -270,6 +350,10 @@ export default function AccessPage() {
           : daysInfo.type === 'expired' ? 'error'
           : daysInfo.type === 'danger' ? 'warning' : 'success',
         accion: rebote ? 'Ya estaba registrado' : salio ? 'Salida registrada' : 'Entrada registrada',
+        // Al que se va no se le muestra el vencimiento: ya entrenó, y el número grande sería
+        // un reclamo a destiempo. El cartel de salida es una confirmación, nada más.
+        valor: salio || rebote ? null : daysInfo.valor,
+        unidad: salio || rebote ? '' : daysInfo.unidad,
         daysLabel: salio || rebote ? '' : daysInfo.label,
         // La dirección REAL, en el mismo aviso. Antes esto vivía en un toast aparte que
         // salía AL MISMO TIEMPO que el cartelón: dos mensajes distintos, del mismo hecho,
@@ -565,17 +649,27 @@ export default function AccessPage() {
         <div className="acceso-avisos" aria-live="polite">
           {avisosDeEntrada.map((aviso) => (
             <div key={aviso.id} className={`acceso-aviso ${aviso.type}`}>
-              <div className="acceso-aviso-inicial">{aviso.initials}</div>
-              <div className="acceso-aviso-texto">
+              <div className="acceso-aviso-cabecera">
+                <div className="acceso-aviso-inicial">{aviso.initials}</div>
                 <div className="acceso-aviso-nombre">{aviso.name}</div>
+              </div>
+
+              {/* ⭐ EL NÚMERO ES EL CARTEL. Esta pantalla está a la vista de todo el
+                  mostrador, y lo que el socio quiere saber al pasar es una sola cosa:
+                  cuánto le queda. Tiene que leerse de lejos, sin acercarse ni preguntar. */}
+              {aviso.valor != null && (
+                <div className="acceso-aviso-cifra">
+                  <strong>{aviso.valor}</strong>
+                  <span>{aviso.unidad}</span>
+                </div>
+              )}
+
+              <div className="acceso-aviso-pie">
                 {/* QUÉ se registró, no solo a quién: el servidor decide la dirección, así que
                     sin esto se puede apretar "entrada", grabarse una SALIDA y no enterarse. */}
                 <div className="acceso-aviso-accion">{aviso.accion}</div>
                 {aviso.detalle && <div className="acceso-aviso-detalle">{aviso.detalle}</div>}
               </div>
-              {aviso.daysLabel && (
-                <div className="acceso-aviso-dias">{aviso.daysLabel}</div>
-              )}
             </div>
           ))}
         </div>

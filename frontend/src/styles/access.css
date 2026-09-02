@@ -85,6 +85,11 @@
    clickear, así que el foco se queda en el campo del DNI aunque el cartel caiga justo
    debajo del mouse. Sin eso, un clic distraído sobre el aviso apagaría el teclado.
    ──────────────────────────────────────────────────────────── */
+/* El lado del cuadrado. Un solo número: alto y ancho salen de acá, así que no se pueden
+   desincronizar y dejar de ser un cuadrado. Está a la altura de la tarjeta "Registrar
+   Entrada", que es el bloque con el que convive en pantalla. */
+:root { --aviso-lado: 288px; }
+
 .acceso-avisos {
   position: fixed;
   /* Pegado al borde del contenido, no al de la pantalla: si no, se monta sobre el sidebar. */
@@ -95,20 +100,23 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-width: 340px;
   pointer-events: none;
 }
 
 .acceso-aviso {
+  /* ⭐ CUADRADO. Es una ventana emergente que aparece y se va: con forma propia se reconoce
+     de un vistazo, sin leerla, incluso desde el otro lado del mostrador. */
+  width: var(--aviso-lado);
+  height: var(--aviso-lado);
   display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.9rem 1.1rem;
-  border-radius: var(--btn-radius);
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.25rem;
+  border-radius: var(--border-radius-lg);
   background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--success-500);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   color: var(--text-primary);
@@ -122,25 +130,70 @@
 .acceso-aviso.warning { border-left-color: var(--warning-500); }
 .acceso-aviso.error   { border-left-color: var(--error-500); }
 
+/* ─── Arriba: de quién estamos hablando ─── */
+.acceso-aviso-cabecera {
+  display: flex; align-items: center; gap: 0.65rem;
+  min-width: 0;
+}
+
 .acceso-aviso-inicial {
   flex-shrink: 0;
-  width: 42px; height: 42px; border-radius: 50%;
+  width: 38px; height: 38px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-surface, rgba(255,255,255,0.06));
   border: 1px solid var(--border-color);
   font-weight: 700; font-size: var(--font-size-sm);
 }
 
-.acceso-aviso-texto { min-width: 0; flex: 1; }
-
 .acceso-aviso-nombre {
   font-weight: 700;
+  font-size: var(--font-size-base);
+  line-height: 1.25;
+  min-width: 0;
+  /* Dos líneas: un nombre largo se corta, pero "Gustavo Benitez Aguilera" entra entero. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─── El medio: EL NÚMERO ───
+   Es el motivo de que el cartel sea grande. El socio pasa, mira, y ya sabe cuánto le queda:
+   no tiene que acercarse ni preguntarle a nadie. Todo lo demás del cuadro es contexto. */
+.acceso-aviso-cifra {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  min-height: 0;
+}
+.acceso-aviso-cifra strong {
+  font-size: 4.5rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--success-500);
+}
+.acceso-aviso-cifra span {
+  margin-top: 0.3rem;
   font-size: var(--font-size-sm);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+.acceso-aviso.warning .acceso-aviso-cifra strong { color: var(--warning-500); }
+.acceso-aviso.error   .acceso-aviso-cifra strong { color: var(--error-500); }
+
+/* ─── Abajo: qué quedó registrado ─── */
+.acceso-aviso-pie {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.7rem;
 }
 
 /* QUÉ se registró, no solo a quién: la dirección la decide el servidor. */
-.acceso-aviso-accion { font-size: var(--font-size-xs); color: var(--text-muted); }
+.acceso-aviso-accion {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
 
 .acceso-aviso-detalle {
   font-size: var(--font-size-xs);
@@ -148,16 +201,14 @@
   margin-top: 0.15rem;
 }
 
-/* Los días son lo que la recepcionista mira de reojo: el dato más grande del aviso. */
-.acceso-aviso-dias {
-  flex-shrink: 0;
-  font-weight: 700;
-  font-size: var(--font-size-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--success-500);
+/* Sin número —una salida, o un rebote— el cuadro se queda sin su centro. La cabecera se
+   estira para ocupar ese lugar en vez de dejar un hueco arriba. */
+.acceso-aviso:not(:has(.acceso-aviso-cifra)) .acceso-aviso-cabecera {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
 }
-.acceso-aviso.warning .acceso-aviso-dias { color: var(--warning-500); }
-.acceso-aviso.error   .acceso-aviso-dias { color: var(--error-500); }
 
 /* El sidebar se vuelve un riel de íconos entre 769 y 1080px, y desaparece en celular.
    El aviso lo sigue, para no quedar flotando sobre el menú ni pegado al borde. */
@@ -165,10 +216,22 @@
   .acceso-avisos { left: calc(var(--sidebar-collapsed) + 1rem); }
 }
 @media (max-width: 768px) {
+  /* En un celular no hay lugar para un cuadrado de 288px al costado: pasa a ser una barra
+     abajo, que es donde el pulgar no la tapa. Deja de ser cuadrado a propósito — la forma
+     servía para distinguirlo en una pantalla grande, y acá no hay con qué confundirlo. */
   .acceso-avisos {
     left: 0.75rem; right: 0.75rem;
-    max-width: none;
     top: auto; bottom: 1rem;
     transform: none;
   }
+  .acceso-aviso {
+    width: auto; height: auto;
+    flex-direction: row; align-items: center; gap: 0.85rem;
+    padding: 0.9rem 1.1rem;
+  }
+  .acceso-aviso-cabecera { flex: 1; }
+  .acceso-aviso-cifra { flex: 0 0 auto; flex-direction: row; align-items: baseline; gap: 0.35rem; }
+  .acceso-aviso-cifra strong { font-size: 2rem; }
+  .acceso-aviso-cifra span { margin-top: 0; font-size: var(--font-size-xs); }
+  .acceso-aviso-pie { border-top: 0; padding-top: 0; flex-basis: 100%; }
 }

@@ -46,9 +46,15 @@ vi.mock('../lib/gym', () => ({ GYM: { placeLabel: 'gimnasio', placeLabelCap: 'Gi
 
 // El caché real dispararía pedidos y temporizadores que no tienen que ver con lo que se
 // prueba acá. Se le entrega el dato ya resuelto.
-const datosMostrador = { adentro: [], hoy: [], avisos: [], hoyTotal: 0, hoyPromedioMin: null };
+//
+// Va dentro de una caja MUTABLE porque el mostrador se refresca solo cada quince segundos, y
+// media pantalla reacciona a que ese dato cambie —el cartel del QR, sin ir más lejos—. Con
+// un objeto fijo no habría forma de simular "llegó alguien nuevo".
+const mostrador = vi.hoisted(() => ({
+  datos: { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null },
+}));
 vi.mock('../hooks', () => ({
-  useQueryCache: () => ({ data: datosMostrador, loading: false, invalidate: vi.fn() }),
+  useQueryCache: () => ({ data: mostrador.datos, loading: false, invalidate: vi.fn() }),
 }));
 
 vi.mock('../components/EstadoCopiaLocal', () => ({ default: () => null }));
@@ -118,7 +124,10 @@ async function apretar(key, target) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  accessService.getMostrador.mockResolvedValue(datosMostrador);
+  // Cada test arranca con el mostrador vacío: si uno dejara un ingreso puesto, el siguiente
+  // vería un cartel que no disparó él.
+  mostrador.datos = { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null };
+  accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
 });
@@ -262,5 +271,103 @@ describe('el aviso de entrada', () => {
       aviso.textContent,
       'la dirección la decide el servidor: sin esto se aprieta "entrada" y se graba una salida',
     ).toContain('Salida');
+  });
+
+  it('⭐ el número va SEPARADO del texto, para poder mostrarlo enorme', async () => {
+    // Es el motivo de que el cartel sea grande: el socio pasa, mira, y ya sabe cuánto le
+    // queda sin acercarse ni preguntarle a nadie. Si el número viniera pegado dentro de una
+    // frase ("28d restantes") no habría forma de agrandarlo solo a él.
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const cifra = container.querySelector('.acceso-aviso-cifra');
+    expect(cifra, 'el bloque del número existe').toBeTruthy();
+    expect(cifra.querySelector('strong').textContent, 'solo el número, sin unidad pegada').toBe('12');
+    expect(cifra.querySelector('span').textContent).toContain('días');
+  });
+
+  it('al que se VA no se le muestra el número', async () => {
+    // Ya entrenó. Un vencimiento gigante en la cara al salir es un reclamo a destiempo: el
+    // cartel de salida es una confirmación y nada más.
+    accessService.checkIn.mockResolvedValue({ direccion: 'SALIDA' });
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(container.querySelector('.acceso-aviso'), 'el cartel sale igual').toBeTruthy();
+    expect(container.querySelector('.acceso-aviso-cifra')).toBeNull();
+  });
+});
+
+describe('entrar por QR levanta el mismo cartel', () => {
+
+  const ingreso = (accesoId, nombre, extra = {}) => ({
+    accesoId, socioId: 'm9', nombre, situacion: 'AL_DIA',
+    diasVencido: 0, diasRestantes: 25, clasesRestantes: null,
+    hora: '2026-09-02T10:00:00', ...extra,
+  });
+
+  /** Simula el refresco del mostrador: llegan datos nuevos y la pantalla se vuelve a pintar. */
+  async function llegaRefresco(datos) {
+    mostrador.datos = { ...mostrador.datos, ...datos };
+    await act(async () => { root.render(<AccessPage />); });
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => { await Promise.resolve(); });
+    }
+  }
+
+  it('un socio que escanea aparece en la pantalla del mostrador', async () => {
+    // Sin esto, escanear no mostraba NADA acá: la confirmación va al teléfono del socio y
+    // ahí moría. El que estaba al día era invisible para el mostrador.
+    await pintar();
+    await llegaRefresco({ ingresos: [ingreso('qr1', 'Lucía Fernández')] });
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso, 'el cartel aparece solo, sin que nadie toque nada').toBeTruthy();
+    expect(aviso.textContent).toContain('Lucía Fernández');
+    expect(aviso.textContent).toContain('Entrada por QR');
+    expect(aviso.querySelector('.acceso-aviso-cifra strong').textContent).toBe('25');
+  });
+
+  it('⚠️ abrir la pantalla NO dispara los ingresos de los últimos minutos', async () => {
+    // La ventana del backend es de 5 minutos. Sin esta guarda, entrar al módulo levantaría
+    // de golpe los carteles de todos los que pasaron hace rato, como si acabaran de llegar.
+    mostrador.datos = {
+      ...mostrador.datos,
+      ingresos: [ingreso('viejo1', 'Alguien'), ingreso('viejo2', 'Otro')],
+    };
+    await pintar();
+
+    expect(container.querySelector('.acceso-aviso'), 'ninguno se anuncia al abrir').toBeNull();
+  });
+
+  it('no repite el cartel en cada refresco', async () => {
+    // El mostrador se refresca cada quince segundos y el ingreso sigue viniendo hasta que
+    // pasan los 5 minutos. Sin recordar los ya anunciados, el mismo socio parpadearía en
+    // pantalla veinte veces.
+    await pintar();
+    await llegaRefresco({ ingresos: [ingreso('qr1', 'Lucía Fernández')] });
+    expect(container.querySelectorAll('.acceso-aviso').length).toBe(1);
+
+    await llegaRefresco({ ingresos: [ingreso('qr1', 'Lucía Fernández')] });
+    expect(
+      container.querySelectorAll('.acceso-aviso').length,
+      'el mismo acceso no se anuncia dos veces',
+    ).toBe(1);
+  });
+
+  it('un socio vencido que escanea sale en rojo, con los días que debe', async () => {
+    await pintar();
+    await llegaRefresco({
+      ingresos: [ingreso('qr2', 'Pedro Gómez', {
+        situacion: 'VENCIDO', diasVencido: 9, diasRestantes: 0,
+      })],
+    });
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.className).toContain('error');
+    expect(aviso.querySelector('.acceso-aviso-cifra strong').textContent).toBe('9');
+    expect(aviso.textContent).toContain('vencido');
   });
 });

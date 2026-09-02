@@ -98,11 +98,19 @@ public class GymAccessController {
             log.error("Los avisos del mostrador fallaron. La pantalla sigue funcionando sin ellos.", e);
             body.put("avisos", java.util.List.of());
         }
-        // NOTA: acá viajaban también los "ingresos" recientes por QR, para que el mostrador
-        // levantara un cartel con los días del socio que escaneó. La pantalla que los usaba
-        // se dio de baja al volver a la 2.6.17, y este pedido se repite cada quince segundos:
-        // mandar un dato que nadie lee es pagar esa consulta para siempre. El método
-        // `ingresosRecientes()` sigue estando, listo para cuando la pantalla vuelva.
+        // Los pasos por QR de los últimos 5 minutos. La pantalla los convierte en el MISMO
+        // cartel que aparece al registrar una entrada a mano, así el socio que escaneó ve en
+        // el mostrador cuántos días le quedan.
+        //
+        // Sin esto, escanear el cartel no mostraba nada en la pantalla del gimnasio: la
+        // confirmación aparece en el teléfono del socio y ahí moría. El único que se enteraba
+        // era el que tenía un PROBLEMA (eso son los `avisos` de arriba); el que estaba al día
+        // no tenía dónde mirar su vencimiento sin preguntarle a alguien.
+        //
+        // Estuvo dado de baja un tiempo —la pantalla que lo usaba se había revertido, y este
+        // pedido se repite cada quince segundos— pero la ventana es de 5 minutos, así que
+        // casi siempre viaja una lista vacía.
+        body.put("ingresos", accessService.ingresosRecientes());
         return ResponseEntity.ok(body);
     }
 
