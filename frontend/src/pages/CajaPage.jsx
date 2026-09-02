@@ -35,9 +35,6 @@ import { PageHeader } from '../components/Layout';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
-/** Los billetes que circulan. De mayor a menor, que es como se cuenta un fajo. */
-const BILLETES = [20000, 10000, 5000, 2000, 1000, 500, 200, 100];
-
 const fecha = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', {
   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
 }) : '—');
@@ -57,10 +54,14 @@ export default function CajaPage() {
   // preguntar hace que alguien cierre una caja creyendo que no entró nada.
   const [fallo, setFallo] = useState(false);
 
-  // El conteo: cuántos billetes de cada uno, más las monedas sueltas.
+  // El conteo: un número. Nada más.
+  //
+  // Acá había una grilla para cargar cuántos billetes de cada denominación. Era más
+  // preciso en teoría, pero un arqueo de kiosco es UNA pregunta —¿cuánta plata hay?— y
+  // nueve casilleros todos los días es exactamente la clase de fricción que hace que la
+  // gente deje de cerrar caja. Y una caja que no se cierra no sirve para nada.
   const [contando, setContando] = useState(false);
-  const [billetes, setBilletes] = useState({});
-  const [sueltos, setSueltos] = useState('');
+  const [efectivo, setEfectivo] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   // El resultado, recién revelado. Es el único momento en que quien contó ve el número.
@@ -87,14 +88,10 @@ export default function CajaPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const totalContado = useMemo(() => {
-    const deBilletes = BILLETES.reduce((suma, v) => suma + v * (parseInt(billetes[v], 10) || 0), 0);
-    return deBilletes + (parseFloat(sueltos) || 0);
-  }, [billetes, sueltos]);
+  const totalContado = useMemo(() => parseFloat(efectivo) || 0, [efectivo]);
 
   const abrirConteo = () => {
-    setBilletes({});
-    setSueltos('');
+    setEfectivo('');
     setResultado(null);
     setExplicacion('');
     setContando(true);
@@ -102,6 +99,12 @@ export default function CajaPage() {
 
   const confirmar = async (e) => {
     e?.preventDefault();
+    // Vacío no es cero: si alguien aprieta Enter sin escribir, no se cierra una caja
+    // declarando que no hay plata. Para declarar cero, se escribe cero.
+    if (efectivo.trim() === '') {
+      showToast('Escribí cuánto efectivo hay. Si no hay nada, poné 0.', 'error');
+      return;
+    }
     setGuardando(true);
     try {
       const turno = getShift();
@@ -295,27 +298,18 @@ export default function CajaPage() {
             Después de confirmar vas a ver si coincide, y no se puede volver atrás.
           </p>
 
-          <div className="caja-billetes">
-            {BILLETES.map((v) => (
-              <label key={v} className="caja-billete">
-                <span>${v.toLocaleString('es-AR')}</span>
-                <input
-                  type="number"
-                  min="0"
-                  className="form-input"
-                  value={billetes[v] ?? ''}
-                  placeholder="0"
-                  onChange={(e) => setBilletes((b) => ({ ...b, [v]: e.target.value }))}
-                />
-              </label>
-            ))}
-            <label className="caja-billete">
-              <span>Monedas y sueltos</span>
-              <input
-                type="number" min="0" className="form-input" value={sueltos}
-                placeholder="0" onChange={(e) => setSueltos(e.target.value)}
-              />
-            </label>
+          <div className="form-group">
+            <label className="form-label">¿Cuánto efectivo hay en la caja?</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              className="form-input caja-monto"
+              value={efectivo}
+              placeholder="0"
+              autoFocus
+              onChange={(e) => setEfectivo(e.target.value)}
+            />
           </div>
 
           {/* Su propia cuenta, no la del sistema. */}

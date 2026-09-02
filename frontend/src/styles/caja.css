@@ -40,12 +40,14 @@
 
 .caja-aviso { margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 0.4rem; }
 
-.caja-billetes {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.7rem;
+/* El campo del conteo: grande, porque es el unico numero que se escribe acá. */
+.caja-monto {
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 0.9rem 1rem;
 }
-.caja-billete { display: flex; flex-direction: column; gap: 0.25rem; }
-.caja-billete span { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
-.caja-billete .form-input { font-variant-numeric: tabular-nums; text-align: right; }
 
 /* Su propia cuenta, no la del sistema: el número del sistema no aparece hasta confirmar. */
 .caja-total-contado {
