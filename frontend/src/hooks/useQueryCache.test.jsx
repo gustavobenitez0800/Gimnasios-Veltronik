@@ -219,4 +219,43 @@ describe('el "Cargando..." no puede ser eterno', () => {
 
     expect(vista.ultimo().mutate).toBe(antes);
   });
+
+  // ⭐ EL PEDIDO QUE NUNCA LLEGABA A TERMINAR
+  //
+  // El mostrador se refresca cada 15 segundos y el pedido puede tardar hasta 25 (5 s de
+  // sesión + 20 s de timeout). O sea: en una conexión lenta, el refresco arranca un pedido
+  // nuevo ANTES de que el anterior termine. El anterior queda huérfano —su efecto ya se
+  // desarmó— así que cuando por fin falla, ese error se descarta.
+  //
+  // El resultado es un bucle del que no se sale: cada 15 segundos empieza otro pedido, se
+  // apilan, ninguno llega a contar qué pasó, y la pantalla nunca puede mostrar un error de
+  // verdad. Encima cada intento nuevo suma carga sobre la conexión que ya estaba lenta.
+  //
+  // En el gimnasio se vio exactamente así: "sin respuesta", para siempre.
+  it('no arranca un pedido nuevo si el anterior sigue en vuelo', async () => {
+    let cuantos = 0;
+    const traer = () => { cuantos++; return new Promise(() => {}); };
+    const vista = montar(() => useQueryCache(['lento'], traer));
+    await esperar();
+
+    // El refresco de los 15 segundos, dos veces, con el primer pedido todavía colgado.
+    await act(async () => { vista.ultimo().invalidate(); });
+    await act(async () => { vista.ultimo().invalidate(); });
+
+    expect(cuantos, 'apilar pedidos empeora justo la conexión que ya estaba lenta').toBe(1);
+  });
+
+  it('el error de un pedido lento se muestra aunque haya habido un refresco en el medio', async () => {
+    // Esta es la consecuencia que importa: si el error se pierde, la pantalla no puede
+    // decir NUNCA qué falló, y desde afuera no hay manera de arreglarlo.
+    let fallar;
+    const traer = () => new Promise((_, rechazar) => { fallar = rechazar; });
+    const vista = montar(() => useQueryCache(['lento2'], traer));
+    await esperar();
+
+    await act(async () => { vista.ultimo().invalidate(); });
+    await act(async () => { fallar(new Error('tardó una eternidad')); await Promise.resolve(); });
+
+    expect(vista.ultimo().error, 'el error quedó huérfano y nadie lo vio').toBeTruthy();
+  });
 });

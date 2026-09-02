@@ -2,6 +2,7 @@ package com.veltronik.v2.gym.repositories;
 
 import com.veltronik.v2.gym.entities.AccessLog;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,12 +16,26 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     /** El acceso que ya se guardó con este identificador de terminal, si existe. */
     Optional<AccessLog> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
 
-    
+    /**
+     * ⚠️ EL {@code @EntityGraph} NO ES DECORATIVO: sin él esto es una consulta POR SOCIO.
+     *
+     * <p>{@code AccessLog.member} es EAGER, pero en una consulta derivada eso no se traduce
+     * en un join: Hibernate trae los accesos con una consulta y después pide el socio de cada
+     * uno por separado. Medido: 13 consultas para 12 accesos. Con 200 accesos en un día son
+     * 200 viajes entre Railway y Supabase, y el mostrador repite esto cada quince segundos.</p>
+     *
+     * <p>Por eso el mostrador se colgaba en el gimnasio y andaba bien en la máquina de
+     * desarrollo: el costo crece con los datos del día. A las 9 de la mañana anda; a las 8 de
+     * la noche, no. Lo cuida {@code MostradorConsultasTest}.</p>
+     */
+    @EntityGraph(attributePaths = "member")
     List<AccessLog> findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(UUID tenantId, LocalDateTime start, LocalDateTime end);
 
     /** Últimos accesos del tenant (para el feed de actividad del equipo). */
+    @EntityGraph(attributePaths = "member")
     List<AccessLog> findTop25ByTenantIdOrderByCheckInAtDesc(UUID tenantId);
-    
+    /** Quién está adentro. Mismo motivo que arriba para el {@code @EntityGraph}. */
+    @EntityGraph(attributePaths = "member")
     List<AccessLog> findByTenantIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId);
     
     Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId, UUID memberId);
@@ -51,6 +66,7 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     List<AccessLog> findByTenantIdAndAccessMethodAndCheckInAtAfterOrderByCheckInAtDesc(
             UUID tenantId, String accessMethod, LocalDateTime desde);
 
+    @EntityGraph(attributePaths = "member")
     List<AccessLog> findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
             UUID tenantId, String accessMethod, LocalDateTime desde);
 

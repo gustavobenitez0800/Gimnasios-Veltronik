@@ -10,6 +10,19 @@ import { describe, it, expect } from 'vitest';
 import { porQueFallo } from './porQueFallo';
 
 describe('por qué falló', () => {
+  it('mientras el pedido sigue en camino NO se lo da por perdido', () => {
+    // El techo del cargando (12 s) es MÁS CORTO que lo que puede tardar el pedido (25 s).
+    // Sin esta distinción, a los 12 segundos la pantalla dictaba sentencia sobre algo que
+    // todavía estaba yendo, y el error real -el que dice qué arreglar- nunca se veía.
+    expect(porQueFallo(null, { esperando: true }).detalle).toContain('en camino');
+  });
+
+  it('el tiempo que tardó viaja en el detalle', () => {
+    // No es lo mismo fallar a los 300 ms que a los 20 segundos: uno es un rechazo, el otro
+    // es una conexión que no da. Sin el número, los dos se leen igual por teléfono.
+    expect(porQueFallo({ response: { status: 403 } }, { demoraMs: 21500 }).detalle).toBe('permiso 403 · 21.5 s');
+  });
+
   it('sin error y sin datos: el pedido nunca volvió', () => {
     // ⭐ El caso que dejaba el "Cargando..." eterno. No deja error, así que cualquier
     // diagnóstico que arranque mirando el error se lo pierde entero.

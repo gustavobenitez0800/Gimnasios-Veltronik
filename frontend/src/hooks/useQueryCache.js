@@ -27,6 +27,40 @@ export { invalidateQueries, clearQueryCache };
  */
 const TECHO_CARGANDO_MS = 12000;
 
+/**
+ * Los pedidos que todavía no volvieron, por clave.
+ *
+ * ⚠️ ESTO EVITA UN BUCLE DEL QUE NO SE SALE. El mostrador se refresca cada 15 segundos y un
+ * pedido puede tardar hasta 25 (5 s esperando la sesión + 20 s de timeout). En una conexión
+ * lenta eso significa que el refresco arranca uno nuevo ANTES de que el anterior termine: se
+ * apilan, cada uno suma carga sobre la conexión que ya estaba lenta, y ninguno llega a
+ * contar qué pasó, porque el efecto que lo pidió ya se desarmó y su error se descarta.
+ *
+ * La pantalla queda sin datos y sin poder decir por qué. Se vio así en el gimnasio: "el
+ * servidor no contestó a tiempo", para siempre, aunque el problema fuera otro.
+ *
+ * Compartiendo el pedido en vuelo hay UNO solo, y su resultado —o su error— le llega a todos
+ * los que lo estaban esperando.
+ */
+const enVuelo = new Map();
+
+function pedirUnaSolaVez(key, fetchFn) {
+  const yaVa = enVuelo.get(key);
+  if (yaVa) return yaVa;
+
+  const pedido = Promise.resolve()
+    .then(fetchFn)
+    .finally(() => { enVuelo.delete(key); });
+
+  enVuelo.set(key, pedido);
+  return pedido;
+}
+
+/** Solo para los tests: nadie debería tener que limpiar esto a mano. */
+export function _olvidarPedidosEnVuelo() {
+  enVuelo.clear();
+}
+
 export function useQueryCache(queryKey, fetchFn, options = {}) {
   const { staleTime = 5 * 60 * 1000 } = options;
 
@@ -43,6 +77,10 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
   const [loading, setLoading] = useState(!hasValidCache); // Solo muestra loading si NO hay caché
   const [isFetching, setIsFetching] = useState(false); // Background fetching
   const [error, setError] = useState(null);
+  // Cuánto tardó el último pedido en volver, haya salido bien o mal. Sin este número, un
+  // "no anda" desde un gimnasio es imposible de distinguir de otro: no es lo mismo fallar
+  // a los 300 ms que a los 20 segundos.
+  const [demoraMs, setDemoraMs] = useState(null);
 
   const [trigger, setTrigger] = useState(0);
 
@@ -83,8 +121,10 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
       // Si los datos están obsoletos o no existen, pedimos nuevos a la DB en background
       if (isStale) {
         setIsFetching(true);
+        const empezo = Date.now();
         try {
-          const result = await fetchFn();
+          const result = await pedirUnaSolaVez(key, fetchFn);
+          if (isMounted) setDemoraMs(Date.now() - empezo);
           if (isMounted) {
             writeEntry(key, ns, result);
             setData(result);
@@ -93,6 +133,7 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
         } catch (err) {
           if (isMounted) {
             console.error('useQueryCache error:', err);
+            setDemoraMs(Date.now() - empezo);
             setError(err);
           }
         } finally {
@@ -147,5 +188,5 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
     setTrigger(t => t + 1);
   }, [key]);
 
-  return { data, loading, error, isFetching, mutate, invalidate };
+  return { data, loading, error, isFetching, demoraMs, mutate, invalidate };
 }

@@ -76,7 +76,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, error: errorMostrador, invalidate } = useQueryCache(
+  const { data, loading, error: errorMostrador, isFetching, demoraMs, invalidate } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -90,7 +90,10 @@ export default function AccessPage() {
 
   // Qué pasó exactamente, en una frase que se pueda leer por teléfono. Sin esto, "no
   // pudimos consultar" tapa por igual tres problemas con tres arreglos distintos.
-  const falla = useMemo(() => porQueFallo(errorMostrador), [errorMostrador]);
+  const falla = useMemo(
+    () => porQueFallo(errorMostrador, { esperando: isFetching, demoraMs }),
+    [errorMostrador, isFetching, demoraMs],
+  );
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
