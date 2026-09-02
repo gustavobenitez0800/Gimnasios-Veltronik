@@ -41,6 +41,14 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', {
 
 const diasDesde = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
 
+/** Los mismos nombres que muestra la pantalla de Pagos: si difieren, parecen cosas distintas. */
+const NOMBRE_METODO = {
+  cash: 'Efectivo',
+  transfer: 'Transferencia',
+  mercadopago: 'Mercado Pago',
+  card: 'Tarjeta',
+};
+
 export default function CajaPage() {
   const { showToast } = useToast();
   const { orgRole, profile } = useAuth();
@@ -68,6 +76,14 @@ export default function CajaPage() {
   const [digital, setDigital] = useState('');
   const [guardando, setGuardando] = useState(false);
 
+  // La caja abierta: desde cuándo, quién y con cuánto cambio arrancó el cajón.
+  const [estado, setEstado] = useState(null);
+  const [abriendo, setAbriendo] = useState(false);
+  const [fondo, setFondo] = useState('');
+  // Los cobros que forman el número. Solo el dueño: si quien va a contar ve los montos,
+  // suma la lista y escribe ese número, y el arqueo deja de medir nada.
+  const [movimientos, setMovimientos] = useState([]);
+
   // El resultado, recién revelado. Es el único momento en que quien contó ve el número.
   const [resultado, setResultado] = useState(null);
   const [explicacion, setExplicacion] = useState('');
@@ -76,11 +92,13 @@ export default function CajaPage() {
     setCargando(true);
     setFallo(false);
     try {
-      const p = await cajaService.pendiente();
+      const [p, e] = await Promise.all([cajaService.pendiente(), cajaService.estado()]);
       setPendiente(p);
+      setEstado(e);
       if (esDueno) {
         setAbierto(await cajaService.abierto());
         setHistorial(await cajaService.historial(60));
+        setMovimientos(await cajaService.movimientos());
       }
     } catch (e) {
       setFallo(true);
@@ -95,12 +113,42 @@ export default function CajaPage() {
   const totalContado = useMemo(() => parseFloat(efectivo) || 0, [efectivo]);
   const totalDigital = useMemo(() => parseFloat(digital) || 0, [digital]);
 
+  const pedirFondo = () => {
+    setFondo('');
+    setAbriendo(true);
+  };
+
   const abrirConteo = () => {
     setEfectivo('');
     setDigital('');
     setResultado(null);
     setExplicacion('');
     setContando(true);
+  };
+
+  const abrirCaja = async (e) => {
+    e?.preventDefault();
+    // Vacío no es cero. Si el cajón arranca sin cambio, se escribe 0 — pero se escribe,
+    // porque este número es el que hace que el arqueo cierre.
+    if (fondo.trim() === '') {
+      showToast('Escribí con cuánto cambio arranca el cajón. Si no hay nada, poné 0.', 'error');
+      return;
+    }
+    setGuardando(true);
+    try {
+      const turno = getShift();
+      await cajaService.abrir({
+        fondoInicial: parseFloat(fondo) || 0,
+        abiertaPor: turno?.name || profile?.fullName || 'Sin identificar',
+      });
+      setAbriendo(false);
+      showToast('Caja abierta.', 'success');
+      cargar();
+    } catch (err) {
+      showToast(errorService.getMessage(err), 'error');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const confirmar = async (e) => {
@@ -183,7 +231,10 @@ export default function CajaPage() {
       <div className="caja-grid">
         {/* ─── El período abierto ─── */}
         <div className="card caja-abierto">
-          <h3><Icon name="clock" size="1em" /> Período abierto</h3>
+          <h3>
+            <Icon name="clock" size="1em" />
+            {estado?.abierta ? ' Caja abierta' : ' Caja cerrada'}
+          </h3>
           {cargando ? <p className="text-muted">Cargando…</p> : fallo ? (
             <div className="caja-fallo">
               <Icon name="wifiOff" size="1.1em" />
@@ -193,10 +244,40 @@ export default function CajaPage() {
               </div>
               <button className="btn btn-sm btn-secondary" onClick={cargar}>Reintentar</button>
             </div>
+          ) : !estado?.abierta ? (
+            /* ─── LA CAJA ESTÁ CERRADA ───
+               Cobrar sigue andando con la caja cerrada, a propósito: nadie puede quedarse sin
+               poder cobrarle a un socio porque a la mañana se olvidaron de abrir. Esa plata
+               igual se cuenta — el período arranca donde terminó el último cierre. */
+            <div className="caja-cerrada">
+              <p className="text-muted">
+                No hay ninguna caja abierta. Abrila para empezar el día.
+              </p>
+              {pendiente?.cantidadCobros > 0 && (
+                <p className="form-hint">
+                  Ojo: ya hay <strong>{pendiente.cantidadCobros} cobros</strong> sin cerrar desde
+                  el {fecha(pendiente?.desde)}. Van a entrar en el próximo cierre igual.
+                </p>
+              )}
+              <div className="caja-acciones">
+                <button className="btn btn-primary" onClick={pedirFondo} disabled={guardando}>
+                  <Icon name="doorOpen" size="1em" /> Abrir caja
+                </button>
+                {esDueno && pendiente?.cantidadCobros > 0 && (
+                  <button className="btn btn-secondary" onClick={abrirConteo} disabled={guardando}>
+                    Cerrar lo que quedó pendiente
+                  </button>
+                )}
+              </div>
+            </div>
           ) : (
             <>
               <p className="caja-desde">
-                Desde <strong>{fecha(pendiente?.desde)}</strong> · {pendiente?.cantidadCobros || 0} cobros
+                Abierta por <strong>{estado.abiertaPor || '—'}</strong> el <strong>{fecha(estado.desde)}</strong>
+                {' · '}{pendiente?.cantidadCobros || 0} cobros
+              </p>
+              <p className="caja-desde">
+                Arrancó con <strong>{formatCurrency(estado.fondoInicial)}</strong> de cambio en el cajón.
               </p>
 
               {/* Los importes SOLO para el dueño. Quien va a contar no puede verlos. */}
@@ -213,7 +294,13 @@ export default function CajaPage() {
                     <div><span>Otros</span><strong>{formatCurrency(abierto.otros)}</strong></div>
                   )}
                   <div className="caja-metodos-total">
-                    <span>Total del período</span>
+                    <span>Tendría que haber en el cajón</span>
+                    <strong>{formatCurrency(
+                      Number(abierto.efectivo || 0) + Number(estado?.fondoInicial || 0),
+                    )}</strong>
+                  </div>
+                  <div className="caja-metodos-total">
+                    <span>Total cobrado</span>
                     <strong>{formatCurrency(
                       Number(abierto.efectivo || 0) + Number(abierto.transferencia || 0)
                       + Number(abierto.mercadopago || 0) + Number(abierto.tarjeta || 0)
@@ -225,7 +312,7 @@ export default function CajaPage() {
 
               <div className="caja-acciones">
                 <button className="btn btn-primary" onClick={abrirConteo} disabled={guardando}>
-                  <Icon name="checkCircle" size="1em" /> Contar y cerrar
+                  <Icon name="checkCircle" size="1em" /> Contar y cerrar caja
                 </button>
                 {esDueno && (
                   <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(true)} disabled={guardando}>
@@ -242,6 +329,33 @@ export default function CajaPage() {
             </>
           )}
         </div>
+
+        {/* ─── De dónde sale el número ───
+             Un total que no se puede abrir es un número en el que hay que creer. Acá está
+             cada cobro que lo forma, con su método, igual que en la pantalla de Pagos.
+
+             ⚠️ Solo el dueño. No es un detalle de permisos: si quien va a contar ve los
+             montos, suma la lista y escribe ese número, y el arqueo deja de medir nada. */}
+        {esDueno && movimientos.length > 0 && (
+          <div className="card caja-movimientos">
+            <h3><Icon name="list" size="1em" /> Cobros de este período ({movimientos.length})</h3>
+            <table className="table">
+              <thead>
+                <tr><th>Socio</th><th>Monto</th><th>Método</th><th>Fecha</th></tr>
+              </thead>
+              <tbody>
+                {movimientos.map((m) => (
+                  <tr key={m.id}>
+                    <td data-label="Socio">{m.socio || <span className="text-muted">—</span>}</td>
+                    <td data-label="Monto" className="caja-monto-celda">{formatCurrency(m.monto)}</td>
+                    <td data-label="Método">{NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}</td>
+                    <td data-label="Fecha">{fecha(m.fecha)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* ─── El historial: solo el dueño, y es donde está el valor ─── */}
         {esDueno && (
@@ -320,6 +434,34 @@ export default function CajaPage() {
         </p>
       </Modal>
 
+      {/* ─── ABRIR LA CAJA ─── */}
+      <Modal
+        isOpen={abriendo}
+        onClose={() => setAbriendo(false)}
+        title="Abrir caja"
+        actions={<ModalActions onCancel={() => setAbriendo(false)} saving={guardando} submitText="Abrir caja" />}
+      >
+        <form onSubmit={abrirCaja} noValidate>
+          <div className="form-group">
+            <label className="form-label">¿Con cuánto cambio arranca el cajón?</label>
+            <input
+              type="number" inputMode="decimal" min="0"
+              className="form-input caja-monto"
+              value={fondo} placeholder="0" autoFocus
+              onChange={(e) => setFondo(e.target.value)}
+            />
+            {/* ⚠️ ESTE NÚMERO ES POR QUÉ EL ARQUEO CUADRA O NO.
+                El cajón arranca el día con el cambio de ayer. Si el sistema esperara solo lo
+                cobrado hoy, ese cambio aparecería como sobrante TODOS los días — y un arqueo
+                que siempre sobra es un arqueo que nadie mira. */}
+            <small className="form-hint">
+              Es la plata que ya está en el cajón para dar vuelto. Al cerrar, el sistema espera
+              encontrar este monto más lo que se cobre en efectivo.
+            </small>
+          </div>
+        </form>
+      </Modal>
+
       {/* ─── EL CONTEO A CIEGAS ─── */}
       <Modal
         isOpen={contando}
@@ -393,6 +535,11 @@ export default function CajaPage() {
           const clase = (d) => d === 0 ? 'ok' : d < 0 ? 'falta' : 'sobra';
           const esperadoDigital = Number(resultado.esperadoTransferencia || 0)
             + Number(resultado.esperadoMercadopago || 0);
+          // ⚠️ En el cajón hay el cambio con el que se abrió MÁS lo cobrado en efectivo. Si
+          // acá se mostrara solo lo cobrado, el cartel diría "cuadra" al lado de dos números
+          // que no dan — y el que lee deja de confiar en la pantalla.
+          const fondo = Number(resultado.fondoInicial || 0);
+          const esperadoEnElCajon = Number(resultado.esperadoEfectivo || 0) + fondo;
           return (
             <div className="caja-resultado">
               <div className={`caja-resultado-cifra ${
@@ -410,7 +557,13 @@ export default function CajaPage() {
                   <strong className={clase(dif)}>{frase(dif)}</strong>
                 </div>
                 <div className="caja-metodos">
-                  <div><span>El sistema esperaba</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></div>
+                  {fondo > 0 && (
+                    <div><span>Cambio con el que abriste</span><strong>{formatCurrency(fondo)}</strong></div>
+                  )}
+                  <div><span>Cobrado en efectivo</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></div>
+                  <div className="caja-metodos-total">
+                    <span>Tendría que haber</span><strong>{formatCurrency(esperadoEnElCajon)}</strong>
+                  </div>
                   <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoEfectivo)}</strong></div>
                 </div>
               </div>

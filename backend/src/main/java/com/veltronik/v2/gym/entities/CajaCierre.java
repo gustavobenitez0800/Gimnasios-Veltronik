@@ -38,6 +38,15 @@ public class CajaCierre extends TenantAwareEntity {
 
     // ─── Lo que contó el SISTEMA ───
 
+    /**
+     * El cambio que ya estaba en el cajón al abrir la caja.
+     *
+     * <p>Se graba acá y no se busca en la sesión: un cierre tiene que poder reconstruirse
+     * solo. Sin este número, el esperado de un cierre viejo no se puede recalcular.</p>
+     */
+    @Column(name = "fondo_inicial", nullable = false)
+    private BigDecimal fondoInicial = BigDecimal.ZERO;
+
     @Column(name = "esperado_efectivo", nullable = false)
     private BigDecimal esperadoEfectivo = BigDecimal.ZERO;
 

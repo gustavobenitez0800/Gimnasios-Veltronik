@@ -134,3 +134,23 @@
   padding-top: 0.5rem;
   font-weight: 700;
 }
+
+/* La caja cerrada: es un estado normal, no un error. */
+.caja-cerrada {
+  padding: 0.5rem 0 0;
+}
+
+/* Los montos de la lista de cobros, alineados para poder recorrerlos con la vista. */
+.caja-monto-celda {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.caja-movimientos {
+  margin-top: 1rem;
+}
+
+.caja-movimientos .table {
+  margin-top: 0.5rem;
+}

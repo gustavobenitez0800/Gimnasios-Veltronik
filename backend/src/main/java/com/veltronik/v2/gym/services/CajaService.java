@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.services;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.CajaCierre;
+import com.veltronik.v2.gym.entities.CajaSesion;
 import com.veltronik.v2.gym.entities.GymPayment;
 import com.veltronik.v2.gym.repositories.CajaCierreRepository;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
@@ -46,12 +47,15 @@ public class CajaService {
     private final CajaCierreRepository cierreRepository;
     private final GymPaymentRepository paymentRepository;
     private final com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository;
+    private final com.veltronik.v2.gym.repositories.CajaSesionRepository sesionRepository;
 
     public CajaService(CajaCierreRepository cierreRepository, GymPaymentRepository paymentRepository,
-                       com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository) {
+                       com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository,
+                       com.veltronik.v2.gym.repositories.CajaSesionRepository sesionRepository) {
         this.cierreRepository = cierreRepository;
         this.paymentRepository = paymentRepository;
         this.ajusteRepository = ajusteRepository;
+        this.sesionRepository = sesionRepository;
     }
 
     /**
@@ -66,6 +70,64 @@ public class CajaService {
     public List<com.veltronik.v2.gym.entities.GymPaymentAjuste> ajustesDelPeriodo() {
         return ajusteRepository.findByTenantIdAndCreatedAtBetweenOrderByCreatedAtDesc(
                 TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE));
+    }
+
+    /**
+     * Abre la caja: desde ahora corre el período, con el cambio que ya había en el cajón.
+     *
+     * @param fondoInicial el cambio que quedó de ayer. Sin esto el arqueo NUNCA cuadra: ese
+     *                     cambio aparece como sobrante todos los días.
+     */
+    @Transactional
+    public CajaSesion abrir(BigDecimal fondoInicial, String abiertaPor) {
+        if (fondoInicial == null || fondoInicial.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El fondo no puede ser negativo.");
+        }
+        // La base ya lo impide con un índice único parcial. Este chequeo existe para dar un
+        // mensaje entendible en vez de una violación de constraint; la garantía es la de abajo.
+        if (sesionAbierta().isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ya hay una caja abierta. Cerrala antes de abrir otra.");
+        }
+
+        CajaSesion s = new CajaSesion();
+        Tenant t = new Tenant();
+        t.setId(TenantContextHolder.getTenantId());
+        s.setTenant(t);
+        s.setAbiertaAt(LocalDateTime.now(BUSINESS_ZONE));
+        s.setAbiertaPorNombre(abiertaPor);
+        s.setFondoInicial(fondoInicial);
+        return sesionRepository.save(s);
+    }
+
+    /** La caja abierta de este gimnasio, si hay alguna. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<CajaSesion> sesionAbierta() {
+        return sesionRepository.findByTenantIdAndCerradaAtIsNull(TenantContextHolder.getTenantId());
+    }
+
+    /** Solo para los tests: desde cuándo cuenta el período. */
+    LocalDateTime inicioDelPeriodoPublico() {
+        return inicioDelPeriodo();
+    }
+
+    /**
+     * Los cobros que forman el número del período: monto, método, socio y cuándo.
+     *
+     * <p>Es de dónde sale todo lo demás. El dueño tiene que poder ver la lista y no solo el
+     * total: un total que no se puede abrir es un número en el que hay que creer.</p>
+     *
+     * <p>⚠️ SOLO DUEÑO. Lo verifica el controlador, y no es un detalle de permisos: si quien
+     * va a contar puede ver los montos, suma la lista y escribe ese número. El arqueo deja de
+     * medir nada.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<GymPayment> movimientosDelPeriodo() {
+        return paymentRepository.findByTenantIdAndDateRange(
+                        TenantContextHolder.getTenantId(), inicioDelPeriodo(),
+                        LocalDateTime.now(BUSINESS_ZONE)).stream()
+                .filter(p -> "PAID".equalsIgnoreCase(p.getStatus() == null ? "" : p.getStatus()))
+                .toList();
     }
 
     /** Lo que lleva acumulado el período abierto, sin cerrarlo. */
@@ -106,6 +168,9 @@ public class CajaService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las transferencias no pueden ser negativas.");
         }
 
+        java.util.Optional<CajaSesion> sesion = sesionAbierta();
+        BigDecimal fondo = sesion.map(CajaSesion::getFondoInicial).orElse(BigDecimal.ZERO);
+
         LocalDateTime desde = inicioDelPeriodo();
         LocalDateTime hasta = LocalDateTime.now(BUSINESS_ZONE);
         Resumen r = contar(desde, hasta);
@@ -117,6 +182,7 @@ public class CajaService {
 
         cierre.setDesde(desde);
         cierre.setHasta(hasta);
+        cierre.setFondoInicial(fondo);
         cierre.setEsperadoEfectivo(r.efectivo());
         cierre.setEsperadoTransferencia(r.transferencia());
         cierre.setEsperadoMercadopago(r.mercadopago());
@@ -128,13 +194,27 @@ public class CajaService {
         cierre.setDeclaradoDigital(declaradoDigital);
         // Negativo = falta plata. Se guarda calculado y no se deduce al leer: si mañana
         // alguien corrige un cobro viejo, la diferencia de este día no puede cambiar.
-        cierre.setDiferencia(declaradoEfectivo == null ? null : declaradoEfectivo.subtract(r.efectivo()));
+        // ⚠️ EL FONDO ENTRA ACÁ. En el cajón hay el cambio de ayer MÁS lo cobrado hoy; si el
+        // esperado fuera solo lo cobrado, todos los cierres darían sobrante por el mismo
+        // monto, y un arqueo que siempre sobra es un arqueo que nadie mira.
+        BigDecimal esperadoEnElCajon = r.efectivo().add(fondo);
+        cierre.setDiferencia(declaradoEfectivo == null ? null : declaradoEfectivo.subtract(esperadoEnElCajon));
         // Negativo = el sistema dice que entró plata que en la cuenta no está.
         cierre.setDiferenciaDigital(declaradoDigital == null ? null : declaradoDigital.subtract(r.digital()));
         cierre.setNota(nota != null && !nota.isBlank() ? nota.trim() : null);
         cierre.setCerradoPorNombre(cerradoPor);
 
-        return cierreRepository.save(cierre);
+        CajaCierre guardado = cierreRepository.save(cierre);
+
+        // La sesión se cierra con el mismo acto: si quedara abierta, no se podría abrir otra
+        // y el período siguiente arrancaría de una fecha que ya se cerró.
+        sesion.ifPresent(ses -> {
+            ses.setCerradaAt(hasta);
+            ses.setCierreId(guardado.getId());
+            sesionRepository.save(ses);
+        });
+
+        return guardado;
     }
 
     /**
@@ -175,7 +255,18 @@ public class CajaService {
         return cierreRepository.findTopByTenantIdOrderByHastaDesc(TenantContextHolder.getTenantId());
     }
 
+    /**
+     * Desde cuándo cuenta el período.
+     *
+     * <p>Si hay una caja abierta, desde que se abrió. Si no, desde el último cierre — así lo
+     * que se cobró con la caja sin abrir <b>no queda sin contar</b>: alguien puede cobrar
+     * antes de que nadie abra nada, y esa plata está en el cajón igual.</p>
+     */
     private LocalDateTime inicioDelPeriodo() {
+        return sesionAbierta().map(CajaSesion::getAbiertaAt).orElseGet(this::desdeElUltimoCierre);
+    }
+
+    private LocalDateTime desdeElUltimoCierre() {
         return cierreRepository.findTopByTenantIdOrderByHastaDesc(TenantContextHolder.getTenantId())
                 .map(CajaCierre::getHasta)
                 .orElseGet(() -> LocalDateTime.now(BUSINESS_ZONE).minusDays(DIAS_DEL_PRIMER_CIERRE));

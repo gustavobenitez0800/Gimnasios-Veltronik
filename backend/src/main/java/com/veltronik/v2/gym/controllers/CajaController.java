@@ -73,6 +73,57 @@ public class CajaController {
     }
 
     /**
+     * ¿Hay una caja abierta? Desde cuándo, quién la abrió y con cuánto cambio.
+     *
+     * <p>Lo puede ver cualquiera: son datos de operación, no importes de cobros. El fondo sí
+     * es un monto, pero es el que declaró quien abrió — no dice nada de lo que se cobró.</p>
+     */
+    @GetMapping("/estado")
+    public ResponseEntity<Map<String, Object>> estado() {
+        Map<String, Object> body = new java.util.HashMap<>();
+        var abierta = cajaService.sesionAbierta();
+        body.put("abierta", abierta.isPresent());
+        abierta.ifPresent(s -> {
+            body.put("desde", s.getAbiertaAt());
+            body.put("abiertaPor", s.getAbiertaPorNombre());
+            body.put("fondoInicial", s.getFondoInicial());
+        });
+        body.put("cantidadCobros", cajaService.resumenAbierto().cantidadCobros());
+        return ResponseEntity.ok(body);
+    }
+
+    /** Abre la caja con el cambio que ya había en el cajón. */
+    @PostMapping("/abrir")
+    public ResponseEntity<com.veltronik.v2.gym.entities.CajaSesion> abrir(@RequestBody AperturaInput input) {
+        return ResponseEntity.ok(cajaService.abrir(input.getFondoInicial(), input.getAbiertaPor()));
+    }
+
+    /**
+     * Los cobros que forman el número: socio, monto, método y cuándo.
+     *
+     * <p>⚠️ SOLO DUEÑO, y no es un detalle de permisos: si quien va a contar ve los montos,
+     * suma la lista y escribe ese número. El arqueo deja de medir nada.</p>
+     */
+    @GetMapping("/movimientos")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> movimientos() {
+        List<Map<String, Object>> salida = new java.util.ArrayList<>();
+        for (var p : cajaService.movimientosDelPeriodo()) {
+            Map<String, Object> m = new java.util.HashMap<>();
+            m.put("id", p.getId());
+            m.put("monto", p.getAmount());
+            m.put("metodo", p.getPaymentMethod());
+            m.put("fecha", p.getPaymentDate());
+            m.put("socio", p.getMember() == null ? null
+                    : (nvl(p.getMember().getFirstName()) + " " + nvl(p.getMember().getLastName())).trim());
+            salida.add(m);
+        }
+        return ResponseEntity.ok(salida);
+    }
+
+    private static String nvl(String s) { return s == null ? "" : s; }
+
+    /**
      * Cierra el período y devuelve el resultado, con la diferencia ya revelada.
      *
      * <p>Es el único momento en que quien contó ve el número del sistema: después de haber
@@ -117,6 +168,18 @@ public class CajaController {
     }
 
     /** Lo que manda la pantalla al cerrar. */
+    /** Lo que hace falta para abrir. */
+    public static class AperturaInput {
+        /** El cambio que ya estaba en el cajón. */
+        private BigDecimal fondoInicial;
+        private String abiertaPor;
+
+        public BigDecimal getFondoInicial() { return fondoInicial; }
+        public void setFondoInicial(BigDecimal v) { this.fondoInicial = v; }
+        public String getAbiertaPor() { return abiertaPor; }
+        public void setAbiertaPor(String v) { this.abiertaPor = v; }
+    }
+
     public static class CierreInput {
         /** El efectivo contado. NULL = corte sin conteo (solo dueño/admin). */
         private BigDecimal declaradoEfectivo;

@@ -30,15 +30,19 @@ class CajaServiceTest {
 
     private CajaCierreRepository cierres;
     private GymPaymentRepository pagos;
+    private com.veltronik.v2.gym.repositories.CajaSesionRepository sesiones;
     private CajaService service;
 
     @BeforeEach
     void setUp() {
         cierres = mock(CajaCierreRepository.class);
         pagos = mock(GymPaymentRepository.class);
+        sesiones = mock(com.veltronik.v2.gym.repositories.CajaSesionRepository.class);
         // El rastro de ajustes se simula: acá se prueba el arqueo, no el rastro.
         service = new CajaService(cierres, pagos,
-                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class));
+                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class), sesiones);
+        when(sesiones.save(any(com.veltronik.v2.gym.entities.CajaSesion.class))).thenAnswer(i -> i.getArgument(0));
+        when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.empty());
         TenantContextHolder.setTenantId(TENANT);
         when(cierres.save(any(CajaCierre.class))).thenAnswer(i -> i.getArgument(0));
         when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.empty());
@@ -306,6 +310,106 @@ class CajaServiceTest {
             CajaCierre c = service.cerrar(new BigDecimal("1000"), BigDecimal.ZERO, null, "Carla", false);
 
             assertTrue(c.getDesde().isAfter(LocalDateTime.now().minusDays(31)));
+        }
+    }
+
+    @Nested
+    @DisplayName("abrir y cerrar la caja")
+    class AbrirYCerrar {
+
+        private com.veltronik.v2.gym.entities.CajaSesion hayUnaAbierta(String fondo) {
+            com.veltronik.v2.gym.entities.CajaSesion s = new com.veltronik.v2.gym.entities.CajaSesion();
+            s.setId(UUID.randomUUID());
+            s.setAbiertaAt(LocalDateTime.now().minusHours(6));
+            s.setAbiertaPorNombre("Carla");
+            s.setFondoInicial(new BigDecimal(fondo));
+            com.veltronik.v2.core.entities.Tenant t = new com.veltronik.v2.core.entities.Tenant();
+            t.setId(TENANT);
+            s.setTenant(t);
+            when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.of(s));
+            return s;
+        }
+
+        @Test
+        @DisplayName("abrir deja la caja abierta, con quién y con cuánto cambio")
+        void abrir() {
+            var s = service.abrir(new BigDecimal("10000"), "Carla");
+
+            assertTrue(s.estaAbierta());
+            assertEquals("Carla", s.getAbiertaPorNombre());
+            assertEquals(0, s.getFondoInicial().compareTo(new BigDecimal("10000")));
+        }
+
+        // ⭐ DOS CAJAS ABIERTAS = LA PLATA CONTADA DOS VECES O NINGUNA.
+        // El gimnasio puede tener la notebook con la web y la PC del mostrador con el
+        // escritorio. La base lo impide con un índice único; acá se avisa con un mensaje
+        // entendible en vez de dejar que explote una violación de constraint.
+        @Test
+        @DisplayName("no se puede abrir una caja si ya hay una abierta")
+        void unaSola() {
+            hayUnaAbierta("10000");
+
+            assertThrows(ResponseStatusException.class,
+                    () -> service.abrir(new BigDecimal("5000"), "Otro"));
+        }
+
+        // ⭐ EL FONDO: POR QUÉ EL ARQUEO NUNCA CUADRABA
+        //
+        // El cajón arranca el día con el cambio de ayer. Si el sistema espera solo lo
+        // cobrado hoy, ese cambio aparece como sobrante TODOS los días, y un arqueo que
+        // siempre da sobrante es un arqueo que nadie mira.
+        @Test
+        @DisplayName("el cambio con el que se abrió cuenta como esperado")
+        void elFondoCuenta() {
+            hayUnaAbierta("10000");
+            hayPagos(pago("CASH", "paid", "45000"));
+
+            // En el cajón hay el cambio de ayer más lo cobrado hoy.
+            CajaCierre c = service.cerrar(new BigDecimal("55000"), BigDecimal.ZERO, null, "Carla", false);
+
+            assertEquals(0, c.getDiferencia().signum(), "sin el fondo, esto daría +10.000 todos los días");
+            assertEquals(0, c.getFondoInicial().compareTo(new BigDecimal("10000")),
+                    "el fondo queda grabado: sin él, el esperado de un cierre viejo no se reconstruye");
+        }
+
+        @Test
+        @DisplayName("cerrar la caja cierra también la sesión abierta")
+        void cerrarCierraLaSesion() {
+            var s = hayUnaAbierta("0");
+            hayPagos(pago("CASH", "paid", "1000"));
+
+            CajaCierre c = service.cerrar(new BigDecimal("1000"), BigDecimal.ZERO, null, "Carla", false);
+
+            assertFalse(s.estaAbierta(), "quedaría abierta para siempre y no se podría abrir otra");
+            assertEquals(c.getId(), s.getCierreId());
+        }
+
+        @Test
+        @DisplayName("sin caja abierta se puede cerrar igual, con fondo cero")
+        void sinSesionSeCierraIgual() {
+            // Nadie abrió la caja pero se cobró igual. Esa plata NO puede quedar sin contar:
+            // el período sigue siendo continuo desde el último cierre.
+            hayPagos(pago("CASH", "paid", "45000"));
+
+            CajaCierre c = service.cerrar(new BigDecimal("45000"), BigDecimal.ZERO, null, "Carla", false);
+
+            assertEquals(0, c.getDiferencia().signum());
+            assertEquals(0, c.getFondoInicial().signum());
+        }
+
+        @Test
+        @DisplayName("no se acepta un fondo negativo")
+        void fondoNegativo() {
+            assertThrows(ResponseStatusException.class,
+                    () -> service.abrir(new BigDecimal("-1"), "Carla"));
+        }
+
+        @Test
+        @DisplayName("el período arranca cuando se abrió la caja")
+        void elPeriodoArrancaAlAbrir() {
+            var s = hayUnaAbierta("0");
+
+            assertEquals(s.getAbiertaAt(), service.inicioDelPeriodoPublico());
         }
     }
 }

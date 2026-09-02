@@ -18,6 +18,29 @@ class CajaService {
     return data;
   }
 
+  /** ¿Hay una caja abierta? Desde cuándo, quién y con cuánto cambio. Lo ve cualquiera. */
+  async estado() {
+    const { data } = await apiClient.get('/gym/caja/estado');
+    return data;
+  }
+
+  /**
+   * Abre la caja con el cambio que ya había en el cajón.
+   *
+   * ⚠️ El fondo NO es opcional aunque sea cero: sin él el arqueo nunca cuadra, porque el
+   * cajón arranca el día con el cambio de ayer y eso aparece como sobrante todos los días.
+   */
+  async abrir({ fondoInicial, abiertaPor }) {
+    const { data } = await apiClient.post('/gym/caja/abrir', { fondoInicial, abiertaPor });
+    return data;
+  }
+
+  /** Los cobros que forman el número: socio, monto, método, fecha. SOLO dueño. */
+  async movimientos() {
+    const { data } = await apiClient.get('/gym/caja/movimientos');
+    return data;
+  }
+
   /** Desde cuándo y cuántos cobros, SIN importes. Para quien va a contar. */
   async pendiente() {
     const { data } = await apiClient.get('/gym/caja/pendiente');
