@@ -38,15 +38,36 @@ import { getShiftId } from './shift';
  * Las dos cosas son pasajeras. Tres intentos cortos cubren esa ventana sin hacer esperar a
  * nadie de más; si después de eso no hay token, el problema es real.</p>
  */
+/**
+ * Cuánto se espera a que Supabase conteste quién es el usuario.
+ *
+ * ⚠️ ESTO NO ES DECORATIVO. `getSession()` no solo puede fallar: puede COLGARSE por
+ * contención del lock de Supabase. Y una espera sin límite acá no la salva el `timeout` de
+ * axios, porque ese cubre la PETICIÓN HTTP — y si el interceptor nunca termina, la petición
+ * nunca llega a salir. La promesa no se resuelve jamás y la pantalla queda "Cargando…"
+ * para siempre, sin un error en ningún lado.
+ */
+const ESPERA_SESION_MS = 2500;
+const INTENTOS_SESION = 2;
+
+/** Una promesa que no puede tardar más de lo que se le dice. */
+function conLimite(promesa, ms) {
+  let reloj;
+  return Promise.race([
+    promesa,
+    new Promise((_, rechazar) => { reloj = setTimeout(() => rechazar(new Error('la sesión no contestó')), ms); }),
+  ]).finally(() => clearTimeout(reloj));
+}
+
 async function tokenDeLaSesion() {
-  for (let intento = 0; intento < 3; intento++) {
+  for (let intento = 0; intento < INTENTOS_SESION; intento++) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await conLimite(supabase.auth.getSession(), ESPERA_SESION_MS);
       if (session?.access_token) return session.access_token;
     } catch (e) {
       console.warn('apiClient: no se pudo leer la sesión:', e?.message);
     }
-    if (intento < 2) await new Promise((r) => setTimeout(r, 300 * (intento + 1)));
+    if (intento < INTENTOS_SESION - 1) await new Promise((r) => setTimeout(r, 250));
   }
   return null;
 }
