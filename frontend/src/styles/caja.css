@@ -78,3 +78,18 @@
 .caja-ok    { color: var(--success-500, #22c55e); font-weight: 600; }
 .caja-falta { color: var(--error-500); font-weight: 700; font-variant-numeric: tabular-nums; }
 .caja-sobra { color: var(--warning-500); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Cuando no se pudo consultar el período. Un pedido que falló NO es un período vacío:
+   mostrar "0 cobros" haría que alguien cierre una caja creyendo que no entró nada. */
+.caja-fallo {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--warning-500) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-500) 28%, transparent);
+  font-size: var(--font-size-sm);
+}
+.caja-fallo > div { flex: 1; }
+.caja-fallo div div { color: var(--text-muted); margin-top: 0.2rem; }

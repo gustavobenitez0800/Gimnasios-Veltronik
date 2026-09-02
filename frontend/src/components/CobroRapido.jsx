@@ -45,6 +45,11 @@ export default function CobroRapido({ socio, abierto, onCerrar, onCobrado, onErr
   const [metodo, setMetodo] = useState('cash');
   const [guardando, setGuardando] = useState(false);
 
+  // El socio tiene arancel asignado pero ya no está entre los vigentes: se lo dieron de
+  // baja después. Sin avisar, el modal abría vacío y quien atiende cobraba un importe
+  // suelto sin entender por qué no se le aplicó nada — y el vencimiento no se movía.
+  const [arancelDadoDeBaja, setArancelDadoDeBaja] = useState(null);
+
   useEffect(() => {
     if (!abierto) return;
     setMetodo('cash');
@@ -59,6 +64,8 @@ export default function CobroRapido({ socio, abierto, onCerrar, onCobrado, onErr
         const suyo = (lista || []).find((a) => a.id === socio?.planId);
         setPlanId(suyo ? suyo.id : '');
         setMonto(suyo ? String(suyo.price ?? '') : '');
+        // Tenía uno y no está más entre los vigentes → hay que decirlo con nombre y todo.
+        setArancelDadoDeBaja(!suyo && socio?.planId ? (socio.planNombre || 'el que tenía') : null);
       })
       .catch(() => { /* sin aranceles se cobra a mano; no es un error */ });
     return () => { cancelado = true; };
@@ -127,6 +134,13 @@ export default function CobroRapido({ socio, abierto, onCerrar, onCobrado, onErr
           <p className="form-hint">
             <Icon name="checkCircle" size="0.9em" /> Le suma <strong>{queOtorga(elegido)}</strong>.
             El vencimiento lo calcula el sistema desde lo que ya tiene pago.
+          </p>
+        )}
+        {arancelDadoDeBaja && (
+          <p className="form-hint" style={{ color: 'var(--warning-500)' }}>
+            <Icon name="alertTriangle" size="0.9em" /> El arancel de este socio
+            (<strong>{arancelDadoDeBaja}</strong>) fue dado de baja. Elegí otro, o cobrale un
+            importe suelto.
           </p>
         )}
         {!socio?.planId && aranceles.length > 0 && (
