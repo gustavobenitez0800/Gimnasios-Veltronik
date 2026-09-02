@@ -109,6 +109,24 @@ jobs:
             MP_PUBLIC_KEY=${{ secrets.MP_PUBLIC_KEY }}
             MP_WEBHOOK_SECRET=${{ secrets.MP_WEBHOOK_SECRET }}
             SPRING_PROFILES_ACTIVE=prod
+            # ⚠️ ESTA ES LA VARIABLE QUE FALTABA Y DEJABA EL SERVIDOR INUTILIZABLE.
+            #
+            # `FRONTEND_URL` decide qué orígenes acepta CORS, y NO se lee desde
+            # application.properties sino con un @Value directo en SecurityConfig — por eso
+            # no aparece al revisar el archivo de properties. Su default es
+            # `http://localhost:5173`, así que sin ella Cloud Run rechazaba TODOS los
+            # preflight con 403: medido contra el servicio recién desplegado.
+            #
+            # Va como valor literal y no como Secret a propósito: no es información secreta,
+            # y un Secret inexistente se resolvería a cadena vacía y volvería a romper CORS.
+            #
+            # ⭐ POR QUÉ `*` Y NO LA URL DEL PORTAL: la app de escritorio carga desde
+            # `file://`, así que manda `Origin: null`. Una lista con la URL del portal NO
+            # matchea `null` y dejaría al mostrador sin poder hablar con el backend. Es lo
+            # mismo que ya tiene Railway en producción (responde `allow-origin: null`).
+            # No abre un hueco: la autenticación es por Bearer token y
+            # `setAllowCredentials(false)`, así que no se refleja ninguna credencial.
+            FRONTEND_URL=*
 
       # ─────────────────────────────────────────────────────────────────────
       # ⭐ QUE EL DEPLOY DIGA "OK" NO SIGNIFICA QUE EL BACKEND ANDE.
@@ -163,5 +181,27 @@ jobs:
               echo "ellos el gimnasio no puede cobrar."
               exit 1 ;;
           esac
+
+          # ⭐ CORS CON `Origin: null` — LA COMPROBACIÓN QUE MÁS IMPORTA.
+          #
+          # La app de escritorio carga desde `file://`, así que manda `Origin: null`. Si CORS
+          # no lo acepta, el navegador bloquea CADA pedido y el mostrador queda mudo — con el
+          # backend perfectamente sano y respondiendo a curl. Es justo el modo de falla que
+          # no se ve desde afuera: /actuator/health da 200 y el gimnasio no puede trabajar.
+          #
+          # Paso de verdad: la primera vez que se desplegó esto, faltaba `FRONTEND_URL` y
+          # TODOS los preflight daban 403.
+          echo "Comprobando CORS para el escritorio (Origin: null)..."
+          preflight=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS --max-time 20 \
+            -H "Origin: null" \
+            -H "Access-Control-Request-Method: GET" \
+            -H "Access-Control-Request-Headers: authorization,x-tenant-id" \
+            "$URL/api/gym/members" || echo 000)
+          if [ "$preflight" != "200" ]; then
+            echo "FALLA: el preflight con Origin null devolvió $preflight (se esperaba 200)."
+            echo "El escritorio no podría hablar con este backend. Revisar FRONTEND_URL."
+            exit 1
+          fi
+          echo "OK: el preflight del escritorio pasa."
 
           echo "El backend está desplegado Y respondiendo."
