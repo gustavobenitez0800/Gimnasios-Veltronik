@@ -86,16 +86,16 @@ public class GymMember extends TenantAwareEntity {
     private java.util.UUID userId;
 
     /**
-     * Visitas que le quedan al socio.
+     * ⛔ SIN USO DESDE 2026-09-02: el cupo de clases se dio de baja.
      *
-     * <p><b>NULL significa "este gimnasio no lleva cupo de clases"</b>, y entonces la cobertura
-     * la decide solo la fecha — que es como funcionó Veltronik siempre. Por eso todos los socios
-     * que ya existían quedaron en NULL: nada cambia para quien no usa esto.</p>
+     * <p>La cobertura la decide <b>solo la fecha</b>: se paga el mes y se entra, se vence y
+     * hay que renovar. Como funcionaba antes de que existieran los aranceles. El arancel
+     * sigue existiendo, pero como ETIQUETA de qué pagó el socio, no como un cupo de visitas
+     * que se descuenta.</p>
      *
-     * <p>NULL y 0 son cosas distintas y no hay que confundirlas: 0 es "se le acabaron las
-     * clases" (no puede entrar), NULL es "acá no se cuentan clases".</p>
-     *
-     * <p>Baja de a una al registrar una ENTRADA. Nunca por debajo de cero.</p>
+     * <p><b>La columna se deja a propósito</b>, con lo que tenga cargado: borrarla es
+     * irreversible y el dato no molesta a nadie. Nadie la lee ni la escribe. Si algún día
+     * vuelve el cupo, el historial sigue acá.</p>
      */
     @Column(name = "classes_remaining")
     private Integer classesRemaining;

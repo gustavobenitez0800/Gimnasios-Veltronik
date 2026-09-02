@@ -204,19 +204,12 @@ export default function AccessPage() {
   // Partirlo acá y no en el cartel es lo que evita que alguien lo recomponga con una
   // expresión regular sobre el texto ya armado.
   const getDaysInfo = useCallback((member) => {
-    const { situacion, diasVencido, diasRestantes, clasesRestantes } = member || {};
+    const { situacion, diasVencido, diasRestantes } = member || {};
     if (!situacion || situacion === 'SIN_DATOS') {
       return { label: 'Sin fecha', type: 'unknown', valor: '—', unidad: 'sin fecha cargada' };
     }
     if (situacion === 'INACTIVO') {
       return { label: 'Dado de baja', type: 'expired', valor: '—', unidad: 'dado de baja' };
-    }
-
-    // Se le acabó el cupo de visitas del abono, con la cuota al día. En la puerta la
-    // diferencia con "vencido" es toda: a este socio no hay que cobrarle una deuda, hay que
-    // venderle más clases.
-    if (situacion === 'SIN_CLASES') {
-      return { label: 'Sin clases', type: 'expired', valor: '0', unidad: 'clases restantes' };
     }
 
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
@@ -226,28 +219,16 @@ export default function AccessPage() {
         unidad: diasVencido === 1 ? 'día vencido' : 'días vencido',
       };
     }
-    const d = diasRestantes ?? 0;
-    // Con cupo, se muestran las clases: es el número que le importa a quien viene seguido,
-    // y el que se va a acabar antes que la fecha.
-    const label = clasesRestantes != null
-      ? `${clasesRestantes} clases · ${d}d`
-      : `${d}d restantes`;
-    // El número grande es siempre el de DÍAS: lo tienen todos los socios, y es lo que la
-    // gente pregunta en la puerta. Las clases, cuando el gimnasio las cuenta, van en la
-    // línea de abajo — salvo que sean el límite que se va a agotar primero, y ahí pasan
-    // adelante: de nada sirve un cartel que dice "20 días" al que no le quedan clases.
-    const clasesMandan = clasesRestantes != null && clasesRestantes <= 3 && clasesRestantes < d;
-    const detalle = clasesMandan
-      ? { valor: String(clasesRestantes), unidad: clasesRestantes === 1 ? 'clase · quedan días' : `clases · ${d}d de plazo` }
-      : {
-        valor: String(d),
-        unidad: clasesRestantes != null
-          ? `días · ${clasesRestantes} clases`
-          : (d === 1 ? 'día restante' : 'días restantes'),
-      };
 
-    if (d <= 3 || (clasesRestantes != null && clasesRestantes <= 2)) return { label, type: 'danger', ...detalle };
-    if (d <= 7 || (clasesRestantes != null && clasesRestantes <= 5)) return { label, type: 'warning', ...detalle };
+    // ⭐ DÍAS, Y NADA MÁS. El cupo de clases se dio de baja (2026-09-02): se paga el mes y
+    // se entra, se vence y hay que renovar. El arancel dice QUÉ pagó el socio, no cuántas
+    // visitas le quedan — así que en la puerta hay un solo número y no dos compitiendo.
+    const d = diasRestantes ?? 0;
+    const label = `${d}d restantes`;
+    const detalle = { valor: String(d), unidad: d === 1 ? 'día restante' : 'días restantes' };
+
+    if (d <= 3) return { label, type: 'danger', ...detalle };
+    if (d <= 7) return { label, type: 'warning', ...detalle };
     return { label, type: 'ok', ...detalle };
   }, []);
 

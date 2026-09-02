@@ -61,12 +61,6 @@ public class GymMemberDTO {
     /** Días que le quedan. 0 si ya venció. */
     private Long diasRestantes;
 
-    /**
-     * Visitas que le quedan. NULL = este gimnasio no lleva cupo de clases y la cobertura la
-     * decide solo la fecha. Las pantallas solo lo pintan; quien lo calcula es MemberAccessPolicy.
-     */
-    private Integer clasesRestantes;
-
     /** El arancel del socio, para que la pantalla lo muestre y lo pre-elija al cobrar. */
     private java.util.UUID planId;
     private String planNombre;

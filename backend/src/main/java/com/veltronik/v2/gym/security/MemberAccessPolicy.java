@@ -39,31 +39,14 @@ public class MemberAccessPolicy {
         /** Sin fecha de vencimiento cargada — dato incompleto, no es lo mismo que deber. */
         SIN_DATOS,
         /** Dado de baja por el gimnasio. No es un problema de plata. */
-        INACTIVO,
-        /**
-         * Se le acabaron las clases del abono, aunque la fecha siga vigente.
-         *
-         * <p>Es distinto de VENCIDO a propósito: el socio <b>está al día con la plata</b>, lo que
-         * agotó es el cupo de visitas que compró. Decirle "vencido" a alguien que pagó sería
-         * mandarlo a discutir una deuda que no tiene.</p>
-         */
-        SIN_CLASES
+        INACTIVO
     }
 
-    /**
-     * @param clasesRestantes visitas que le quedan. <b>NULL = este gimnasio no cuenta clases</b>,
-     *                        y entonces la cobertura la decide solo la fecha.
-     */
     public record Verdict(Status status, LocalDateTime membershipEnd, long diasVencido,
-                          long diasRestantes, Integer clasesRestantes) {
+                          long diasRestantes) {
         /** ¿Le mostramos algo distinto a "pasá"? */
         public boolean necesitaAviso() {
             return status != Status.AL_DIA;
-        }
-
-        /** ¿Este socio lleva cupo de clases? */
-        public boolean usaClases() {
-            return clasesRestantes != null;
         }
     }
 
@@ -86,46 +69,28 @@ public class MemberAccessPolicy {
      * complete, no para acusarlo.</p>
      */
     public Verdict evaluate(GymMember member, LocalDateTime now) {
-        if (member == null) return new Verdict(Status.INACTIVO, null, 0, 0, null);
-
-        final Integer clases = member.getClassesRemaining();
+        if (member == null) return new Verdict(Status.INACTIVO, null, 0, 0);
 
         // La baja manda sobre todo lo demás: el que fue dado de baja no "debe", ya no es socio.
         if (!member.isActive()) {
-            return new Verdict(Status.INACTIVO, member.getMembershipEnd(), 0, 0, clases);
+            return new Verdict(Status.INACTIVO, member.getMembershipEnd(), 0, 0);
         }
 
         LocalDateTime end = member.getMembershipEnd();
         if (end == null) {
-            return new Verdict(Status.SIN_DATOS, null, 0, 0, clases);
+            return new Verdict(Status.SIN_DATOS, null, 0, 0);
         }
 
         if (end.isAfter(now)) {
             // Se redondea HACIA ARRIBA: al que le quedan 12 horas le faltan "1 día", no cero.
             // Decirle "0 días" a alguien que todavía puede entrenar hoy es alarmarlo de más.
             long faltan = (long) Math.ceil(java.time.Duration.between(now, end).toMinutes() / 1440.0);
-
-            // ── LA COBERTURA SE AGOTA POR LO QUE PASE PRIMERO ──
-            //
-            // Un abono de "1 mes / 12 clases" cubre un mes, o doce visitas: lo que termine
-            // antes. Si solo mirásemos la fecha, el que compró 12 visitas podría venir 30
-            // veces — y el gimnasio le cobra distinto justamente por eso.
-            //
-            // ⚠️ NULL no es 0. NULL es "acá no se cuentan clases" y no cambia nada; 0 es "se
-            // le acabaron". Confundirlos dejaría sin entrar a todos los socios de todos los
-            // gimnasios que no usan esta función.
-            if (clases != null && clases <= 0) {
-                return new Verdict(Status.SIN_CLASES, end, 0, Math.max(1, faltan), clases);
-            }
-
-            return new Verdict(Status.AL_DIA, end, 0, Math.max(1, faltan), clases);
+            return new Verdict(Status.AL_DIA, end, 0, Math.max(1, faltan));
         }
 
-        // Vencido por fecha. Las clases que le sobren NO lo rescatan: el período que compró
-        // terminó. (Esa confusión —tomar las clases sin usar como si fueran crédito vigente—
-        // es la que hizo aparecer al día a gente que no pagaba desde hacía meses.)
+        // Vencido por fecha, y la fecha es lo único que manda: pagó el mes o no lo pagó.
         long dias = java.time.Duration.between(end, now).toDays();
         Status s = dias <= graceDays ? Status.EN_GRACIA : Status.VENCIDO;
-        return new Verdict(s, end, dias, 0, clases);
+        return new Verdict(s, end, dias, 0);
     }
 }

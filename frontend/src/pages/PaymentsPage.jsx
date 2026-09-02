@@ -246,16 +246,13 @@ export default function PaymentsPage() {
     return () => { cancelado = true; };
   }, []);
 
-  /** "· 1 mes y 30 clases" — para que el que cobra vea qué está vendiendo. */
+  /** "· 1 mes" — para que el que cobra vea qué período está vendiendo. */
   const describirArancel = (a) => {
-    const partes = [];
-    if (a.durationDays > 0) {
-      partes.push(a.durationDays % 30 === 0 && a.durationDays >= 30
-        ? `${a.durationDays / 30} ${a.durationDays === 30 ? 'mes' : 'meses'}`
-        : `${a.durationDays} ${a.durationDays === 1 ? 'día' : 'días'}`);
-    }
-    if (a.classes != null) partes.push(`${a.classes} clases`);
-    return partes.length ? ` · ${partes.join(' y ')}` : '';
+    if (!(a.durationDays > 0)) return '';
+    const periodo = a.durationDays % 30 === 0 && a.durationDays >= 30
+      ? `${a.durationDays / 30} ${a.durationDays === 30 ? 'mes' : 'meses'}`
+      : `${a.durationDays} ${a.durationDays === 1 ? 'día' : 'días'}`;
+    return ` · ${periodo}`;
   };
 
   /**
@@ -610,10 +607,10 @@ export default function PaymentsPage() {
             </div>
 
             {/* ─── El arancel decide, no la memoria de quien atiende ───
-                Elegir el plan completa el monto y hace que el backend aplique los días y las
-                clases que corresponden. Antes había que escribir el período a mano en cada
-                cobro: vender un trimestral y olvidarse de correr el "hasta" dejaba al socio
-                con un mes, y nadie se enteraba hasta que no lo dejaban entrar. */}
+                Elegir el plan completa el monto y hace que el backend aplique los días que
+                corresponden. Antes había que escribir el período a mano en cada cobro:
+                vender un trimestral y olvidarse de correr el "hasta" dejaba al socio con un
+                mes, y nadie se enteraba hasta que no lo dejaban entrar. */}
             {aranceles.length > 0 && (
               <div className="form-group full-width">
                 <label className="form-label">Arancel</label>
@@ -628,7 +625,7 @@ export default function PaymentsPage() {
                 </select>
                 <small className="form-hint">
                   {modal.form.plan_id
-                    ? 'El período y las clases los aplica el arancel: no hace falta tocar las fechas de abajo.'
+                    ? 'El período lo aplica el arancel: no hace falta tocar las fechas de abajo.'
                     : 'Sin arancel, el período lo escribís vos.'}
                 </small>
               </div>

@@ -143,107 +143,67 @@ class MemberAccessPolicyTest {
     }
 
     /**
-     * El cupo de clases: la segunda moneda de cobertura.
+     * ⛔ EL CUPO DE CLASES SE DIO DE BAJA (2026-09-02).
      *
-     * <p>La regla es que la cobertura se agota por <b>lo que pase primero</b>, la fecha o las
-     * clases. Un abono de "1 mes / 12 clases" cubre un mes, o doce visitas.</p>
+     * <p>La cobertura la decide <b>solo la fecha</b>: se paga el mes y se entra, se vence y
+     * hay que renovar — como funcionaba antes de que existieran los aranceles. El arancel
+     * quedó como ETIQUETA de qué pagó el socio, no como un cupo de visitas.</p>
+     *
+     * <p>Estos tests existen porque la columna {@code classes_remaining} <b>sigue en la base
+     * con los valores viejos</b>: se dejó a propósito (borrar es irreversible). Lo que se
+     * prueba acá es que ese dato viejo no cambie NADA de lo que el sistema decide.</p>
      */
     @Nested
-    @DisplayName("cupo de clases")
-    class Clases {
+    @DisplayName("el cupo de clases ya no cuenta")
+    class CupoDadoDeBaja {
 
-        private GymMember conClases(LocalDateTime vence, Integer clases) {
+        private GymMember conCupoViejo(LocalDateTime vence, Integer clases) {
             GymMember m = socio(vence);
             m.setClassesRemaining(clases);
             return m;
         }
 
         /**
-         * ⭐ EL TEST QUE PROTEGE A TODOS LOS DEMÁS GIMNASIOS.
-         *
-         * NULL significa "acá no se cuentan clases". Si alguna vez se confunde con 0, todos
-         * los socios de todos los gimnasios que no usan esta función dejarían de poder entrar
-         * de un día para el otro.
+         * ⭐ EL CAMBIO PEDIDO POR EL DUEÑO. Antes esto daba SIN_CLASES y al socio no lo
+         * dejaba entrar aunque tuviera la cuota paga. Ahora paga el mes y entra: punto.
          */
         @Test
-        @DisplayName("sin cupo (null) se comporta EXACTAMENTE como antes")
-        void sinCupoNoCambiaNada() {
+        @DisplayName("con el cupo viejo en CERO y la fecha vigente, está AL DÍA")
+        void cupoAgotadoYaNoBloquea() {
             LocalDateTime ahora = LocalDateTime.now();
 
-            var alDia = policy.evaluate(conClases(ahora.plusDays(10), null), ahora);
-            assertEquals(MemberAccessPolicy.Status.AL_DIA, alDia.status());
-            assertNull(alDia.clasesRestantes());
-            assertFalse(alDia.usaClases());
+            var v = policy.evaluate(conCupoViejo(ahora.plusDays(10), 0), ahora);
 
-            var vencido = policy.evaluate(conClases(ahora.minusDays(30), null), ahora);
-            assertEquals(MemberAccessPolicy.Status.VENCIDO, vencido.status());
-        }
-
-        @Test
-        @DisplayName("con fecha vigente y clases, está al día")
-        void conClasesEntra() {
-            LocalDateTime ahora = LocalDateTime.now();
-            var v = policy.evaluate(conClases(ahora.plusDays(10), 5), ahora);
-
-            assertEquals(MemberAccessPolicy.Status.AL_DIA, v.status());
-            assertEquals(5, v.clasesRestantes());
-            assertTrue(v.usaClases());
+            assertEquals(MemberAccessPolicy.Status.AL_DIA, v.status(),
+                    "pagó el mes: el cupo de visitas ya no existe como límite");
         }
 
         /**
-         * Es el socio que compró 12 visitas y vino 12 veces en tres semanas. La fecha todavía
-         * le da, pero el cupo no — y es exactamente lo que el gimnasio cobra distinto.
+         * El reverso, y el que más importa: al migrar el primer gimnasio se tomaron las
+         * clases sin usar como si fueran crédito vigente, y así aparecía "al día" gente que
+         * no pagaba desde hacía meses. La fecha manda, y las clases que sobren no rescatan
+         * nada — ahora porque directamente no se miran.
          */
         @Test
-        @DisplayName("sin clases pero con fecha vigente: SIN_CLASES, no VENCIDO")
-        void sinClasesNoEsVencido() {
+        @DisplayName("el cupo viejo NO rescata una fecha vencida")
+        void elCupoViejoNoRescata() {
             LocalDateTime ahora = LocalDateTime.now();
-            var v = policy.evaluate(conClases(ahora.plusDays(10), 0), ahora);
 
-            // La distinción importa: este socio NO debe plata. Decirle "vencido" sería
-            // mandarlo a discutir una deuda que no tiene.
-            assertEquals(MemberAccessPolicy.Status.SIN_CLASES, v.status());
-            assertEquals(0, v.clasesRestantes());
-            assertTrue(v.necesitaAviso());
-            // Conserva los días que le quedan del período: la información sigue siendo cierta.
-            assertTrue(v.diasRestantes() > 0);
-        }
-
-        /**
-         * ⭐ EL ERROR QUE COSTÓ UNA MIGRACIÓN.
-         *
-         * Al migrar el primer gimnasio se tomaron las clases sin usar como si fueran crédito
-         * vigente, y se les extendió el vencimiento. Resultado: 153 socios que no pagaban
-         * desde hacía meses aparecieron al día, algunos con 141 días de más.
-         *
-         * El contador de clases baja cuando el socio ASISTE. El que deja de venir se queda
-         * con el número congelado: "30 clases" en la ficha de alguien que pagó en abril y no
-         * volvió no significa que le queden 30 clases pagas, significa que no las usó.
-         *
-         * Las clases NO rescatan un período vencido.
-         */
-        @Test
-        @DisplayName("las clases que sobran NO rescatan una fecha vencida")
-        void lasClasesNoRescatanElVencimiento() {
-            LocalDateTime ahora = LocalDateTime.now();
-            var v = policy.evaluate(conClases(ahora.minusDays(100), 30), ahora);
+            var v = policy.evaluate(conCupoViejo(ahora.minusDays(100), 30), ahora);
 
             assertEquals(MemberAccessPolicy.Status.VENCIDO, v.status());
             assertEquals(100, v.diasVencido());
-            // El dato del cupo sigue viajando: sirve para que el mostrador vea el contexto.
-            assertEquals(30, v.clasesRestantes());
         }
 
         @Test
-        @DisplayName("el dado de baja sigue siendo INACTIVO, tenga las clases que tenga")
+        @DisplayName("el dado de baja sigue siendo INACTIVO, tenga el cupo que tenga")
         void laBajaMandaSobreElCupo() {
-            GymMember m = conClases(LocalDateTime.now().plusDays(10), 20);
+            GymMember m = conCupoViejo(LocalDateTime.now().plusDays(10), 20);
             m.setActive(false);
 
             var v = policy.evaluate(m, LocalDateTime.now());
 
             assertEquals(MemberAccessPolicy.Status.INACTIVO, v.status());
-            assertEquals(20, v.clasesRestantes());
         }
     }
 }

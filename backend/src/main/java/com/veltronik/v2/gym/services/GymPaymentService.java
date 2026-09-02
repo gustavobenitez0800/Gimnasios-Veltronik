@@ -153,29 +153,6 @@ public class GymPaymentService {
         if (member == null) return;                       // pago sin socio: nada que extender
         if (!estaCobrado(payment.getStatus())) return;    // pendiente o anulado: la plata no entró
         aplicarCobertura(member, payment.getPeriodEnd());
-        sumarClasesDelPlan(payment, member);
-    }
-
-    /**
-     * Le suma al socio las visitas que otorga el arancel cobrado.
-     *
-     * <p><b>Suma, no reemplaza.</b> Si le quedaban 5 clases y compra un abono de 30, queda con
-     * 35: esas 5 las pagó. Es la misma lógica que la fecha, que se extiende desde el
-     * vencimiento vigente en vez de arrancar de hoy — quien renueva antes de que se le acabe
-     * no pierde lo que le sobraba.</p>
-     *
-     * <p><b>Un arancel sin clases (NULL) no toca el contador.</b> No lo pone en cero ni lo
-     * borra: si un gimnasio vende una mensualidad libre a alguien que tenía cupo, sacarle el
-     * cupo en silencio sería decidir por él. Eso se cambia a mano desde la ficha del socio,
-     * que es donde se ve lo que está pasando.</p>
-     */
-    private void sumarClasesDelPlan(GymPayment payment, GymMember member) {
-        GymPlan plan = payment.getPlan();
-        if (plan == null || plan.getClasses() == null || plan.getClasses() <= 0) return;
-
-        int actuales = member.getClassesRemaining() != null ? member.getClassesRemaining() : 0;
-        member.setClassesRemaining(actuales + plan.getClasses());
-        memberService.saveForCurrentTenant(member);
     }
 
     /**

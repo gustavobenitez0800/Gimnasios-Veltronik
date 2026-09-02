@@ -1,14 +1,13 @@
 // ============================================
 // VELTRONIK — ARANCELES (Ajustes)
 // ============================================
-// El catálogo de lo que vende el gimnasio. Cada arancel otorga DOS cosas, y puede otorgar
-// las dos a la vez:
+// El catálogo de lo que vende el gimnasio: un nombre, un precio y CUÁNTOS DÍAS cubre.
 //
-//   · DÍAS   → cuánto tiempo cubre
-//   · CLASES → cuántas visitas incluye
-//
-// La cobertura del socio se agota por lo que pase primero. Un "1 mes / 12 clases" cubre un
-// mes, o doce visitas.
+// ⛔ EL CUPO DE CLASES SE DIO DE BAJA (2026-09-02). La cobertura la decide solo la fecha:
+// se paga el mes y se entra, se vence y hay que renovar. El arancel sigue siendo la
+// ETIQUETA de qué pagó el socio —para saber quién está en qué plan y cuánto se le cobra—
+// pero ya no descuenta visitas. Contar clases hacía que un socio al día con la plata
+// apareciera bloqueado, que es una discusión que nadie quiere tener en el mostrador.
 //
 // Por qué existe esta pantalla: antes, cobrar era escribir el monto y las fechas a mano en
 // cada cobro. Vender un trimestral y olvidarse de correr el "período hasta" dejaba al socio
@@ -22,7 +21,7 @@ import { formatCurrency } from '../lib/utils';
 import { ConfirmDialog } from './Layout';
 import Icon from './Icon';
 
-const FORM_VACIO = { name: '', price: '', durationDays: '', classes: '' };
+const FORM_VACIO = { name: '', price: '', durationDays: '' };
 
 export default function ArancelesSettings() {
   const { showToast } = useToast();
@@ -53,12 +52,8 @@ export default function ArancelesSettings() {
     if (!form.name.trim()) { showToast('Ponele un nombre al arancel', 'error'); return; }
 
     const dias = parseInt(form.durationDays, 10) || 0;
-    // Vacío y cero son cosas distintas: vacío es "este arancel no cuenta visitas", cero
-    // sería un arancel que no deja entrar nunca. Se manda null para el primero.
-    const clases = form.classes === '' ? null : (parseInt(form.classes, 10) || 0);
-
-    if (dias === 0 && (clases === null || clases === 0)) {
-      showToast('El arancel tiene que dar días, clases, o las dos cosas', 'error');
+    if (dias === 0) {
+      showToast('Poné cuántos días cubre el arancel (un mes son 30)', 'error');
       return;
     }
 
@@ -68,7 +63,6 @@ export default function ArancelesSettings() {
         name: form.name.trim(),
         price: parseFloat(form.price) || 0,
         durationDays: dias,
-        classes: clases,
       };
       if (editando) await planService.update(editando, cuerpo);
       else await planService.create(cuerpo);
@@ -88,7 +82,6 @@ export default function ArancelesSettings() {
       name: p.name || '',
       price: p.price ?? '',
       durationDays: p.durationDays ?? '',
-      classes: p.classes ?? '',
     });
   };
 
@@ -114,16 +107,12 @@ export default function ArancelesSettings() {
     }
   };
 
-  /** "1 mes y 30 clases", "12 clases", "7 días" — en criollo, no en campos. */
+  /** "1 mes", "3 meses", "7 días" — en criollo, no en campos. */
   const queOtorga = (p) => {
-    const partes = [];
-    if (p.durationDays > 0) {
-      partes.push(p.durationDays % 30 === 0 && p.durationDays >= 30
-        ? `${p.durationDays / 30} ${p.durationDays === 30 ? 'mes' : 'meses'}`
-        : `${p.durationDays} ${p.durationDays === 1 ? 'día' : 'días'}`);
-    }
-    if (p.classes != null) partes.push(`${p.classes} ${p.classes === 1 ? 'clase' : 'clases'}`);
-    return partes.join(' y ') || '—';
+    if (!(p.durationDays > 0)) return '—';
+    return p.durationDays % 30 === 0 && p.durationDays >= 30
+      ? `${p.durationDays / 30} ${p.durationDays === 30 ? 'mes' : 'meses'}`
+      : `${p.durationDays} ${p.durationDays === 1 ? 'día' : 'días'}`;
   };
 
   return (
@@ -132,8 +121,8 @@ export default function ArancelesSettings() {
         <Icon name="wallet" size="1.2em" /> Aranceles
       </h2>
       <p className="text-muted" style={{ fontSize: '.9rem', marginTop: '-.5rem' }}>
-        Lo que vende el gimnasio. Al cobrar se elige uno y el sistema aplica solo los días y
-        las clases que corresponden — sin escribir fechas a mano.
+        Lo que vende el gimnasio. Al cobrar se elige uno y el sistema aplica solo los días
+        que corresponden — sin escribir fechas a mano.
       </p>
 
       <form onSubmit={guardar} style={{ marginTop: '1rem' }}>
@@ -152,16 +141,7 @@ export default function ArancelesSettings() {
             <label className="form-label">Días que cubre</label>
             <input type="number" className="form-input" value={form.durationDays} placeholder="30"
               onChange={(e) => setForm(f => ({ ...f, durationDays: e.target.value }))} />
-            <small className="form-hint">Un mes son 30. Dejalo en 0 si es un pack de clases sueltas.</small>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Clases que incluye</label>
-            <input type="number" className="form-input" value={form.classes} placeholder="30"
-              onChange={(e) => setForm(f => ({ ...f, classes: e.target.value }))} />
-            <small className="form-hint">
-              <strong>Dejalo vacío si este plan no cuenta visitas.</strong> Vacío y 0 no son lo
-              mismo: 0 sería un plan que no deja entrar nunca.
-            </small>
+            <small className="form-hint">Un mes son 30, un trimestre 90.</small>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '.6rem', marginTop: '1rem' }}>

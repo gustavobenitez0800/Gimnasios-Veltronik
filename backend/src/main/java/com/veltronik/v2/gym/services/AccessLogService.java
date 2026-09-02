@@ -330,34 +330,7 @@ public class AccessLogService {
         log.setCheckinPointId(checkinPointId);
         log.setScannerId(scannerId);
         log.setClientRef(clientRef);
-        AccessLog guardado = accessLogRepository.save(log);
-
-        consumirClase(member);
-        return guardado;
-    }
-
-    /**
-     * Descuenta una visita del cupo del socio.
-     *
-     * <p><b>Solo al ENTRAR.</b> Está acá adentro y no en {@code registerScan} justamente por
-     * eso: este método es el único lugar donde nace una visita, así que el descuento no puede
-     * dispararse por una salida ni por un rebote. Poner la resta arriba, en el switch de
-     * direcciones, habría significado acordarse de no restar en tres caminos distintos — y
-     * olvidarse en uno solo es cobrarle al socio una clase que no usó.</p>
-     *
-     * <p><b>NULL se respeta.</b> Un socio sin cupo (la enorme mayoría, y todos los gimnasios
-     * que no usan esta función) sigue con NULL: no se le empieza a contar nada por el hecho de
-     * entrar.</p>
-     *
-     * <p><b>Nunca baja de cero.</b> El que entra con el cupo agotado —porque el mostrador lo
-     * dejó pasar igual, que es una decisión legítima del gimnasio— no acumula clases negativas
-     * que después haya que compensar al cobrar.</p>
-     */
-    private void consumirClase(GymMember member) {
-        Integer quedan = member.getClassesRemaining();
-        if (quedan == null) return;
-        member.setClassesRemaining(Math.max(0, quedan - 1));
-        memberService.saveForCurrentTenant(member);
+        return accessLogRepository.save(log);
     }
 
     /**
@@ -383,13 +356,13 @@ public class AccessLogService {
      * Un socio que acaba de pasar por el QR, con su situación resuelta.
      *
      * <p>Lleva los MISMOS campos que la búsqueda del mostrador ({@code situacion},
-     * {@code diasRestantes}, {@code clasesRestantes}) para que la pantalla lo pinte con el
+     * {@code diasRestantes}) para que la pantalla lo pinte con el
      * mismo código que usa cuando la recepcionista registra la entrada a mano. Si acá se
      * inventara otro formato, habría dos maneras de decir lo mismo y una se iba a quedar
      * atrás.</p>
      */
     public record Ingreso(UUID accesoId, UUID socioId, String nombre, String situacion,
-                          long diasVencido, long diasRestantes, Integer clasesRestantes,
+                          long diasVencido, long diasRestantes,
                           LocalDateTime hora) {}
 
     /**
@@ -420,7 +393,7 @@ public class AccessLogService {
             ingresos.add(new Ingreso(
                     a.getId(), m.getId(),
                     (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim(),
-                    v.status().name(), v.diasVencido(), v.diasRestantes(), v.clasesRestantes(),
+                    v.status().name(), v.diasVencido(), v.diasRestantes(),
                     a.getCheckInAt()));
         }
         return ingresos;

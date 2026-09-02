@@ -61,7 +61,6 @@ public interface GymMemberMapper {
         dto.setSituacion(v.status().name());
         dto.setDiasVencido(v.diasVencido());
         dto.setDiasRestantes(v.diasRestantes());
-        dto.setClasesRestantes(v.clasesRestantes());
     }
 
     /** Nombre para mostrar: "Nombre Apellido", tolerante a nulos. */

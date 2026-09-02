@@ -418,21 +418,15 @@ export default function MembersPage() {
     if (!situacion || situacion === 'SIN_DATOS') return { text: '-', className: 'days-none' };
     if (situacion === 'INACTIVO') return { text: 'baja', className: 'days-none' };
 
-    // Se le acabaron las clases del abono. NO es lo mismo que vencido: este socio está al
-    // día con la plata, lo que agotó es el cupo de visitas que compró. Decirle "vencido"
-    // sería mandarlo a discutir una deuda que no tiene.
-    if (situacion === 'SIN_CLASES') return { text: 'sin clases', className: 'days-expired' };
-
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
       return { text: `${diasVencido}d vencido`, className: 'days-expired' };
     }
+    // Días y nada más: el cupo de clases se dio de baja (2026-09-02). Se paga el mes y se
+    // entra; se vence y hay que renovar.
     const d = diasRestantes ?? 0;
-    // Si el gimnasio lleva cupo, las clases van al lado de los días: para el que viene
-    // seguido, es lo que se le acaba primero.
-    const cl = member?.clasesRestantes != null ? ` · ${member.clasesRestantes}cl` : '';
-    if (d <= 3) return { text: `${d}d${cl}`, className: 'days-danger' };
-    if (d <= 7) return { text: `${d}d${cl}`, className: 'days-warning' };
-    return { text: `${d}d${cl}`, className: 'days-ok' };
+    if (d <= 3) return { text: `${d}d`, className: 'days-danger' };
+    if (d <= 7) return { text: `${d}d`, className: 'days-warning' };
+    return { text: `${d}d`, className: 'days-ok' };
   };
 
   return (
