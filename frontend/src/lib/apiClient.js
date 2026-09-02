@@ -72,9 +72,33 @@ async function tokenDeLaSesion() {
   return null;
 }
 
+/**
+ * ⚠️⚠️ LAS RUTAS PÚBLICAS NO LLEVAN SESIÓN, Y EXIGIRLES UNA LAS ROMPE EN SILENCIO.
+ *
+ * Abajo, un pedido sin token NO SALE: se lanza un error antes de llegar a la red. Eso está
+ * bien para las pantallas del gimnasio —un pedido sin token es un 401 garantizado, y un 401
+ * cierra la sesión—, pero hay endpoints que se llaman JUSTAMENTE sin sesión:
+ *
+ *   · `/public/checkin` — el socio que escanea el QR con SU celular. No tiene cuenta.
+ *   · `/public/plans` y `/public/payment-config` — el que todavía no se registró.
+ *
+ * Sin esta salida, esas llamadas nunca salían del navegador. Y el síntoma no se parecía en
+ * nada a la causa: como el error no traía respuesta HTTP, la pantalla del QR lo tomaba por
+ * un corte de red, reintentaba treinta segundos y terminaba en "Sin señal. Pedile al
+ * mostrador que te marque la entrada" — con el servidor sano del otro lado. El socio veía
+ * "no funciona el servidor" parado en la puerta.
+ *
+ * Tampoco se les mandan los headers de identidad (tenant, equipo, turno): no los necesitan y
+ * no hay ninguna razón para contarle al endpoint público en qué sucursal está la sesión de
+ * otra persona que abrió el navegador en la misma computadora.
+ */
+const ES_RUTA_PUBLICA = (url) => String(url || '').includes('/public/');
+
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
   async (config) => {
+    if (ES_RUTA_PUBLICA(config.url)) return config;
+
     // ⚠️ UN PEDIDO SIN TOKEN ES UN 401 GARANTIZADO, Y UN 401 CIERRA LA SESIÓN.
     //
     // Acá antes, si `getSession()` fallaba o se colgaba, el pedido salía igual sin la

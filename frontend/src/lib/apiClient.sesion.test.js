@@ -187,3 +187,78 @@ describe('la sesión no se quema sola', () => {
     }
   });
 });
+
+/**
+ * ⭐⭐ EL BUG DEL QR: "la gente no puede entrar, dice que no funciona el servidor".
+ *
+ * La regla de arriba —un pedido sin token NO SALE— es correcta para las pantallas del
+ * gimnasio, pero se aplicaba a TODO. Y hay endpoints que se llaman justamente sin sesión:
+ * el socio que escanea el QR con su celular no tiene cuenta.
+ *
+ * El síntoma no se parecía a la causa. Como el error no traía respuesta HTTP, la pantalla
+ * del QR lo tomaba por un corte de red, reintentaba treinta segundos y terminaba diciendo
+ * "Sin señal, pedile al mostrador que te marque la entrada" — con el servidor sano del otro
+ * lado y sin una sola petición saliendo del teléfono.
+ */
+describe('las rutas públicas no necesitan sesión', () => {
+  beforeEach(() => {
+    getSession.mockReset();
+    refreshSession.mockReset();
+    signOut.mockReset();
+    localStorage.clear();
+  });
+
+  it('⭐ el check-in por QR SALE aunque no haya ninguna sesión', async () => {
+    getSession.mockResolvedValue(sinSesion);
+    const { apiClient, salidas } = await montar(ok);
+
+    await apiClient.post('/public/checkin', { token: 't', documento: '12345678' });
+
+    expect(salidas, 'el socio no tiene cuenta: este pedido tiene que salir igual').toHaveLength(1);
+  });
+
+  it('y sale sin cabecera de autorización', async () => {
+    getSession.mockResolvedValue(sinSesion);
+    const { apiClient, salidas } = await montar(ok);
+
+    await apiClient.get('/public/plans');
+
+    expect(salidas[0].headers.Authorization).toBeUndefined();
+  });
+
+  /**
+   * No hay razón para contarle al endpoint público en qué sucursal está la sesión de otra
+   * persona que abrió el navegador en la misma computadora.
+   */
+  it('tampoco lleva la sucursal de quien haya usado antes ese navegador', async () => {
+    getSession.mockResolvedValue(sinSesion);
+    localStorage.setItem('current_org_id', 'la-sucursal-de-otro');
+    const { apiClient, salidas } = await montar(ok);
+
+    await apiClient.post('/public/checkin/estado', { token: 't' });
+
+    expect(salidas[0].headers['X-Tenant-ID']).toBeUndefined();
+  });
+
+  /**
+   * El caso real del gimnasio: el escritorio está abierto en el mostrador con la sesión
+   * trabada, y el socio escanea desde su celular. Una cosa no puede frenar a la otra.
+   */
+  it('si la sesión está colgada, la ruta pública sale igual y no espera', async () => {
+    getSession.mockReturnValue(new Promise(() => {}));   // el lock trabado
+    const { apiClient, salidas } = await montar(ok);
+
+    await apiClient.post('/public/checkin', { token: 't', documento: '12345678' });
+
+    expect(salidas).toHaveLength(1);
+  });
+
+  it('⚠️ pero una ruta privada SIGUE sin salir sin token', async () => {
+    // La regla original no se tocó: es la que evita que un 401 cierre la sesión.
+    getSession.mockResolvedValue(sinSesion);
+    const { apiClient, salidas } = await montar(ok);
+
+    await expect(apiClient.get('/gym/members')).rejects.toMatchObject({ sinSesion: true });
+    expect(salidas).toHaveLength(0);
+  });
+});
