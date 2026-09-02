@@ -296,7 +296,19 @@ class AccessLogServiceTest {
             // horas que empezó. Si se evaluara contra "ahora" caería en la regla de visita
             // abandonada y abriría una entrada nueva — el socio quedaría adentro después de
             // haberse ido. Evaluada a las 09:00, la visita tiene una hora y es una salida.
-            LocalDateTime entrada = LocalDateTime.now().withHour(8).withMinute(0).withSecond(0).withNano(0);
+            // ⚠️ RELATIVO A AHORA, NUNCA CON UNA HORA FIJA DEL DÍA.
+            //
+            // Acá decía `LocalDateTime.now().withHour(8)`. Corrido a las 5 de la mañana, eso
+            // apunta al FUTURO: el servicio acota los relojes adelantados —el del terminal se
+            // acota, no se cree— así que guardaba "ahora" en vez de las 09:00 y el test
+            // fallaba. Solo pasaba si se lo corría después de las 9, que es la peor clase de
+            // test: verde todo el día y rojo de madrugada.
+            //
+            // Ocho horas atrás para que, evaluada contra AHORA, la visita supere las 6 horas
+            // de "visita abandonada" — que es justamente la regla que este test verifica que
+            // NO se aplique cuando la marca trae su propio momento. Y entra holgada en las 36
+            // horas de atraso máximo que acepta la cola.
+            LocalDateTime entrada = LocalDateTime.now().minusHours(8).withSecond(0).withNano(0);
             LocalDateTime salida = entrada.plusHours(1);
             AccessLog abierta = visitaAbiertaDesde(entrada);
 

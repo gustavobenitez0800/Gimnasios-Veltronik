@@ -3,9 +3,23 @@
 // ============================================
 // Mostrador de recepción: buscar al socio, registrar su entrada/salida y ver
 // quién está adentro ahora mismo.
+//
+// ⭐ ESTA PANTALLA SE USA COMO UN MOLINETE, y todo lo de abajo sale de ahí: el socio
+// teclea su DNI o su nombre, aprieta Enter, entra, y el campo queda vacío esperando al
+// que sigue. Nadie toca el mouse entre una persona y la otra.
+//
+// EL TECLADO NO SE APAGA NUNCA. Que el campo tenga el foco no es una comodidad, es LA
+// función: el foco se perdía por motivos que nadie en un mostrador puede adivinar —alguien
+// tocó la pantalla en un lugar vacío, volvió de otra sección— y a partir de ahí las teclas
+// caían en la nada y el sistema parecía colgado.
+//
+// ⚠️ Y EL AVISO NO PUEDE TAPAR LA PANTALLA. Acá había un overlay de pantalla completa con
+// un cartelón centrado, tres segundos por persona. Mientras estaba puesto, el que seguía en
+// la fila no podía tipear: el molinete se trababa solo, justo cuando había cola. Ahora el
+// aviso entra por el costado izquierdo, dice lo mismo, y no bloquea nada.
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
@@ -29,8 +43,26 @@ export default function AccessPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
 
-  // Success popup
-  const [popup, setPopup] = useState(null);
+  // El campo del DNI. Es el centro de la pantalla y el foco vuelve siempre acá.
+  const buscadorRef = useRef(null);
+
+  // ─── Los avisos de entrada, apilados al costado ───
+  //
+  // Una PILA y no uno solo: en la puerta la gente entra una atrás de la otra, y con un
+  // aviso único el segundo socio borraba el del primero antes de que nadie llegara a
+  // leerlo. Se muestran los últimos tres, el más nuevo arriba, y cada uno se va por su
+  // cuenta. Si entran diez seguidos, se ven los tres últimos y el resto pasa de largo —
+  // que es exactamente lo que hace alguien mirando una fila.
+  const [avisosDeEntrada, setAvisosDeEntrada] = useState([]);
+  const proximoAvisoId = useRef(0);
+
+  const mostrarAviso = useCallback((aviso, duracionMs = 4000) => {
+    const id = proximoAvisoId.current++;
+    setAvisosDeEntrada((previos) => [{ ...aviso, id }, ...previos].slice(0, 3));
+    setTimeout(() => {
+      setAvisosDeEntrada((previos) => previos.filter((a) => a.id !== id));
+    }, duracionMs);
+  }, []);
 
   // ─── Un pedido, y la vuelta a la pantalla es instantánea ───
   //
@@ -90,6 +122,76 @@ export default function AccessPage() {
     prepararSocios(tenantId);
     const t = setInterval(() => { refrescarSocios(tenantId).catch(() => {}); }, REFRESCO_MS);
     return () => clearInterval(t);
+  }, []);
+
+  // ─── EL TECLADO NO SE APAGA NUNCA ───
+  //
+  // Se ataca por los tres lados por los que el foco se perdía:
+  //
+  //   1. TECLA SUELTA — si alguien escribe con el foco en cualquier otro lado, la primera
+  //      tecla se lleva el foco al campo Y SE ESCRIBE. Sin esto el primer dígito del DNI se
+  //      perdía, que es PEOR que no escribir nada: el número queda cortado y el socio "no
+  //      existe".
+  //   2. CLIC EN CUALQUIER LADO — después de tocar la pantalla, el foco vuelve al campo.
+  //   3. VOLVER A LA VENTANA — al minimizar y volver, o al cambiar de sección y regresar.
+  //
+  // ⚠️ Lo que NO se toca: si el foco está en otro campo de texto o en un diálogo, no se lo
+  // roba. Alguien puede estar escribiendo en el buscador del cartel del QR, y arrancarle el
+  // teclado de las manos sería el mismo bug al revés.
+  const enfocarBuscador = useCallback(() => {
+    const el = buscadorRef.current;
+    if (!el || document.activeElement === el) return;
+    const activo = document.activeElement;
+    if (activo && activo !== document.body) {
+      const tag = activo.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || activo.isContentEditable) return;
+      if (activo.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
+    }
+    el.focus();
+  }, []);
+
+  useEffect(() => {
+    const esCampoAjeno = (t) =>
+      !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+
+    const alTeclearSuelto = (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;   // atajos del sistema
+      if (esCampoAjeno(e.target)) return;                // ya está escribiendo en otro lado
+      if (e.target?.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
+      // Un solo carácter imprimible, o borrar. Las flechas, Tab y F5 siguen siendo suyas.
+      const escribible = e.key.length === 1 || e.key === 'Backspace';
+      if (!escribible) return;
+      const el = buscadorRef.current;
+      if (!el || document.activeElement === el) return;
+      el.focus();
+      // La tecla que disparó esto se procesa igual, porque el navegador la entrega DESPUÉS
+      // del focus(): no hay que reescribirla a mano.
+    };
+
+    const alTocar = () => setTimeout(enfocarBuscador, 0); // después del clic, no durante
+
+    document.addEventListener('keydown', alTeclearSuelto);
+    document.addEventListener('pointerup', alTocar);
+    window.addEventListener('focus', enfocarBuscador);
+    return () => {
+      document.removeEventListener('keydown', alTeclearSuelto);
+      document.removeEventListener('pointerup', alTocar);
+      window.removeEventListener('focus', enfocarBuscador);
+    };
+  }, [enfocarBuscador]);
+
+  /**
+   * La búsqueda SIN el retraso, para el camino del Enter.
+   *
+   * `doSearch` espera 300 ms a propósito, para no consultar en cada tecla mientras alguien
+   * escribe. Pero el Enter no puede esperar a nadie: quien lo apretó ya terminó de escribir.
+   */
+  const buscar = useCallback(async (query) => {
+    try {
+      return (await memberService.searchForAccess(query)) || [];
+    } catch {
+      return [];
+    }
   }, []);
 
   // Search
@@ -160,7 +262,7 @@ export default function AccessPage() {
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
 
-      setPopup({
+      mostrarAviso({
         name: member.fullName,
         // La salida no se colorea por el estado de la cuota: al que se está yendo ya no se
         // le reclama nada, y pintarle la pantalla de rojo en la puerta no sirve para nada.
@@ -169,27 +271,64 @@ export default function AccessPage() {
           : daysInfo.type === 'danger' ? 'warning' : 'success',
         accion: rebote ? 'Ya estaba registrado' : salio ? 'Salida registrada' : 'Entrada registrada',
         daysLabel: salio || rebote ? '' : daysInfo.label,
+        // La dirección REAL, en el mismo aviso. Antes esto vivía en un toast aparte que
+        // salía AL MISMO TIEMPO que el cartelón: dos mensajes distintos, del mismo hecho,
+        // en dos lugares de la pantalla. El que avisa que alguien se fue sin marcar salida
+        // es el único que aporta algo que el resto del aviso no dice.
+        detalle: r?.recuperado && !salio && !rebote
+          ? 'La vez anterior se fue sin marcar salida' : '',
         initials: getInitials(member.fullName),
       });
-
-      setTimeout(() => setPopup(null), 3000);
 
       setSearchQuery('');
       setSearchResults([]);
       loadData();
 
-      // El mensaje nombra la dirección REAL. Antes decía "registrado" a secas y la
-      // recepcionista no tenía forma de saber qué había quedado grabado.
-      showToast(
-        rebote ? `${member.fullName}: ya estaba registrado`
-          : salio ? `Salida de ${member.fullName}`
-          : r?.recuperado
-            ? `Entrada de ${member.fullName} — la vez anterior se fue sin marcar salida`
-            : `Entrada de ${member.fullName}`,
-        'success',
-      );
+      // El campo queda vacío Y con el foco: la fila del mostrador no tiene por qué agarrar
+      // el mouse entre un socio y el siguiente.
+      buscadorRef.current?.focus();
     } catch (error) {
       showToast(errorService.getMessage(error), 'error');
+    }
+  };
+
+  // ─── Enter BUSCA y registra, en un solo gesto ───
+  //
+  // No espera a la búsqueda retrasada: consulta él mismo. El socio teclea su DNI o su
+  // nombre, aprieta Enter y entra, sin que nadie toque el mouse.
+  //
+  // Con un solo resultado no hay ambigüedad. Con varios NO se elige por él: registrarle la
+  // entrada a la persona equivocada deja DOS datos mal —uno que entró sin estar y otro que
+  // estaba sin figurar— así que se muestra la lista y alguien decide.
+  //
+  // Y cuando no aparece nadie, lo DICE. Sin eso, quien atiende no tiene forma de saber si
+  // el sistema no encontró al socio o si simplemente no la escuchó.
+  const registrando = useRef(false);
+  const alTeclear = async (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+
+    // ⚠️ Dos Enter seguidos registrarían entrada y en seguida SALIDA, porque la dirección la
+    // decide el servidor según si el socio ya está adentro. El socio se iría "afuera" sin
+    // haberse movido del gimnasio.
+    if (registrando.current) return;
+
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+
+    registrando.current = true;
+    try {
+      const encontrados = await buscar(q);
+      setSearchResults(encontrados);
+      if (encontrados.length === 1) {
+        await handleCheckIn(encontrados[0]);
+      } else if (!encontrados.length) {
+        showToast(`No encontré a nadie con "${q}"`, 'error');
+      } else {
+        showToast('Hay varios socios con esos datos. Elegí cuál.', 'info');
+      }
+    } finally {
+      registrando.current = false;
     }
   };
 
@@ -282,8 +421,13 @@ export default function AccessPage() {
         <div className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
-            <input type="text" className="search-input" placeholder="Buscar por nombre o DNI..."
-              value={searchQuery} onChange={e => handleSearch(e.target.value)} />
+            {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
+                `enterKeyHint` le pide al teclado del celular que la tecla diga "Enter" y no
+                "Buscar": lo que hace es registrar la entrada. */}
+            <input type="text" className="search-input" placeholder="DNI o nombre, y Enter"
+              ref={buscadorRef} autoFocus enterKeyHint="enter"
+              value={searchQuery} onChange={e => handleSearch(e.target.value)}
+              onKeyDown={alTeclear} />
           </div>
           <EstadoCopiaLocal />
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
@@ -408,23 +552,33 @@ export default function AccessPage() {
         </div>
       </div>
 
-      {/* Success Popup */}
-      {popup && (
-        <>
-          <div className="access-popup-overlay active" onClick={() => setPopup(null)} />
-          <div className={`checkin-success active ${popup.type}`}>
-            <div className="popup-member-photo"><span className="initials">{popup.initials}</span></div>
-            <div className="popup-member-name">{popup.name}</div>
-            {/* QUÉ se registró, no solo a quién. Este cartel decía únicamente el nombre, así
-                que la recepcionista podía apretar "entrada", grabarse una salida, y no
-                enterarse jamás. */}
-            <div className="popup-accion">{popup.accion}</div>
-            {popup.daysLabel && (
-              <div className="popup-days-info"><span className="popup-days-label">{popup.daysLabel}</span></div>
-            )}
-            <div className="popup-progress-container"><div className="popup-progress-bar" /></div>
-          </div>
-        </>
+      {/* ─── El aviso de entrada, al costado izquierdo ───
+
+          ⚠️ Acá había un overlay de pantalla completa (negro al 70%, con blur) y un cartelón
+          centrado, tres segundos por persona. Decía lo correcto, pero mientras estaba puesto
+          NADIE PODÍA TIPEAR: el molinete se trababa solo, y justo cuando había cola.
+
+          Ahora entra por la izquierda, no tapa nada y no se puede clickear (`pointer-events`
+          en el CSS): el foco se queda en el campo del DNI aunque el aviso caiga justo debajo
+          del mouse. Se apila para que un socio no le borre el aviso al anterior. */}
+      {avisosDeEntrada.length > 0 && (
+        <div className="acceso-avisos" aria-live="polite">
+          {avisosDeEntrada.map((aviso) => (
+            <div key={aviso.id} className={`acceso-aviso ${aviso.type}`}>
+              <div className="acceso-aviso-inicial">{aviso.initials}</div>
+              <div className="acceso-aviso-texto">
+                <div className="acceso-aviso-nombre">{aviso.name}</div>
+                {/* QUÉ se registró, no solo a quién: el servidor decide la dirección, así que
+                    sin esto se puede apretar "entrada", grabarse una SALIDA y no enterarse. */}
+                <div className="acceso-aviso-accion">{aviso.accion}</div>
+                {aviso.detalle && <div className="acceso-aviso-detalle">{aviso.detalle}</div>}
+              </div>
+              {aviso.daysLabel && (
+                <div className="acceso-aviso-dias">{aviso.daysLabel}</div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

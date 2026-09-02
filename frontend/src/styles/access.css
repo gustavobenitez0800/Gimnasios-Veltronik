@@ -73,37 +73,102 @@
 .checkout-btn:hover { background: var(--error-600); }
 .checkin-time { font-size: var(--font-size-xs); color: var(--text-muted); }
 
-/* Success Popup */
-.access-popup-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
-  z-index: 999; transition: all 0.3s;
-}
-.checkin-success {
-  position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(16, 185, 129, 0.95));
-  backdrop-filter: blur(20px); color: white; padding: 2.5rem;
-  border-radius: 24px; text-align: center; z-index: 1000;
-  min-width: 340px; max-width: 420px;
-  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.checkin-success.active { transform: translate(-50%, -50%) scale(1); }
-.checkin-success.warning { background: linear-gradient(135deg, rgba(245,158,11,0.95), rgba(234,88,12,0.95)); }
-.checkin-success.error { background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(220,38,38,0.95)); }
+/* ────────────────────────────────────────────────────────────
+   EL AVISO DE ENTRADA, AL COSTADO IZQUIERDO
 
-.popup-member-photo {
-  width: 80px; height: 80px; border-radius: 50%;
-  border: 4px solid rgba(255,255,255,0.3); margin: 0 auto 1rem;
-  background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;
-  font-size: 2rem; font-weight: 700;
+   ⚠️ Acá vivía un overlay de pantalla completa (negro al 70%, con blur) más un cartelón
+   centrado de 340-420px, tres segundos por persona. Decía lo correcto, pero mientras
+   estaba puesto NADIE PODÍA TIPEAR — y esta pantalla se usa como un molinete, o sea que
+   se trababa sola justo cuando había cola.
+
+   ⭐ `pointer-events: none` es la línea que sostiene todo lo demás: el aviso no se puede
+   clickear, así que el foco se queda en el campo del DNI aunque el cartel caiga justo
+   debajo del mouse. Sin eso, un clic distraído sobre el aviso apagaría el teclado.
+   ──────────────────────────────────────────────────────────── */
+.acceso-avisos {
+  position: fixed;
+  /* Pegado al borde del contenido, no al de la pantalla: si no, se monta sobre el sidebar. */
+  left: calc(var(--sidebar-width) + 1.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 900;              /* debajo de los diálogos: nunca compite con un modal abierto */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 340px;
+  pointer-events: none;
 }
-.popup-member-name { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-.popup-days-info {
-  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-  padding: 0.75rem 1rem; background: rgba(0,0,0,0.15); border-radius: 12px; margin-bottom: 1rem;
+
+.acceso-aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--btn-radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--success-500);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  /* Entra desde la izquierda: de donde viene, se entiende sin leerlo. */
+  transform: translateX(-120%);
+  animation: avisoEntra 0.35s var(--transition-bounce) forwards;
 }
-.popup-progress-container { position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: rgba(0,0,0,0.2); border-radius: 0 0 24px 24px; overflow: hidden; }
-.popup-progress-bar { height: 100%; background: rgba(255,255,255,0.5); width: 100%; animation: progressShrink 3s linear forwards; }
-@keyframes progressShrink { from { width: 100%; } to { width: 0%; } }
+
+@keyframes avisoEntra { to { transform: translateX(0); } }
+
+.acceso-aviso.warning { border-left-color: var(--warning-500); }
+.acceso-aviso.error   { border-left-color: var(--error-500); }
+
+.acceso-aviso-inicial {
+  flex-shrink: 0;
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-surface, rgba(255,255,255,0.06));
+  border: 1px solid var(--border-color);
+  font-weight: 700; font-size: var(--font-size-sm);
+}
+
+.acceso-aviso-texto { min-width: 0; flex: 1; }
+
+.acceso-aviso-nombre {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* QUÉ se registró, no solo a quién: la dirección la decide el servidor. */
+.acceso-aviso-accion { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.acceso-aviso-detalle {
+  font-size: var(--font-size-xs);
+  color: var(--warning-500);
+  margin-top: 0.15rem;
+}
+
+/* Los días son lo que la recepcionista mira de reojo: el dato más grande del aviso. */
+.acceso-aviso-dias {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--success-500);
+}
+.acceso-aviso.warning .acceso-aviso-dias { color: var(--warning-500); }
+.acceso-aviso.error   .acceso-aviso-dias { color: var(--error-500); }
+
+/* El sidebar se vuelve un riel de íconos entre 769 y 1080px, y desaparece en celular.
+   El aviso lo sigue, para no quedar flotando sobre el menú ni pegado al borde. */
+@media (min-width: 769px) and (max-width: 1080px) {
+  .acceso-avisos { left: calc(var(--sidebar-collapsed) + 1rem); }
+}
+@media (max-width: 768px) {
+  .acceso-avisos {
+    left: 0.75rem; right: 0.75rem;
+    max-width: none;
+    top: auto; bottom: 1rem;
+    transform: none;
+  }
+}

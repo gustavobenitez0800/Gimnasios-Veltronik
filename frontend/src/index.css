@@ -43,6 +43,7 @@
 
 /* ─── Reports, Team, Retention, Settings ─── */
 @import './styles/settings.css';
+@import './styles/caja.css';
 
 /* ─── Onboarding, Plans, Blocked, Force Update ─── */
 @import './styles/onboarding.css';

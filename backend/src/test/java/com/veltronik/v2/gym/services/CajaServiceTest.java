@@ -31,6 +31,7 @@ class CajaServiceTest {
     private CajaCierreRepository cierres;
     private GymPaymentRepository pagos;
     private com.veltronik.v2.gym.repositories.CajaSesionRepository sesiones;
+    private com.veltronik.v2.gym.repositories.CajaMovimientoRepository movimientos;
     private CajaService service;
 
     @BeforeEach
@@ -38,14 +39,56 @@ class CajaServiceTest {
         cierres = mock(CajaCierreRepository.class);
         pagos = mock(GymPaymentRepository.class);
         sesiones = mock(com.veltronik.v2.gym.repositories.CajaSesionRepository.class);
+        movimientos = mock(com.veltronik.v2.gym.repositories.CajaMovimientoRepository.class);
         // El rastro de ajustes se simula: acá se prueba el arqueo, no el rastro.
         service = new CajaService(cierres, pagos,
-                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class), sesiones);
+                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class), sesiones, movimientos);
         when(sesiones.save(any(com.veltronik.v2.gym.entities.CajaSesion.class))).thenAnswer(i -> i.getArgument(0));
         when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.empty());
+        // Por defecto no hay movimientos: los tests que los necesitan llaman a hayMovimientos().
+        when(movimientos.findByTenantIdAndFechaBetweenOrderByFechaDesc(eq(TENANT), any(), any()))
+                .thenReturn(List.of());
+        when(movimientos.save(any(com.veltronik.v2.gym.entities.CajaMovimiento.class)))
+                .thenAnswer(i -> i.getArgument(0));
         TenantContextHolder.setTenantId(TENANT);
         when(cierres.save(any(CajaCierre.class))).thenAnswer(i -> i.getArgument(0));
         when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.empty());
+    }
+
+    /** Un movimiento de caja ya cargado, para los tests que necesitan que existan. */
+    private com.veltronik.v2.gym.entities.CajaMovimiento movimiento(String tipo, String metodo, String monto) {
+        com.veltronik.v2.gym.entities.CajaMovimiento m = new com.veltronik.v2.gym.entities.CajaMovimiento();
+        m.setTipo(tipo);
+        m.setMetodo(metodo);
+        m.setMonto(new BigDecimal(monto));
+        m.setCategoria("PROVEEDOR");
+        m.setFecha(LocalDateTime.now().minusHours(1));
+        return m;
+    }
+
+    private void hayMovimientos(com.veltronik.v2.gym.entities.CajaMovimiento... lista) {
+        when(movimientos.findByTenantIdAndFechaBetweenOrderByFechaDesc(eq(TENANT), any(), any()))
+                .thenReturn(List.of(lista));
+    }
+
+    /**
+     * Deja una caja abierta con ese fondo.
+     *
+     * <p>Vive en la clase de afuera y no adentro de un @Nested a propósito: la usan tanto los
+     * tests de abrir/cerrar como los de egresos, y duplicarla sería exactamente el patrón que
+     * ya mordió en este proyecto — toda cuenta copiada terminó mal en alguna de sus copias.</p>
+     */
+    private com.veltronik.v2.gym.entities.CajaSesion hayUnaAbierta(String fondo) {
+        com.veltronik.v2.gym.entities.CajaSesion s = new com.veltronik.v2.gym.entities.CajaSesion();
+        s.setId(UUID.randomUUID());
+        s.setAbiertaAt(LocalDateTime.now().minusHours(6));
+        s.setAbiertaPorNombre("Carla");
+        s.setFondoInicial(new BigDecimal(fondo));
+        com.veltronik.v2.core.entities.Tenant t = new com.veltronik.v2.core.entities.Tenant();
+        t.setId(TENANT);
+        s.setTenant(t);
+        when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.of(s));
+        return s;
     }
 
     @AfterEach
@@ -317,19 +360,6 @@ class CajaServiceTest {
     @DisplayName("abrir y cerrar la caja")
     class AbrirYCerrar {
 
-        private com.veltronik.v2.gym.entities.CajaSesion hayUnaAbierta(String fondo) {
-            com.veltronik.v2.gym.entities.CajaSesion s = new com.veltronik.v2.gym.entities.CajaSesion();
-            s.setId(UUID.randomUUID());
-            s.setAbiertaAt(LocalDateTime.now().minusHours(6));
-            s.setAbiertaPorNombre("Carla");
-            s.setFondoInicial(new BigDecimal(fondo));
-            com.veltronik.v2.core.entities.Tenant t = new com.veltronik.v2.core.entities.Tenant();
-            t.setId(TENANT);
-            s.setTenant(t);
-            when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.of(s));
-            return s;
-        }
-
         @Test
         @DisplayName("abrir deja la caja abierta, con quién y con cuánto cambio")
         void abrir() {
@@ -410,6 +440,121 @@ class CajaServiceTest {
             var s = hayUnaAbierta("0");
 
             assertEquals(s.getAbiertaAt(), service.inicioDelPeriodoPublico());
+        }
+    }
+
+    @Nested
+    @DisplayName("lo que sale del cajón")
+    class LosEgresos {
+
+        private static final String EGRESO = com.veltronik.v2.gym.entities.CajaMovimiento.EGRESO;
+        private static final String INGRESO = com.veltronik.v2.gym.entities.CajaMovimiento.INGRESO;
+        private static final String EFECTIVO = com.veltronik.v2.gym.entities.CajaMovimiento.EFECTIVO;
+
+        @Test
+        @DisplayName("⭐ un gasto en efectivo BAJA lo que tiene que haber en el cajón")
+        void elEgresoSeResta() {
+            // El caso que rompía todos los días: se le pagan $15.000 a la limpieza y a la
+            // noche el sistema espera esa plata igual. El cierre decía FALTANTE y acusaba a
+            // quien atendió, que no había robado nada.
+            hayUnaAbierta("10000");
+            hayPagos(pago("CASH", "paid", "50000"));
+            hayMovimientos(movimiento(EGRESO, EFECTIVO, "15000"));
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.egresosEfectivo().compareTo(new BigDecimal("15000")));
+            assertEquals(0, r.enElCajon(new BigDecimal("10000")).compareTo(new BigDecimal("45000")),
+                    "fondo 10.000 + cobrado 50.000 - gastado 15.000 = 45.000");
+        }
+
+        @Test
+        @DisplayName("con el gasto anotado, el cierre CUADRA en vez de acusar a quien atendió")
+        void conElEgresoLaCajaCuadra() {
+            hayUnaAbierta("10000");
+            hayPagos(pago("CASH", "paid", "50000"));
+            hayMovimientos(movimiento(EGRESO, EFECTIVO, "15000"));
+
+            var c = service.cerrar(new BigDecimal("45000"), BigDecimal.ZERO, null, "Carla", false);
+
+            assertEquals(0, c.getDiferencia().compareTo(BigDecimal.ZERO), "cuadra exacto");
+            assertEquals(0, c.getEgresosEfectivo().compareTo(new BigDecimal("15000")),
+                    "y el egreso queda CONGELADO en el cierre: sin él, el esperado de este día "
+                            + "no se podría reconstruir mañana");
+        }
+
+        @Test
+        @DisplayName("una entrada de plata que no es un cobro SUMA")
+        void elIngresoManualSuma() {
+            hayPagos(pago("CASH", "paid", "50000"));
+            hayMovimientos(movimiento(INGRESO, EFECTIVO, "3000"));
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.enElCajon(BigDecimal.ZERO).compareTo(new BigDecimal("53000")));
+        }
+
+        @Test
+        @DisplayName("⚠️ un gasto por TRANSFERENCIA no toca el cajón")
+        void loQueNoPasaPorElCajonNoCuenta() {
+            // Se le paga al proveedor desde el banco: se anota porque el dueño quiere verlo,
+            // pero el efectivo del cajón no se movió. Restarlo daría un faltante inventado.
+            hayPagos(pago("CASH", "paid", "50000"));
+            hayMovimientos(movimiento(EGRESO, "TRANSFER", "15000"));
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.egresosEfectivo().compareTo(BigDecimal.ZERO));
+            assertEquals(0, r.enElCajon(BigDecimal.ZERO).compareTo(new BigDecimal("50000")));
+            assertEquals(1, r.cantidadMovimientos(), "pero se cuenta: el dueño tiene que verlo");
+        }
+
+        @Test
+        @DisplayName("un movimiento anulado no mueve la cuenta")
+        void elAnuladoNoCuenta() {
+            hayPagos(pago("CASH", "paid", "50000"));
+            var anulado = movimiento(EGRESO, EFECTIVO, "15000");
+            anulado.setAnuladoAt(LocalDateTime.now());
+            hayMovimientos(anulado);
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.enElCajon(BigDecimal.ZERO).compareTo(new BigDecimal("50000")));
+        }
+
+        @Test
+        @DisplayName("⚠️ un egreso SIN detalle no se acepta: es lo único que lo hace verificable")
+        void elEgresoNecesitaDetalle() {
+            var e = assertThrows(ResponseStatusException.class,
+                    () -> service.registrar(EGRESO, "PROVEEDOR", "  ", new BigDecimal("20000"), EFECTIVO, "Carla"));
+
+            assertTrue(e.getMessage().toLowerCase().contains("gast"),
+                    "el mensaje tiene que decir qué falta, no 'campo inválido'");
+        }
+
+        @Test
+        @DisplayName("el monto lo pone el tipo, nunca el signo")
+        void nadaDeMontosNegativos() {
+            assertThrows(ResponseStatusException.class,
+                    () -> service.registrar(EGRESO, "PROVEEDOR", "agua", new BigDecimal("-20000"), EFECTIVO, "Carla"));
+            assertThrows(ResponseStatusException.class,
+                    () -> service.registrar(EGRESO, "PROVEEDOR", "agua", BigDecimal.ZERO, EFECTIVO, "Carla"));
+        }
+
+        @Test
+        @DisplayName("un tipo que no es ni ingreso ni egreso se rechaza")
+        void tipoInvalido() {
+            assertThrows(ResponseStatusException.class,
+                    () -> service.registrar("CUALQUIERA", "PROVEEDOR", "agua", new BigDecimal("100"), EFECTIVO, "Carla"));
+        }
+
+        @Test
+        @DisplayName("el ingreso NO necesita detalle: no es el que se puede inventar para robar")
+        void elIngresoNoNecesitaDetalle() {
+            var m = service.registrar(INGRESO, "VENTA", null, new BigDecimal("3000"), EFECTIVO, "Carla");
+
+            assertEquals(INGRESO, m.getTipo());
+            assertNull(m.getDetalle());
         }
     }
 }
