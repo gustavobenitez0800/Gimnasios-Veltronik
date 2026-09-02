@@ -1,0 +1,108 @@
+name: Deploy to Google Cloud Run (Backend)
+
+# Se ejecuta manualmente o cada vez que hay un push a main
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**' # Solo redespliega si hay cambios en el backend
+  workflow_dispatch: {}
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: southamerica-east1
+  REPO_NAME: veltronik-backend-repo
+  SERVICE_NAME: v2-backend
+
+jobs:
+  deploy:
+    name: Deploy Backend a Cloud Run
+    runs-on: ubuntu-latest
+    
+    # Necesario para Workload Identity Federation (el login seguro con GCP)
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Autenticación en Google Cloud (Workload Identity)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configurar Docker para Artifact Registry
+        run: |
+          echo ${{ steps.auth.outputs.access_token }} | docker login -u oauth2accesstoken --password-stdin https://${{ env.REGION }}-docker.pkg.dev
+
+      - name: Construir y Subir Imagen Docker (Build & Push)
+        # La ruta del backend
+        working-directory: backend
+        run: |
+          IMAGE_URL="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          docker build -t $IMAGE_URL .
+          docker push $IMAGE_URL
+          
+          # Guardamos la variable para el siguiente step
+          echo "IMAGE_URL=$IMAGE_URL" >> $GITHUB_ENV
+
+      - name: Deploy a Cloud Run (São Paulo)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE_URL }}
+          # Ajustes para Spring Boot en Cloud Run.
+          #
+          # `--cpu-boost` da CPU extra durante el arranque. En una JVM eso NO es un lujo: con
+          # min-instances=0 el contenedor se apaga cuando no hay tráfico, y el primer socio
+          # de la mañana paga el arranque completo de Spring más las migraciones de Flyway.
+          #
+          # min-instances en 0 para ahorrar: el gimnasio consulta cada 15 segundos mientras
+          # está abierto, así que la instancia se mantiene viva sola durante el día y solo se
+          # apaga de noche. Si el arranque de la mañana molesta, subir a 1 (se paga siempre).
+          flags: >-
+            --allow-unauthenticated
+            --memory=1024Mi
+            --cpu=1
+            --cpu-boost
+            --min-instances=0
+            --max-instances=3
+          # Inyectar las variables de entorno de producción desde los Secrets de GitHub.
+          #
+          # ⚠️ TRES COSAS QUE HAY QUE SABER ANTES DE TOCAR ESTA LISTA:
+          #
+          # 1. NO PONER `PORT`. Es un nombre RESERVADO en Cloud Run: lo inyecta él y rechaza
+          #    el despliegue si se lo mandamos. La app ya lo lee con default
+          #    (`${PORT:8080}` en application.properties), así que no hace falta.
+          #
+          # 2. ESTA LISTA REEMPLAZA TODAS las variables del servicio en cada deploy. Lo que
+          #    alguien haya seteado a mano en la consola de Cloud Run se pierde al desplegar.
+          #    Si una variable tiene que existir, tiene que estar ACÁ.
+          #
+          # 3. ⚠️ UNA VARIABLE CON EL SECRET VACÍO ES PEOR QUE NO PONERLA. Si el Secret no
+          #    existe en GitHub, `${{ secrets.X }}` se resuelve a cadena vacía y pisa el
+          #    default de application.properties con "". Por eso NO están acá
+          #    FOUNDER_EMAILS, TRIAL_DAYS, MP_ENFORCE_SIGNATURE ni los BILLING_*: sus
+          #    defaults ya son los valores correctos (45000 el plan básico, premium oculto,
+          #    firma de webhook exigida, 14 días de prueba). Agregarlos sin cargar el Secret
+          #    los rompería en silencio.
+          #
+          # Nota: `JWT_SECRET` estaba acá por herencia de Railway y se sacó — este backend
+          # valida los tokens con JWKS asimétrico (veltronik.jwt.jwks-uri), no con un secreto
+          # compartido, así que nunca lo leyó nadie.
+          env_vars: |-
+            DB_URL=${{ secrets.DB_URL }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+            MP_ACCESS_TOKEN=${{ secrets.MP_ACCESS_TOKEN }}
+            MP_PUBLIC_KEY=${{ secrets.MP_PUBLIC_KEY }}
+            MP_WEBHOOK_SECRET=${{ secrets.MP_WEBHOOK_SECRET }}
+            SPRING_PROFILES_ACTIVE=prod
