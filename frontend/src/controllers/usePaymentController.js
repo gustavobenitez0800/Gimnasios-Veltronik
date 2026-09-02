@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { mapPaymentModelToDTO as mapPaymentModelToDTOPuro } from './mapeoPago';
 import { paymentService } from '../services/PaymentService';
 import { useQueryCache, invalidateQueries } from '../hooks';
 
@@ -42,18 +43,13 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
     };
   }, []);
 
-  const mapPaymentModelToDTO = useCallback((model) => {
-    return {
-      member_id: model.member_id,
-      amount: parseFloat(model.amount) || 0,
-      paymentDate: model.paymentDate ? `${model.paymentDate}T00:00:00` : null,
-      paymentMethod: (model.paymentMethod || 'cash').toUpperCase(),
-      status: (model.status || 'paid').toUpperCase(),
-      notes: model.notes || '',
-      periodStart: model.periodStart ? `${model.periodStart}T00:00:00` : null,
-      periodEnd: model.periodEnd ? `${model.periodEnd}T23:59:59` : null
-    };
-  }, []);
+  // ⭐ El mapeo vive en ./mapeoPago, y no por prolijidad: acá se perdía el arancel entero.
+  // No incluía `plan_id`, así que se podía elegir el arancel, ver el monto completarse, y el
+  // arancel no salía nunca del navegador. Afuera se puede probar; adentro de un useCallback
+  // no lo probaba nadie.
+  //
+  // No necesita useCallback: al ser una función de módulo, su identidad ya es estable.
+  const mapPaymentModelToDTO = mapPaymentModelToDTOPuro;
 
   // Usamos el org del localStorage (se setea al instante al elegir el negocio), NO el gym del
   // contexto (que carga async). Sin esto, la página quedaba vacía si se abría antes de que el

@@ -6,19 +6,22 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
+import { memberService } from '../services/MemberService';
 import { useMemberController } from '../controllers/useMemberController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
+import CobroRapido from '../components/CobroRapido';
+import { planService } from '../services/PlanService';
+import { getInitialMemberForm, mapMemberToForm } from '../controllers/formSocio';
 import { useAuth } from '../contexts/AuthContext';
-import CONFIG from '../lib/config';
 
 const PAGE_SIZE = 25;
 // Cuando se filtra por estado traemos el set completo (suficiente para PyMEs) para evaluar
@@ -26,59 +29,28 @@ const PAGE_SIZE = 25;
 const LARGE_SIZE = 1000;
 
 /**
- * Formulario de un socio NUEVO, con la membresía ya sugerida: hoy → dentro de un mes.
+ * El formulario vive en ../controllers/formSocio.
  *
- * Antes nacía con las dos fechas vacías, y eso no era solo incómodo. Un socio sin fecha
- * de vencimiento cae en SIN_DATOS, que este sistema trata —a propósito— como "es un dato
- * que falta, no es un moroso": no aparece en vencidos, no dispara aviso en el mostrador,
- * no entra en las alertas. O sea que se podía dar de alta a alguien y que el sistema
- * nunca dijera nada sobre él, hasta que alguien preguntara por qué nunca figuró.
- *
- * Sugerido, no impuesto: las dos fechas se editan, igual que el período en Registrar Pago.
- *
- * Es una función y no una constante porque "hoy" cambia. Se evalúa al montar la pantalla,
- * no al cargar el módulo, que es lo que dejaba la fecha congelada en el día del arranque.
+ * ⚠️ NO VOLVER A COPIARLO ACÁ. Estaba declarado dos veces —el alta y la edición— y le
+ * faltaba `planId` a las dos: se podía elegir el arancel de un socio y al guardar
+ * desaparecía. Afuera se puede probar, y hay un test que falla si algún campo editable no
+ * sobrevive la vuelta servidor → formulario.
  */
-function getInitialMemberForm() {
-  const hoy = toLocalDateString(new Date());
-  return {
-    fullName: '',
-    dni: '',
-    phone: '',
-    email: '',
-    birthDate: '',
-    membershipStart: hoy,
-    membershipEnd: addOneMonth(hoy),
-    status: 'active',
-    notes: '',
-    attendanceDays: [],
-  };
-}
-
-const MEMBER_MAP_FN = (m) => ({
-  fullName: m.fullName || '',
-  dni: m.dni || '',
-  phone: m.phone || '',
-  email: m.email || '',
-  birthDate: m.birthDate || '',
-  membershipStart: m.membershipStart || '',
-  membershipEnd: m.membershipEnd || '',
-  status: m.status || 'active',
-  notes: m.notes || '',
-  attendanceDays: m.attendanceDays || [],
-});
+const MEMBER_MAP_FN = mapMemberToForm;
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Todos los estados' },
   { value: 'active', label: 'Activos' },
   { value: 'inactive', label: 'Inactivos' },
   { value: 'expired', label: 'Vencidos' },
+  // El dueño acaba de cargar sus aranceles y tiene cientos de socios sin ninguno. Este
+  // filtro es la diferencia entre "asignarlos" y "recorrer la lista entera a ojo".
+  { value: 'sin_arancel', label: 'Sin arancel' },
 ];
 
 export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { orgRole } = useAuth();
   const { memberLabel, membersLabel } = GYM;
   const membersLabelLower = membersLabel.toLowerCase();
@@ -100,6 +72,25 @@ export default function MembersPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
 
+  // ─── Los aranceles del gimnasio ───
+  //
+  // Se traen una vez y sirven para tres cosas: pintar la columna, elegir en la ficha y
+  // preparar el cobro. Si el gimnasio no configuró ninguno, todo sigue funcionando como
+  // antes: la columna no aparece y se cobra escribiendo el monto.
+  const [aranceles, setAranceles] = useState([]);
+  useEffect(() => {
+    planService.getVigentes()
+      .then((lista) => setAranceles(lista || []))
+      // Sin aranceles se cobra a mano. No es un error que valga interrumpir a nadie.
+      .catch(() => setAranceles([]));
+  }, []);
+  const hayAranceles = aranceles.length > 0;
+
+  // A quién le estamos cobrando. null = el modal está cerrado.
+  const [cobrando, setCobrando] = useState(null);
+  // Qué fila está guardando su arancel desde la lista, para no dejar el select muerto.
+  const [guardandoArancel, setGuardandoArancel] = useState(null);
+
   // Aplica el filtro de estado sobre el set cargado (la página del backend, o el set completo
   // cuando hay filtro). "expired" se calcula por fecha de vencimiento en el cliente.
   const filteredMembers = useMemo(() => {
@@ -110,6 +101,10 @@ export default function MembersPage() {
       if (statusFilter === 'expired') {
         return m.situacion === 'VENCIDO' || m.situacion === 'EN_GRACIA';
       }
+      // ⭐ El filtro que hace usable la función el primer día: el dueño acaba de cargar sus
+      // aranceles y tiene 383 socios sin ninguno. Sin una forma de encontrarlos, la única
+      // opción es recorrer la lista entera a ojo.
+      if (statusFilter === 'sin_arancel') return !m.planId;
       return m.status === statusFilter;
     });
   }, [controllerMembers, statusFilter]);
@@ -164,6 +159,61 @@ export default function MembersPage() {
   }, [fetchPage, fetchSize, search, loadMembers]);
 
   // ─── SAVE MEMBER ───
+  /**
+   * Asigna el arancel desde la propia lista.
+   *
+   * <p>⭐ Es la diferencia entre poder y no poder. Un gimnasio con 383 socios no va a abrir
+   * 383 fichas, esperar el modal, elegir, guardar y cerrar. Acá son dos clics por socio y
+   * la fila se queda donde está.</p>
+   */
+  const asignarArancel = async (member, planId) => {
+    if ((member.planId || '') === (planId || '')) return;
+    setGuardandoArancel(member.id);
+    try {
+      // Se manda la ficha COMPLETA con el arancel cambiado: guardar envía todos los campos,
+      // así que mandar solo el plan borraría el resto.
+      await saveMember({ ...mapMemberToForm(member), id: member.id, planId: planId || '' });
+      refresh();
+      const elegido = aranceles.find((a) => a.id === planId);
+      showToast(
+        elegido ? `${member.fullName}: ${elegido.name}` : `${member.fullName} quedó sin arancel`,
+        'success',
+      );
+    } catch (error) {
+      showToast(error.message || errorService.getMessage(error), 'error');
+    } finally {
+      setGuardandoArancel(null);
+    }
+  };
+
+  /**
+   * Cobrar sin salir de Socios.
+   *
+   * <p>⚠️ NO se mandan fechas. El vencimiento lo corre el backend al aplicar la cobertura del
+   * arancel; calcularlo también acá sería tener dos cuentas para lo mismo, que es el error
+   * que ya costó los días de vencimiento en cinco lugares.</p>
+   */
+  const cobrarCuota = async ({ planId, monto, metodo }) => {
+    await paymentService.createPayment({
+      member_id: cobrando.id,
+      plan_id: planId,
+      amount: monto,
+      paymentMethod: (metodo || 'cash').toUpperCase(),
+      status: 'PAID',
+    });
+    refresh();
+    // Se devuelve el socio ya actualizado para poder mostrar el vencimiento REAL. Si no se
+    // puede releer, se devuelve vacío: el modal prefiere no decir nada antes que inventar
+    // una fecha.
+    try {
+      const dto = await memberService.getMemberById(cobrando.id);
+      // El DTO trae membershipEnd con hora; el modal solo muestra la fecha.
+      return dto ? { membershipEnd: dto.membershipEnd } : {};
+    } catch {
+      return {};
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!modal.form.fullName.trim()) {
@@ -341,6 +391,7 @@ export default function MembersPage() {
                 <th>DNI</th>
                 <th>Teléfono</th>
                 <th>Estado</th>
+                {hayAranceles && <th>Arancel</th>}
                 <th>Asistencia</th>
                 <th>Días</th>
                 <th>Vencimiento</th>
@@ -376,6 +427,33 @@ export default function MembersPage() {
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
                       <td data-label="Estado"><Badge status={member.status} /></td>
+                      {hayAranceles && (
+                        /* ⭐ El arancel se elige acá mismo, sin abrir la ficha. Con 383
+                           socios, abrir un modal por cada uno no es una opción: son dos
+                           clics contra cinco pasos, y la fila no se mueve de lugar. */
+                        <td data-label="Arancel">
+                          <select
+                            className={member.planId ? 'arancel-select' : 'arancel-select sin-arancel'}
+                            value={member.planId || ''}
+                            disabled={guardandoArancel === member.id}
+                            onChange={(e) => asignarArancel(member, e.target.value)}
+                            title={member.planNombre || 'Sin arancel'}
+                          >
+                            <option value="">Sin arancel</option>
+                            {/* El arancel que el socio tiene puede estar dado de baja y no
+                                venir entre los vigentes. Sin esta opción el select se vería
+                                vacío, y el primer cambio se lo borraría sin querer. */}
+                            {member.planId && !aranceles.some((a) => a.id === member.planId) && (
+                              <option value={member.planId}>
+                                {member.planNombre || 'Arancel viejo'} · de baja
+                              </option>
+                            )}
+                            {aranceles.map((a) => (
+                              <option key={a.id} value={a.id}>{a.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td data-label="Asistencia">
                         <DaySelector selectedDays={member.attendanceDays || []} readOnly />
                       </td>
@@ -387,7 +465,11 @@ export default function MembersPage() {
                         <div className="table-actions">
                           <button
                             className="action-btn-quick action-btn-charge"
-                            onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
+                            /* Antes esto SALTABA a Pagos con un formulario vacío: había que
+                               buscar de nuevo al socio, elegir el arancel, escribir el monto
+                               y las fechas. Cinco pasos y un cambio de pantalla para la
+                               operación más común del gimnasio. */
+                            onClick={() => setCobrando(member)}
                             title="Cobrar cuota"
                           ><Icon name="dollarSign" size="1em" /></button>
                           {member.phone && (
@@ -486,6 +568,31 @@ export default function MembersPage() {
                 <option value="suspended">Suspendido</option>
               </select>
             </div>
+            {hayAranceles && (
+              <div className="form-group">
+                <label className="form-label">Arancel</label>
+                <select className="form-select" value={modal.form.planId || ''}
+                  onChange={(e) => modal.handleChange('planId', e.target.value)}>
+                  <option value="">Sin arancel</option>
+                  {/* Igual que en la lista: si el suyo se dio de baja, se muestra igual para
+                      no borrárselo sin querer al primer guardado. */}
+                  {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId) && (
+                    <option value={modal.form.planId}>Su arancel actual · de baja</option>
+                  )}
+                  {aranceles.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} — {formatCurrency(a.price)}
+                    </option>
+                  ))}
+                </select>
+                <small className="form-hint">
+                  {/* ⚠️ Acá NO se toca el vencimiento. El arancel dice cuánto suma cada cobro,
+                      y esa cuenta la hace el backend al cobrar. Si la ficha además moviera la
+                      fecha, habría dos lugares decidiendo lo mismo. */}
+                  Es lo que se le va a cobrar. El vencimiento se corre al registrar el pago.
+                </small>
+              </div>
+            )}
             <div className="form-group full-width">
               <label className="form-label">Notas</label>
               <textarea className="form-textarea" rows="2"
@@ -538,6 +645,15 @@ export default function MembersPage() {
           )}
         </div>
       </Modal>
+
+      {/* ─── COBRAR, SIN IRSE DE ACÁ ─── */}
+      <CobroRapido
+        socio={cobrando}
+        aranceles={aranceles}
+        abierto={!!cobrando}
+        onCerrar={() => setCobrando(null)}
+        onCobrar={cobrarCuota}
+      />
 
       {/* ─── DELETE CONFIRMATION ─── */}
       <ConfirmDialog

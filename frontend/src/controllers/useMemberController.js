@@ -55,6 +55,14 @@ function fromApi(dto) {
     diasRestantes: dto.diasRestantes ?? null,
     attendanceDays,
     notes: dto.notes || '',
+
+    // ⭐ El arancel del socio. Sin esto la pantalla no puede mostrarlo ni preseleccionarlo,
+    // y editar a alguien se lo borraría: guardar manda el formulario entero, y un campo que
+    // nunca llegó viaja vacío.
+    planId: dto.planId || '',
+    // El nombre viene resuelto del backend para no tener que cruzar la lista de aranceles
+    // en cada fila. Si el arancel se dio de baja, igual sigue diciendo cuál era.
+    planNombre: dto.planNombre || '',
   };
 }
 
@@ -76,6 +84,15 @@ function toApi(member) {
     // El backend solo distingue alta/baja: cualquier estado que no sea 'active'
     // (inactivo, vencido, suspendido) viaja como baja.
     active: (member.status || 'active').toLowerCase() === 'active',
+
+    // ⭐ EL ARANCEL. Sin estas dos líneas el arancel del socio NO SE GUARDA NUNCA: se puede
+    // elegir en la pantalla, se ve elegido, y al recargar volvió a estar vacío. La función
+    // entera de aranceles quedaba muerta acá, en el mapeo.
+    planId: member.planId || null,
+    // ⚠️ "No vino" y "vino vacío" no son lo mismo. El backend necesita esta marca para
+    // poder SACARLE el arancel a un socio: sin ella, un null se lee igual que un campo
+    // ausente y no habría forma de dejar a nadie sin arancel.
+    planIdPresente: true,
   };
 }
 
