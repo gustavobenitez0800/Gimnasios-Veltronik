@@ -75,7 +75,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, error: errorMostrador, invalidate } = useQueryCache(
+  const { data, loading, invalidate } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -504,11 +504,14 @@ export default function AccessPage() {
           <div className="checked-in-list" style={{ padding: '0 1rem 1rem' }}>
             {loading ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
-            ) : errorMostrador && checkedIn.length === 0 ? (
+            ) : !data ? (
               /* ⚠️ "Nadie en el gimnasio" y "no pudimos preguntar" NO son lo mismo, y
-                 mostrarlos igual es peor que mostrar un error: la recepcionista lee que el
-                 gimnasio está vacío cuando en realidad el sistema no pudo consultar. Un
-                 dato que miente es peor que un dato que falta. */
+                 mostrarlos igual es peor que un error a la vista: la recepcionista lee que
+                 el gimnasio está vacío cuando el sistema no pudo consultar.
+
+                 La condición es `!data` —nunca llegó respuesta— y NO "hubo un error": un
+                 pedido que se cuelga no deja ningún error, y con esa condición la pantalla
+                 volvía a mentir justo en el caso que la trajo hasta acá. */
               <div className="text-center text-muted" style={{ padding: '2rem' }}>
                 <Icon name="wifiOff" size="1.2em" />
                 <div style={{ marginTop: '0.5rem' }}>No pudimos consultar quién está adentro.</div>
@@ -545,7 +548,11 @@ export default function AccessPage() {
           <table className="table">
             <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
             <tbody>
-              {todayLogs.length === 0 ? (
+              {!data ? (
+                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>
+                  No pudimos consultar el registro de hoy.
+                </td></tr>
+              ) : todayLogs.length === 0 ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
               ) : todayLogs.slice(0, 30).map(log => {
                 const member = log.member;

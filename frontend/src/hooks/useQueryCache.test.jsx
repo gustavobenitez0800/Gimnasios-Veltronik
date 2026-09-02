@@ -33,6 +33,8 @@ function montar(useHook) {
   return {
     renders,
     ultimo: () => renders[renders.length - 1],
+    // Dibujar de nuevo sin cambiar nada: es lo que hace una pantalla viva todo el día.
+    redibujar: () => act(() => { root.render(<Sonda />); }),
     desmontar: () => act(() => { root.unmount(); }),
   };
 }
@@ -126,5 +128,95 @@ describe('useQueryCache', () => {
     act(() => { vista.ultimo().invalidate(); });
     expect(vista.ultimo().data).toEqual(['página 0']);
     vista.desmontar();
+  });
+});
+
+describe('el "Cargando..." no puede ser eterno', () => {
+  // ⭐ EL BUG QUE SE VIO EN EL GIMNASIO: "En el Gimnasio · Cargando..." que no salía nunca.
+  //
+  // `loading` se apagaba solo en el `finally` del fetch, y ese `finally` corre
+  // `if (isMounted)`. Si el pedido no se resolvía —algo trabado ANTES de salir a la red, que
+  // el timeout de axios no cubre— o si el efecto se volvía a disparar con un pedido en
+  // vuelo, el spinner quedaba puesto para siempre. Sin error, sin nada en consola, sin nada
+  // que reintentar.
+  //
+  // Y lo peor: el aviso de "no pudimos consultar" solo se muestra cuando `loading` es
+  // falso. O sea que la pantalla no tenía forma de contar lo que estaba pasando.
+  it('si el pedido no vuelve nunca, deja de decir que carga', async () => {
+    vi.useFakeTimers();
+    try {
+      clearQueryCache();
+      // Un fetch que no se resuelve jamás.
+      const renders = montar(() => useQueryCache('colgado', () => new Promise(() => {})));
+
+      expect(renders.ultimo().loading, 'arranca cargando, que está bien').toBe(true);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(13000); });
+
+      expect(renders.ultimo().loading, 'a los 12 s deja de mentir que carga').toBe(false);
+      expect(renders.ultimo().data, 'y no inventa datos: sigue sin haber nada').toBe(null);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('el "Cargando..." no puede ser eterno', () => {
+  // ⭐ EL BUG QUE SE VIO EN EL GIMNASIO: "En el Gimnasio · Cargando..." que no salía nunca.
+  //
+  // `loading` se apagaba solo en el `finally` del fetch, y ese `finally` corre
+  // `if (isMounted)`. Si el pedido no se resolvía —algo trabado ANTES de salir a la red, que
+  // el timeout de axios no cubre— o si el efecto se volvía a disparar con un pedido en
+  // vuelo, el spinner quedaba puesto para siempre. Sin error, sin nada en consola, sin nada
+  // que reintentar.
+  //
+  // Y lo peor: el aviso de "no pudimos consultar" solo se muestra cuando `loading` es
+  // falso. O sea que la pantalla no tenía forma de contar lo que estaba pasando.
+  it('si el pedido no vuelve nunca, deja de decir que carga', async () => {
+    vi.useFakeTimers();
+    try {
+      clearQueryCache();
+      // Un fetch que no se resuelve jamás.
+      const renders = montar(() => useQueryCache('colgado', () => new Promise(() => {})));
+
+      expect(renders.ultimo().loading, 'arranca cargando, que está bien').toBe(true);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(13000); });
+
+      expect(renders.ultimo().loading, 'a los 12 s deja de mentir que carga').toBe(false);
+      expect(renders.ultimo().data, 'y no inventa datos: sigue sin haber nada').toBe(null);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ⭐ EL BUG DEL REFRESCO QUE NUNCA LLEGABA
+  //
+  // El mostrador se refresca solo cada 15 segundos, y ese intervalo vive en un efecto que
+  // depende de `invalidate`. Si `invalidate` es una función nueva en cada render, el efecto
+  // se desarma y se rearma en cada render, y el intervalo vuelve a empezar de cero. Una
+  // pantalla que se dibuja de nuevo antes de los 15 segundos NUNCA llega a refrescarse.
+  //
+  // En el gimnasio se veía así: alguien entra por el QR, o desde la otra terminal, y en el
+  // mostrador no aparece nunca. Los datos entran; la pantalla no los muestra.
+  it('invalidate no cambia de identidad entre renders', async () => {
+    const vista = montar(() => useQueryCache(['estable'], () => Promise.resolve(1)));
+    await esperar();
+
+    const antes = vista.ultimo().invalidate;
+    vista.redibujar();
+
+    expect(vista.ultimo().invalidate, 'si cambia, todo efecto que dependa de ella se rearma en cada render').toBe(antes);
+  });
+
+  it('mutate tampoco cambia de identidad entre renders', async () => {
+    // Mismo riesgo: se usa como dependencia de efectos y de useMemo.
+    const vista = montar(() => useQueryCache(['estable2'], () => Promise.resolve(1)));
+    await esperar();
+
+    const antes = vista.ultimo().mutate;
+    vista.redibujar();
+
+    expect(vista.ultimo().mutate).toBe(antes);
   });
 });
