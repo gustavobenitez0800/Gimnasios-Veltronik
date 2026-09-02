@@ -87,6 +87,16 @@ export default function TerminalSettings() {
         onChange={(v) => cambiar({ openAtLogin: v })}
         disabled={guardando}
       />
+
+      {prefs.trayAvailable && (
+        <Preferencia
+          titulo="Al cerrar la ventana, dejarlo abierto en la bandeja"
+          detalle="La X de la ventana esconde Veltronik al lado del reloj en vez de cerrarlo. Evita que alguien apague el sistema sin querer en pleno mostrador. Para cerrarlo del todo: clic derecho en el ícono de la bandeja → Salir de Veltronik."
+          valor={!!prefs.closeToTray}
+          onChange={(v) => cambiar({ closeToTray: v })}
+          disabled={guardando}
+        />
+      )}
     </div>
   );
 }

@@ -281,16 +281,3 @@
     grid-template-columns: 1fr;
   }
 }
-
-/* El arancel del socio en la lista. Chip y no texto suelto: la columna se escanea de un
-   vistazo buscando quién no tiene arancel asignado, que es a quién hay que cobrarle a mano. */
-.arancel-chip {
-  display: inline-block;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--primary-500) 14%, transparent);
-  color: var(--primary-400);
-  white-space: nowrap;
-}

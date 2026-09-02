@@ -18,7 +18,6 @@ import LobbyPage from '../pages/LobbyPage';
 import DashboardPage from '../pages/DashboardPage';
 import MembersPage from '../pages/MembersPage';
 import PaymentsPage from '../pages/PaymentsPage';
-import CajaPage from '../pages/CajaPage';
 import ClassesPage from '../pages/ClassesPage';
 import AccessPage from '../pages/AccessPage';
 import RetentionPage from '../pages/RetentionPage';
@@ -70,7 +69,6 @@ export default function WebRoutes() {
         <Route path={CONFIG.ROUTES.DASHBOARD} element={<DashboardPage />} />
         <Route path={CONFIG.ROUTES.MEMBERS} element={<MembersPage />} />
         <Route path={CONFIG.ROUTES.PAYMENTS} element={<PaymentsPage />} />
-        <Route path={CONFIG.ROUTES.CAJA} element={<CajaPage />} />
         <Route path={CONFIG.ROUTES.CLASSES} element={<ClassesPage />} />
         <Route path={CONFIG.ROUTES.ACCESS} element={<AccessPage />} />
         <Route path={CONFIG.ROUTES.RETENTION} element={<RetentionPage />} />

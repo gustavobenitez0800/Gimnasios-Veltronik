@@ -5,12 +5,11 @@
 // quién está adentro ahora mismo.
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
-import { porQueFallo } from '../lib/porQueFallo';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
@@ -30,38 +29,8 @@ export default function AccessPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
 
-  // ── LA FILA DEL MOSTRADOR ──
-  //
-  // Acá había un cartel con una capa que TAPABA la pantalla y se cerraba a los 3 segundos.
-  // Con cinco personas esperando, eso hace imposible encadenar: cada registro le corta el
-  // paso al siguiente.
-  //
-  // Un mostrador es una FILA, no un diálogo. Ahora cada registro se apila a un costado, no
-  // bloquea nada, y el campo ya está esperando el DNI que sigue. Cinco personas son cinco
-  // tarjetas, no cinco interrupciones.
-  const [pila, setPila] = useState([]);
-
-  const anunciar = useCallback((item) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setPila((p) => [{ ...item, id }, ...p].slice(0, 4));
-    // Se van solas. 8 segundos alcanzan para que el socio las lea caminando al vestuario,
-    // sin que la pantalla quede llena de gente que ya entró hace rato.
-    setTimeout(() => setPila((p) => p.filter((x) => x.id !== id)), 8000);
-  }, []);
-
-  // El campo donde se teclea. Que tenga el foco no es una comodidad: es LA función.
-  const buscadorRef = useRef(null);
-
-  // Candado: dos Enter seguidos grabarían entrada y en seguida SALIDA, porque la dirección
-  // la decide el servidor según si el socio ya está adentro. El socio quedaría "afuera" sin
-  // haberse ido.
-  const registrando = useRef(false);
-
-  // Espejos de lo que el listener global necesita leer. Un listener registrado una sola vez
-  // se queda con el `searchQuery` del primer render: sin estos, escribir con el foco
-  // perdido siempre partiría del campo vacío y se comería lo ya tecleado.
-  const queryRef = useRef('');
-  const handleSearchRef = useRef(() => {});
+  // Success popup
+  const [popup, setPopup] = useState(null);
 
   // ─── Un pedido, y la vuelta a la pantalla es instantánea ───
   //
@@ -76,7 +45,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, error: errorMostrador, isFetching, demoraMs, invalidate } = useQueryCache(
+  const { data, loading, invalidate } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -87,13 +56,6 @@ export default function AccessPage() {
   const avisos = useMemo(() => data?.avisos || [], [data]);
 
   const loadData = invalidate;
-
-  // Qué pasó exactamente, en una frase que se pueda leer por teléfono. Sin esto, "no
-  // pudimos consultar" tapa por igual tres problemas con tres arreglos distintos.
-  const falla = useMemo(
-    () => porQueFallo(errorMostrador, { esperando: isFetching, demoraMs }),
-    [errorMostrador, isFetching, demoraMs],
-  );
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
@@ -130,43 +92,21 @@ export default function AccessPage() {
     return () => clearInterval(t);
   }, []);
 
-  // ── Buscar, en dos capas ──
-  //
-  // `buscar` consulta y devuelve. `doSearch` es la versión retrasada que además pinta la
-  // lista mientras se tipea. Están separadas porque ENTER NO PUEDE DEPENDER DEL RETRASO:
-  // quien atiende teclea el DNI y aprieta Enter en menos de 300 ms, y si Enter mirara lo que
-  // dejó la búsqueda retrasada encontraría la lista vacía y no haría nada. En un mostrador
-  // eso se ve como que el sistema se colgó.
-  const buscar = useCallback(async (query) => {
-    // Un DNI se lee "45.374.169" y se tipea así. Los puntos no son parte del número.
-    const q = (query || '').trim().replace(/^(d[d.]*)$/, (t) => t.replace(/./g, ''));
-    if (q.length < 2) return [];
+  // Search
+  const doSearch = useMemo(() => debounce(async (query) => {
+    if (!query || query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     try {
-      return (await memberService.searchForAccess(q)) || [];
-    } catch {
-      return [];
-    } finally {
-      setSearching(false);
-    }
-  }, []);
+      const results = await memberService.searchForAccess(query);
+      setSearchResults(results || []);
+    } catch { setSearchResults([]); }
+    finally { setSearching(false); }
+  }, 300), []);
 
-  const doSearch = useMemo(() => debounce(async (query) => {
-    if (!query || query.trim().length < 2) { setSearchResults([]); return; }
-    setSearchResults(await buscar(query));
-  }, 300), [buscar]);
-
-  const handleSearch = useCallback((val) => {
-    queryRef.current = val;
+  const handleSearch = (val) => {
     setSearchQuery(val);
     doSearch(val);
-  }, [doSearch]);
-
-  // El listener global lee de acá, así no se queda con la versión del primer render.
-  // Se actualiza en un efecto y no durante el render: React se reserva el derecho de
-  // descartar un render a medias, y escribir un ref ahí puede dejar una función que
-  // corresponde a un estado que nunca existió.
-  useEffect(() => { handleSearchRef.current = handleSearch; }, [handleSearch]);
+  };
 
   // ─── La situación del socio la dice el BACKEND ───
   //
@@ -213,114 +153,6 @@ export default function AccessPage() {
   );
 
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
-  // ══════════════════════════════════════════════════════════════════════════════
-  //  EL TECLADO NUNCA SE APAGA
-  // ══════════════════════════════════════════════════════════════════════════════
-  //
-  // Esta pantalla se usa como un molinete: llega el socio, teclea su DNI, entra. Que el
-  // campo tenga el foco no es una comodidad, es LA función. Y el foco se perdía por motivos
-  // que nadie en un mostrador puede adivinar: alguien tocó la pantalla en un lugar vacío,
-  // apretó un botón, volvió de otra sección. A partir de ahí las teclas caen en la nada y
-  // el sistema parece colgado.
-  //
-  // Se ataca por los tres lados por los que se pierde:
-  //   1. TECLA SUELTA — la primera tecla se lleva el foco al campo Y SE ESCRIBE. Verificado
-  //      en un navegador de verdad: con el foco en el body, tecleando 24732531 el campo
-  //      queda con los OCHO dígitos, incluido el primero. Si se perdiera, el DNI llegaría
-  //      cortado y el socio "no existiría" — peor que no escribir nada.
-  //   2. CLIC EN CUALQUIER LADO — después de tocar la pantalla el foco vuelve.
-  //   3. VOLVER A LA VENTANA — al minimizar y volver.
-  //
-  // Lo que NO se toca: si el foco está en otro campo o en un diálogo, no se lo roba.
-  const enfocarBuscador = useCallback(() => {
-    const el = buscadorRef.current;
-    if (!el || document.activeElement === el) return;
-    const activo = document.activeElement;
-    if (activo && activo !== document.body) {
-      const tag = activo.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || activo.isContentEditable) return;
-      if (activo.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
-    }
-    el.focus();
-  }, []);
-
-  useEffect(() => {
-    const esCampoAjeno = (t) =>
-      !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
-
-    const alTeclearSuelto = (e) => {
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-      if (esCampoAjeno(e.target)) return;
-      if (e.target?.closest?.('[role="dialog"], .modal-overlay, .modal-container')) return;
-      // Un carácter imprimible o borrar. Las flechas, Tab y F5 siguen siendo suyas.
-      if (!(e.key.length === 1 || e.key === 'Backspace')) return;
-      const el = buscadorRef.current;
-      if (!el || document.activeElement === el) return;
-
-      // ⚠️ NO ALCANZA CON MOVER EL FOCO.
-      //
-      // La tentación es hacer solo `el.focus()` y confiar en que el navegador entregue la
-      // tecla al campo recién enfocado, porque el texto se inserta DESPUÉS del keydown. En
-      // la práctica suele funcionar, pero depende del navegador y del origen del evento —
-      // no es una garantía. Y si falla, falla en el peor lugar posible: se pierde el PRIMER
-      // dígito del DNI, el número llega cortado y el socio "no existe". Un fallo que se ve
-      // como "el sistema no lo encuentra", no como "se perdió una tecla".
-      //
-      // Así que se escribe a mano y se cancela la acción por defecto. Determinista, sin
-      // depender de en qué orden decide entregar las cosas el navegador.
-      el.focus();
-      e.preventDefault();
-      const actual = queryRef.current || '';
-      const siguiente = e.key === 'Backspace' ? actual.slice(0, -1) : actual + e.key;
-      handleSearchRef.current(siguiente);
-    };
-    const alTocar = () => setTimeout(enfocarBuscador, 0);
-
-    document.addEventListener('keydown', alTeclearSuelto);
-    document.addEventListener('pointerup', alTocar);
-    window.addEventListener('focus', enfocarBuscador);
-    return () => {
-      document.removeEventListener('keydown', alTeclearSuelto);
-      document.removeEventListener('pointerup', alTocar);
-      window.removeEventListener('focus', enfocarBuscador);
-    };
-  }, [enfocarBuscador]);
-
-  // ── Enter BUSCA y registra, en un solo gesto ──
-  //
-  // No espera a la búsqueda retrasada: consulta él mismo. Así el socio teclea su DNI,
-  // aprieta Enter y entra, sin que nadie toque el mouse.
-  const alTeclear = async (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    if (registrando.current) return;
-
-    const q = searchQuery.trim();
-    if (q.length < 2) return;
-
-    registrando.current = true;
-    try {
-      const encontrados = await buscar(q);
-      setSearchResults(encontrados);
-
-      if (encontrados.length === 1) {
-        await handleCheckIn(encontrados[0]);
-      } else if (!encontrados.length) {
-        // El texto NO se borra: casi siempre es un dígito mal tecleado, y borrarlo obliga
-        // a escribir los ocho de nuevo. Se selecciona, así la corrección es escribir encima.
-        anunciar({ tipo: 'error', nombre: `No encontré a nadie con "${q}"`, accion: 'Revisá el DNI o el nombre' });
-        buscadorRef.current?.select();
-      } else {
-        // Con varios NO se elige por el socio: registrarle la entrada a la persona
-        // equivocada deja DOS datos mal, uno que entró sin estar y otro que estaba sin
-        // figurar. Se muestra la lista y alguien decide.
-        anunciar({ tipo: 'aviso', nombre: `Hay ${encontrados.length} socios con esos datos`, accion: 'Elegí cuál abajo' });
-      }
-    } finally {
-      registrando.current = false;
-    }
-  };
-
   const handleCheckIn = async (member) => {
     try {
       const r = await accessService.checkIn(member.id, 'manual');
@@ -328,37 +160,36 @@ export default function AccessPage() {
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
 
-      anunciar({
-        nombre: member.fullName,
-        iniciales: getInitials(member.fullName),
+      setPopup({
+        name: member.fullName,
         // La salida no se colorea por el estado de la cuota: al que se está yendo ya no se
         // le reclama nada, y pintarle la pantalla de rojo en la puerta no sirve para nada.
-        tipo: salio || rebote ? 'ok'
+        type: salio || rebote ? 'success'
           : daysInfo.type === 'expired' ? 'error'
-          : daysInfo.type === 'danger' ? 'aviso' : 'ok',
+          : daysInfo.type === 'danger' ? 'warning' : 'success',
         accion: rebote ? 'Ya estaba registrado' : salio ? 'Salida registrada' : 'Entrada registrada',
-        dias: salio || rebote ? '' : daysInfo.label,
+        daysLabel: salio || rebote ? '' : daysInfo.label,
+        initials: getInitials(member.fullName),
       });
 
-      handleSearch('');
+      setTimeout(() => setPopup(null), 3000);
+
+      setSearchQuery('');
       setSearchResults([]);
       loadData();
 
-      // Listo para el que sigue. Es la mitad del flujo: sin esto, la fila se corta acá.
-      buscadorRef.current?.focus();
-
+      // El mensaje nombra la dirección REAL. Antes decía "registrado" a secas y la
+      // recepcionista no tenía forma de saber qué había quedado grabado.
+      showToast(
+        rebote ? `${member.fullName}: ya estaba registrado`
+          : salio ? `Salida de ${member.fullName}`
+          : r?.recuperado
+            ? `Entrada de ${member.fullName} — la vez anterior se fue sin marcar salida`
+            : `Entrada de ${member.fullName}`,
+        'success',
+      );
     } catch (error) {
-      // ⚠️ ESTO NO PUEDE SER UN AVISO CHIQUITO. El socio ya entró al gimnasio creyendo que
-      // quedó registrado, y no quedó. Si la recepcionista no lo ve, esa visita no existe
-      // para nadie: ni para el conteo, ni para "¿vino este mes?", ni para el cupo de clases.
-      anunciar({
-        tipo: 'error',
-        nombre: member.fullName,
-        iniciales: getInitials(member.fullName),
-        accion: 'NO se registró — probá de nuevo',
-      });
       showToast(errorService.getMessage(error), 'error');
-      buscadorRef.current?.focus();
     }
   };
 
@@ -374,33 +205,35 @@ export default function AccessPage() {
   };
 
   // Stats
-  // ⚠️ LOS NÚMEROS SON DEL DÍA ENTERO; LA LISTA VIENE RECORTADA.
   //
-  // El servidor manda los últimos 60 accesos —la tabla muestra 30— y aparte el total y el
-  // promedio calculados sobre el día completo. Antes viajaban los 250 accesos de un día,
-  // cada uno con la ficha del socio, para pintar 30 renglones y dos números.
+  // ⚠️ EL TOTAL Y EL PROMEDIO LOS MANDA EL BACKEND, no salen de `todayLogs`.
   //
-  // El respaldo de contar la lista queda para el rato en que el frontend ya se actualizó y
-  // el backend todavía no: ahí el número sale de lo que haya llegado. Es menos exacto por
-  // unos minutos, y es preferible a mostrar un cero.
+  // `hoy` llega RECORTADO: la pantalla muestra 30 filas, y mandar los 250 accesos de un día
+  // entero —cada uno con la ficha completa del socio— es cientos de fichas viajando por la
+  // conexión del gimnasio cada quince segundos para pintar 30 renglones. Contar esa lista
+  // diría "60 accesos" en un gimnasio que tuvo 250, y el promedio saldría de una muestra
+  // cortada. El backend los calcula sobre el día COMPLETO y los manda aparte.
+  //
+  // Se conserva la cuenta local como respaldo: contra un backend que todavía no los mande,
+  // un número aproximado es mejor que un hueco en la pantalla.
   const stats = useMemo(() => {
-    const total = data?.hoyTotal ?? todayLogs.length;
-
-    let promedio = data?.hoyPromedioMin;
-    if (promedio === undefined) {
-      const cerradas = todayLogs.filter(l => l.checkOutAt);
-      promedio = cerradas.length === 0 ? null : Math.round(
-        cerradas.reduce((suma, l) => suma + (new Date(l.checkOutAt) - new Date(l.checkInAt)), 0)
-        / cerradas.length / 60000,
-      );
-    }
-
+    // `null` en el promedio es una respuesta válida —"ninguna visita cerró todavía"— y es
+    // distinto de que este backend no mande el dato. Por eso se pregunta por la CLAVE.
+    const resumenDelBackend = !!data && 'hoyTotal' in data;
+    const promedioLocal = () => {
+      const completed = todayLogs.filter(l => l.checkOutAt);
+      if (completed.length === 0) return '-';
+      const avg = completed.reduce((sum, l) => {
+        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
+      }, 0) / completed.length;
+      return `${Math.round(avg / 60000)} min`;
+    };
     return {
       inGym: checkedIn.length,
-      totalToday: total,
-      // null = todavía no cerró ninguna visita. Un "0 min" diría que la gente entra y sale
-      // en el acto, que es distinto de "todavía no sé".
-      avgTime: promedio == null ? '-' : `${promedio} min`,
+      totalToday: resumenDelBackend ? data.hoyTotal : todayLogs.length,
+      avgTime: resumenDelBackend
+        ? (data.hoyPromedioMin == null ? '-' : `${data.hoyPromedioMin} min`)
+        : promedioLocal(),
     };
   }, [checkedIn, todayLogs, data]);
 
@@ -449,18 +282,8 @@ export default function AccessPage() {
         <div className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
-            <input
-              ref={buscadorRef}
-              type="text"
-              className="search-input"
-              placeholder="Escribí el DNI o el nombre y apretá Enter"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              onKeyDown={alTeclear}
-              autoFocus
-              autoComplete="off"
-              spellCheck="false"
-            />
+            <input type="text" className="search-input" placeholder="Buscar por nombre o DNI..."
+              value={searchQuery} onChange={e => handleSearch(e.target.value)} />
           </div>
           <EstadoCopiaLocal />
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
@@ -529,27 +352,6 @@ export default function AccessPage() {
           <div className="checked-in-list" style={{ padding: '0 1rem 1rem' }}>
             {loading ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
-            ) : !data ? (
-              /* ⚠️ "Nadie en el gimnasio" y "no pudimos preguntar" NO son lo mismo, y
-                 mostrarlos igual es peor que un error a la vista: la recepcionista lee que
-                 el gimnasio está vacío cuando el sistema no pudo consultar.
-
-                 La condición es `!data` —nunca llegó respuesta— y NO "hubo un error": un
-                 pedido que se cuelga no deja ningún error, y con esa condición la pantalla
-                 volvía a mentir justo en el caso que la trajo hasta acá. */
-              <div className="text-center text-muted" style={{ padding: '2rem' }}>
-                <Icon name="wifiOff" size="1.2em" />
-                <div style={{ marginTop: '0.5rem' }}>{falla.texto}</div>
-                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  Se reintenta solo. Registrar entradas sigue andando.
-                </div>
-                <button className="btn btn-sm btn-secondary" style={{ marginTop: '0.75rem' }} onClick={loadData}>
-                  Reintentar ahora
-                </button>
-                {/* El detalle en chiquito: no le dice nada a quien atiende, pero es lo que
-                    nos permite arreglarlo sin adivinar cuando nos lo lee por teléfono. */}
-                <div style={{ fontSize: '0.7rem', marginTop: '0.5rem', opacity: 0.6 }}>({falla.detalle})</div>
-              </div>
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
             ) : checkedIn.map(log => {
@@ -575,17 +377,14 @@ export default function AccessPage() {
       <div className="card mt-3">
         <div className="table-header">
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
-          <span className="text-muted">{todayLogs.length} accesos</span>
+          {/* El total real del día, no el largo de la lista recortada. */}
+          <span className="text-muted">{stats.totalToday} accesos</span>
         </div>
         <div className="table-container">
           <table className="table">
             <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
             <tbody>
-              {!data ? (
-                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>
-                  {falla.texto} <span style={{ opacity: 0.6 }}>({falla.detalle})</span>
-                </td></tr>
-              ) : todayLogs.length === 0 ? (
+              {todayLogs.length === 0 ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
               ) : todayLogs.slice(0, 30).map(log => {
                 const member = log.member;
@@ -609,25 +408,23 @@ export default function AccessPage() {
         </div>
       </div>
 
-      {/* ─── LA FILA ───
-          Acá había un cartel con una capa que TAPABA la pantalla y se cerraba a los 3
-          segundos. Con cinco personas esperando eso hace imposible encadenar: cada
-          registro le corta el paso al siguiente.
-          Ahora se apila a un costado y NO bloquea nada. El socio lee sus días caminando al
-          vestuario, y el campo ya está esperando el DNI que sigue. */}
-      {pila.length > 0 && (
-        <div className="fila-avisos" aria-live="polite">
-          {pila.map((a) => (
-            <div key={a.id} className={`fila-aviso fila-${a.tipo}`}>
-              {a.iniciales && <div className="fila-iniciales">{a.iniciales}</div>}
-              <div className="fila-datos">
-                <div className="fila-nombre">{a.nombre}</div>
-                <div className="fila-accion">{a.accion}</div>
-              </div>
-              {a.dias && <div className="fila-dias">{a.dias}</div>}
-            </div>
-          ))}
-        </div>
+      {/* Success Popup */}
+      {popup && (
+        <>
+          <div className="access-popup-overlay active" onClick={() => setPopup(null)} />
+          <div className={`checkin-success active ${popup.type}`}>
+            <div className="popup-member-photo"><span className="initials">{popup.initials}</span></div>
+            <div className="popup-member-name">{popup.name}</div>
+            {/* QUÉ se registró, no solo a quién. Este cartel decía únicamente el nombre, así
+                que la recepcionista podía apretar "entrada", grabarse una salida, y no
+                enterarse jamás. */}
+            <div className="popup-accion">{popup.accion}</div>
+            {popup.daysLabel && (
+              <div className="popup-days-info"><span className="popup-days-label">{popup.daysLabel}</span></div>
+            )}
+            <div className="popup-progress-container"><div className="popup-progress-bar" /></div>
+          </div>
+        </>
       )}
     </div>
   );

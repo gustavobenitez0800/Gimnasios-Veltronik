@@ -65,7 +65,6 @@ const CONFIG = {
     DASHBOARD: '/dashboard',
     MEMBERS: '/members',
     PAYMENTS: '/payments',
-    CAJA: '/caja',
     SETTINGS: '/settings',
     MISSION_CONTROL: '/mission-control',
     CLASSES: '/classes',

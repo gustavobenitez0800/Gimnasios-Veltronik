@@ -6,20 +6,17 @@
 // ============================================
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
-import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
-import CobroRapido from '../components/CobroRapido';
-import { getInitialMemberForm, mapMemberToForm } from '../controllers/formSocio';
-import { planService } from '../services/PlanService';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
 
@@ -42,6 +39,35 @@ const LARGE_SIZE = 1000;
  * Es una función y no una constante porque "hoy" cambia. Se evalúa al montar la pantalla,
  * no al cargar el módulo, que es lo que dejaba la fecha congelada en el día del arranque.
  */
+function getInitialMemberForm() {
+  const hoy = toLocalDateString(new Date());
+  return {
+    fullName: '',
+    dni: '',
+    phone: '',
+    email: '',
+    birthDate: '',
+    membershipStart: hoy,
+    membershipEnd: addOneMonth(hoy),
+    status: 'active',
+    notes: '',
+    attendanceDays: [],
+  };
+}
+
+const MEMBER_MAP_FN = (m) => ({
+  fullName: m.fullName || '',
+  dni: m.dni || '',
+  phone: m.phone || '',
+  email: m.email || '',
+  birthDate: m.birthDate || '',
+  membershipStart: m.membershipStart || '',
+  membershipEnd: m.membershipEnd || '',
+  status: m.status || 'active',
+  notes: m.notes || '',
+  attendanceDays: m.attendanceDays || [],
+});
+
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Todos los estados' },
   { value: 'active', label: 'Activos' },
@@ -52,6 +78,7 @@ const STATUS_FILTER_OPTIONS = [
 export default function MembersPage() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { orgRole } = useAuth();
   const { memberLabel, membersLabel } = GYM;
   const membersLabelLower = membersLabel.toLowerCase();
@@ -122,31 +149,6 @@ export default function MembersPage() {
 
   // Payments history
   const [paymentsModal, setPaymentsModal] = useState(false);
-
-  // El socio al que se le está cobrando. Antes este botón NAVEGABA a Pagos con el socio en
-  // la URL: para asignarle un arancel había que ir de Socios a Pagos y volver, eligiendo al
-  // socio de nuevo. Ahora se cobra donde está.
-  const [cobrando, setCobrando] = useState(null);
-
-  // Los aranceles vigentes, para el selector de la ficha. Se piden una vez por visita: son
-  // pocos y no cambian mientras alguien edita un socio.
-  const [aranceles, setAranceles] = useState([]);
-  useEffect(() => {
-    let cancelado = false;
-    planService.getVigentes()
-      .then((a) => { if (!cancelado) setAranceles(a || []); })
-      .catch(() => { /* sin aranceles el selector queda en "sin arancel"; no es un error */ });
-    return () => { cancelado = true; };
-  }, []);
-
-  /** "1 mes y 12 clases" — lo que ese arancel le otorga al socio. */
-  const describirArancel = (a) => {
-    const d = a.durationDays || 0;
-    const tiempo = d === 0 ? 'sin días'
-      : d % 30 === 0 && d >= 30 ? `${d / 30} ${d / 30 === 1 ? 'mes' : 'meses'}`
-      : `${d} ${d === 1 ? 'día' : 'días'}`;
-    return a.classes ? `${tiempo} y ${a.classes} clases` : tiempo;
-  };
   const [paymentsMember, setPaymentsMember] = useState(null);
   const [memberPayments, setMemberPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -338,7 +340,6 @@ export default function MembersPage() {
                 <th>Nombre</th>
                 <th>DNI</th>
                 <th>Teléfono</th>
-                <th>Arancel</th>
                 <th>Estado</th>
                 <th>Asistencia</th>
                 <th>Días</th>
@@ -374,11 +375,6 @@ export default function MembersPage() {
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
-                      <td data-label="Arancel">
-                        {member.planNombre
-                          ? <span className="arancel-chip">{member.planNombre}</span>
-                          : <span className="text-muted">—</span>}
-                      </td>
                       <td data-label="Estado"><Badge status={member.status} /></td>
                       <td data-label="Asistencia">
                         <DaySelector selectedDays={member.attendanceDays || []} readOnly />
@@ -391,7 +387,7 @@ export default function MembersPage() {
                         <div className="table-actions">
                           <button
                             className="action-btn-quick action-btn-charge"
-                            onClick={() => setCobrando(member)}
+                            onClick={() => navigate(`${CONFIG.ROUTES.PAYMENTS}?action=new&member_id=${member.id}`)}
                             title="Cobrar cuota"
                           ><Icon name="dollarSign" size="1em" /></button>
                           {member.phone && (
@@ -408,7 +404,7 @@ export default function MembersPage() {
                           ><Icon name="creditCard" size="1em" /></button>
                           <button
                             className="action-btn-quick action-btn-payment"
-                            onClick={() => modal.open(member, mapMemberToForm)}
+                            onClick={() => modal.open(member, MEMBER_MAP_FN)}
                             title="Editar"
                           ><Icon name="edit" /></button>
                           {canDelete && (
@@ -466,40 +462,6 @@ export default function MembersPage() {
               <input type="date" className="form-input"
                 value={modal.form.birthDate} onChange={(e) => modal.handleChange('birthDate', e.target.value)} />
             </div>
-            {/* ─── EL ARANCEL DEL SOCIO ───
-                Antes esto se elegía en cada cobro, en la pantalla de Pagos, de memoria.
-                Pero un socio "es" de Pase Libre: no es una decisión que se tome de nuevo
-                cada mes. Asignándolo acá, cobrarle deja de ser una decisión y pasa a ser
-                un botón. */}
-            <div className="form-group">
-              <label className="form-label">Arancel</label>
-              <select
-                className="form-select"
-                value={modal.form.planId || ''}
-                onChange={(e) => modal.handleChange('planId', e.target.value)}
-              >
-                <option value="">Sin arancel (se le cobra a mano)</option>
-                {aranceles.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} — {describirArancel(a)}</option>
-                ))}
-                {/* ⚠️ EL ARANCEL DADO DE BAJA TIENE QUE SEGUIR EN LA LISTA.
-                    La lista trae solo los VIGENTES. Si a este socio le dieron de baja el
-                    suyo, su valor no matchearía ninguna opción, el selector caería solo en
-                    "Sin arancel", y GUARDAR LE BORRARÍA EL ARANCEL sin que nadie lo note.
-                    Abrir una ficha para corregir un teléfono no puede cambiarle la cuota. */}
-                {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId) && (
-                  <option value={modal.form.planId}>
-                    {(modal.form.planNombre || 'Arancel')} — dado de baja
-                  </option>
-                )}
-              </select>
-              <small className="form-hint">
-                {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId)
-                  ? 'Este arancel fue dado de baja. Se conserva hasta que le elijas otro.'
-                  : 'Lo que paga habitualmente. Al cobrarle ya viene elegido, con su precio.'}
-              </small>
-            </div>
-
             <div className="form-group">
               <label className="form-label">Inicio de membresía</label>
               <input type="date" className="form-input"
@@ -540,21 +502,6 @@ export default function MembersPage() {
           <ModalActions onCancel={modal.close} saving={modal.saving} />
         </form>
       </Modal>
-
-      {/* ─── COBRO RÁPIDO ─── */}
-      <CobroRapido
-        socio={cobrando}
-        abierto={!!cobrando}
-        onCerrar={() => setCobrando(null)}
-        onCobrado={() => {
-          const nombre = cobrando?.fullName || 'El socio';
-          setCobrando(null);
-          showToast(`Cobrado. ${nombre} quedó al día.`, 'success');
-          // La lista se vuelve a pedir: cobrar movió el vencimiento y la fila lo muestra.
-          refresh();
-        }}
-        onError={(e) => showToast(typeof e === 'string' ? e : errorService.getMessage(e), 'error')}
-      />
 
       {/* ─── PAYMENTS HISTORY MODAL ─── */}
       <Modal
