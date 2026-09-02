@@ -52,6 +52,7 @@ jobs:
           echo "IMAGE_URL=$IMAGE_URL" >> $GITHUB_ENV
 
       - name: Deploy a Cloud Run (São Paulo)
+        id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
@@ -81,9 +82,11 @@ jobs:
           #    el despliegue si se lo mandamos. La app ya lo lee con default
           #    (`${PORT:8080}` en application.properties), así que no hace falta.
           #
-          # 2. ESTA LISTA REEMPLAZA TODAS las variables del servicio en cada deploy. Lo que
-          #    alguien haya seteado a mano en la consola de Cloud Run se pierde al desplegar.
-          #    Si una variable tiene que existir, tiene que estar ACÁ.
+          # 2. ESTA LISTA NO REEMPLAZA: FUSIONA. El action corre `--update-env-vars`, así que
+          #    lo que ya esté seteado en el servicio SOBREVIVE aunque no figure acá. Tiene un
+          #    lado bueno y uno malo: no se pierde nada seteado a mano en la consola, pero
+          #    BORRAR una variable de esta lista NO la borra del servicio. Para sacarla de
+          #    verdad hay que hacerlo en Cloud Run (o con `--remove-env-vars`).
           #
           # 3. ⚠️ UNA VARIABLE CON EL SECRET VACÍO ES PEOR QUE NO PONERLA. Si el Secret no
           #    existe en GitHub, `${{ secrets.X }}` se resuelve a cadena vacía y pisa el
@@ -106,3 +109,59 @@ jobs:
             MP_PUBLIC_KEY=${{ secrets.MP_PUBLIC_KEY }}
             MP_WEBHOOK_SECRET=${{ secrets.MP_WEBHOOK_SECRET }}
             SPRING_PROFILES_ACTIVE=prod
+
+      # ─────────────────────────────────────────────────────────────────────
+      # ⭐ QUE EL DEPLOY DIGA "OK" NO SIGNIFICA QUE EL BACKEND ANDE.
+      #
+      # `gcloud run deploy` da por buena la revisión apenas el contenedor acepta
+      # conexiones en su puerto. Un Spring Boot puede levantar el puerto y aun así
+      # tener la mitad de la configuración sin resolver — y eso recién se nota
+      # cuando un gimnasio no puede cobrar.
+      #
+      # Estas dos consultas son la diferencia entre "desplegado" y "funcionando":
+      #
+      #   · /actuator/health         → la app arrancó y la BASE responde.
+      #   · /api/public/payment-config → la config de Mercado Pago se resolvió de
+      #     verdad. ⚠️ `MP_PUBLIC_KEY` y `MP_ACCESS_TOKEN` NO tienen default en
+      #     application.properties: si el Secret falta, el placeholder queda sin
+      #     resolver y los cobros se caen. Este endpoint lo delata acá y no en
+      #     el mostrador.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Verificar que el backend REALMENTE responde
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          echo "Backend desplegado en: $URL"
+          echo "### Backend en Cloud Run" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$URL\`" >> "$GITHUB_STEP_SUMMARY"
+
+          # Arranque en frío de una JVM: se le dan hasta ~2 minutos antes de fallar.
+          echo "Esperando a que la instancia levante..."
+          for intento in $(seq 1 24); do
+            estado=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/actuator/health" || echo 000)
+            if [ "$estado" = "200" ]; then
+              echo "OK: /actuator/health respondió 200 (intento $intento)"
+              break
+            fi
+            if [ "$intento" = "24" ]; then
+              echo "FALLA: /actuator/health nunca respondió 200 (último: $estado)"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          # La config de Mercado Pago, que es la que no tiene red de seguridad.
+          echo "Comprobando la configuración de Mercado Pago..."
+          cuerpo=$(curl -s --max-time 20 "$URL/api/public/payment-config" || echo '')
+          echo "Respuesta: $(echo "$cuerpo" | head -c 120)"
+          case "$cuerpo" in
+            *APP_USR*|*TEST-*)
+              echo "OK: la clave pública de Mercado Pago llegó resuelta." ;;
+            *)
+              echo "FALLA: /api/public/payment-config no devolvió una clave usable."
+              echo "Revisar que los Secrets MP_ACCESS_TOKEN, MP_PUBLIC_KEY y"
+              echo "MP_WEBHOOK_SECRET existan en GitHub: no tienen default y sin"
+              echo "ellos el gimnasio no puede cobrar."
+              exit 1 ;;
+          esac
+
+          echo "El backend está desplegado Y respondiendo."
