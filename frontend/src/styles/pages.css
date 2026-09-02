@@ -1314,15 +1314,10 @@
   .aviso-btn { width: 100%; }
 }
 
-/* Qué se registró, en el cartel de confirmación del mostrador. Antes el cartel solo decía el
-   nombre del socio: la recepcionista apretaba "entrada", el sistema grababa "salida" —porque
-   lo decide mirando el estado— y no había forma de enterarse. */
-.popup-accion {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-top: 0.15rem;
-}
+/* El cartel de confirmación del mostrador se fue: era un overlay de pantalla completa que
+   trababa el teclado tres segundos por socio. Lo que decía —incluido QUÉ se registró, que
+   es lo que evitaba apretar "entrada" y grabar una salida sin enterarse— ahora vive en el
+   aviso lateral, en `access.css` (.acceso-aviso-accion). */
 
 /* "Adentro desde 09:14" en el resultado de la búsqueda. Es el dato que cambia qué hace el
    botón de al lado, así que tiene que verse antes de apretarlo. */
