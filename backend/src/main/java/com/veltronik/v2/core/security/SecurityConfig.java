@@ -91,10 +91,18 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // X-Device-Id: DNI de equipo (ADR-002). X-App-Version: versión de la app (señal de
-        // vida / rollout por anillos). OJO ORDEN DE DEPLOY: el backend debe permitir cada
+        // vida / rollout por anillos). X-Cashier-Id: quién está en el turno del mostrador.
+        // OJO ORDEN DE DEPLOY: el backend debe permitir cada
         // header ANTES de que un frontend lo empiece a mandar, o el preflight CORS rechaza
         // todas las requests de la web ("el nuevo se adapta al viejo", contrato de compatibilidad).
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "X-Tenant-ID", "X-Device-Id", "X-App-Version"));
+        //
+        // ⚠️ Y esta lista se saltó su propia advertencia. `X-Cashier-Id` lo lee
+        // CashierContextFilter desde el 2026-08-21 (el turno con PIN del mostrador), pero acá
+        // no estaba: la lista se tocó por última vez el 2026-07-02, siete semanas antes. O sea
+        // que el backend leía un header que su propia política de CORS no dejaba pasar. No se
+        // notó porque la web del dueño no abre turno y nunca manda el header; lo manda el
+        // escritorio, que es justo el que no se prueba en un navegador.
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "X-Tenant-ID", "X-Device-Id", "X-App-Version", "X-Cashier-Id"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Tenant-ID"));
         // Autenticación por Bearer token (no cookies) → NO necesitamos credenciales CORS.
         // Mantenerlo en false evita reflejar cualquier origin con Access-Control-Allow-Credentials,

@@ -350,7 +350,15 @@ export function AuthProvider({ children }) {
     // Listen for auth changes from Supabase
     const authListener = authService.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_OUT' || !session) {
+        // ⚠️ Acá decía `if (event === 'SIGNED_OUT' || !session)`, y ese `|| !session` barría
+        // el estado ante CUALQUIER evento que llegara sin sesión. Supabase emite varios con
+        // `session: null` que no son un cierre —`INITIAL_SESSION` al arrancar sin sesión
+        // guardada es el más común— y tratarlos a todos como un logout convierte un evento
+        // informativo en una pantalla vacía. El cierre lo dice el EVENTO, no que falte el dato.
+        if (event === 'SIGNED_OUT') {
+          // Queda registrado a propósito: cuando alguien reporta "me sacó solo", esto es lo
+          // único que dice si la sesión la cerró Supabase o la cerramos nosotros.
+          console.warn('[auth] SIGNED_OUT: Supabase dio la sesión por terminada');
           clearQueryCache();
           olvidarSocios();
           lastLoadedOrgRef.current = null;
@@ -364,6 +372,12 @@ export function AuthProvider({ children }) {
           initCompleteRef.current = false;
           authService.clearPlatformState();
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // Estos dos SIEMPRE traen sesión. Si llega uno sin ella es una anomalía: se anota
+          // y no se toca nada, en vez de expulsar a quien está atendiendo por un evento raro.
+          if (!session) {
+            console.warn(`[auth] ${event} llegó sin sesión — se ignora, no se cierra nada`);
+            return;
+          }
           // Si iniciamos sesión, recargamos initAuth
           await initAuth();
         }
