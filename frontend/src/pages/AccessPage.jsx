@@ -10,6 +10,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
 import { getInitials, getRelativeTime, debounce } from '../lib/utils';
+import { porQueFallo } from '../lib/porQueFallo';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
@@ -75,7 +76,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, invalidate } = useQueryCache(
+  const { data, loading, error: errorMostrador, invalidate } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -86,6 +87,10 @@ export default function AccessPage() {
   const avisos = useMemo(() => data?.avisos || [], [data]);
 
   const loadData = invalidate;
+
+  // Qué pasó exactamente, en una frase que se pueda leer por teléfono. Sin esto, "no
+  // pudimos consultar" tapa por igual tres problemas con tres arreglos distintos.
+  const falla = useMemo(() => porQueFallo(errorMostrador), [errorMostrador]);
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
@@ -514,8 +519,16 @@ export default function AccessPage() {
                  volvía a mentir justo en el caso que la trajo hasta acá. */
               <div className="text-center text-muted" style={{ padding: '2rem' }}>
                 <Icon name="wifiOff" size="1.2em" />
-                <div style={{ marginTop: '0.5rem' }}>No pudimos consultar quién está adentro.</div>
-                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Se reintenta solo. Registrar entradas sigue andando.</div>
+                <div style={{ marginTop: '0.5rem' }}>{falla.texto}</div>
+                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                  Se reintenta solo. Registrar entradas sigue andando.
+                </div>
+                <button className="btn btn-sm btn-secondary" style={{ marginTop: '0.75rem' }} onClick={loadData}>
+                  Reintentar ahora
+                </button>
+                {/* El detalle en chiquito: no le dice nada a quien atiende, pero es lo que
+                    nos permite arreglarlo sin adivinar cuando nos lo lee por teléfono. */}
+                <div style={{ fontSize: '0.7rem', marginTop: '0.5rem', opacity: 0.6 }}>({falla.detalle})</div>
               </div>
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
@@ -550,7 +563,7 @@ export default function AccessPage() {
             <tbody>
               {!data ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>
-                  No pudimos consultar el registro de hoy.
+                  {falla.texto} <span style={{ opacity: 0.6 }}>({falla.detalle})</span>
                 </td></tr>
               ) : todayLogs.length === 0 ? (
                 <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>

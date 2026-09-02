@@ -4,6 +4,7 @@ import com.veltronik.v2.gym.dto.AccessLogDTO;
 import com.veltronik.v2.gym.dto.AccessRegisterInputDTO;
 import com.veltronik.v2.gym.mappers.AccessLogMapper;
 import com.veltronik.v2.gym.services.AccessLogService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,7 @@ import java.util.UUID;
  * el contrato del DTO.
  */
 @RestController
+@Slf4j
 @RequestMapping("/api/gym/access")
 public class GymAccessController {
 
@@ -70,7 +72,20 @@ public class GymAccessController {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
         body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
-        body.put("avisos", accessService.avisosPendientes());
+
+        // ⚠️ LOS AVISOS NO PUEDEN TUMBAR LA PANTALLA ENTERA.
+        //
+        // Son la parte accesoria —a quién hay que hablarle— y la más cara: recalculan el
+        // veredicto de cada socio que entró hoy por QR. Las otras dos son las que la
+        // recepcionista necesita para trabajar. Si esto falla y se lleva puesto el pedido
+        // completo, el mostrador se queda sin saber quién está adentro por un dato que ni
+        // siquiera es urgente.
+        try {
+            body.put("avisos", accessService.avisosPendientes());
+        } catch (Exception e) {
+            log.error("Los avisos del mostrador fallaron. La pantalla sigue funcionando sin ellos.", e);
+            body.put("avisos", java.util.List.of());
+        }
         // NOTA: acá viajaban también los "ingresos" recientes por QR, para que el mostrador
         // levantara un cartel con los días del socio que escaneó. La pantalla que los usaba
         // se dio de baja al volver a la 2.6.17, y este pedido se repite cada quince segundos:
