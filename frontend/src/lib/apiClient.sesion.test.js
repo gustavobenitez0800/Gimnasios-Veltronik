@@ -154,4 +154,36 @@ describe('la sesión no se quema sola', () => {
     expect(salidas.length, 'el original y UN reintento, nada más').toBe(2);
     expect(refreshSession).toHaveBeenCalledTimes(1);
   });
+
+  // ⭐ EL TEST DE "QUEDA CARGANDO"
+  //
+  // `getSession()` no solo puede fallar: puede COLGARSE por contención del lock de
+  // Supabase. Y una espera sin límite en el interceptor NO la salva el timeout de axios,
+  // porque ese cubre la petición HTTP — y si el interceptor nunca termina, la petición
+  // nunca sale. La promesa no se resuelve jamás.
+  //
+  // El síntoma es el peor de todos: la pantalla dice "Cargando…" para siempre, sin un
+  // error en ningún lado, sin nada en la consola, sin nada que reintentar. Se ve como si
+  // el sistema se hubiera colgado — y en la pantalla de Accesos, eso es el mostrador
+  // parado.
+  it('si la sesión se cuelga, el pedido FALLA en vez de colgarse para siempre', async () => {
+    vi.useFakeTimers();
+    try {
+      // Una promesa que no se resuelve nunca: exactamente el lock trabado.
+      getSession.mockReturnValue(new Promise(() => {}));
+      const { apiClient, salidas } = await montar(ok);
+
+      const pedido = apiClient.get('/algo');
+      const resultado = pedido.then(() => 'resolvió').catch(() => 'falló');
+
+      // Se deja correr MUCHO más que el techo de espera. Si no hubiera techo, acá seguiría
+      // colgado y el test se quedaría esperando igual que la pantalla.
+      await vi.advanceTimersByTimeAsync(30000);
+
+      expect(await resultado).toBe('falló');
+      expect(salidas, 'nunca salió el pedido, y está bien: no había token').toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

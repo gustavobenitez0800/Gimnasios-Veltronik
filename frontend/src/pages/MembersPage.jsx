@@ -10,7 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
 import { useMemberController } from '../controllers/useMemberController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
@@ -18,6 +18,7 @@ import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../compone
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import CobroRapido from '../components/CobroRapido';
+import { getInitialMemberForm, mapMemberToForm } from '../controllers/formSocio';
 import { planService } from '../services/PlanService';
 import { useAuth } from '../contexts/AuthContext';
 import CONFIG from '../lib/config';
@@ -41,35 +42,6 @@ const LARGE_SIZE = 1000;
  * Es una función y no una constante porque "hoy" cambia. Se evalúa al montar la pantalla,
  * no al cargar el módulo, que es lo que dejaba la fecha congelada en el día del arranque.
  */
-function getInitialMemberForm() {
-  const hoy = toLocalDateString(new Date());
-  return {
-    fullName: '',
-    dni: '',
-    phone: '',
-    email: '',
-    birthDate: '',
-    membershipStart: hoy,
-    membershipEnd: addOneMonth(hoy),
-    status: 'active',
-    notes: '',
-    attendanceDays: [],
-  };
-}
-
-const MEMBER_MAP_FN = (m) => ({
-  fullName: m.fullName || '',
-  dni: m.dni || '',
-  phone: m.phone || '',
-  email: m.email || '',
-  birthDate: m.birthDate || '',
-  membershipStart: m.membershipStart || '',
-  membershipEnd: m.membershipEnd || '',
-  status: m.status || 'active',
-  notes: m.notes || '',
-  attendanceDays: m.attendanceDays || [],
-});
-
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Todos los estados' },
   { value: 'active', label: 'Activos' },
@@ -436,7 +408,7 @@ export default function MembersPage() {
                           ><Icon name="creditCard" size="1em" /></button>
                           <button
                             className="action-btn-quick action-btn-payment"
-                            onClick={() => modal.open(member, MEMBER_MAP_FN)}
+                            onClick={() => modal.open(member, mapMemberToForm)}
                             title="Editar"
                           ><Icon name="edit" /></button>
                           {canDelete && (
@@ -510,9 +482,21 @@ export default function MembersPage() {
                 {aranceles.map((a) => (
                   <option key={a.id} value={a.id}>{a.name} — {describirArancel(a)}</option>
                 ))}
+                {/* ⚠️ EL ARANCEL DADO DE BAJA TIENE QUE SEGUIR EN LA LISTA.
+                    La lista trae solo los VIGENTES. Si a este socio le dieron de baja el
+                    suyo, su valor no matchearía ninguna opción, el selector caería solo en
+                    "Sin arancel", y GUARDAR LE BORRARÍA EL ARANCEL sin que nadie lo note.
+                    Abrir una ficha para corregir un teléfono no puede cambiarle la cuota. */}
+                {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId) && (
+                  <option value={modal.form.planId}>
+                    {(modal.form.planNombre || 'Arancel')} — dado de baja
+                  </option>
+                )}
               </select>
               <small className="form-hint">
-                Lo que paga habitualmente. Al cobrarle ya viene elegido, con su precio.
+                {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId)
+                  ? 'Este arancel fue dado de baja. Se conserva hasta que le elijas otro.'
+                  : 'Lo que paga habitualmente. Al cobrarle ya viene elegido, con su precio.'}
               </small>
             </div>
 

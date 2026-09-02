@@ -53,6 +53,9 @@ export default function CajaPage() {
   const [abierto, setAbierto] = useState(null);
   const [historial, setHistorial] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // Un pedido que falló no es un período vacío. Mostrar "0 cobros" cuando no se pudo
+  // preguntar hace que alguien cierre una caja creyendo que no entró nada.
+  const [fallo, setFallo] = useState(false);
 
   // El conteo: cuántos billetes de cada uno, más las monedas sueltas.
   const [contando, setContando] = useState(false);
@@ -66,6 +69,7 @@ export default function CajaPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true);
+    setFallo(false);
     try {
       const p = await cajaService.pendiente();
       setPendiente(p);
@@ -74,6 +78,7 @@ export default function CajaPage() {
         setHistorial(await cajaService.historial(60));
       }
     } catch (e) {
+      setFallo(true);
       showToast(errorService.getMessage(e), 'error');
     } finally {
       setCargando(false);
@@ -115,7 +120,10 @@ export default function CajaPage() {
     }
   };
 
+  const [confirmandoCorte, setConfirmandoCorte] = useState(false);
+
   const cortarSinContar = async () => {
+    setConfirmandoCorte(false);
     setGuardando(true);
     try {
       await cajaService.cerrar({ declaradoEfectivo: null, nota: null, cerradoPor: profile?.fullName || 'Dueño' });
@@ -162,7 +170,16 @@ export default function CajaPage() {
         {/* ─── El período abierto ─── */}
         <div className="card caja-abierto">
           <h3><Icon name="clock" size="1em" /> Período abierto</h3>
-          {cargando ? <p className="text-muted">Cargando…</p> : (
+          {cargando ? <p className="text-muted">Cargando…</p> : fallo ? (
+            <div className="caja-fallo">
+              <Icon name="wifiOff" size="1.1em" />
+              <div>
+                <strong>No pudimos consultar el período.</strong>
+                <div>Sin ese dato no se puede cerrar la caja con confianza. Probá de nuevo.</div>
+              </div>
+              <button className="btn btn-sm btn-secondary" onClick={cargar}>Reintentar</button>
+            </div>
+          ) : (
             <>
               <p className="caja-desde">
                 Desde <strong>{fecha(pendiente?.desde)}</strong> · {pendiente?.cantidadCobros || 0} cobros
@@ -185,7 +202,7 @@ export default function CajaPage() {
                   <Icon name="checkCircle" size="1em" /> Contar y cerrar
                 </button>
                 {esDueno && (
-                  <button className="btn btn-secondary" onClick={cortarSinContar} disabled={guardando}>
+                  <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(true)} disabled={guardando}>
                     Cerrar sin contar
                   </button>
                 )}
@@ -239,6 +256,31 @@ export default function CajaPage() {
           </div>
         )}
       </div>
+
+      {/* Cerrar sin contar CONGELA el período y no se puede deshacer: un cierre no se
+          edita, se corrige haciendo otro. Un clic no alcanza para algo irreversible. */}
+      <Modal
+        isOpen={confirmandoCorte}
+        onClose={() => setConfirmandoCorte(false)}
+        title="Cerrar sin contar la plata"
+        actions={
+          <>
+            <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(false)}>Cancelar</button>
+            <button className="btn btn-primary" onClick={cortarSinContar} disabled={guardando}>
+              Cerrar igual
+            </button>
+          </>
+        }
+      >
+        <p>
+          Esto cierra el período <strong>sin verificar el efectivo</strong>. Queda marcado como
+          &ldquo;sin contar&rdquo; en el historial, y no se puede deshacer.
+        </p>
+        <p className="form-hint">
+          Sirve para cortar el mes desde afuera del gimnasio. Si tenés el cajón adelante,
+          conviene contarlo: es el único momento en que se puede.
+        </p>
+      </Modal>
 
       {/* ─── EL CONTEO A CIEGAS ─── */}
       <Modal
