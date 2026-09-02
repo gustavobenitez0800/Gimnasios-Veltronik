@@ -33,6 +33,7 @@ const saveMember = vi.fn().mockResolvedValue({});
 let arancelesDelGimnasio = ARANCELES;
 
 const toastEstable = { showToast: vi.fn() };
+// Mutable a propósito: un test cambia el rol para comprobar qué NO ve recepción.
 const authEstable = { orgRole: 'owner', profile: { fullName: 'Gustavo' } };
 
 vi.mock('../contexts/ToastContext', () => ({ useToast: () => toastEstable }));
@@ -41,8 +42,12 @@ vi.mock('../services', () => ({
   paymentService: { createPayment: vi.fn().mockResolvedValue({}), getPaymentsByMember: vi.fn().mockResolvedValue([]) },
   errorService: { getMessage: (e) => String(e?.message || e) },
 }));
+const asignarArancelMasivo = vi.fn().mockResolvedValue({ actualizados: 2, pedidos: 2 });
 vi.mock('../services/MemberService', () => ({
-  memberService: { getMemberById: vi.fn().mockResolvedValue({ membershipEnd: '2026-10-23T23:59:59' }) },
+  memberService: {
+    getMemberById: vi.fn().mockResolvedValue({ membershipEnd: '2026-10-23T23:59:59' }),
+    asignarArancelMasivo,
+  },
 }));
 vi.mock('../services/PlanService', () => ({
   planService: { getVigentes: () => Promise.resolve(arancelesDelGimnasio) },
@@ -92,6 +97,8 @@ beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   arancelesDelGimnasio = ARANCELES;
   saveMember.mockClear();
+  asignarArancelMasivo.mockClear();
+  asignarArancelMasivo.mockResolvedValue({ actualizados: 2, pedidos: 2 });
 });
 
 afterEach(() => {
@@ -188,5 +195,147 @@ describe('los aranceles en Socios', () => {
     await pintar();
 
     expect(selectsDeArancel()).toHaveLength(0);
+  });
+});
+
+
+describe('asignar el arancel a muchos de una vez', () => {
+
+  /** Las casillas de cada fila (la del encabezado queda afuera). */
+  const casillas = () => [...container.querySelectorAll('td.col-check input[type="checkbox"]')];
+  const casillaDeTodos = () => container.querySelector('th.col-check input[type="checkbox"]');
+  /** El desplegable de la barra de selección. */
+  const barra = () => container.querySelector('select.seleccion-arancel');
+  const botones = () => [...container.querySelectorAll('button')];
+
+  async function marcar(i) {
+    await act(async () => { casillas()[i].click(); });
+  }
+
+  it('la barra aparece recién cuando hay algo marcado', async () => {
+    // Una barra siempre visible diciendo "0 seleccionados" es ruido permanente para una
+    // acción que se usa una vez cada tanto.
+    await pintar();
+    expect(barra()).toBe(null);
+
+    await marcar(0);
+
+    expect(barra()).not.toBe(null);
+    expect(container.textContent).toContain('1 seleccionado');
+  });
+
+  it('la casilla del encabezado marca todo lo que se está viendo', async () => {
+    await pintar();
+
+    await act(async () => { casillaDeTodos().click(); });
+
+    expect(container.textContent).toContain('3 seleccionados');
+  });
+
+  // ⭐ ESCRIBIR SOBRE MUCHAS FICHAS NO PUEDE PASAR POR UN CAMBIO DE DESPLEGABLE
+  it('elegir el arancel NO lo aplica: pregunta primero', async () => {
+    await pintar();
+    await marcar(0);
+
+    await elegir(barra(), 'p2');
+
+    expect(asignarArancelMasivo).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Asignar');
+  });
+
+  it('al confirmar manda UN pedido con todos los ids', async () => {
+    // Y no uno por socio: con 383 serían 383 viajes, y cerrar la pestaña a la mitad dejaría
+    // la mitad hecha sin forma de saber cuál.
+    await pintar();
+    await marcar(0);
+    await marcar(1);
+    await elegir(barra(), 'p2');
+
+    await act(async () => {
+      botones().find((b) => b.textContent.includes('Asignar a todos')).click();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(asignarArancelMasivo).toHaveBeenCalledTimes(1);
+    const [ids, planId] = asignarArancelMasivo.mock.calls[0];
+    expect(ids).toHaveLength(2);
+    expect(ids).toContain('s1');
+    expect(ids).toContain('s2');
+    expect(planId).toBe('p2');
+  });
+
+  // ⭐ EL AVISO QUE EVITA PISARLE LA CUOTA A QUIEN YA ESTABA BIEN
+  it('avisa cuántos de los marcados YA tenían otro arancel', async () => {
+    await pintar();
+    // s1 tiene 'p1' y s3 tiene uno dado de baja; s2 no tiene ninguno.
+    await act(async () => { casillaDeTodos().click(); });
+
+    await elegir(barra(), 'p2');
+
+    expect(container.textContent).toContain('2 de ellos ya tenían otro arancel');
+  });
+
+  it('sin nadie con arancel previo no muestra ese aviso', async () => {
+    await pintar();
+    await marcar(1); // CAROLINA, sin arancel
+
+    await elegir(barra(), 'p2');
+
+    expect(container.textContent).not.toContain('ya tenían otro arancel');
+  });
+
+  it('se les puede SACAR el arancel a todos', async () => {
+    // El dueño se equivoca de arancel al aplicarlo a 200 socios y tiene que poder
+    // deshacerlo sin abrir 200 fichas.
+    await pintar();
+    await marcar(0);
+
+    await elegir(barra(), '__sin__');
+    await act(async () => {
+      botones().find((b) => b.textContent.includes('Sacárselo a todos')).click();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(asignarArancelMasivo.mock.calls[0][1]).toBe(null);
+  });
+
+  it('cancelar no manda nada', async () => {
+    await pintar();
+    await marcar(0);
+    await elegir(barra(), 'p2');
+
+    await act(async () => {
+      botones().find((b) => b.textContent.trim() === 'Cancelar').click();
+    });
+
+    expect(asignarArancelMasivo).not.toHaveBeenCalled();
+  });
+
+  it('si el servidor tocó menos de los pedidos, lo dice', async () => {
+    // Puede pasar: un socio borrado desde la otra terminal mientras esto se armaba ya no
+    // existe. Informar "listo, 40" cuando fueron 38 es mentirle al dueño.
+    asignarArancelMasivo.mockResolvedValue({ actualizados: 1, pedidos: 2 });
+    await pintar();
+    await marcar(0);
+    await marcar(1);
+    await elegir(barra(), 'p2');
+
+    await act(async () => {
+      botones().find((b) => b.textContent.includes('Asignar a todos')).click();
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(toastEstable.showToast).toHaveBeenCalledWith(
+      expect.stringContaining('1 de 2'), 'warning');
+  });
+
+  it('recepción NO puede asignar en masa', async () => {
+    // Cambiar de golpe lo que se le cobra a doscientas personas no es una operación de
+    // mostrador. El backend lo verifica igual: esto es solo no ofrecerlo.
+    authEstable.orgRole = 'reception';
+    await pintar();
+
+    expect(casillas()).toHaveLength(0);
+    authEstable.orgRole = 'owner';
   });
 });

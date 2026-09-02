@@ -117,4 +117,43 @@ public class GymMemberController {
             m.setPlan(in.getPlanId() == null ? null : planService.findByIdAndVerifyOwnership(in.getPlanId()));
         }
     }
+
+    /**
+     * Le asigna el mismo arancel a muchos socios de una sola vez.
+     *
+     * <p>El gimnasio acaba de configurar sus aranceles y tiene cientos de socios sin
+     * ninguno. Uno por uno son cientos de pedidos, más de un minuto de espera, y —lo grave—
+     * cerrar la pestaña a la mitad deja la mitad hecha sin forma de saber cuál. Acá es UNA
+     * operación.</p>
+     *
+     * <p>⚠️ Solo dueño/admin. Cambiar de golpe lo que se le cobra a doscientas personas no
+     * es una operación de mostrador.</p>
+     *
+     * @return cuántos socios cambiaron. Puede ser menos que los pedidos: los ids que no son
+     *         de este gimnasio simplemente no se tocan.
+     */
+    @PostMapping("/arancel-masivo")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> asignarArancelMasivo(
+            @RequestBody ArancelMasivoInput input) {
+        int actualizados = memberService.asignarArancelMasivo(input.getMemberIds(), input.getPlanId());
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("actualizados", actualizados);
+        // Cuántos se pidieron, para que la pantalla pueda decir "38 de 40" en vez de dar por
+        // hecho que se aplicaron todos.
+        body.put("pedidos", input.getMemberIds() == null ? 0 : input.getMemberIds().size());
+        return ResponseEntity.ok(body);
+    }
+
+    /** Lo que hace falta para la asignación masiva. */
+    public static class ArancelMasivoInput {
+        private List<UUID> memberIds;
+        /** null = sacarles el arancel a todos. */
+        private UUID planId;
+
+        public List<UUID> getMemberIds() { return memberIds; }
+        public void setMemberIds(List<UUID> v) { this.memberIds = v; }
+        public UUID getPlanId() { return planId; }
+        public void setPlanId(UUID v) { this.planId = v; }
+    }
 }

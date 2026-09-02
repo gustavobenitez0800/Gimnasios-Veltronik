@@ -53,6 +53,23 @@ class MemberService {
     return response.data;
   }
 
+  /**
+   * Le asigna el mismo arancel a muchos socios de una sola vez.
+   *
+   * ⚠️ Es UN pedido, no uno por socio. Con 383 socios, hacerlo desde acá con un bucle son
+   * 383 viajes y más de un minuto — y si se cierra la pestaña a la mitad, queda la mitad
+   * hecha sin forma de saber cuál. El servidor lo aplica entero o no lo aplica.
+   *
+   * @param planId null = sacarles el arancel a todos
+   * @returns {Promise<{actualizados: number, pedidos: number}>}
+   */
+  async asignarArancelMasivo(memberIds, planId) {
+    const { data } = await apiClient.post('/gym/members/arancel-masivo', { memberIds, planId });
+    // Cambió el arancel de muchos socios: la copia local del mostrador quedó vieja.
+    this.refrescarCopiaLocal();
+    return data;
+  }
+
   async deleteMember(id) {
     await apiClient.delete(`/gym/members/${id}`);
     this.refrescarCopiaLocal();

@@ -72,4 +72,27 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     // Versiones COUNT (el dashboard solo necesita el número; cargar las entidades para .size() no escala)
     long countByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
     long countByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
+
+    /**
+     * Le pone (o le saca) el arancel a muchos socios de una sola vez.
+     *
+     * <p><b>Escribe UNA columna.</b> No carga los socios ni los vuelve a guardar enteros: si
+     * mandara el objeto completo, cualquier campo que no viniera cargado se borraría — y en
+     * masa, que es la peor forma de perder datos.</p>
+     *
+     * <p>⚠️ El {@code tenant.id} del WHERE no es decorativo. Una operación que recibe una
+     * lista de ids es exactamente donde se cuela el id de otro gimnasio; sin esa condición,
+     * un pedido armado a mano podría escribir sobre socios ajenos.</p>
+     *
+     * <p>{@code clearAutomatically} porque después de un UPDATE masivo lo que haya en la
+     * sesión de Hibernate quedó viejo: sin limpiarla, una lectura posterior devolvería el
+     * valor anterior desde su caché de primer nivel.</p>
+     *
+     * @return cuántas filas cambiaron de verdad
+     */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE GymMember m SET m.plan = :plan WHERE m.tenant.id = :tenantId AND m.id IN :ids")
+    int asignarArancel(@Param("tenantId") UUID tenantId,
+                       @Param("ids") java.util.Collection<UUID> ids,
+                       @Param("plan") com.veltronik.v2.gym.entities.GymPlan plan);
 }

@@ -38,6 +38,10 @@ const LARGE_SIZE = 1000;
  */
 const MEMBER_MAP_FN = mapMemberToForm;
 
+/** El valor del desplegable que significa 'sacarles el arancel'. Vacío no sirve: sería
+ *  indistinguible de la opción de texto que encabeza la lista. */
+const SACAR_ARANCEL = '__sin__';
+
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Todos los estados' },
   { value: 'active', label: 'Activos' },
@@ -91,6 +95,27 @@ export default function MembersPage() {
   // Qué fila está guardando su arancel desde la lista, para no dejar el select muerto.
   const [guardandoArancel, setGuardandoArancel] = useState(null);
 
+  // ─── La selección para asignar en masa ───
+  //
+  // Un Set y no un array: marcar y desmarcar 383 socios con `includes` sobre un array es
+  // recorrer la lista entera en cada clic.
+  const [seleccion, setSeleccion] = useState(() => new Set());
+  const [asignandoMasivo, setAsignandoMasivo] = useState(false);
+  // Lo que se va a aplicar, esperando confirmación. null = no hay nada pendiente.
+  const [confirmandoMasivo, setConfirmandoMasivo] = useState(null);
+
+  // ⚠️ Solo dueño/admin. Cambiar de golpe lo que se le cobra a doscientas personas no es
+  // una operación de mostrador — y el backend lo verifica igual, no alcanza con esconderlo.
+  const puedeAsignarMasivo = hayAranceles && canDelete;
+
+  const alternarSeleccion = (id) => {
+    setSeleccion((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
   // Aplica el filtro de estado sobre el set cargado (la página del backend, o el set completo
   // cuando hay filtro). "expired" se calcula por fecha de vencimiento en el cliente.
   const filteredMembers = useMemo(() => {
@@ -123,6 +148,30 @@ export default function MembersPage() {
     const start = pagination.page * PAGE_SIZE;
     return filteredMembers.slice(start, start + PAGE_SIZE);
   }, [filteredMembers, statusFilter, pagination.page]);
+
+  // Las columnas de la tabla varían: la casilla de selección y el arancel aparecen o no.
+  // Un colSpan fijo dejaba el mensaje de "no hay socios" cortado a mitad de la fila.
+  const CUANTAS_COLUMNAS = 7 + (puedeAsignarMasivo ? 1 : 0) + (hayAranceles ? 1 : 0);
+
+  // ¿Está marcada toda la página que se ve? Se calcula sobre las filas visibles, que es
+  // exactamente lo que la casilla del encabezado promete.
+  const todosVisiblesMarcados = pagedMembers.length > 0
+    && pagedMembers.every((m) => seleccion.has(m.id));
+
+  const alternarTodosVisibles = () => {
+    setSeleccion((prev) => {
+      const s = new Set(prev);
+      if (todosVisiblesMarcados) pagedMembers.forEach((m) => s.delete(m.id));
+      else pagedMembers.forEach((m) => s.add(m.id));
+      return s;
+    });
+  };
+
+  // Cambiar de filtro o de página con cosas marcadas es la receta para aplicarle un arancel
+  // a alguien que ya no se está viendo. La selección se limpia sola al cambiar la vista.
+  useEffect(() => {
+    setSeleccion(new Set());
+  }, [statusFilter, search]);
 
   // Modal. Con `?action=new` (atajo "Nuevo socio" del Dashboard) arranca abierto:
   // se resuelve en el primer render, sin efecto que lo abra después.
@@ -183,6 +232,44 @@ export default function MembersPage() {
       showToast(error.message || errorService.getMessage(error), 'error');
     } finally {
       setGuardandoArancel(null);
+    }
+  };
+
+  /**
+   * Aplica el arancel a todos los seleccionados, en UN pedido.
+   *
+   * <p>⚠️ No es un bucle de pedidos a propósito. Con 383 socios serían 383 viajes, más de un
+   * minuto de espera, y —lo grave— si se cierra la pestaña a la mitad queda la mitad hecha
+   * sin forma de saber cuál. El servidor lo aplica entero.</p>
+   */
+  const aplicarArancelMasivo = async () => {
+    // `__sin__` es "sacárselo". Un valor vacío no sirve como opción del desplegable: sería
+    // indistinguible del texto de arriba ("Asignarles un arancel…").
+    const planId = confirmandoMasivo.planId === SACAR_ARANCEL ? null : confirmandoMasivo.planId;
+    const ids = [...seleccion];
+    setConfirmandoMasivo(null);
+    setAsignandoMasivo(true);
+    try {
+      const r = await memberService.asignarArancelMasivo(ids, planId);
+      setSeleccion(new Set());
+      refresh();
+
+      const elegido = aranceles.find((a) => a.id === planId);
+      const que = elegido ? elegido.name : 'sin arancel';
+      // Se informa lo que el SERVIDOR dice que cambió, no lo que se pidió. Pueden diferir:
+      // un socio borrado desde otra terminal mientras esto se armaba ya no existe.
+      if (r.actualizados < r.pedidos) {
+        showToast(
+          `${r.actualizados} de ${r.pedidos} socios quedaron en "${que}". ` +
+          'Los demás ya no estaban.', 'warning',
+        );
+      } else {
+        showToast(`${r.actualizados} socios quedaron en "${que}".`, 'success');
+      }
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setAsignandoMasivo(false);
     }
   };
 
@@ -381,12 +468,57 @@ export default function MembersPage() {
         countLabel={membersLabelLower}
       />
 
+      {/* ─── LA BARRA DE SELECCIÓN ───
+          Aparece sola cuando hay algo marcado y desaparece cuando no. Una barra siempre
+          visible con "0 seleccionados" es ruido permanente para una acción que se usa una
+          vez cada tanto. */}
+      {puedeAsignarMasivo && seleccion.size > 0 && (
+        <div className="seleccion-barra">
+          <span className="seleccion-cuantos">
+            <Icon name="users" size="1em" /> {seleccion.size} seleccionado{seleccion.size === 1 ? '' : 's'}
+          </span>
+          <select
+            className="form-select seleccion-arancel"
+            value=""
+            disabled={asignandoMasivo}
+            onChange={(e) => {
+              // No se aplica al elegir: se pregunta primero. Escribir sobre doscientas
+              // fichas no puede pasar por un cambio de desplegable.
+              if (e.target.value !== '') setConfirmandoMasivo({ planId: e.target.value });
+            }}
+          >
+            <option value="">Asignarles un arancel…</option>
+            {aranceles.map((a) => (
+              <option key={a.id} value={a.id}>{a.name} — {formatCurrency(a.price)}</option>
+            ))}
+            <option value={SACAR_ARANCEL}>Sacarles el arancel</option>
+          </select>
+          <button className="btn btn-sm btn-secondary" onClick={() => setSeleccion(new Set())}>
+            Limpiar
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card">
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
+                {puedeAsignarMasivo && (
+                  <th className="col-check">
+                    {/* Marca todo lo que se está VIENDO, no "todos los socios": marcar cosas
+                        que no están en pantalla es la forma más fácil de aplicarle un arancel
+                        a alguien sin darse cuenta. Con el filtro "Sin arancel" puesto, esto
+                        ES el caso de uso completo. */}
+                    <input
+                      type="checkbox"
+                      checked={todosVisiblesMarcados}
+                      onChange={alternarTodosVisibles}
+                      title={todosVisiblesMarcados ? 'Desmarcar todos' : 'Marcar los de esta página'}
+                    />
+                  </th>
+                )}
                 <th>Nombre</th>
                 <th>DNI</th>
                 <th>Teléfono</th>
@@ -401,20 +533,20 @@ export default function MembersPage() {
             <tbody>
               {isFetching && pagedMembers.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
               ) : loadError ? (
                 <tr>
                   {/* Una lista vacía porque fallo el pedido NO es un gimnasio sin socios. */}
-                  <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
                     No se pudieron cargar los {membersLabelLower}
                   </td>
                 </tr>
               ) : pagedMembers.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
                     No se encontraron {membersLabelLower}
                   </td>
                 </tr>
@@ -423,6 +555,16 @@ export default function MembersPage() {
                   const daysInfo = getDaysInfo(member);
                   return (
                     <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+                      {puedeAsignarMasivo && (
+                        <td className="col-check">
+                          <input
+                            type="checkbox"
+                            checked={seleccion.has(member.id)}
+                            onChange={() => alternarSeleccion(member.id)}
+                            aria-label={`Seleccionar a ${member.fullName}`}
+                          />
+                        </td>
+                      )}
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
@@ -645,6 +787,47 @@ export default function MembersPage() {
           )}
         </div>
       </Modal>
+
+      {/* ─── CONFIRMAR LA ASIGNACIÓN MASIVA ───
+           Escribir sobre doscientas fichas no puede pasar por un cambio de desplegable. Y
+           lo que más importa está en el segundo párrafo: cuántos de los seleccionados YA
+           tenían un arancel distinto, que es el dato que evita pisarle la cuota a gente que
+           estaba bien. */}
+      {confirmandoMasivo && (() => {
+        const destino = confirmandoMasivo.planId === SACAR_ARANCEL
+          ? null
+          : aranceles.find((a) => a.id === confirmandoMasivo.planId);
+        const elegidos = pagedMembers.filter((m) => seleccion.has(m.id));
+        // Se cuenta sobre lo que está a la vista; puede haber más marcados de otras páginas,
+        // pero nunca se dice un número menor al real: si no está visible, no se afirma nada.
+        const pisados = elegidos.filter(
+          (m) => m.planId && m.planId !== confirmandoMasivo.planId,
+        ).length;
+
+        return (
+          <ConfirmDialog
+            open
+            title={destino ? `Asignar "${destino.name}"` : 'Sacarles el arancel'}
+            message={
+              destino
+                ? `Van a quedar ${seleccion.size} socios con "${destino.name}" `
+                  + `(${formatCurrency(destino.price)}).`
+                : `${seleccion.size} socios van a quedar sin arancel.`
+            }
+            extra={pisados > 0
+              ? `⚠️ ${pisados} de ellos ya tenían otro arancel y se les va a reemplazar.`
+              : null}
+            icon="users"
+            confirmText={destino ? 'Asignar a todos' : 'Sacárselo a todos'}
+            // Rojo solo para sacar el arancel. Asignar uno no destruye nada, y pintar de
+            // rojo una acción normal hace que el rojo deje de significar algo el día que
+            // aparezca en un borrado de verdad.
+            confirmClass={destino ? 'btn-primary' : 'btn-danger'}
+            onConfirm={aplicarArancelMasivo}
+            onCancel={() => setConfirmandoMasivo(null)}
+          />
+        );
+      })()}
 
       {/* ─── COBRAR, SIN IRSE DE ACÁ ─── */}
       <CobroRapido
