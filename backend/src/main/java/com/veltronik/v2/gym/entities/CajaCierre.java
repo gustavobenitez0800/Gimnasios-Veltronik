@@ -158,4 +158,28 @@ public class CajaCierre extends TenantAwareEntity {
      */
     @Column(name = "cerrado_por_nombre", length = 160)
     private String cerradoPorNombre;
+
+    /**
+     * Cuánto efectivo se llevó del cajón al cerrar el día.
+     *
+     * <p>Es lo ÚNICO que decide una persona en el cierre diario. Todo lo demás —cuánto entró
+     * por efectivo, cuánto por transferencia— lo sabe el sistema, porque cada cobro tiene su
+     * forma de pago. Pedirle a alguien que lo averigüe y lo tipee era hacerle rehacer a mano
+     * una cuenta que ya estaba hecha.</p>
+     *
+     * <p>NULL en los cierres anteriores al 2026-09-02, que eran arqueos a ciegas.</p>
+     */
+    @Column(name = "retiro_efectivo")
+    private BigDecimal retiroEfectivo;
+
+    /**
+     * Lo que quedó en el cajón: lo esperado menos el retiro.
+     *
+     * <p><b>Es el fondo con el que arranca el día siguiente</b>, y por eso desapareció el
+     * paso de "abrir caja" declarando el cambio de ayer. Ese número ya no lo tiene que
+     * recordar nadie a la mañana: lo dejó dicho el cierre anterior. El olvido de abrir la
+     * caja —que dejaba cobros fuera del período— deja de ser posible.</p>
+     */
+    @Column(name = "queda_en_caja")
+    private BigDecimal quedaEnCaja;
 }

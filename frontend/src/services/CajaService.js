@@ -1,18 +1,27 @@
 import apiClient from '../lib/apiClient';
 
 /**
- * El cierre de caja.
+ * El cierre de caja, diario.
  *
- * ⚠️ Hay DOS endpoints para mirar el período abierto y la diferencia entre los dos es el
- * corazón de la función: `abierto()` trae los importes y **solo lo puede pedir el dueño**;
- * `pendiente()` dice que hay algo que cerrar pero NO cuánto. Quien va a contar la plata usa
- * el segundo. Si viera el número esperado antes de contar, escribiría ese número y el
- * arqueo no valdría nada — y esconderlo solo en la pantalla no alcanza, porque cualquiera
- * puede abrir la API.
+ * ⚠️ CAMBIÓ DE RAÍZ EL 2026-09-02. Antes esto era un ARQUEO A CIEGAS: quien iba a contar
+ * pedía `pendiente()` —que decía que había algo que cerrar pero NO cuánto—, contaba la
+ * plata, escribía el monto, y recién ahí veía lo que el sistema esperaba.
+ *
+ * Ahora el sistema muestra los totales por forma de pago: cada cobro ya tiene su método, y
+ * hacer que una persona vuelva a averiguarlo y lo tipee era rehacer a mano una cuenta hecha.
+ * Lo único que se declara al cerrar es CUÁNTO EFECTIVO SE RETIRA del cajón.
+ *
+ * Lo que se pierde, dicho claro: sin conteo declarado el sistema no puede avisar que falta
+ * plata. Fue una decisión del dueño, sabiendo el costo.
  */
 class CajaService {
 
-  /** Lo que lleva el período, CON importes. Solo dueño/admin (lo verifica el backend). */
+  /**
+   * Lo que lleva el período abierto, con importes y con el fondo del cajón.
+   *
+   * Ya no es solo del dueño: estos totales SON el cierre diario, y ahora también cierra
+   * recepción. Trae `fondo` (lo que dejó el cierre anterior) y `esperadoEnElCajon`.
+   */
   async abierto() {
     const { data } = await apiClient.get('/gym/caja/abierto');
     return data;
@@ -24,18 +33,7 @@ class CajaService {
     return data;
   }
 
-  /**
-   * Abre la caja con el cambio que ya había en el cajón.
-   *
-   * ⚠️ El fondo NO es opcional aunque sea cero: sin él el arqueo nunca cuadra, porque el
-   * cajón arranca el día con el cambio de ayer y eso aparece como sobrante todos los días.
-   */
-  async abrir({ fondoInicial, abiertaPor }) {
-    const { data } = await apiClient.post('/gym/caja/abrir', { fondoInicial, abiertaPor });
-    return data;
-  }
-
-  /** Los cobros que forman el número: socio, monto, método, fecha. SOLO dueño. */
+  /** Los cobros del período: socio, monto, método, fecha. Es la lista del cierre. */
   async movimientos() {
     const { data } = await apiClient.get('/gym/caja/movimientos');
     return data;
@@ -87,13 +85,26 @@ class CajaService {
   }
 
   /**
-   * Cierra el período.
+   * Cierra el día.
    *
-   * @param declaradoEfectivo lo contado en el cajón. null = corte sin conteo (solo dueño).
-   * @param declaradoDigital  lo que entró por transferencia y Mercado Pago.
+   * @param retiroEfectivo cuánto se lleva del cajón. 0 o null = queda todo para mañana, y
+   *                       ese resto es el fondo con el que arranca el día siguiente.
    */
-  async cerrar({ declaradoEfectivo, declaradoDigital, nota, cerradoPor }) {
-    const { data } = await apiClient.post('/gym/caja/cierre', { declaradoEfectivo, declaradoDigital, nota, cerradoPor });
+  async cerrar({ retiroEfectivo, nota, cerradoPor }) {
+    const { data } = await apiClient.post('/gym/caja/cierre', { retiroEfectivo, nota, cerradoPor });
+    return data;
+  }
+
+  /**
+   * Balance de ingresos de hoy o del mes en curso.
+   *
+   * No es lo mismo que el período abierto: si nadie cerró ayer, aquel arrastra dos días y
+   * esto sigue diciendo lo de hoy.
+   *
+   * @param periodo 'hoy' | 'mes'
+   */
+  async balance(periodo = 'hoy') {
+    const { data } = await apiClient.get('/gym/caja/balance', { params: { periodo } });
     return data;
   }
 

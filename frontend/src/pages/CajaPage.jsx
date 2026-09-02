@@ -1,28 +1,32 @@
 // ============================================
-// VELTRONIK - CIERRE DE CAJA
+// VELTRONIK - CIERRE DE CAJA DIARIO
 // ============================================
-// Lo que el dueño quiere saber es una sola cosa: ¿la plata que entró al sistema es la plata
-// que hay? Hoy no tiene forma de saberlo.
+// Una pregunta: ¿la plata que entró al sistema es la plata que hay?
 //
-// ─── LAS DECISIONES QUE EXPLICAN ESTA PANTALLA ───
+// ─── EL CAMBIO DEL 2026-09-02, Y POR QUÉ ───
 //
-// ⭐ EL CONTEO ES A CIEGAS. Quien cuenta NO ve cuánto debería haber hasta después de
-// declarar. Si lo viera, escribiría ese número y el arqueo no significaría nada. Esto no se
-// sostiene solo acá: el backend tiene DOS endpoints y el que trae importes es solo para el
-// dueño — esconderlo en la pantalla no alcanzaría, porque cualquiera puede abrir la API.
+// Esta pantalla era un ARQUEO A CIEGAS: quien cerraba contaba la plata, escribía el monto
+// sin poder ver lo esperado, y recién ahí el sistema mostraba la diferencia. La idea era
+// que no se pudiera "ajustar" el número al esperado.
 //
-// SE CUENTA BILLETE POR BILLETE. Es lo que la persona ya hace con la plata en la mano, le
-// saca la cuenta mental de encima —de donde sale la mitad de las diferencias— y de paso
-// hace más incómodo inventar: mentir un total es fácil, inventar un desglose de billetes
-// creíble no tanto.
+// El dueño lo cambió, y el motivo es bueno: el sistema YA SABE cuánto entró por efectivo y
+// cuánto por transferencia —cada cobro tiene su forma de pago— así que hacer que una
+// persona lo vuelva a averiguar y lo tipee es rehacer a mano una cuenta ya hecha. Ahora la
+// pantalla lo muestra sumado, y lo único que decide una persona es CUÁNTO SE LLEVA.
 //
-// UNA SOLA OPORTUNIDAD. Se cuenta, se confirma, y recién ahí aparece la diferencia. No se
-// puede volver atrás: así funciona una caja de verdad.
+// ⚠️ LO QUE SE PIERDE, DICHO EN CLARO: sin conteo declarado el sistema no puede avisar que
+// falta plata del cajón. Se decidió sabiendo el costo — contar y tipear todos los días
+// también tiene el suyo, y es que la caja deje de cerrarse. Una caja que no se cierra no
+// detecta nada.
 //
-// SOLO SE DECLARA EL EFECTIVO. Una transferencia no se puede robar —va a la cuenta del
-// gimnasio— y quien atiende no tiene cómo saber su total sin mirar el sistema. Pedírsela
-// sería fricción diaria sin ninguna seguridad a cambio. Se muestran aparte, para que el
-// dueño concilie contra el banco.
+// ─── LO QUE NO CAMBIÓ, Y NO HAY QUE TOCAR ───
+//
+// EL FONDO. En el cajón está el cambio de ayer MÁS lo cobrado hoy. Sin sumarlo, todos los
+// cierres daban sobrante por el mismo monto. Ahora no lo declara nadie: es lo que el cierre
+// de ayer decidió DEJAR en el cajón, y por eso desapareció el paso de "abrir caja".
+//
+// LOS EGRESOS. Del cajón también sale plata. Sin restarlos, el día que se le paga a la
+// limpieza el cierre decía FALTANTE y acusaba a quien atendió.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
@@ -49,67 +53,56 @@ const NOMBRE_METODO = {
   card: 'Tarjeta',
 };
 
+/** Lo que va al cajón contra lo que va al banco: es la separación que ordena la pantalla. */
+const ES_EFECTIVO = (metodo) => String(metodo || '').toUpperCase() === 'CASH';
+
 /**
  * En qué se gasta la plata de un gimnasio.
  *
  * Son sugerencias, no una lista cerrada: el backend guarda texto libre a propósito, porque
  * el gimnasio va a necesitar un rubro que hoy no imaginamos y eso no puede requerir una
- * migración. Estos son los que aparecen de entrada para no hacer escribir lo de todos los días.
+ * migración.
  */
 const CATEGORIAS_EGRESO = ['Limpieza', 'Adelanto', 'Proveedor', 'Mantenimiento', 'Retiro', 'Otro'];
 const CATEGORIAS_INGRESO = ['Venta', 'Aporte', 'Otro'];
+
+const numero = (v) => Number(v || 0);
 
 export default function CajaPage() {
   const { showToast } = useToast();
   const { orgRole, profile } = useAuth();
   const esDueno = ['owner', 'admin'].includes(orgRole);
 
-  const [pendiente, setPendiente] = useState(null);
   const [abierto, setAbierto] = useState(null);
+  const [cobros, setCobros] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [cargando, setCargando] = useState(true);
   // Un pedido que falló no es un período vacío. Mostrar "0 cobros" cuando no se pudo
   // preguntar hace que alguien cierre una caja creyendo que no entró nada.
   const [fallo, setFallo] = useState(false);
-
-  // El conteo: un número. Nada más.
-  //
-  // Acá había una grilla para cargar cuántos billetes de cada denominación. Era más
-  // preciso en teoría, pero un arqueo de kiosco es UNA pregunta —¿cuánta plata hay?— y
-  // nueve casilleros todos los días es exactamente la clase de fricción que hace que la
-  // gente deje de cerrar caja. Y una caja que no se cierra no sirve para nada.
-  const [contando, setContando] = useState(false);
-  const [efectivo, setEfectivo] = useState('');
-  // Transferencias y Mercado Pago van en un solo campo: quien cuenta abre la app del banco
-  // o de MP y mira cuánto entró. Es un solo gesto; pedir dos números para la misma
-  // revisión es fricción sin nada a cambio.
-  const [digital, setDigital] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  // La caja abierta: desde cuándo, quién y con cuánto cambio arrancó el cajón.
-  const [estado, setEstado] = useState(null);
-  const [abriendo, setAbriendo] = useState(false);
-  const [fondo, setFondo] = useState('');
-  // Los cobros que forman el número. Solo el dueño: si quien va a contar ve los montos,
-  // suma la lista y escribe ese número, y el arqueo deja de medir nada.
-  const [movimientos, setMovimientos] = useState([]);
+  // ─── El balance de ingresos: hoy y el mes ───
+  //
+  // Es una pregunta DISTINTA de "¿qué hay sin cerrar?". Si nadie cerró ayer, el período
+  // abierto arrastra dos días y esto sigue diciendo lo de hoy. Por eso son dos pedidos y no
+  // una resta sobre el mismo número.
+  const [periodo, setPeriodo] = useState('hoy');
+  const [balance, setBalance] = useState(null);
+  const [hayBalance, setHayBalance] = useState(true);
+
+  // Lo único que se declara al cerrar.
+  const [retiro, setRetiro] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
+  const [resultado, setResultado] = useState(null);
 
   // ─── Los movimientos de caja: lo que sale y entra sin ser un cobro ───
   //
-  // ⚠️ ESTO ES LO QUE EVITA QUE EL ARQUEO MIENTA TODOS LOS DÍAS. Se le pagan $15.000 a la
-  // chica de la limpieza del cajón; si no queda anotado, a la noche el sistema espera esa
-  // plata igual, el cierre dice FALTANTE, y acusa a quien atendió sin que haya robado nada.
-  // Es el mismo bug del fondo inicial con el signo cambiado, y termina igual de mal: te
-  // acostumbrás a los faltantes y el día que falta plata de verdad no lo distinguís.
-  //
-  // A diferencia de los cobros, ESTA lista la ve cualquiera. No rompe el conteo a ciegas:
-  // quien cuenta ya sabe cuánto sacó del cajón —lo sacó ella— y sabiendo el fondo y los
-  // egresos todavía le falta el número grande, que es lo cobrado en efectivo. Y necesita
-  // verla para no cargar dos veces el mismo gasto.
+  // ⚠️ ESTO ES LO QUE EVITA QUE LA CAJA MIENTA TODOS LOS DÍAS. Se le pagan $15.000 a la
+  // chica de la limpieza del cajón; si no queda anotado, el sistema espera esa plata igual.
   const [movsCaja, setMovsCaja] = useState([]);
-  // ¿El backend de este gimnasio sabe de movimientos? Un escritorio o un servidor que
-  // todavía no actualizó responde 404, y ahí los botones se esconden en vez de ofrecer algo
-  // que va a fallar. Arranca en true para no parpadear mientras carga.
+  // ¿El backend de este gimnasio sabe de movimientos? Uno que todavía no actualizó responde
+  // 404, y ahí los botones se esconden en vez de ofrecer algo que va a fallar.
   const [hayMovimientos, setHayMovimientos] = useState(true);
   const [anotando, setAnotando] = useState(false);
   const [movTipo, setMovTipo] = useState('EGRESO');
@@ -118,42 +111,38 @@ export default function CajaPage() {
   const [movMonto, setMovMonto] = useState('');
   const [movMetodo, setMovMetodo] = useState('CASH');
 
-  // El resultado, recién revelado. Es el único momento en que quien contó ve el número.
-  const [resultado, setResultado] = useState(null);
-  const [explicacion, setExplicacion] = useState('');
+  const cargarBalance = useCallback(async (cual) => {
+    try {
+      setBalance(await cajaService.balance(cual));
+      setHayBalance(true);
+    } catch {
+      // Backend viejo: el bloque se esconde y el cierre sigue funcionando.
+      setBalance(null);
+      setHayBalance(false);
+    }
+  }, []);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setFallo(false);
     try {
-      const [p, e] = await Promise.all([cajaService.pendiente(), cajaService.estado()]);
-      setPendiente(p);
-      setEstado(e);
+      // El período abierto y sus cobros: los dos los necesita quien cierra, sea el dueño o
+      // recepción. Antes los importes eran solo del dueño, por el conteo a ciegas.
+      const [a, c] = await Promise.all([cajaService.abierto(), cajaService.movimientos()]);
+      setAbierto(a);
+      setCobros(c || []);
 
-      // ⚠️ LOS MOVIMIENTOS NO PUEDEN TUMBAR LA PANTALLA ENTERA.
-      //
-      // Son la parte nueva, y un backend que todavía no la tiene responde 404. Si eso
-      // viajara en el mismo Promise.all que lo demás, el cierre de caja —que SÍ funciona
-      // en cualquier versión— quedaría inutilizable por una función que el gimnasio ni
-      // sabe que existe. Es el mismo criterio que ya se aplicó con los avisos del mostrador.
-      //
-      // Y no es hipotético: entre que sale el frontend nuevo y que el backend viejo deja
-      // de recibir tráfico hay una ventana real en la que esto pasa.
+      // ⚠️ LOS MOVIMIENTOS NO PUEDEN TUMBAR LA PANTALLA ENTERA: si viajaran en el mismo
+      // Promise.all, un backend sin esa función dejaría el cierre inutilizable.
       try {
         setMovsCaja((await cajaService.movimientosDeCaja()) || []);
         setHayMovimientos(true);
       } catch {
-        // El backend de este gimnasio todavía no sabe de movimientos: se esconden los
-        // botones en vez de dejar que alguien los apriete y reciba un error.
         setMovsCaja([]);
         setHayMovimientos(false);
       }
 
-      if (esDueno) {
-        setAbierto(await cajaService.abierto());
-        setHistorial(await cajaService.historial(60));
-        setMovimientos(await cajaService.movimientos());
-      }
+      if (esDueno) setHistorial(await cajaService.historial(60));
     } catch (e) {
       setFallo(true);
       showToast(errorService.getMessage(e), 'error');
@@ -163,47 +152,20 @@ export default function CajaPage() {
   }, [esDueno, showToast]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { cargarBalance(periodo); }, [cargarBalance, periodo]);
 
-  const totalContado = useMemo(() => parseFloat(efectivo) || 0, [efectivo]);
-  const totalDigital = useMemo(() => parseFloat(digital) || 0, [digital]);
-
-  const pedirFondo = () => {
-    setFondo('');
-    setAbriendo(true);
-  };
-
-  const abrirConteo = () => {
-    setEfectivo('');
-    setDigital('');
-    setResultado(null);
-    setExplicacion('');
-    setContando(true);
-  };
-
-  const abrirCaja = async (e) => {
-    e?.preventDefault();
-    // Vacío no es cero. Si el cajón arranca sin cambio, se escribe 0 — pero se escribe,
-    // porque este número es el que hace que el arqueo cierre.
-    if (fondo.trim() === '') {
-      showToast('Escribí con cuánto cambio arranca el cajón. Si no hay nada, poné 0.', 'error');
-      return;
-    }
-    setGuardando(true);
-    try {
-      const turno = getShift();
-      await cajaService.abrir({
-        fondoInicial: parseFloat(fondo) || 0,
-        abiertaPor: turno?.name || profile?.fullName || 'Sin identificar',
-      });
-      setAbriendo(false);
-      showToast('Caja abierta.', 'success');
-      cargar();
-    } catch (err) {
-      showToast(errorService.getMessage(err), 'error');
-    } finally {
-      setGuardando(false);
-    }
-  };
+  // ─── La cuenta del cajón, en un solo lugar ───
+  //
+  // El backend manda `esperadoEnElCajon` ya calculado (fondo + efectivo + ingresos −
+  // egresos). Acá NO se recalcula: una cuenta de plata copiada en dos lados es una cuenta
+  // que en algún lado va a estar mal, y este proyecto ya se comió esa lección tres veces.
+  const enElCajon = numero(abierto?.esperadoEnElCajon);
+  const retiroNum = useMemo(() => {
+    const n = parseFloat(retiro);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [retiro]);
+  const quedaEnCaja = Math.max(0, enElCajon - retiroNum);
+  const retiroExcedido = retiroNum > enElCajon;
 
   const pedirMovimiento = (tipo) => {
     setMovTipo(tipo);
@@ -226,7 +188,7 @@ export default function CajaPage() {
     }
     // ⚠️ El detalle es obligatorio en los egresos y no es burocracia: es lo ÚNICO que hace
     // la lista revisable. "Proveedor — agua, factura 4412" se puede verificar; "Proveedor",
-    // no. El backend lo exige también, porque esconderlo solo acá no serviría de nada.
+    // no. Un egreso inventado es el robo perfecto de este módulo.
     if (movTipo === 'EGRESO' && !movDetalle.trim()) {
       showToast('Escribí en qué se gastó. Sin eso no se puede verificar después.', 'error');
       return;
@@ -245,6 +207,7 @@ export default function CajaPage() {
       setAnotando(false);
       showToast(movTipo === 'EGRESO' ? 'Gasto anotado.' : 'Ingreso anotado.', 'success');
       cargar();
+      cargarBalance(periodo);
     } catch (err) {
       showToast(errorService.getMessage(err), 'error');
     } finally {
@@ -268,413 +231,368 @@ export default function CajaPage() {
     }
   };
 
-  const confirmar = async (e) => {
-    e?.preventDefault();
-    // Vacío no es cero: si alguien aprieta Enter sin escribir, no se cierra una caja
-    // declarando que no hay plata. Para declarar cero, se escribe cero.
-    if (efectivo.trim() === '') {
-      showToast('Escribí cuánto efectivo hay. Si no hay nada, poné 0.', 'error');
-      return;
-    }
-    if (digital.trim() === '') {
-      showToast('Escribí cuánto entró por transferencia y Mercado Pago. Si no entró nada, poné 0.', 'error');
-      return;
-    }
+  const cerrarCaja = async () => {
     setGuardando(true);
     try {
       const turno = getShift();
       const cierre = await cajaService.cerrar({
-        declaradoEfectivo: totalContado,
-        declaradoDigital: totalDigital,
+        retiroEfectivo: retiroNum,
         nota: null,
         cerradoPor: turno?.name || profile?.fullName || 'Sin identificar',
       });
-      setContando(false);
+      setConfirmando(false);
+      setRetiro('');
       setResultado(cierre);
       cargar();
+      cargarBalance(periodo);
     } catch (err) {
       showToast(errorService.getMessage(err), 'error');
     } finally {
       setGuardando(false);
-    }
-  };
-
-  const [confirmandoCorte, setConfirmandoCorte] = useState(false);
-
-  const cortarSinContar = async () => {
-    setConfirmandoCorte(false);
-    setGuardando(true);
-    try {
-      await cajaService.cerrar({ declaradoEfectivo: null, declaradoDigital: null, nota: null, cerradoPor: profile?.fullName || 'Dueño' });
-      showToast('Período cerrado sin conteo.', 'success');
-      cargar();
-    } catch (err) {
-      showToast(errorService.getMessage(err), 'error');
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const explicar = async () => {
-    if (!explicacion.trim()) return;
-    try {
-      await cajaService.explicar(resultado.id, explicacion.trim());
-      showToast('Explicación guardada.', 'success');
-      setResultado({ ...resultado, nota: explicacion.trim() });
-      cargar();
-    } catch (err) {
-      showToast(errorService.getMessage(err), 'error');
     }
   };
 
   const sinCerrarHace = diasDesde(abierto?.ultimoCierre);
+  const totalCobrado = numero(abierto?.efectivo) + numero(abierto?.digital)
+    + numero(abierto?.tarjeta) + numero(abierto?.otros);
 
   return (
     <div className="caja-page">
       <PageHeader
         title="Cierre de caja"
-        subtitle="Contá la plata y el sistema te dice si coincide"
+        subtitle="El sistema cuenta lo que entró; vos decidís cuánto se retira"
         icon="dollarSign"
       />
 
       {/* La forma más fácil de esconder algo no es mentir en el cierre: es no cerrar. */}
-      {esDueno && sinCerrarHace !== null && sinCerrarHace >= 2 && (
-        <div className="caja-alarma">
+      {sinCerrarHace !== null && sinCerrarHace >= 2 && (
+        <div className="caja-alerta">
           <Icon name="alertTriangle" size="1em" />
           <span>Hace {sinCerrarHace} días que no se cierra la caja.</span>
         </div>
       )}
 
-      <div className="caja-grid">
-        {/* ─── El período abierto ─── */}
-        <div className="card caja-abierto">
-          <h3>
-            <Icon name="clock" size="1em" />
-            {estado?.abierta ? ' Caja abierta' : ' Caja cerrada'}
-          </h3>
-          {cargando ? <p className="text-muted">Cargando…</p> : fallo ? (
-            <div className="caja-fallo">
-              <Icon name="wifiOff" size="1.1em" />
-              <div>
-                <strong>No pudimos consultar el período.</strong>
-                <div>Sin ese dato no se puede cerrar la caja con confianza. Probá de nuevo.</div>
-              </div>
-              <button className="btn btn-sm btn-secondary" onClick={cargar}>Reintentar</button>
+      {fallo && (
+        <div className="caja-alerta">
+          <Icon name="alertTriangle" size="1em" />
+          <span>No pudimos traer los datos de la caja. Probá de nuevo: cerrar sin esto sería a ciegas.</span>
+        </div>
+      )}
+
+      {/* ─── BALANCE DE INGRESOS: HOY Y EL MES ─── */}
+      {hayBalance && (
+        <div className="card caja-balance">
+          <div className="caja-balance-cabecera">
+            <h3><Icon name="trendingUp" size="1em" /> Balance de ingresos</h3>
+            <div className="caja-tabs">
+              <button
+                className={`btn btn-sm ${periodo === 'hoy' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPeriodo('hoy')}
+              >Hoy</button>
+              <button
+                className={`btn btn-sm ${periodo === 'mes' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPeriodo('mes')}
+              >Mes</button>
             </div>
-          ) : !estado?.abierta ? (
-            /* ─── LA CAJA ESTÁ CERRADA ───
-               Cobrar sigue andando con la caja cerrada, a propósito: nadie puede quedarse sin
-               poder cobrarle a un socio porque a la mañana se olvidaron de abrir. Esa plata
-               igual se cuenta — el período arranca donde terminó el último cierre. */
-            <div className="caja-cerrada">
-              <p className="text-muted">
-                No hay ninguna caja abierta. Abrila para empezar el día.
-              </p>
-              {pendiente?.cantidadCobros > 0 && (
-                <p className="form-hint">
-                  Ojo: ya hay <strong>{pendiente.cantidadCobros} cobros</strong> sin cerrar desde
-                  el {fecha(pendiente?.desde)}. Van a entrar en el próximo cierre igual.
-                </p>
-              )}
-              <div className="caja-acciones">
-                <button className="btn btn-primary" onClick={pedirFondo} disabled={guardando}>
-                  <Icon name="doorOpen" size="1em" /> Abrir caja
-                </button>
-                {esDueno && pendiente?.cantidadCobros > 0 && (
-                  <button className="btn btn-secondary" onClick={abrirConteo} disabled={guardando}>
-                    Cerrar lo que quedó pendiente
-                  </button>
-                )}
-              </div>
+          </div>
+          <div className="caja-balance-cifras">
+            <div className="caja-cifra">
+              <span className="caja-cifra-valor">{formatCurrency(numero(balance?.total))}</span>
+              <span className="caja-cifra-label">
+                Total {periodo === 'hoy' ? 'de hoy' : 'del mes'}
+              </span>
             </div>
-          ) : (
-            <>
-              <p className="caja-desde">
-                Abierta por <strong>{estado.abiertaPor || '—'}</strong> el <strong>{fecha(estado.desde)}</strong>
-                {' · '}{pendiente?.cantidadCobros || 0} cobros
-              </p>
-              <p className="caja-desde">
-                Arrancó con <strong>{formatCurrency(estado.fondoInicial)}</strong> de cambio en el cajón.
-              </p>
+            <div className="caja-cifra">
+              <span className="caja-cifra-valor">{formatCurrency(numero(balance?.efectivo))}</span>
+              <span className="caja-cifra-label">Efectivo</span>
+            </div>
+            <div className="caja-cifra">
+              <span className="caja-cifra-valor">{formatCurrency(numero(balance?.digital))}</span>
+              <span className="caja-cifra-label">Transferencia y MP</span>
+            </div>
+            <div className="caja-cifra">
+              <span className="caja-cifra-valor">{numero(balance?.cantidadCobros)}</span>
+              <span className="caja-cifra-label">Cobros</span>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Los importes SOLO para el dueño. Quien va a contar no puede verlos. */}
-              {esDueno && abierto && (
-                <div className="caja-metodos">
-                  <div><span>Efectivo</span><strong>{formatCurrency(abierto.efectivo)}</strong></div>
-                  <div><span>Transferencia</span><strong>{formatCurrency(abierto.transferencia)}</strong></div>
-                  {/* Mercado Pago tenía su casilla al cobrar pero no acá: esa plata venía
-                      cayendo en "Otros", junto con los métodos raros. Un gimnasio que cobra
-                      por MP no la veía en ninguna parte del arqueo. */}
-                  <div><span>Mercado Pago</span><strong>{formatCurrency(abierto.mercadopago)}</strong></div>
-                  <div><span>Tarjeta</span><strong>{formatCurrency(abierto.tarjeta)}</strong></div>
-                  {Number(abierto.otros) > 0 && (
-                    <div><span>Otros</span><strong>{formatCurrency(abierto.otros)}</strong></div>
-                  )}
-                  <div className="caja-metodos-total">
-                    <span>Tendría que haber en el cajón</span>
-                    {/* ⚠️ EL NÚMERO LO MANDA EL BACKEND, no se recalcula acá.
-                        Antes esta línea sumaba fondo + efectivo por su cuenta, y ahora la
-                        cuenta tiene cuatro términos (entraron los egresos y los ingresos
-                        manuales). Una cuenta de plata copiada en dos lados es una cuenta que
-                        en algún lado va a quedar mal — en este proyecto ya pasó con los
-                        vencimientos, con getQuickDates y con addOneMonth. Vive en un solo
-                        lugar: `Resumen.enElCajon()`. */}
-                    <strong>{formatCurrency(
-                      abierto.esperadoEnElCajon
-                        ?? (Number(abierto.efectivo || 0) + Number(estado?.fondoInicial || 0)),
-                    )}</strong>
-                  </div>
-                  {/* Los egresos van JUNTO al esperado, no escondidos: es el número que hay
-                      que mirar cuando la caja cuadra demasiado bien. Un egreso inventado la
-                      hace cuadrar exacto — la plata salió y el sistema la esperaba afuera. */}
-                  {Number(abierto.egresos) > 0 && (
-                    <div><span>Salió del cajón</span>
-                      <strong className="caja-falta">−{formatCurrency(abierto.egresos)}</strong>
-                    </div>
-                  )}
-                  {Number(abierto.ingresosManuales) > 0 && (
-                    <div><span>Entró sin ser un cobro</span>
-                      <strong className="caja-sobra">+{formatCurrency(abierto.ingresosManuales)}</strong>
-                    </div>
-                  )}
-                  <div className="caja-metodos-total">
-                    <span>Total cobrado</span>
-                    <strong>{formatCurrency(
-                      Number(abierto.efectivo || 0) + Number(abierto.transferencia || 0)
-                      + Number(abierto.mercadopago || 0) + Number(abierto.tarjeta || 0)
-                      + Number(abierto.otros || 0),
-                    )}</strong>
-                  </div>
-                </div>
-              )}
+      {/* ─── LOS COBROS DEL PERÍODO ───
+           Un total que no se puede abrir es un número en el que hay que creer. Acá está cada
+           cobro que lo forma. Lo ve quien cierra, que ahora también es recepción. */}
+      <div className="card caja-cobros">
+        <div className="table-header">
+          <h3><Icon name="list" size="1em" /> Cobros a cerrar ({cobros.length})</h3>
+          <span className="text-muted">{formatCurrency(totalCobrado)}</span>
+        </div>
+        {cargando ? (
+          <p className="text-muted" style={{ padding: '1rem' }}><span className="spinner" /> Cargando...</p>
+        ) : !cobros.length ? (
+          <p className="text-muted" style={{ padding: '1rem' }}>Todavía no se cobró nada en este período.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr><th>Socio</th><th>Forma de pago</th><th>Monto</th></tr>
+            </thead>
+            <tbody>
+              {cobros.map((m) => (
+                <tr key={m.id}>
+                  <td data-label="Socio">{m.socio || <span className="text-muted">—</span>}</td>
+                  <td data-label="Forma de pago">
+                    <span className={`caja-metodo ${ES_EFECTIVO(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
+                      {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}
+                    </span>
+                  </td>
+                  <td data-label="Monto" className="caja-monto-celda">{formatCurrency(m.monto)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-              <div className="caja-acciones">
-                <button className="btn btn-primary" onClick={abrirConteo} disabled={guardando}>
-                  <Icon name="checkCircle" size="1em" /> Contar y cerrar caja
-                </button>
-                {/* ⚠️ Anotar el gasto EN EL MOMENTO es lo que hace que el arqueo cierre. Si
-                    espera al dueño, esa plata figura como faltante toda la tarde y le echa la
-                    culpa a quien atendió. Por eso el botón está acá y no en otra pantalla.
+      {/* ─── RESUMEN POR FORMA DE PAGO ───
+           Lo que antes había que averiguar mirando cobro por cobro. Es la cuenta que el
+           dueño quería hacer de un vistazo: de 20 cobros, cuántos por transferencia y
+           cuántos en efectivo. */}
+      <div className="card caja-resumen">
+        <h3><Icon name="wallet" size="1em" /> Resumen por forma de pago</h3>
+        <div className="caja-resumen-grid">
+          <div className="caja-cifra es-efectivo">
+            <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.efectivo))}</span>
+            <span className="caja-cifra-label">Efectivo — está en el cajón</span>
+          </div>
+          <div className="caja-cifra es-digital">
+            <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.digital))}</span>
+            <span className="caja-cifra-label">Transferencia y Mercado Pago — está en el banco</span>
+          </div>
+          <div className="caja-cifra">
+            <span className="caja-cifra-valor">{formatCurrency(totalCobrado)}</span>
+            <span className="caja-cifra-label">
+              Total del período · {numero(abierto?.cantidadCobros)} cobros
+            </span>
+          </div>
+        </div>
+      </div>
 
-                    Se esconden si el backend todavía no sabe de movimientos: un botón que
-                    solo puede fallar es peor que no tener el botón. */}
-                {hayMovimientos && (
-                  <>
-                    <button className="btn btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
-                      <Icon name="trendingDown" size="1em" /> Anotar un gasto
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
-                      <Icon name="trendingUp" size="1em" /> Anotar un ingreso
-                    </button>
-                  </>
-                )}
-                {esDueno && (
-                  <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(true)} disabled={guardando}>
-                    Cerrar sin contar
-                  </button>
-                )}
-              </div>
-              {!esDueno && (
-                <p className="form-hint">
-                  Contá el efectivo del cajón y fijate cuánto entró por transferencia y
-                  Mercado Pago. El sistema te dice después si coincide.
-                </p>
-              )}
-            </>
+      {/* ─── DISTRIBUCIÓN DEL EFECTIVO EN CAJA ───
+           La única decisión del cierre. Todo lo de arriba lo calculó el sistema. */}
+      <div className="card caja-distribucion">
+        <h3><Icon name="dollarSign" size="1em" /> Distribución del efectivo en caja</h3>
+
+        {/* La cuenta a la vista: sin esto, "en el cajón" es un número que hay que creer. */}
+        <ul className="caja-cuenta">
+          <li><span>Quedó de ayer en el cajón</span><strong>{formatCurrency(numero(abierto?.fondo))}</strong></li>
+          <li><span>Cobrado hoy en efectivo</span><strong>+ {formatCurrency(numero(abierto?.efectivo))}</strong></li>
+          {numero(abierto?.ingresosManuales) > 0 && (
+            <li><span>Otros ingresos en efectivo</span><strong>+ {formatCurrency(numero(abierto?.ingresosManuales))}</strong></li>
           )}
+          {numero(abierto?.egresos) > 0 && (
+            <li><span>Gastos pagados del cajón</span><strong className="caja-falta">− {formatCurrency(numero(abierto?.egresos))}</strong></li>
+          )}
+          <li className="caja-cuenta-total"><span>Hay en el cajón</span><strong>{formatCurrency(enElCajon)}</strong></li>
+        </ul>
+
+        <div className="caja-reparto">
+          <div className="form-group">
+            <label className="form-label">Retiro en efectivo</label>
+            <input
+              type="number" inputMode="decimal" min="0"
+              className="form-input caja-monto"
+              value={retiro} placeholder="0"
+              onChange={(e) => setRetiro(e.target.value)}
+            />
+            <small className="form-hint">
+              Lo que te llevás del cajón. Si no retirás nada, dejalo en 0.
+            </small>
+          </div>
+
+          <div className="caja-queda">
+            <span className="caja-cifra-label">Queda en caja</span>
+            <span className="caja-cifra-valor">{formatCurrency(quedaEnCaja)}</span>
+            <small className="form-hint">Es el cambio con el que arranca mañana.</small>
+          </div>
         </div>
 
-        {/* ─── Lo que salió y entró del cajón sin ser un cobro ───
-
-             La ve CUALQUIERA, al revés que la lista de cobros. No rompe el conteo a ciegas:
-             quien cuenta ya sabe cuánto sacó del cajón —lo sacó ella— y sabiendo el fondo y
-             los egresos todavía le falta el número grande, que es lo cobrado en efectivo. Y
-             necesita verla para no cargar dos veces el mismo gasto.
-
-             ⚠️ Los anulados quedan TACHADOS, no desaparecen. Un egreso que se puede hacer
-             desaparecer de la lista es justamente lo que no queremos que se pueda hacer. */}
-        {movsCaja.length > 0 && (
-          <div className="card caja-movimientos">
-            <h3><Icon name="wallet" size="1em" /> Movimientos de caja ({movsCaja.length})</h3>
-            <table className="table">
-              <thead>
-                <tr><th>Qué</th><th>Monto</th><th>Método</th><th>Quién</th><th>Cuándo</th><th /></tr>
-              </thead>
-              <tbody>
-                {movsCaja.map((m) => {
-                  const anulado = !!m.anuladoAt;
-                  const egreso = m.tipo === 'EGRESO';
-                  return (
-                    <tr key={m.id} className={anulado ? 'caja-mov-anulado' : ''}>
-                      <td data-label="Qué">
-                        <strong>{m.categoria}</strong>
-                        {m.detalle && <div className="form-hint">{m.detalle}</div>}
-                        {anulado && (
-                          <div className="form-hint">
-                            Anulado por {m.anuladoPorNombre || '—'}
-                            {m.motivoAnulacion ? ` · ${m.motivoAnulacion}` : ''}
-                          </div>
-                        )}
-                      </td>
-                      <td data-label="Monto" className="caja-monto-celda">
-                        <span className={egreso ? 'caja-falta' : 'caja-sobra'}>
-                          {egreso ? '−' : '+'}{formatCurrency(m.monto)}
-                        </span>
-                      </td>
-                      <td data-label="Método">
-                        {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}
-                        {/* Lo que no pasa por el cajón se anota pero NO mueve el arqueo. */}
-                        {String(m.metodo).toUpperCase() !== 'CASH' && (
-                          <div className="form-hint">no toca el cajón</div>
-                        )}
-                      </td>
-                      <td data-label="Quién">{m.hechoPorNombre || '—'}</td>
-                      <td data-label="Cuándo">{fecha(m.fecha)}</td>
-                      <td>
-                        {!anulado && (
-                          <button className="btn btn-sm btn-secondary" onClick={() => anularMovimiento(m)}>
-                            Anular
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        {retiroExcedido && (
+          <p className="caja-falta">
+            <Icon name="alertTriangle" size="0.9em" /> No podés retirar más de lo que hay en el
+            cajón. Lo cobrado por transferencia está en el banco, no acá.
+          </p>
         )}
 
-        {/* ─── De dónde sale el número ───
-             Un total que no se puede abrir es un número en el que hay que creer. Acá está
-             cada cobro que lo forma, con su método, igual que en la pantalla de Pagos.
+        <button
+          className="btn btn-primary caja-cerrar"
+          onClick={() => setConfirmando(true)}
+          disabled={guardando || cargando || fallo || retiroExcedido}
+        >
+          <Icon name="checkCircle" size="1em" /> Cerrar caja diaria
+        </button>
+      </div>
 
-             ⚠️ Solo el dueño. No es un detalle de permisos: si quien va a contar ve los
-             montos, suma la lista y escribe ese número, y el arqueo deja de medir nada. */}
-        {esDueno && movimientos.length > 0 && (
-          <div className="card caja-movimientos">
-            <h3><Icon name="list" size="1em" /> Cobros de este período ({movimientos.length})</h3>
+      {/* ─── LO QUE SALE Y ENTRA SIN SER UN COBRO ─── */}
+      {hayMovimientos && (
+        <div className="caja-acciones">
+          <button className="btn btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
+            <Icon name="trendingDown" size="1em" /> Anotar un gasto
+          </button>
+          <button className="btn btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
+            <Icon name="trendingUp" size="1em" /> Anotar un ingreso
+          </button>
+        </div>
+      )}
+
+      {/* ⚠️ Los anulados quedan TACHADOS, no desaparecen. Un egreso que se puede hacer
+           desaparecer de la lista es justamente lo que no queremos que se pueda hacer. */}
+      {movsCaja.length > 0 && (
+        <div className="card caja-movimientos">
+          <h3><Icon name="wallet" size="1em" /> Movimientos de caja ({movsCaja.length})</h3>
+          <table className="table">
+            <thead>
+              <tr><th>Qué</th><th>Monto</th><th>Método</th><th>Quién</th><th>Cuándo</th><th /></tr>
+            </thead>
+            <tbody>
+              {movsCaja.map((m) => {
+                const anulado = !!m.anuladoAt;
+                const egreso = m.tipo === 'EGRESO';
+                return (
+                  <tr key={m.id} className={anulado ? 'caja-mov-anulado' : ''}>
+                    <td data-label="Qué">
+                      <strong>{m.categoria}</strong>
+                      {m.detalle && <div className="form-hint">{m.detalle}</div>}
+                      {anulado && (
+                        <div className="form-hint">
+                          Anulado por {m.anuladoPorNombre || '—'}
+                          {m.motivoAnulacion ? ` · ${m.motivoAnulacion}` : ''}
+                        </div>
+                      )}
+                    </td>
+                    <td data-label="Monto" className="caja-monto-celda">
+                      <span className={egreso ? 'caja-falta' : 'caja-sobra'}>
+                        {egreso ? '−' : '+'}{formatCurrency(m.monto)}
+                      </span>
+                    </td>
+                    <td data-label="Método">
+                      {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}
+                      {/* Lo que no pasa por el cajón se anota pero NO mueve la cuenta. */}
+                      {!ES_EFECTIVO(m.metodo) && <div className="form-hint">no toca el cajón</div>}
+                    </td>
+                    <td data-label="Quién">{m.hechoPorNombre || '—'}</td>
+                    <td data-label="Cuándo">{fecha(m.fecha)}</td>
+                    <td>
+                      {!anulado && (
+                        <button className="btn btn-sm btn-secondary" onClick={() => anularMovimiento(m)}>
+                          Anular
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ─── EL HISTORIAL: solo el dueño, y es donde está el valor ─── */}
+      {esDueno && (
+        <div className="card caja-historial">
+          <h3><Icon name="fileText" size="1em" /> Cierres anteriores</h3>
+          {!historial.length ? (
+            <p className="text-muted">Todavía no se cerró ninguna caja.</p>
+          ) : (
             <table className="table">
               <thead>
-                <tr><th>Socio</th><th>Monto</th><th>Método</th><th>Fecha</th></tr>
+                <tr>
+                  <th>Cuándo</th><th>Quién</th><th>Efectivo</th><th>Transf. y MP</th>
+                  <th>Retiro</th><th>Quedó en caja</th>
+                </tr>
               </thead>
               <tbody>
-                {movimientos.map((m) => (
-                  <tr key={m.id}>
-                    <td data-label="Socio">{m.socio || <span className="text-muted">—</span>}</td>
-                    <td data-label="Monto" className="caja-monto-celda">{formatCurrency(m.monto)}</td>
-                    <td data-label="Método">{NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}</td>
-                    <td data-label="Fecha">{fecha(m.fecha)}</td>
+                {historial.map((c) => (
+                  <tr key={c.id}>
+                    <td data-label="Cuándo">{fecha(c.hasta)}</td>
+                    <td data-label="Quién">{c.cerradoPorNombre || '—'}</td>
+                    <td data-label="Efectivo">{formatCurrency(c.esperadoEfectivo)}</td>
+                    <td data-label="Transf. y MP">
+                      {formatCurrency(numero(c.esperadoTransferencia) + numero(c.esperadoMercadopago))}
+                    </td>
+                    {/* Los cierres viejos son de la época del arqueo a ciegas: no tienen
+                        retiro. Se muestran igual, con el guion, en vez de un cero que
+                        diría que ese día no se retiró nada. */}
+                    <td data-label="Retiro">
+                      {c.retiroEfectivo == null
+                        ? <span className="text-muted">—</span>
+                        : formatCurrency(c.retiroEfectivo)}
+                    </td>
+                    <td data-label="Quedó en caja">
+                      {c.quedaEnCaja == null
+                        ? <span className="text-muted">—</span>
+                        : formatCurrency(c.quedaEnCaja)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* ─── El historial: solo el dueño, y es donde está el valor ─── */}
-        {esDueno && (
-          <div className="card caja-historial">
-            <h3><Icon name="fileText" size="1em" /> Cierres anteriores</h3>
-            {!historial.length ? (
-              <p className="text-muted">Todavía no se cerró ninguna caja.</p>
-            ) : (
-              <table className="table">
-                <thead>
-                  <tr><th>Cuándo</th><th>Quién</th><th>Sistema</th><th>Contado</th><th>Efectivo</th><th>Transf. y MP</th></tr>
-                </thead>
-                <tbody>
-                  {historial.map((c) => {
-                    const dif = c.diferencia == null ? null : Number(c.diferencia);
-                    const difD = c.diferenciaDigital == null ? null : Number(c.diferenciaDigital);
-                    return (
-                      <tr key={c.id}>
-                        <td data-label="Cuándo">{fecha(c.hasta)}</td>
-                        <td data-label="Quién">{c.cerradoPorNombre || '—'}</td>
-                        <td data-label="Sistema">{formatCurrency(c.esperadoEfectivo)}</td>
-                        <td data-label="Contado">
-                          {c.conArqueo ? formatCurrency(c.declaradoEfectivo)
-                            : <span className="text-muted">sin contar</span>}
-                        </td>
-                        <td data-label="Efectivo">
-                          {dif === null ? <span className="text-muted">—</span>
-                            : dif === 0 ? <span className="caja-ok">exacto</span>
-                            : <span className={dif < 0 ? 'caja-falta' : 'caja-sobra'} title={c.nota || ''}>
-                                {dif > 0 ? '+' : ''}{formatCurrency(dif)}
-                                {c.nota ? ' 💬' : ''}
-                              </span>}
-                        </td>
-                        {/* Los cierres viejos —de antes de que se contara lo digital— quedan
-                            en "—" a propósito: en esos días nadie lo contó, y mostrar
-                            "exacto" diría que se revisó y dio bien. */}
-                        <td data-label="Transf. y MP">
-                          {difD === null ? <span className="text-muted">—</span>
-                            : difD === 0 ? <span className="caja-ok">exacto</span>
-                            : <span className={difD < 0 ? 'caja-falta' : 'caja-sobra'}>
-                                {difD > 0 ? '+' : ''}{formatCurrency(difD)}
-                              </span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Cerrar sin contar CONGELA el período y no se puede deshacer: un cierre no se
-          edita, se corrige haciendo otro. Un clic no alcanza para algo irreversible. */}
+      {/* ─── CONFIRMAR CIERRE ───
+           Cerrar el día no se deshace: el período siguiente arranca acá y el cajón queda
+           encadenado a este número. Un clic de más no puede alcanzar. */}
       <Modal
-        isOpen={confirmandoCorte}
-        onClose={() => setConfirmandoCorte(false)}
-        title="Cerrar sin contar la plata"
-        actions={
-          <>
-            <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(false)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={cortarSinContar} disabled={guardando}>
-              Cerrar igual
-            </button>
-          </>
-        }
+        isOpen={confirmando}
+        onClose={() => setConfirmando(false)}
+        title="Confirmar cierre"
       >
-        <p>
-          Esto cierra el período <strong>sin verificar el efectivo</strong>. Queda marcado como
-          &ldquo;sin contar&rdquo; en el historial, y no se puede deshacer.
-        </p>
-        <p className="form-hint">
-          Sirve para cortar el mes desde afuera del gimnasio. Si tenés el cajón adelante,
-          conviene contarlo: es el único momento en que se puede.
-        </p>
+        <div className="caja-confirmar">
+          <p>
+            Se cierra la caja con <strong>{formatCurrency(totalCobrado)}</strong> cobrados
+            en {numero(abierto?.cantidadCobros)} operaciones.
+          </p>
+          <ul className="caja-cuenta">
+            <li><span>Retirás en efectivo</span><strong>{formatCurrency(retiroNum)}</strong></li>
+            <li className="caja-cuenta-total"><span>Queda en caja</span><strong>{formatCurrency(quedaEnCaja)}</strong></li>
+          </ul>
+          <p className="form-hint">
+            Lo que queda es el cambio con el que arranca mañana. Después de cerrar no se
+            puede volver atrás.
+          </p>
+          <div className="caja-confirmar-botones">
+            <button className="btn caja-si" onClick={cerrarCaja} disabled={guardando}>
+              {guardando ? <><span className="spinner" /> Cerrando…</> : <>Sí, cerrar caja</>}
+            </button>
+            <button className="btn caja-no" onClick={() => setConfirmando(false)} disabled={guardando}>
+              Cancelar
+            </button>
+          </div>
+        </div>
       </Modal>
 
-      {/* ─── ABRIR LA CAJA ─── */}
+      {/* ─── EL CIERRE RECIÉN HECHO ─── */}
       <Modal
-        isOpen={abriendo}
-        onClose={() => setAbriendo(false)}
-        title="Abrir caja"
-        actions={<ModalActions onCancel={() => setAbriendo(false)} saving={guardando} submitText="Abrir caja" />}
+        isOpen={!!resultado}
+        onClose={() => setResultado(null)}
+        title="Caja cerrada"
       >
-        <form onSubmit={abrirCaja} noValidate>
-          <div className="form-group">
-            <label className="form-label">¿Con cuánto cambio arranca el cajón?</label>
-            <input
-              type="number" inputMode="decimal" min="0"
-              className="form-input caja-monto"
-              value={fondo} placeholder="0" autoFocus
-              onChange={(e) => setFondo(e.target.value)}
-            />
-            {/* ⚠️ ESTE NÚMERO ES POR QUÉ EL ARQUEO CUADRA O NO.
-                El cajón arranca el día con el cambio de ayer. Si el sistema esperara solo lo
-                cobrado hoy, ese cambio aparecería como sobrante TODOS los días — y un arqueo
-                que siempre sobra es un arqueo que nadie mira. */}
-            <small className="form-hint">
-              Es la plata que ya está en el cajón para dar vuelto. Al cerrar, el sistema espera
-              encontrar este monto más lo que se cobre en efectivo.
-            </small>
+        {resultado && (
+          <div className="caja-resultado">
+            <ul className="caja-cuenta">
+              <li><span>Cobrado en efectivo</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></li>
+              <li>
+                <span>Transferencia y Mercado Pago</span>
+                <strong>{formatCurrency(numero(resultado.esperadoTransferencia) + numero(resultado.esperadoMercadopago))}</strong>
+              </li>
+              <li><span>Retirado</span><strong>{formatCurrency(resultado.retiroEfectivo)}</strong></li>
+              <li className="caja-cuenta-total">
+                <span>Queda en caja para mañana</span>
+                <strong>{formatCurrency(resultado.quedaEnCaja)}</strong>
+              </li>
+            </ul>
           </div>
-        </form>
+        )}
       </Modal>
 
       {/* ─── ANOTAR UN GASTO O UN INGRESO ─── */}
@@ -717,10 +635,6 @@ export default function CajaPage() {
               placeholder="Agua, factura 4412"
               onChange={(e) => setMovDetalle(e.target.value)}
             />
-            {/* ⚠️ Obligatorio en los egresos, y no es burocracia: es lo ÚNICO que hace la
-                lista revisable. "Proveedor — agua, factura 4412" se puede verificar;
-                "Proveedor", no. Un egreso inventado es el robo perfecto de este módulo, y el
-                detalle es la mitad de lo que lo deja a la vista. */}
             {movTipo === 'EGRESO' && (
               <small className="form-hint">
                 Escribilo con detalle: es lo que después permite verificar el gasto.
@@ -735,189 +649,15 @@ export default function CajaPage() {
               <option value="TRANSFER">Transferencia</option>
               <option value="MERCADOPAGO">Mercado Pago</option>
             </select>
-            {/* Solo el efectivo mueve el arqueo: lo que se paga desde el banco no salió del
-                cajón, y restarlo daría un faltante inventado. Se anota igual porque el dueño
-                lo quiere ver. */}
+            {/* Solo el efectivo mueve la cuenta del cajón: lo que se paga desde el banco no
+                salió de ahí, y restarlo daría un faltante inventado. */}
             {movMetodo !== 'CASH' && (
               <small className="form-hint">
-                Esto no cambia el conteo del cajón — no salió plata de ahí. Queda anotado igual.
+                Esto no cambia la cuenta del cajón — no salió plata de ahí. Queda anotado igual.
               </small>
             )}
           </div>
         </form>
-      </Modal>
-
-      {/* ─── EL CONTEO A CIEGAS ─── */}
-      <Modal
-        isOpen={contando}
-        onClose={() => setContando(false)}
-        title="Contá la caja"
-        actions={<ModalActions onCancel={() => setContando(false)} saving={guardando} submitText="Confirmar y cerrar" />}
-      >
-        <form onSubmit={confirmar} noValidate>
-          <p className="form-hint caja-aviso">
-            <Icon name="alertTriangle" size="0.9em" /> Contá primero, sin mirar el sistema.
-            Después de confirmar vas a ver si coincide, y no se puede volver atrás.
-          </p>
-
-          <div className="form-group">
-            <label className="form-label">Efectivo en el cajón</label>
-            <input
-              type="number" inputMode="decimal" min="0"
-              className="form-input caja-monto"
-              value={efectivo} placeholder="0" autoFocus
-              onChange={(e) => setEfectivo(e.target.value)}
-            />
-          </div>
-
-          {/* ⚠️ ESTE CAMPO ES EL QUE CIERRA EL AGUJERO MÁS GRANDE.
-              Sin él: se cobra $48.000 en efectivo, se guarda la plata, y el cobro se
-              registra como "transferencia". El cajón cuadra perfecto —el sistema no espera
-              ese efectivo— y la transferencia que el sistema da por recibida nunca existió.
-              Contando solo el cajón, eso no lo detecta nadie. */}
-          <div className="form-group">
-            <label className="form-label">Transferencias y Mercado Pago</label>
-            <input
-              type="number" inputMode="decimal" min="0"
-              className="form-input caja-monto"
-              value={digital} placeholder="0"
-              onChange={(e) => setDigital(e.target.value)}
-            />
-            <small className="form-hint">Mirá el banco o la app de Mercado Pago: cuánto entró desde el último cierre.</small>
-          </div>
-
-          {/* Su propia cuenta, no la del sistema. */}
-          <div className="caja-total-contado">
-            <span>Estás declarando</span>
-            <strong>{formatCurrency(totalContado + totalDigital)}</strong>
-          </div>
-        </form>
-      </Modal>
-
-      {/* ─── EL RESULTADO, recién revelado ─── */}
-      <Modal
-        isOpen={!!resultado}
-        onClose={() => setResultado(null)}
-        title="Caja cerrada"
-        actions={<button className="btn btn-secondary" onClick={() => setResultado(null)}>Listo</button>}
-      >
-        {resultado && (() => {
-          const dif = Number(resultado.diferencia || 0);
-          const difD = Number(resultado.diferenciaDigital || 0);
-          // Las dos por separado, nunca sumadas: un faltante de efectivo y un sobrante
-          // digital son dos hechos distintos, y sumarlos los borra a los dos.
-          // ⚠️ Sin conteo no hay nada que cuadre. Este modal solo se abre desde el arqueo,
-          // pero si algún día se abriera con un corte sin contar, decir "¡Cuadra todo!"
-          // sería exactamente la mentira que este módulo existe para no decir.
-          const seConto = resultado.conArqueo !== false;
-          const cuadraTodo = seConto && dif === 0 && difD === 0;
-          const cuantas = (dif !== 0 ? 1 : 0) + (difD !== 0 ? 1 : 0);
-          // Un faltante y un sobrante no son lo mismo: al que falta plata hay que buscarla.
-          const hayFaltante = dif < 0 || difD < 0;
-          const frase = (d) => d === 0 ? 'Cuadra'
-            : d < 0 ? `Faltan ${formatCurrency(Math.abs(d))}`
-            : `Sobran ${formatCurrency(d)}`;
-          const clase = (d) => d === 0 ? 'ok' : d < 0 ? 'falta' : 'sobra';
-          const esperadoDigital = Number(resultado.esperadoTransferencia || 0)
-            + Number(resultado.esperadoMercadopago || 0);
-          // ⚠️ LA CUENTA COMPLETA, con sus CUATRO términos. Si acá se mostrara solo lo
-          // cobrado, el cartel diría "cuadra" al lado de dos números que no dan — y el que
-          // lee deja de confiar en la pantalla.
-          //
-          //   fondo inicial        el cambio de ayer     (sin esto: SOBRABA siempre)
-          // + cobrado en efectivo  lo de la ventanilla
-          // + ingresos manuales    plata que entró sin ser un cobro
-          // - egresos              lo que se gastó       (sin esto: FALTABA siempre)
-          //
-          // El backend guarda estos números CONGELADOS en el cierre justamente para que este
-          // cálculo se pueda rehacer igual dentro de seis meses.
-          const fondo = Number(resultado.fondoInicial || 0);
-          const esperadoEnElCajon = fondo
-            + Number(resultado.esperadoEfectivo || 0)
-            + Number(resultado.ingresosEfectivo || 0)
-            - Number(resultado.egresosEfectivo || 0);
-          return (
-            <div className="caja-resultado">
-              <div className={`caja-resultado-cifra ${
-                cuadraTodo ? 'ok' : hayFaltante ? 'falta' : 'sobra'
-              }`}>
-                {!seConto ? 'Cerrado sin contar'
-                  : cuadraTodo ? '¡Cuadra todo!'
-                  : cuantas === 1 ? 'Hay una diferencia'
-                  : 'Hay diferencias'}
-              </div>
-
-              <div className="caja-linea">
-                <div className="caja-linea-titulo">
-                  <span>Efectivo</span>
-                  <strong className={clase(dif)}>{frase(dif)}</strong>
-                </div>
-                <div className="caja-metodos">
-                  {fondo > 0 && (
-                    <div><span>Cambio con el que abriste</span><strong>{formatCurrency(fondo)}</strong></div>
-                  )}
-                  <div><span>Cobrado en efectivo</span><strong>{formatCurrency(resultado.esperadoEfectivo)}</strong></div>
-                  {/* El desglose tiene que EXPLICAR el número de abajo. Si los gastos no
-                      aparecieran, el que lee vería "cobré 50.000" arriba y "tendría que
-                      haber 35.000" abajo, sin nada que una las dos cosas — y dejaría de
-                      confiar en la pantalla, que es lo peor que le puede pasar a un arqueo. */}
-                  {Number(resultado.ingresosEfectivo) > 0 && (
-                    <div><span>Entró sin ser un cobro</span>
-                      <strong className="caja-sobra">+{formatCurrency(resultado.ingresosEfectivo)}</strong>
-                    </div>
-                  )}
-                  {Number(resultado.egresosEfectivo) > 0 && (
-                    <div><span>Salió del cajón (gastos)</span>
-                      <strong className="caja-falta">−{formatCurrency(resultado.egresosEfectivo)}</strong>
-                    </div>
-                  )}
-                  <div className="caja-metodos-total">
-                    <span>Tendría que haber</span><strong>{formatCurrency(esperadoEnElCajon)}</strong>
-                  </div>
-                  <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoEfectivo)}</strong></div>
-                </div>
-              </div>
-
-              <div className="caja-linea">
-                <div className="caja-linea-titulo">
-                  <span>Transferencias y Mercado Pago</span>
-                  <strong className={clase(difD)}>{frase(difD)}</strong>
-                </div>
-                <div className="caja-metodos">
-                  <div><span>El sistema esperaba</span><strong>{formatCurrency(esperadoDigital)}</strong></div>
-                  <div><span>Vos contaste</span><strong>{formatCurrency(resultado.declaradoDigital)}</strong></div>
-                </div>
-                {difD < 0 && (
-                  /* No es un descuido de conteo: la plata digital no se cae del cajón. O el
-                     cobro se registró con el método equivocado, o esa transferencia nunca
-                     llegó. Las dos cosas hay que mirarlas hoy, no a fin de mes. */
-                  <p className="form-hint caja-aviso">
-                    <Icon name="alertTriangle" size="0.9em" /> El sistema da por cobrada plata
-                    que no está en la cuenta. Revisá si algún cobro se registró con el método
-                    equivocado.
-                  </p>
-                )}
-              </div>
-
-              {!cuadraTodo && !resultado.nota && (
-                <div className="form-group" style={{ marginTop: '1rem' }}>
-                  <label className="form-label">¿Qué pasó? (opcional)</label>
-                  <input
-                    className="form-input" value={explicacion}
-                    placeholder="Di mal un vuelto, entró un billete falso…"
-                    onChange={(e) => setExplicacion(e.target.value)}
-                  />
-                  <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: '0.5rem' }}
-                    onClick={explicar} disabled={!explicacion.trim()}>
-                    Guardar explicación
-                  </button>
-                  <small className="form-hint">Se puede escribir una sola vez.</small>
-                </div>
-              )}
-              {resultado.nota && <p className="form-hint">💬 {resultado.nota}</p>}
-            </div>
-          );
-        })()}
       </Modal>
     </div>
   );

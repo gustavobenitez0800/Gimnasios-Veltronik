@@ -188,34 +188,6 @@ public class CajaService {
                 TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE));
     }
 
-    /**
-     * Abre la caja: desde ahora corre el período, con el cambio que ya había en el cajón.
-     *
-     * @param fondoInicial el cambio que quedó de ayer. Sin esto el arqueo NUNCA cuadra: ese
-     *                     cambio aparece como sobrante todos los días.
-     */
-    @Transactional
-    public CajaSesion abrir(BigDecimal fondoInicial, String abiertaPor) {
-        if (fondoInicial == null || fondoInicial.signum() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El fondo no puede ser negativo.");
-        }
-        // La base ya lo impide con un índice único parcial. Este chequeo existe para dar un
-        // mensaje entendible en vez de una violación de constraint; la garantía es la de abajo.
-        if (sesionAbierta().isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Ya hay una caja abierta. Cerrala antes de abrir otra.");
-        }
-
-        CajaSesion s = new CajaSesion();
-        Tenant t = new Tenant();
-        t.setId(TenantContextHolder.getTenantId());
-        s.setTenant(t);
-        s.setAbiertaAt(LocalDateTime.now(BUSINESS_ZONE));
-        s.setAbiertaPorNombre(abiertaPor);
-        s.setFondoInicial(fondoInicial);
-        return sesionRepository.save(s);
-    }
-
     /** La caja abierta de este gimnasio, si hay alguna. */
     @Transactional(readOnly = true)
     public java.util.Optional<CajaSesion> sesionAbierta() {
@@ -246,6 +218,34 @@ public class CajaService {
                 .toList();
     }
 
+    /**
+     * El cambio que hay en el cajón antes de los cobros de hoy. Lo dejó dicho el cierre
+     * anterior; la pantalla lo muestra para que la cuenta del cajón se pueda seguir a mano.
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal fondoActual() {
+        return fondoDeHoy();
+    }
+
+    /**
+     * Balance de ingresos de un período FIJO de calendario: hoy, o el mes en curso.
+     *
+     * <p>Distinto del período abierto, que va desde el último cierre. Son dos preguntas
+     * diferentes y confundirlas fue tentador: "¿cuánto va del día?" no es "¿cuánto hay sin
+     * cerrar?". Si nadie cerró ayer, el período abierto arrastra dos días y el balance de
+     * hoy sigue diciendo lo de hoy.</p>
+     *
+     * @param desdeElPrimeroDelMes true = del 1° del mes a ahora; false = de hoy a las 00:00.
+     */
+    @Transactional(readOnly = true)
+    public Resumen balance(boolean desdeElPrimeroDelMes) {
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        LocalDateTime desde = desdeElPrimeroDelMes
+                ? ahora.withDayOfMonth(1).toLocalDate().atStartOfDay()
+                : ahora.toLocalDate().atStartOfDay();
+        return contar(desde, ahora);
+    }
+
     /** Lo que lleva acumulado el período abierto, sin cerrarlo. */
     @Transactional(readOnly = true)
     public Resumen resumenAbierto() {
@@ -255,41 +255,53 @@ public class CajaService {
     }
 
     /**
-     * Cierra el período.
+     * Cierra el día.
      *
-     * @param declaradoEfectivo lo que la persona dice tener en el cajón. NULL = corte sin
-     *                          conteo, que solo puede pedir un dueño o admin.
-     * @param declaradoDigital  lo que dice haber entrado por transferencia y Mercado Pago.
+     * <p><b>Ya no se declara nada.</b> El sistema sabe cuánto entró por efectivo y cuánto
+     * por transferencia —cada cobro tiene su forma de pago—, así que lo suma y lo muestra.
+     * Lo único que decide una persona es cuánto efectivo se lleva del cajón.</p>
      *
-     * <p><b>Por qué se declaran los dos.</b> Contando solo el cajón quedaba abierto el
-     * agujero más grande: cobrar en efectivo, guardarse la plata y registrar el cobro como
-     * "transferencia". El cajón cuadra perfecto —el sistema no espera ese efectivo— y la
-     * transferencia que el sistema da por recibida nunca existió. Con las dos declaraciones,
-     * ese movimiento deja un faltante digital que no se puede tapar.</p>
+     * <p><b>Lo que esto dejó de hacer, dicho en claro.</b> Hasta el 2026-09-02 el cierre era
+     * un ARQUEO A CIEGAS: quien cerraba contaba la plata, escribía el monto sin ver lo
+     * esperado, y el sistema calculaba la diferencia. Eso detectaba faltantes; esto no. Fue
+     * una decisión del dueño, tomada sabiendo el costo: contar y tipear todos los días
+     * también tiene un precio, y el suyo es que la caja no se cierre. Una caja que no se
+     * cierra no detecta nada.</p>
+     *
+     * <p>Las columnas del arqueo viejo se siguen guardando en NULL y {@code conArqueo} en
+     * false: los cierres históricos las tienen cargadas y su lista tiene que seguir
+     * leyéndose igual.</p>
+     *
+     * @param retiroEfectivo cuánto se lleva del cajón. NULL o 0 = no se retira nada, todo
+     *                       queda para mañana.
      */
     @Transactional
-    public CajaCierre cerrar(BigDecimal declaradoEfectivo, BigDecimal declaradoDigital,
-                             String nota, String cerradoPor, boolean puedeCerrarSinContar) {
-        boolean conteoCompleto = declaradoEfectivo != null && declaradoDigital != null;
-        if (!conteoCompleto && !puedeCerrarSinContar) {
-            // Recepción no tiene esta salida: es la que tiene el cajón adelante. Si pudiera
-            // cerrar sin contar —o contando solo una mitad— el arqueo no significaría nada.
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Hay que contar el efectivo y las transferencias para cerrar la caja.");
-        }
-        if (declaradoEfectivo != null && declaradoEfectivo.signum() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El efectivo no puede ser negativo.");
-        }
-        if (declaradoDigital != null && declaradoDigital.signum() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las transferencias no pueden ser negativas.");
+    public CajaCierre cerrar(BigDecimal retiroEfectivo, String nota, String cerradoPor) {
+        BigDecimal retiro = retiroEfectivo == null ? BigDecimal.ZERO : retiroEfectivo;
+        if (retiro.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El retiro no puede ser negativo.");
         }
 
         java.util.Optional<CajaSesion> sesion = sesionAbierta();
-        BigDecimal fondo = sesion.map(CajaSesion::getFondoInicial).orElse(BigDecimal.ZERO);
+        BigDecimal fondo = fondoDeHoy();
 
         LocalDateTime desde = inicioDelPeriodo();
         LocalDateTime hasta = LocalDateTime.now(BUSINESS_ZONE);
         Resumen r = contar(desde, hasta);
+
+        // ⚠️ LOS DOS TÉRMINOS QUE HACEN QUE ESTO CUADRE, Y CADA UNO COSTÓ UN BUG:
+        //   · EL FONDO. En el cajón está el cambio de ayer MÁS lo cobrado hoy. Sin sumarlo,
+        //     TODOS los cierres daban sobrante por el mismo monto.
+        //   · LOS EGRESOS. Del cajón también sale plata. Sin restarlos, el día que se le paga
+        //     a la limpieza el cierre decía FALTANTE y acusaba a quien atendió.
+        BigDecimal enElCajon = r.enElCajon(fondo);
+
+        // No se puede sacar del cajón lo que no hay. Sin esto, un dedazo (un cero de más)
+        // dejaría el fondo de mañana en negativo y el error viajaría de día en día.
+        if (retiro.compareTo(enElCajon) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No podés retirar más de lo que hay en el cajón.");
+        }
 
         CajaCierre cierre = new CajaCierre();
         Tenant tenant = new Tenant();
@@ -311,29 +323,20 @@ public class CajaService {
         cierre.setEgresosEfectivo(r.egresosEfectivo());
         cierre.setIngresosEfectivo(r.ingresosEfectivo());
         cierre.setCantidadMovimientos(r.cantidadMovimientos());
-        cierre.setConArqueo(conteoCompleto);
-        cierre.setDeclaradoEfectivo(declaradoEfectivo);
-        cierre.setDeclaradoDigital(declaradoDigital);
-        // Negativo = falta plata. Se guarda calculado y no se deduce al leer: si mañana
-        // alguien corrige un cobro viejo, la diferencia de este día no puede cambiar.
-        //
-        // ⚠️ LOS DOS TÉRMINOS QUE HACEN QUE ESTO CUADRE, Y CADA UNO COSTÓ UN BUG:
-        //   · EL FONDO. En el cajón está el cambio de ayer MÁS lo cobrado hoy. Sin sumarlo,
-        //     TODOS los cierres daban sobrante por el mismo monto.
-        //   · LOS EGRESOS. Del cajón también sale plata. Sin restarlos, el día que se le paga
-        //     a la limpieza el cierre dice FALTANTE y acusa a quien atendió.
-        // Un arqueo que siempre sobra y uno que siempre falta son igual de inútiles.
-        BigDecimal esperadoEnElCajon = r.enElCajon(fondo);
-        cierre.setDiferencia(declaradoEfectivo == null ? null : declaradoEfectivo.subtract(esperadoEnElCajon));
-        // Negativo = el sistema dice que entró plata que en la cuenta no está.
-        cierre.setDiferenciaDigital(declaradoDigital == null ? null : declaradoDigital.subtract(r.digital()));
+
+        // Sin conteo declarado no hay diferencia que calcular. Quedan en NULL a propósito, y
+        // no en cero: cero significaría "cuadró perfecto", que es una afirmación que nadie hizo.
+        cierre.setConArqueo(false);
+
+        cierre.setRetiroEfectivo(retiro);
+        cierre.setQuedaEnCaja(enElCajon.subtract(retiro));
         cierre.setNota(nota != null && !nota.isBlank() ? nota.trim() : null);
         cierre.setCerradoPorNombre(cerradoPor);
 
         CajaCierre guardado = cierreRepository.save(cierre);
 
-        // La sesión se cierra con el mismo acto: si quedara abierta, no se podría abrir otra
-        // y el período siguiente arrancaría de una fecha que ya se cerró.
+        // Si venía una sesión del modelo viejo, se cierra con el mismo acto: dejarla abierta
+        // haría que el índice único bloqueara para siempre cualquier apertura futura.
         sesion.ifPresent(ses -> {
             ses.setCerradaAt(hasta);
             ses.setCierreId(guardado.getId());
@@ -388,8 +391,41 @@ public class CajaService {
      * que se cobró con la caja sin abrir <b>no queda sin contar</b>: alguien puede cobrar
      * antes de que nadie abra nada, y esa plata está en el cajón igual.</p>
      */
+    /**
+     * Desde cuándo cuenta el período abierto: desde el último cierre, siempre.
+     *
+     * <p>Antes esto miraba primero si había una caja ABIERTA y contaba desde la apertura.
+     * Con el cierre diario ya no se abre nada (ver {@link #fondoDeHoy()}), y contar desde el
+     * último cierre tiene una propiedad que la apertura no tenía: <b>ningún cobro puede
+     * quedar fuera de un cierre</b>. Con el modelo viejo, lo cobrado entre el cierre de
+     * anoche y la apertura de la mañana no lo contaba nadie — y eso pasaba justo los días
+     * en que alguien se olvidaba de abrir, que eran los días de apuro.</p>
+     *
+     * <p>Si nadie cerró ayer, el período de hoy arrastra los dos días. Es lo correcto: la
+     * plata está toda en el mismo cajón.</p>
+     */
     private LocalDateTime inicioDelPeriodo() {
-        return sesionAbierta().map(CajaSesion::getAbiertaAt).orElseGet(this::desdeElUltimoCierre);
+        return desdeElUltimoCierre();
+    }
+
+    /**
+     * El cambio que hay en el cajón antes de empezar a cobrar hoy.
+     *
+     * <p><b>Lo dice el cierre anterior, no una persona.</b> Lo que se decidió dejar en el
+     * cajón al cerrar ayer es exactamente el fondo de hoy: es la misma plata, nadie la
+     * movió. Por eso el paso de "abrir caja" declarando el cambio dejó de existir — era
+     * pedirle a alguien que a la mañana recordara un número que el sistema ya sabía, y el
+     * día que se olvidaba, el arqueo daba sobrante por el monto del cambio.</p>
+     *
+     * <p>El {@code orElseGet} es la transición: los cierres anteriores al 2026-09-02 no
+     * tienen {@code quedaEnCaja} porque el modelo no existía. Mientras el último cierre sea
+     * uno de esos, se respeta el fondo de la sesión abierta (el modelo viejo). Después del
+     * primer cierre diario, esa rama no se usa nunca más.</p>
+     */
+    private BigDecimal fondoDeHoy() {
+        return ultimo()
+                .map(CajaCierre::getQuedaEnCaja)
+                .orElseGet(() -> sesionAbierta().map(CajaSesion::getFondoInicial).orElse(BigDecimal.ZERO));
     }
 
     private LocalDateTime desdeElUltimoCierre() {

@@ -32,12 +32,13 @@ public class CajaController {
     }
 
     /**
-     * Lo que lleva el período abierto, CON importes. Solo dueño/admin.
+     * Lo que lleva el período abierto, CON importes.
      *
-     * <p>Es la vista del dueño: puede mirar cómo viene el día sin cerrar nada.</p>
+     * <p>Era solo del dueño mientras el cierre fue un arqueo a ciegas: quien iba a contar no
+     * podía ver el número que tenía que adivinar. Sin conteo declarado (2026-09-02), estos
+     * totales SON el cierre — mostrárselos a quien cierra es todo el punto del cambio.</p>
      */
     @GetMapping("/abierto")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<Map<String, Object>> abierto() {
         CajaService.Resumen r = cajaService.resumenAbierto();
         Map<String, Object> body = new java.util.HashMap<>();
@@ -60,10 +61,11 @@ public class CajaController {
         // La cuenta completa, calculada en UN solo lugar (Resumen.enElCajon): fondo + cobrado
         // en efectivo + ingresos manuales - egresos. Repetirla en la pantalla es garantizar
         // que en algún lado quede mal.
-        body.put("esperadoEnElCajon", r.enElCajon(
-                cajaService.sesionAbierta()
-                        .map(com.veltronik.v2.gym.entities.CajaSesion::getFondoInicial)
-                        .orElse(java.math.BigDecimal.ZERO)));
+        java.math.BigDecimal fondo = cajaService.fondoActual();
+        body.put("fondo", fondo);
+        body.put("esperadoEnElCajon", r.enElCajon(fondo));
+        // Transferencias y Mercado Pago juntos: es lo que se mira de una sola vez.
+        body.put("digital", r.digital());
         body.put("ultimoCierre", cajaService.ultimo().map(CajaCierre::getHasta).orElse(null));
         // La otra mitad del arqueo: un cierre puede cuadrar y aun así haber algo raro, si
         // alguien bajó el monto de un cobro después de haberlo registrado.
@@ -108,20 +110,34 @@ public class CajaController {
         return ResponseEntity.ok(body);
     }
 
-    /** Abre la caja con el cambio que ya había en el cajón. */
+    /**
+     * ⛔ LA APERTURA DE CAJA YA NO EXISTE (2026-09-02).
+     *
+     * <p>El fondo del cajón lo dice el cierre anterior: lo que se decide dejar al cerrar es
+     * el cambio con el que arranca el día siguiente. Nadie tiene que recordarlo a la mañana.</p>
+     *
+     * <p><b>El endpoint se deja en pie a propósito</b>, contestando esto. Los escritorios ya
+     * instalados (2.6.29 y anteriores) siguen pidiendo abrir la caja, y un 404 les mostraría
+     * un error técnico que nadie puede interpretar en un mostrador. Así, quien esté en una
+     * versión vieja lee qué le pasa y qué hacer. Se puede borrar cuando no quede ninguna.</p>
+     */
     @PostMapping("/abrir")
-    public ResponseEntity<com.veltronik.v2.gym.entities.CajaSesion> abrir(@RequestBody AperturaInput input) {
-        return ResponseEntity.ok(cajaService.abrir(input.getFondoInicial(), input.getAbiertaPor()));
+    public ResponseEntity<Map<String, Object>> abrirYaNoVa() {
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT,
+                "Esta versión de la aplicación quedó vieja: ya no hace falta abrir la caja. "
+                        + "Actualizá Veltronik y cerrá el día desde la pantalla nueva.");
     }
 
     /**
      * Los cobros que forman el número: socio, monto, método y cuándo.
      *
-     * <p>⚠️ SOLO DUEÑO, y no es un detalle de permisos: si quien va a contar ve los montos,
-     * suma la lista y escribe ese número. El arqueo deja de medir nada.</p>
+     * <p>Hasta el 2026-09-02 era SOLO DUEÑO, y por un motivo concreto: con el arqueo a
+     * ciegas, quien iba a contar no podía ver los montos o sumaba la lista y escribía ese
+     * número. Al darse de baja el conteo declarado, ese motivo desapareció — y la lista pasó
+     * a ser lo primero que hay que ver para cerrar: es la pantalla del cierre diario.</p>
      */
     @GetMapping("/movimientos")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> movimientos() {
         List<Map<String, Object>> salida = new java.util.ArrayList<>();
         for (var p : cajaService.movimientosDelPeriodo()) {
@@ -218,22 +234,45 @@ public class CajaController {
     }
 
     /**
-     * Cierra el período y devuelve el resultado, con la diferencia ya revelada.
+     * Cierra el día.
      *
-     * <p>Es el único momento en que quien contó ve el número del sistema: después de haber
-     * declarado, y sin poder volver atrás.</p>
+     * <p>Lo único que viaja es cuánto efectivo se retira del cajón: los totales por forma de
+     * pago los tiene el sistema. Lo puede hacer recepción, que es quien tiene el cajón
+     * adelante y quien cierra al terminar el turno.</p>
      */
     @PostMapping("/cierre")
-    public ResponseEntity<CajaCierre> cerrar(@RequestBody CierreInput input, Authentication auth) {
-        boolean puedeCerrarSinContar = auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_OWNER".equals(a.getAuthority()) || "ROLE_ADMIN".equals(a.getAuthority()));
-
+    public ResponseEntity<CajaCierre> cerrar(@RequestBody CierreInput input) {
         return ResponseEntity.ok(cajaService.cerrar(
-                input.getDeclaradoEfectivo(),
-                input.getDeclaradoDigital(),
+                input.getRetiroEfectivo(),
                 input.getNota(),
-                input.getCerradoPor(),
-                puedeCerrarSinContar));
+                input.getCerradoPor()));
+    }
+
+    /**
+     * Balance de ingresos de hoy o del mes en curso.
+     *
+     * <p>Es la respuesta a "¿cómo viene el día?" y "¿cómo viene el mes?", que no es lo mismo
+     * que "¿qué hay sin cerrar?" — si nadie cerró ayer, el período abierto arrastra dos días
+     * y esto sigue diciendo lo de hoy.</p>
+     */
+    @GetMapping("/balance")
+    public ResponseEntity<Map<String, Object>> balance(@RequestParam(defaultValue = "hoy") String periodo) {
+        CajaService.Resumen r = cajaService.balance("mes".equalsIgnoreCase(periodo));
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("periodo", "mes".equalsIgnoreCase(periodo) ? "mes" : "hoy");
+        body.put("desde", r.desde());
+        body.put("hasta", r.hasta());
+        body.put("efectivo", r.efectivo());
+        body.put("transferencia", r.transferencia());
+        body.put("mercadopago", r.mercadopago());
+        body.put("tarjeta", r.tarjeta());
+        body.put("otros", r.otros());
+        body.put("digital", r.digital());
+        body.put("cantidadCobros", r.cantidadCobros());
+        body.put("egresos", r.egresosEfectivo());
+        body.put("ingresosManuales", r.ingresosEfectivo());
+        body.put("total", r.efectivo().add(r.digital()).add(r.tarjeta()).add(r.otros()));
+        return ResponseEntity.ok(body);
     }
 
     /**
@@ -263,30 +302,21 @@ public class CajaController {
 
     /** Lo que manda la pantalla al cerrar. */
     /** Lo que hace falta para abrir. */
-    public static class AperturaInput {
-        /** El cambio que ya estaba en el cajón. */
-        private BigDecimal fondoInicial;
-        private String abiertaPor;
-
-        public BigDecimal getFondoInicial() { return fondoInicial; }
-        public void setFondoInicial(BigDecimal v) { this.fondoInicial = v; }
-        public String getAbiertaPor() { return abiertaPor; }
-        public void setAbiertaPor(String v) { this.abiertaPor = v; }
-    }
-
     public static class CierreInput {
-        /** El efectivo contado. NULL = corte sin conteo (solo dueño/admin). */
-        private BigDecimal declaradoEfectivo;
-        /** Lo que entró por transferencia y Mercado Pago, mirando el banco o la app. */
-        private BigDecimal declaradoDigital;
+        /**
+         * Cuánto efectivo se lleva del cajón. NULL o 0 = no se retira nada.
+         *
+         * <p>Es el único número que escribe una persona en el cierre. Lo que entró por
+         * efectivo y por transferencia lo sabe el sistema: cada cobro tiene su forma de pago
+         * y sumarlo a mano era rehacer una cuenta ya hecha.</p>
+         */
+        private BigDecimal retiroEfectivo;
         private String nota;
         /** Quién cerró, para congelar el nombre en el registro. */
         private String cerradoPor;
 
-        public BigDecimal getDeclaradoEfectivo() { return declaradoEfectivo; }
-        public void setDeclaradoEfectivo(BigDecimal v) { this.declaradoEfectivo = v; }
-        public BigDecimal getDeclaradoDigital() { return declaradoDigital; }
-        public void setDeclaradoDigital(BigDecimal v) { this.declaradoDigital = v; }
+        public BigDecimal getRetiroEfectivo() { return retiroEfectivo; }
+        public void setRetiroEfectivo(BigDecimal v) { this.retiroEfectivo = v; }
         public String getNota() { return nota; }
         public void setNota(String v) { this.nota = v; }
         public String getCerradoPor() { return cerradoPor; }

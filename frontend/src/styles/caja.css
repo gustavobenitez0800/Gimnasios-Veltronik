@@ -177,3 +177,127 @@
 .caja-mov-anulado .caja-monto-celda {
   text-decoration: line-through;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CIERRE DIARIO (2026-09-02)
+   Reemplaza al arqueo a ciegas: el sistema muestra los totales y lo único que
+   se decide es cuánto se retira del cajón.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.caja-page > .card { margin-bottom: 1.25rem; }
+.caja-page .card h3 {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 1rem; font-size: 1.05rem;
+}
+
+.caja-alerta {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: var(--border-radius-md);
+  padding: 0.75rem 0.9rem; margin-bottom: 1.25rem;
+  color: #fbbf24; font-size: var(--font-size-sm);
+}
+
+/* ─── Balance de ingresos: hoy / mes ─── */
+.caja-balance { padding: 1.25rem; }
+.caja-balance-cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.caja-balance-cabecera h3 { margin: 0; }
+.caja-tabs { display: flex; gap: 0.4rem; }
+
+.caja-balance-cifras, .caja-resumen-grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* La cifra es lo que se lee de lejos: el número grande y su aclaración chica. */
+.caja-cifra {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 0.9rem 1rem;
+}
+.caja-cifra-valor {
+  font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.caja-cifra-label { color: var(--text-muted); font-size: var(--font-size-xs); }
+/* Lo que está en el cajón contra lo que está en el banco: la separación que ordena
+   toda la pantalla, y por eso se distingue con color y no solo con texto. */
+.caja-cifra.es-efectivo { border-left: 3px solid var(--success-500, #22c55e); }
+.caja-cifra.es-digital  { border-left: 3px solid var(--primary-500); }
+
+.caja-resumen { padding: 1.25rem; }
+
+/* ─── La cuenta del cajón, renglón por renglón ─── */
+.caja-cuenta { list-style: none; margin: 0 0 1.25rem; padding: 0; }
+.caja-cuenta li {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.caja-cuenta li:last-child { border-bottom: none; }
+.caja-cuenta span { color: var(--text-muted); font-size: var(--font-size-sm); }
+.caja-cuenta strong { font-variant-numeric: tabular-nums; }
+.caja-cuenta-total { padding-top: 0.75rem; }
+.caja-cuenta-total span { color: var(--text-primary); font-weight: 600; font-size: 1rem; }
+.caja-cuenta-total strong { font-size: 1.35rem; }
+
+/* ─── Retiro / queda ─── */
+.caja-distribucion { padding: 1.25rem; }
+.caja-reparto {
+  display: grid; gap: 1rem; align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-bottom: 1rem;
+}
+.caja-queda {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 0.9rem 1rem;
+}
+.caja-cerrar { width: 100%; justify-content: center; }
+
+.caja-cobros .table-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 1.25rem 1.25rem 0.75rem;
+}
+.caja-cobros .table-header h3 { margin: 0; }
+.caja-monto-celda { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* La forma de pago se lee de un vistazo: es lo que se está separando. */
+.caja-metodo {
+  display: inline-block; padding: 0.15rem 0.55rem;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs); font-weight: 700;
+}
+.caja-metodo.es-efectivo {
+  color: var(--success-500, #22c55e);
+  background: color-mix(in srgb, var(--success-500, #22c55e) 12%, transparent);
+}
+.caja-metodo.es-digital {
+  color: var(--primary-400);
+  background: color-mix(in srgb, var(--primary-500) 12%, transparent);
+}
+
+/* ─── Confirmar cierre ───
+   Verde y rojo, como los pidió el dueño: la acción que sigue y la que vuelve
+   atrás no se pueden confundir en una pantalla que se usa apurado. */
+.caja-confirmar-botones {
+  display: flex; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap;
+}
+.caja-confirmar-botones .btn { flex: 1; min-width: 160px; justify-content: center; }
+.caja-si {
+  background: var(--success-500, #22c55e); color: #fff; border: none; font-weight: 700;
+}
+.caja-si:hover:not(:disabled) { background: var(--success-600, #16a34a); }
+.caja-no {
+  background: var(--error-500); color: #fff; border: none; font-weight: 700;
+}
+.caja-no:hover:not(:disabled) { background: var(--error-600); }
+
+.caja-rubros { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.caja-mov-anulado { opacity: 0.55; text-decoration: line-through; }

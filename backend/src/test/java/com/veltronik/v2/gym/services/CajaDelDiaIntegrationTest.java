@@ -2,7 +2,6 @@ package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.CajaCierre;
-import com.veltronik.v2.gym.entities.CajaSesion;
 import com.veltronik.v2.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -90,83 +89,80 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
     // EL DIA COMPLETO, TAL COMO PASA EN EL MOSTRADOR
     @Test
     @Transactional
-    @DisplayName("abrir con cambio, cobrar de las tres formas, contar y cerrar: cuadra")
+    @DisplayName("cobrar de las tres formas y cerrar el dia: el sistema pone los numeros")
     void elDiaCompleto() {
-        CajaSesion s = cajaService.abrir(new BigDecimal("10000"), "Carla");
-        assertTrue(s.estaAbierta());
-
         cobrar("40000", "CASH");
         cobrar("45000", "TRANSFER");
         cobrar("45000", "MERCADOPAGO");
 
-        // En el cajon: los 10.000 de cambio mas los 40.000 cobrados en efectivo.
-        // En el banco y en MP: 45.000 + 45.000.
-        CajaCierre c = cajaService.cerrar(new BigDecimal("50000"), new BigDecimal("90000"),
-                null, "Carla", false);
+        // Nadie declara nada: cada cobro ya trae su forma de pago.
+        CajaCierre c = cajaService.cerrar(BigDecimal.ZERO, null, "Carla");
 
-        assertEquals(0, c.getDiferencia().signum(),
-                "el efectivo tiene que cuadrar CON el fondo adentro");
-        assertEquals(0, c.getDiferenciaDigital().signum(), "transferencia mas Mercado Pago");
         assertEquals(0, c.getEsperadoEfectivo().compareTo(new BigDecimal("40000")));
-        assertEquals(0, c.getFondoInicial().compareTo(new BigDecimal("10000")));
+        assertEquals(0, c.getEsperadoTransferencia().compareTo(new BigDecimal("45000")));
         assertEquals(0, c.getEsperadoMercadopago().compareTo(new BigDecimal("45000")),
                 "Mercado Pago no puede caer en otros");
         assertEquals(3, c.getCantidadCobros());
+        assertEquals(0, c.getQuedaEnCaja().compareTo(new BigDecimal("40000")),
+                "sin retiro, en el cajon queda lo cobrado en efectivo");
     }
 
     /**
-     * LA GARANTIA QUE NO ESTA EN EL CODIGO.
+     * ⭐ LA CADENA DE LOS DIAS.
      *
-     * <p>El gimnasio puede tener la notebook con la web y la PC del mostrador con el
-     * escritorio. Si las dos abren caja hay dos periodos pisandose, y la plata se cuenta dos
-     * veces o ninguna. El chequeo en Java no alcanza: las dos terminales pueden preguntar en
-     * el mismo instante y las dos ver "no hay ninguna abierta". Lo que lo impide de verdad es
-     * el indice unico parcial de la V59.</p>
+     * <p>Lo que queda en el cajon hoy es el fondo de manana. Es lo que permitio borrar el
+     * paso de "abrir caja": ese numero ya no lo tiene que recordar nadie a la manana. Y es
+     * la unica parte del modelo nuevo que no se puede probar mirando un solo cierre.</p>
      */
     @Test
     @Transactional
-    @DisplayName("no puede haber dos cajas abiertas en el mismo gimnasio")
-    void unaSolaCajaAbierta() {
-        cajaService.abrir(new BigDecimal("10000"), "Carla");
+    @DisplayName("lo que queda en el cajon hoy es el fondo con el que arranca manana")
+    void elCajonSeEncadenaDeUnDiaAlOtro() {
+        cobrar("40000", "CASH");
+        CajaCierre hoy = cajaService.cerrar(new BigDecimal("30000"), null, "Carla");
+        assertEquals(0, hoy.getQuedaEnCaja().compareTo(new BigDecimal("10000")));
+
+        // Al dia siguiente, sin abrir nada: el fondo ya esta.
+        assertEquals(0, cajaService.fondoActual().compareTo(new BigDecimal("10000")));
+
+        cobrar("25000", "CASH");
+        CajaCierre manana = cajaService.cerrar(BigDecimal.ZERO, null, "Carla");
+
+        assertEquals(0, manana.getFondoInicial().compareTo(new BigDecimal("10000")),
+                "el cambio de ayer sigue en el cajon");
+        assertEquals(0, manana.getQuedaEnCaja().compareTo(new BigDecimal("35000")),
+                "10.000 que quedaron + 25.000 cobrados hoy");
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("no se puede retirar mas de lo que hay en el cajon")
+    void noSePuedeVaciarDeMas() {
+        cobrar("40000", "CASH");
 
         assertThrows(ResponseStatusException.class,
-                () -> cajaService.abrir(new BigDecimal("5000"), "Otra terminal"));
+                () -> cajaService.cerrar(new BigDecimal("100000"), null, "Carla"));
     }
 
     @Test
     @Transactional
-    @DisplayName("cerrar libera la caja: despues se puede abrir otra")
-    void despuesDeCerrarSePuedeAbrirDeNuevo() {
-        cajaService.abrir(new BigDecimal("10000"), "Carla");
-        cobrar("40000", "CASH");
-        cajaService.cerrar(new BigDecimal("50000"), BigDecimal.ZERO, null, "Carla", false);
-
-        assertTrue(cajaService.sesionAbierta().isEmpty(),
-                "si queda abierta, nadie puede abrir otra nunca mas");
-
-        CajaSesion nueva = cajaService.abrir(new BigDecimal("50000"), "Turno noche");
-        assertTrue(nueva.estaAbierta());
-    }
-
-    @Test
-    @Transactional
-    @DisplayName("lo cobrado antes de abrir la caja NO se pierde")
-    void loCobradoConLaCajaCerradaSeCuenta() {
-        // Nadie abrio la caja a la manana, pero se cobro igual. Esa plata esta en el cajon y
-        // tiene que entrar en el proximo cierre: si no, desaparece sin que nadie lo note.
+    @DisplayName("lo cobrado despues del ultimo cierre NO se pierde")
+    void loCobradoDespuesDelCierreSeCuenta() {
+        // Con el modelo viejo esto dependia de que alguien se acordara de abrir la caja: lo
+        // cobrado antes de la apertura no lo contaba nadie. Ahora el periodo arranca solo,
+        // donde termino el cierre anterior.
         cobrar("40000", "CASH");
 
-        CajaCierre c = cajaService.cerrar(new BigDecimal("40000"), BigDecimal.ZERO, null, "Carla", false);
+        CajaCierre c = cajaService.cerrar(BigDecimal.ZERO, null, "Carla");
 
         assertEquals(1, c.getCantidadCobros());
-        assertEquals(0, c.getDiferencia().signum());
+        assertEquals(0, c.getEsperadoEfectivo().compareTo(new BigDecimal("40000")));
     }
 
     @Test
     @Transactional
     @DisplayName("los cobros del periodo se pueden listar, con monto y metodo")
     void seVeDeDondeSaleElNumero() {
-        cajaService.abrir(BigDecimal.ZERO, "Carla");
         cobrar("40000", "CASH");
         cobrar("45000", "TRANSFER");
 
@@ -181,9 +177,38 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
 
     @Test
     @Transactional
+    @DisplayName("el balance del dia sale de los cobros de hoy")
+    void elBalanceDelDia() {
+        cobrar("40000", "CASH");
+        cobrar("45000", "TRANSFER");
+
+        var hoy = cajaService.balance(false);
+
+        assertEquals(2, hoy.cantidadCobros());
+        assertEquals(0, hoy.efectivo().compareTo(new BigDecimal("40000")));
+        assertEquals(0, hoy.digital().compareTo(new BigDecimal("45000")));
+    }
+
+    /**
+     * El balance de calendario NO es el periodo abierto. Si nadie cerro ayer, el periodo
+     * arrastra dos dias y el balance de hoy tiene que seguir diciendo lo de hoy.
+     */
+    @Test
+    @Transactional
+    @DisplayName("el balance del mes incluye lo del dia")
+    void elBalanceDelMesIncluyeElDia() {
+        cobrar("40000", "CASH");
+
+        var mes = cajaService.balance(true);
+
+        assertTrue(mes.cantidadCobros() >= 1);
+        assertTrue(mes.efectivo().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    @Test
+    @Transactional
     @DisplayName("un cobro pendiente no entra: no puso plata en ningun lado")
     void elPendienteNoCuenta() {
-        cajaService.abrir(BigDecimal.ZERO, "Carla");
         cobrar("40000", "CASH");
         em.createNativeQuery("""
                 INSERT INTO gym_payments (id, tenant_id, member_id, amount, payment_method, status,

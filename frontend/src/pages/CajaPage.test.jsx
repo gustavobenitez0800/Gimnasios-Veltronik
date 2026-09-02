@@ -1,17 +1,24 @@
 // @vitest-environment happy-dom
 //
 // ============================================
-// VELTRONIK - Tests de la pantalla de caja
+// VELTRONIK - Tests de la pantalla de caja (cierre diario)
 // ============================================
 // Acá se prueba lo que la pantalla MUESTRA, que es lo que usa el gimnasio todos los días.
 // La lógica de la plata vive en el backend y tiene sus propios tests; esto cuida que la
 // pantalla no diga algo distinto de lo que pasó.
 //
-// Lo que se cuida en particular:
-//   1. Que "caja cerrada" ofrezca abrirla, y "caja abierta" ofrezca cerrarla.
-//   2. Que quien va a contar NO vea los montos antes de contar (si los ve, los suma y
-//      escribe ese número, y el arqueo deja de medir nada).
-//   3. Que el dueño SÍ vea de dónde sale el número, cobro por cobro.
+// ⚠️ ESTOS TESTS SE REESCRIBIERON EL 2026-09-02. Antes defendían el ARQUEO A CIEGAS: que
+// quien iba a contar NO viera los montos, porque si los veía los sumaba y escribía ese
+// número. El dueño dio de baja ese modelo —el sistema ya sabe cuánto entró por cada forma
+// de pago— así que ahora se defiende lo contrario: que los totales SE VEAN, y que la única
+// decisión que queda (cuánto se retira) no se pueda equivocar en silencio.
+//
+// Lo que se cuida ahora:
+//   1. Que los cobros se vean con su forma de pago: es la cuenta que el dueño quería hacer
+//      de un vistazo (de 20 cobros, cuántos por transferencia y cuántos en efectivo).
+//   2. Que la cuenta del cajón la mande el BACKEND y la pantalla no la recalcule.
+//   3. Que no se pueda retirar más de lo que hay.
+//   4. Que cerrar pida confirmación, y que cancelar no cierre nada.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
@@ -25,7 +32,8 @@ const cajaService = {
   pendiente: vi.fn(),
   abierto: vi.fn(),
   historial: vi.fn(),
-  // Los COBROS del período (solo dueño).
+  balance: vi.fn(),
+  // Los COBROS del período.
   movimientos: vi.fn(),
   // Los MOVIMIENTOS DE CAJA: gastos y entradas que no son cobros. Nombres parecidos y cosas
   // distintas — el backend tuvo que llamarlos así porque `movimientos` ya estaba tomado por
@@ -33,7 +41,6 @@ const cajaService = {
   movimientosDeCaja: vi.fn(),
   registrarMovimiento: vi.fn(),
   anularMovimiento: vi.fn(),
-  abrir: vi.fn(),
   cerrar: vi.fn(),
   explicar: vi.fn(),
 };
@@ -48,7 +55,6 @@ vi.mock('../services', () => ({ errorService: { getMessage: (e) => String(e?.mes
 // `cargar` es un useCallback que depende de `showToast`. Si el mock devuelve un objeto
 // nuevo en cada render, `cargar` cambia de identidad, el efecto que lo llama se vuelve a
 // disparar, y eso provoca otro render: bucle infinito y el test se cuelga sin decir por qué.
-// En la app real showToast es un useCallback, o sea estable — el bucle es solo del mock.
 vi.mock('../contexts/ToastContext', () => ({ useToast: () => toastEstable }));
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ orgRole: rolActual, profile: perfilEstable }),
@@ -65,6 +71,29 @@ const COBROS = [
   { id: '3', socio: 'joaquin bonutti', monto: 60000, metodo: 'mercadopago', fecha: '2026-09-01T18:05:00' },
 ];
 
+/**
+ * El período abierto tal como lo manda el backend.
+ *
+ * ⚠️ `esperadoEnElCajon` viene CALCULADO de allá (fondo + efectivo + ingresos − egresos).
+ * La pantalla no lo recalcula, y hay un test abajo que lo defiende: una cuenta de plata
+ * copiada en dos lados es una cuenta que en algún lado va a estar mal.
+ */
+const ABIERTO = {
+  desde: '2026-09-01T08:00:00',
+  fondo: 10000,
+  efectivo: 40000,
+  transferencia: 45000,
+  mercadopago: 60000,
+  digital: 105000,
+  tarjeta: 0,
+  otros: 0,
+  cantidadCobros: 3,
+  egresos: 0,
+  ingresosManuales: 0,
+  esperadoEnElCajon: 50000,
+  ultimoCierre: null,
+};
+
 let root;
 let container;
 
@@ -73,37 +102,53 @@ async function pintar() {
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => { root.render(<CajaPage />); });
-  // La carga son promesas encadenadas —primero el estado y lo pendiente, después los
-  // importes, el historial y los movimientos— así que hace falta más de un tick.
+  // La carga son promesas encadenadas, así que hace falta más de un tick.
   for (let i = 0; i < 6; i++) {
     await act(async () => { await Promise.resolve(); });
   }
   return container.textContent;
 }
 
-function conCajaCerrada() {
-  cajaService.estado.mockResolvedValue({ abierta: false, cantidadCobros: 3 });
-  cajaService.pendiente.mockResolvedValue({ desde: '2026-09-01T08:00:00', cantidadCobros: 3 });
+/** Busca un botón por su texto. */
+const boton = (texto) => [...container.querySelectorAll('button')]
+  .find((b) => b.textContent.includes(texto));
+
+async function clic(elemento) {
+  await act(async () => {
+    elemento.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  for (let i = 0; i < 4; i++) {
+    await act(async () => { await Promise.resolve(); });
+  }
 }
 
-function conCajaAbierta() {
-  cajaService.estado.mockResolvedValue({
-    abierta: true, desde: '2026-09-01T08:00:00', abiertaPor: 'Carla', fondoInicial: 10000,
-    cantidadCobros: 3,
+/** Escribe en un input pasando por el setter nativo (si no, React no ve el cambio). */
+const setValorNativo = Object.getOwnPropertyDescriptor(
+  window.HTMLInputElement.prototype, 'value',
+).set;
+
+async function escribirRetiro(valor) {
+  const input = container.querySelector('.caja-monto');
+  await act(async () => {
+    setValorNativo.call(input, valor);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  cajaService.pendiente.mockResolvedValue({ desde: '2026-09-01T08:00:00', cantidadCobros: 3 });
 }
 
 beforeEach(() => {
-  rolActual = 'owner';
   vi.clearAllMocks();
-  cajaService.abierto.mockResolvedValue({
-    efectivo: 40000, transferencia: 45000, mercadopago: 60000, tarjeta: 0, otros: 0,
-    cantidadCobros: 3,
-  });
-  cajaService.historial.mockResolvedValue([]);
+  rolActual = 'owner';
+  cajaService.abierto.mockResolvedValue({ ...ABIERTO });
   cajaService.movimientos.mockResolvedValue(COBROS);
   cajaService.movimientosDeCaja.mockResolvedValue([]);
+  cajaService.historial.mockResolvedValue([]);
+  cajaService.balance.mockResolvedValue({
+    periodo: 'hoy', efectivo: 40000, digital: 105000, total: 145000, cantidadCobros: 3,
+  });
+  cajaService.cerrar.mockResolvedValue({
+    id: 'c1', esperadoEfectivo: 40000, esperadoTransferencia: 45000, esperadoMercadopago: 60000,
+    retiroEfectivo: 30000, quedaEnCaja: 20000,
+  });
 });
 
 afterEach(() => {
@@ -111,194 +156,237 @@ afterEach(() => {
   container?.remove();
 });
 
-describe('la pantalla de caja', () => {
+describe('los cobros a cerrar', () => {
 
-  it('con la caja cerrada, ofrece abrirla', async () => {
-    conCajaCerrada();
-    const texto = await pintar();
-
-    expect(texto).toContain('Caja cerrada');
-    expect(texto).toContain('Abrir caja');
-  });
-
-  it('avisa si quedaron cobros sin cerrar con la caja cerrada', async () => {
-    // Cobrar sigue andando con la caja cerrada a propósito: nadie puede quedarse sin poder
-    // cobrarle a un socio porque a la mañana se olvidaron de abrir. Pero esa plata está en
-    // el cajón, y si nadie lo dice, aparece de golpe en el próximo cierre.
-    conCajaCerrada();
-    const texto = await pintar();
-
-    expect(texto).toContain('3 cobros');
-  });
-
-  it('con la caja abierta, muestra quién la abrió y con cuánto cambio', async () => {
-    conCajaAbierta();
-    const texto = await pintar();
-
-    expect(texto).toContain('Caja abierta');
-    expect(texto).toContain('Carla');
-    expect(texto).toContain('10.000');
-    expect(texto).toContain('Contar y cerrar caja');
-  });
-
-  // ⭐ EL DUEÑO VE DE DÓNDE SALE EL NÚMERO
-  it('el dueño ve cada cobro con su monto y su método', async () => {
-    // Un total que no se puede abrir es un número en el que hay que creer.
-    conCajaAbierta();
+  // ⭐ EL PEDIDO DEL DUEÑO, TAL CUAL: "de 20 personas, cuántas por transferencia y cuántas
+  // en efectivo". Antes había que mirar cobro por cobro en otra pantalla.
+  it('se ve cada cobro con su socio, su forma de pago y su monto', async () => {
     const texto = await pintar();
 
     expect(texto).toContain('LURDES ROLLET');
-    expect(texto).toContain('40.000');
     expect(texto).toContain('Efectivo');
     expect(texto).toContain('LAURA RODRIGUEZ');
     expect(texto).toContain('Transferencia');
+    expect(texto).toContain('joaquin bonutti');
     expect(texto).toContain('Mercado Pago');
   });
 
-  it('el dueño ve cuánto TENDRÍA QUE HABER en el cajón, con el cambio adentro', async () => {
-    // 40.000 cobrados en efectivo + 10.000 de cambio con el que se abrió.
-    conCajaAbierta();
+  /**
+   * Lo que está en el cajón y lo que está en el banco se separan con COLOR, no solo con
+   * texto: es la distinción que ordena toda la pantalla, y la que decide cuánto se puede
+   * retirar de verdad.
+   */
+  it('el efectivo y lo digital se distinguen a simple vista', async () => {
+    await pintar();
+
+    const metodos = [...container.querySelectorAll('.caja-metodo')];
+    expect(metodos).toHaveLength(3);
+    expect(metodos[0].className).toContain('es-efectivo');
+    expect(metodos[1].className).toContain('es-digital');
+  });
+
+  // ⚠️ Hasta el 2026-09-02 esto era al revés: recepción NO podía ver los montos, porque el
+  // cierre era un arqueo a ciegas. Ahora recepción también cierra, y para cerrar hay que ver.
+  it('⚠️ recepción también ve los cobros: ahora es quien cierra', async () => {
+    rolActual = 'reception';
+
     const texto = await pintar();
 
-    expect(texto).toContain('Tendría que haber en el cajón');
+    expect(texto).toContain('LURDES ROLLET');
+    expect(cajaService.movimientos).toHaveBeenCalled();
+  });
+
+  it('el historial de cierres sigue siendo solo del dueño', async () => {
+    rolActual = 'reception';
+
+    await pintar();
+
+    expect(cajaService.historial).not.toHaveBeenCalled();
+  });
+});
+
+describe('la distribución del efectivo', () => {
+
+  /**
+   * ⚠️ EL NÚMERO DEL CAJÓN LO MANDA EL BACKEND.
+   *
+   * Es fondo + cobrado en efectivo + ingresos manuales − egresos, y cada término de esa
+   * cuenta costó un bug: sin el fondo todos los cierres daban sobrante, sin los egresos
+   * todos daban faltante. Recalcularla acá sería tener dos versiones de la misma cuenta.
+   */
+  it('⚠️ lo que hay en el cajón sale del backend, no se recalcula en la pantalla', async () => {
+    // El backend dice 50.000 aunque los cobros en efectivo sumen 40.000: hay 10.000 de
+    // fondo. Si la pantalla hiciera su propia cuenta, mostraría otra cosa.
+    const texto = await pintar();
+
+    // Sin el signo: formatCurrency separa con un espacio NO-SEPARABLE, y comparar con un
+    // espacio común falla por un carácter invisible.
     expect(texto).toContain('50.000');
   });
 
-  // ⭐ EL QUE CUENTA NO PUEDE VER LOS NÚMEROS
-  it('recepción NO ve ningún monto de los cobros', async () => {
-    // Si los ve, los suma y escribe ese número. El arqueo deja de medir nada, y esconderlo
-    // solo en la pantalla no alcanza — por eso el backend tampoco se los da.
-    rolActual = 'reception';
-    conCajaAbierta();
-    const texto = await pintar();
+  it('lo que se retira se descuenta de lo que queda para mañana', async () => {
+    await pintar();
 
-    expect(cajaService.movimientos).not.toHaveBeenCalled();
-    expect(cajaService.abierto).not.toHaveBeenCalled();
-    expect(texto).not.toContain('LURDES ROLLET');
-    expect(texto).not.toContain('40.000');
-    // Pero sí puede cerrar: es la que tiene el cajón adelante.
-    expect(texto).toContain('Contar y cerrar caja');
+    await escribirRetiro('30000');
+
+    expect(container.textContent).toContain('20.000');
   });
 
-  it('recepción no ve el botón de cerrar sin contar', async () => {
-    // Es la única con el cajón adelante. Si pudiera saltear el conteo, no habría arqueo.
-    rolActual = 'reception';
-    conCajaAbierta();
-    const texto = await pintar();
+  /**
+   * Un cero de más dejaría el fondo de mañana en negativo, y ese error viajaría encadenado
+   * de día en día — porque el fondo de mañana ES este número.
+   */
+  it('⚠️ no deja retirar más de lo que hay en el cajón', async () => {
+    await pintar();
 
-    expect(texto).not.toContain('Cerrar sin contar');
+    await escribirRetiro('999999');
+
+    expect(container.textContent).toContain('No podés retirar más de lo que hay');
+    expect(boton('Cerrar caja diaria').disabled, 'el botón no puede quedar apretable').toBe(true);
   });
 
-  it('si no se puede consultar, lo dice en vez de mostrar una caja vacía', async () => {
-    // "No hay nada" y "no pudimos preguntar" no son lo mismo, y mostrarlos igual haría que
-    // alguien cierre una caja creyendo que no hubo cobros.
-    cajaService.estado.mockRejectedValue(new Error('sin red'));
-    cajaService.pendiente.mockRejectedValue(new Error('sin red'));
+  it('sin retiro, queda en caja todo lo que hay', async () => {
     const texto = await pintar();
 
-    expect(texto).toContain('No pudimos consultar');
+    // 50.000 aparece dos veces: en el cajón y en lo que queda.
+    expect(texto).toContain('Queda en caja');
+    expect(boton('Cerrar caja diaria').disabled).toBe(false);
+  });
+});
+
+describe('cerrar la caja', () => {
+
+  it('pide confirmación antes de cerrar', async () => {
+    await pintar();
+
+    await clic(boton('Cerrar caja diaria'));
+
+    expect(container.textContent).toContain('Confirmar cierre');
+    expect(boton('Sí, cerrar caja')).toBeTruthy();
+    expect(boton('Cancelar')).toBeTruthy();
+    expect(cajaService.cerrar, 'todavía no se cerró nada').not.toHaveBeenCalled();
+  });
+
+  it('cancelar no cierra nada', async () => {
+    await pintar();
+    await clic(boton('Cerrar caja diaria'));
+
+    await clic(boton('Cancelar'));
+
+    expect(cajaService.cerrar).not.toHaveBeenCalled();
+  });
+
+  it('confirmar cierra con el retiro que se escribió', async () => {
+    await pintar();
+    await escribirRetiro('30000');
+    await clic(boton('Cerrar caja diaria'));
+
+    await clic(boton('Sí, cerrar caja'));
+
+    expect(cajaService.cerrar).toHaveBeenCalledWith(
+      expect.objectContaining({ retiroEfectivo: 30000, cerradoPor: 'Carla' }),
+    );
+  });
+
+  it('después de cerrar se ve qué quedó en el cajón para mañana', async () => {
+    await pintar();
+    await clic(boton('Cerrar caja diaria'));
+
+    await clic(boton('Sí, cerrar caja'));
+
+    expect(container.textContent).toContain('Queda en caja para mañana');
+  });
+});
+
+describe('el balance de ingresos', () => {
+
+  it('arranca mostrando el día', async () => {
+    const texto = await pintar();
+
+    expect(texto).toContain('Balance de ingresos');
+    expect(texto).toContain('Total de hoy');
+    expect(cajaService.balance).toHaveBeenCalledWith('hoy');
+  });
+
+  it('se puede pasar al mes', async () => {
+    await pintar();
+    cajaService.balance.mockResolvedValue({
+      periodo: 'mes', efectivo: 400000, digital: 900000, total: 1300000, cantidadCobros: 31,
+    });
+
+    await clic(boton('Mes'));
+
+    expect(cajaService.balance).toHaveBeenCalledWith('mes');
+    expect(container.textContent).toContain('Total del mes');
+  });
+
+  /** Un backend que todavía no tiene el balance no puede dejar sin cerrar la caja. */
+  it('⚠️ si el backend no conoce el balance, la caja se cierra igual', async () => {
+    cajaService.balance.mockRejectedValue(new Error('404'));
+
+    const texto = await pintar();
+
+    expect(texto).not.toContain('Balance de ingresos');
+    expect(boton('Cerrar caja diaria')).toBeTruthy();
   });
 });
 
 describe('los movimientos de caja', () => {
 
-  const GASTO = {
-    id: 'g1', tipo: 'EGRESO', categoria: 'Limpieza', detalle: 'Semana del 1 al 7',
-    monto: 15000, metodo: 'CASH', fecha: '2026-09-02T11:00:00', hechoPorNombre: 'Carla',
-  };
-  const GASTO_ANULADO = {
-    ...GASTO, id: 'g2', categoria: 'Proveedor', detalle: 'Agua',
-    anuladoAt: '2026-09-02T12:00:00', anuladoPorNombre: 'Gustavo', motivoAnulacion: 'me equivoqué',
+  const EGRESO = {
+    id: 'm1', tipo: 'EGRESO', categoria: 'Limpieza', detalle: 'Semana del 1 al 7',
+    monto: 15000, metodo: 'CASH', hechoPorNombre: 'Carla', fecha: '2026-09-02T11:00:00',
   };
 
-  it('⭐ RECEPCIÓN los ve, al revés que los cobros', async () => {
-    // No rompe el conteo a ciegas: quien cuenta ya sabe cuánto sacó del cajón —lo sacó ella—
-    // y con el fondo y los egresos todavía le falta el número grande, que es lo cobrado en
-    // efectivo. Y necesita verlos para no cargar dos veces el mismo gasto.
-    rolActual = 'reception';
-    conCajaAbierta();
-    cajaService.movimientosDeCaja.mockResolvedValue([GASTO]);
+  /**
+   * ⚠️ SIN ESTO LA CAJA MIENTE TODOS LOS DÍAS. Se le pagan $15.000 a la chica de la
+   * limpieza del cajón: si no queda anotado, el sistema espera esa plata igual.
+   */
+  it('un gasto en efectivo se ve y baja lo que hay en el cajón', async () => {
+    cajaService.movimientosDeCaja.mockResolvedValue([EGRESO]);
+    cajaService.abierto.mockResolvedValue({ ...ABIERTO, egresos: 15000, esperadoEnElCajon: 35000 });
+
     const texto = await pintar();
 
     expect(texto).toContain('Limpieza');
-    expect(texto, 'pero los montos de los COBROS siguen ocultos').not.toContain('LURDES ROLLET');
+    expect(texto).toContain('Gastos pagados del cajón');
+    expect(texto).toContain('35.000');
   });
 
-  it('⚠️ un movimiento anulado se muestra TACHADO, no desaparece', async () => {
-    // Un egreso que se puede hacer desaparecer de la lista es justamente lo que este módulo
-    // existe para impedir.
-    conCajaAbierta();
-    cajaService.movimientosDeCaja.mockResolvedValue([GASTO_ANULADO]);
-    await pintar();
+  it('un movimiento anulado queda tachado, no desaparece', async () => {
+    cajaService.movimientosDeCaja.mockResolvedValue([
+      { ...EGRESO, anuladoAt: '2026-09-02T12:00:00', anuladoPorNombre: 'Gustavo', motivoAnulacion: 'cargado dos veces' },
+    ]);
 
-    const fila = container.querySelector('.caja-mov-anulado');
-    expect(fila, 'la fila sigue ahí, marcada como anulada').toBeTruthy();
-    expect(fila.textContent).toContain('Proveedor');
-    expect(fila.textContent, 'y dice quién la anuló y por qué').toContain('Gustavo');
-    expect(fila.textContent).toContain('me equivoqué');
-  });
-
-  it('el dueño ve lo que SALIÓ del cajón junto al esperado', async () => {
-    // Es el número que hay que mirar cuando la caja cuadra demasiado bien: un egreso
-    // inventado la hace cuadrar exacto, porque la plata salió y el sistema la esperaba afuera.
-    conCajaAbierta();
-    cajaService.abierto.mockResolvedValue({
-      efectivo: 50000, transferencia: 0, mercadopago: 0, tarjeta: 0, otros: 0,
-      cantidadCobros: 1, egresos: 15000, ingresosManuales: 0,
-      esperadoEnElCajon: 45000,
-    });
-    cajaService.movimientosDeCaja.mockResolvedValue([GASTO]);
     const texto = await pintar();
 
-    expect(texto).toContain('Salió del cajón');
-    expect(texto, 'el esperado ya viene con el gasto restado, calculado por el backend')
-      .toContain('45.000');
+    expect(container.querySelector('.caja-mov-anulado'), 'se muestra tachado').toBeTruthy();
+    expect(texto).toContain('cargado dos veces');
   });
 
-  it('⚠️ el esperado lo manda el BACKEND, no se recalcula en la pantalla', async () => {
-    // Una cuenta de plata copiada en dos lados es una cuenta que en algún lado va a quedar
-    // mal — en este proyecto ya pasó con los vencimientos, con getQuickDates y con
-    // addOneMonth. Si la pantalla rehiciera la cuenta sumando fondo (10.000) + efectivo
-    // (50.000), mostraría 60.000 e ignoraría los 15.000 que salieron del cajón.
-    //
-    // Se mira EL RENGLÓN, no el texto de la página: la lista de cobros trae un cobro de
-    // 60.000 y buscar ese número en todo el documento daría un falso positivo.
-    conCajaAbierta();
-    cajaService.abierto.mockResolvedValue({
-      efectivo: 50000, transferencia: 0, mercadopago: 0, tarjeta: 0, otros: 0,
-      cantidadCobros: 1, egresos: 15000, ingresosManuales: 0,
-      esperadoEnElCajon: 45000,
-    });
-    await pintar();
-
-    const renglon = [...container.querySelectorAll('.caja-metodos-total')]
-      .find((d) => d.textContent.includes('Tendría que haber en el cajón'));
-
-    expect(renglon, 'el renglón del esperado existe').toBeTruthy();
-    expect(renglon.textContent).toContain('45.000');
-    expect(renglon.textContent, 'si dijera 60.000 estaría rehaciendo la cuenta por su cuenta')
-      .not.toContain('60.000');
-  });
-
+  /**
+   * Un backend que todavía no tiene esta función responde 404. Si eso tumbara la pantalla,
+   * el cierre —que funciona en cualquier versión— quedaría inutilizable.
+   */
   it('⚠️ si el backend NO conoce los movimientos, la caja sigue funcionando', async () => {
-    // Entre que sale el frontend nuevo y que el backend viejo deja de recibir tráfico hay
-    // una ventana real en la que este endpoint devuelve 404. Si eso tumbara la pantalla, el
-    // cierre de caja —que funciona en cualquier versión— quedaría inutilizable por una
-    // función que el gimnasio ni sabe que existe.
-    conCajaAbierta();
     cajaService.movimientosDeCaja.mockRejectedValue(new Error('404'));
+
     const texto = await pintar();
 
-    expect(texto, 'la caja se sigue pudiendo cerrar').toContain('Contar y cerrar caja');
-    expect(texto, 'y NO muestra la pantalla de error').not.toContain('No pudimos consultar');
-    expect(texto, 'pero el botón que solo puede fallar no se ofrece').not.toContain('Anotar un gasto');
+    expect(texto, 'la caja se sigue pudiendo cerrar').toContain('Cerrar caja diaria');
+    expect(boton('Anotar un gasto'), 'pero el botón que fallaría no se ofrece').toBeFalsy();
   });
+});
 
-  it('un método que no es efectivo avisa que no toca el cajón', async () => {
-    conCajaAbierta();
-    cajaService.movimientosDeCaja.mockResolvedValue([{ ...GASTO, id: 'g3', metodo: 'TRANSFER' }]);
+describe('cuando algo falla', () => {
+
+  /** Un pedido que falló NO es un período vacío: cerrar así sería cerrar a ciegas. */
+  it('si no se pueden traer los datos, lo dice en vez de mostrar una caja vacía', async () => {
+    cajaService.abierto.mockRejectedValue(new Error('sin respuesta'));
+
     const texto = await pintar();
 
-    expect(texto).toContain('no toca el cajón');
+    expect(texto).toContain('No pudimos traer los datos de la caja');
+    expect(boton('Cerrar caja diaria').disabled).toBe(true);
   });
 });
