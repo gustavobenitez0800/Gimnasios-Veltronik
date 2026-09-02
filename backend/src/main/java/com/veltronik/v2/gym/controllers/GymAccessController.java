@@ -67,11 +67,23 @@ public class GymAccessController {
      * los deja COHERENTES entre sí: antes podían llegar con segundos de diferencia y mostrar
      * a alguien en una lista y no en la otra.</p>
      */
+    /** Cuántos accesos del día viajan. La pantalla muestra 30; el resto no lo mira nadie. */
+    private static final int CUANTOS_DE_HOY = 60;
+
     @GetMapping("/mostrador")
     public ResponseEntity<Map<String, Object>> mostrador() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
-        body.put("hoy", accessMapper.toDtoList(accessService.getTodayAccesses()));
+        // ⚠️ La lista de hoy va RECORTADA. La pantalla muestra 30 filas; mandar las 250 de
+        // un dia entero, cada una con la ficha completa del socio, es cientos de fichas
+        // viajando por la conexion del gimnasio cada quince segundos para pintar 30 renglones
+        // y dos numeros. Los dos numeros vienen calculados aparte, sobre el dia COMPLETO.
+        List<com.veltronik.v2.gym.entities.AccessLog> deHoy = accessService.getTodayAccesses();
+        AccessLogService.ResumenDelDia resumen = accessService.resumirDia(deHoy);
+        body.put("hoy", accessMapper.toDtoList(
+                deHoy.size() > CUANTOS_DE_HOY ? deHoy.subList(0, CUANTOS_DE_HOY) : deHoy));
+        body.put("hoyTotal", resumen.total());
+        body.put("hoyPromedioMin", resumen.promedioMin());
 
         // ⚠️ LOS AVISOS NO PUEDEN TUMBAR LA PANTALLA ENTERA.
         //

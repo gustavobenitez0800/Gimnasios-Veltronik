@@ -258,4 +258,30 @@ describe('el "Cargando..." no puede ser eterno', () => {
 
     expect(vista.ultimo().error, 'el error quedó huérfano y nadie lo vio').toBeTruthy();
   });
+
+  // ⭐ EL NÚMERO QUE USAMOS PARA DIAGNOSTICAR NO PUEDE MENTIR
+  //
+  // Al compartir el pedido en vuelo, quien se engancha tarde mediría solo lo que faltaba.
+  // Paso de verdad: un pedido que se agoto a los 8 segundos se reporto como 1,6 — y con ese
+  // numero el diagnostico apuntaba a cualquier lado menos al problema real.
+  it('informa lo que tardó EL PEDIDO, no lo que esperó quien se enganchó tarde', async () => {
+    vi.useFakeTimers();
+    try {
+      let terminar;
+      const traer = () => new Promise((r) => { terminar = r; });
+      const vista = montar(() => useQueryCache(['medido'], traer));
+      await act(async () => {});
+
+      // Cinco segundos con el pedido en vuelo, y recién ahí llega el refresco.
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      await act(async () => { vista.ultimo().invalidate(); });
+
+      await act(async () => { terminar(['ok']); await Promise.resolve(); });
+
+      expect(vista.ultimo().demoraMs,
+        'midió desde que se enganchó, no desde que arrancó el pedido').toBeGreaterThanOrEqual(5000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

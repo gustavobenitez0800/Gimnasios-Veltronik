@@ -70,6 +70,33 @@ public class AccessLogService {
                 TenantContextHolder.getTenantId(), from, to);
     }
 
+    /**
+     * Los números del día, calculados acá para no tener que mandar la lista entera.
+     *
+     * <p>La pantalla muestra 30 filas pero necesita el total y el promedio de TODO el día.
+     * Antes se mandaban los accesos completos —cada uno con la ficha del socio— y el
+     * frontend los contaba: en un gimnasio con 250 entradas eso son cientos de fichas
+     * viajando por la conexión del gimnasio cada quince segundos, para pintar dos números.</p>
+     *
+     * @param delDia la lista que ya se trajo; no vuelve a consultar
+     */
+    public ResumenDelDia resumirDia(List<AccessLog> delDia) {
+        long completadas = 0;
+        long minutos = 0;
+        for (AccessLog a : delDia) {
+            if (a.getCheckOutAt() == null || a.getCheckInAt() == null) continue;
+            completadas++;
+            minutos += java.time.Duration.between(a.getCheckInAt(), a.getCheckOutAt()).toMinutes();
+        }
+        // Sin visitas cerradas no hay promedio que informar. Cero seria mentira: diria que
+        // la gente entra y sale en el acto.
+        Integer promedio = completadas == 0 ? null : (int) Math.round((double) minutos / completadas);
+        return new ResumenDelDia(delDia.size(), promedio);
+    }
+
+    /** @param promedioMin null = todavía no cerró ninguna visita. */
+    public record ResumenDelDia(int total, Integer promedioMin) {}
+
     public List<AccessLog> getActiveAccesses() {
         return accessLogRepository.findByTenantIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TenantContextHolder.getTenantId());
     }

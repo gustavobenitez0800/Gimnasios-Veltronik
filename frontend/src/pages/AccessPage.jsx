@@ -374,18 +374,35 @@ export default function AccessPage() {
   };
 
   // Stats
-  const stats = useMemo(() => ({
-    inGym: checkedIn.length,
-    totalToday: todayLogs.length,
-    avgTime: todayLogs.length > 0 ? (() => {
-      const completed = todayLogs.filter(l => l.checkOutAt);
-      if (completed.length === 0) return '-';
-      const avg = completed.reduce((sum, l) => {
-        return sum + (new Date(l.checkOutAt) - new Date(l.checkInAt));
-      }, 0) / completed.length;
-      return `${Math.round(avg / 60000)} min`;
-    })() : '-',
-  }), [checkedIn, todayLogs]);
+  // ⚠️ LOS NÚMEROS SON DEL DÍA ENTERO; LA LISTA VIENE RECORTADA.
+  //
+  // El servidor manda los últimos 60 accesos —la tabla muestra 30— y aparte el total y el
+  // promedio calculados sobre el día completo. Antes viajaban los 250 accesos de un día,
+  // cada uno con la ficha del socio, para pintar 30 renglones y dos números.
+  //
+  // El respaldo de contar la lista queda para el rato en que el frontend ya se actualizó y
+  // el backend todavía no: ahí el número sale de lo que haya llegado. Es menos exacto por
+  // unos minutos, y es preferible a mostrar un cero.
+  const stats = useMemo(() => {
+    const total = data?.hoyTotal ?? todayLogs.length;
+
+    let promedio = data?.hoyPromedioMin;
+    if (promedio === undefined) {
+      const cerradas = todayLogs.filter(l => l.checkOutAt);
+      promedio = cerradas.length === 0 ? null : Math.round(
+        cerradas.reduce((suma, l) => suma + (new Date(l.checkOutAt) - new Date(l.checkInAt)), 0)
+        / cerradas.length / 60000,
+      );
+    }
+
+    return {
+      inGym: checkedIn.length,
+      totalToday: total,
+      // null = todavía no cerró ninguna visita. Un "0 min" diría que la gente entra y sale
+      // en el acto, que es distinto de "todavía no sé".
+      avgTime: promedio == null ? '-' : `${promedio} min`,
+    };
+  }, [checkedIn, todayLogs, data]);
 
   return (
     <div className="access-page">

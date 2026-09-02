@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -355,6 +356,60 @@ class AccessLogServiceTest {
 
             assertEquals(AccessLogService.Direction.ENTRADA, r.direction());
             verify(repo, never()).findByTenantIdAndClientRef(any(), any());
+        }
+    }
+
+    @org.junit.jupiter.api.Nested
+    @DisplayName("los números del día")
+    class ResumenDelDia {
+
+        private AccessLog visita(int entroHaceMin, Integer duroMin) {
+            AccessLog a = new AccessLog();
+            LocalDateTime entrada = LocalDateTime.now().minusMinutes(entroHaceMin);
+            a.setCheckInAt(entrada);
+            if (duroMin != null) a.setCheckOutAt(entrada.plusMinutes(duroMin));
+            return a;
+        }
+
+        // ⭐ POR QUÉ SE CALCULAN ACÁ: la pantalla muestra 30 filas pero los números son de
+        // TODO el día. Antes viajaban los 250 accesos completos —cada uno con la ficha del
+        // socio— para que el frontend contara dos números, cada quince segundos.
+        @Test
+        @DisplayName("el total es el del día entero, no el de lo que se manda")
+        void elTotalEsDelDiaEntero() {
+            var r = service.resumirDia(java.util.List.of(
+                    visita(180, 60), visita(120, 90), visita(60, null)));
+
+            assertEquals(3, r.total());
+        }
+
+        @Test
+        @DisplayName("el promedio solo cuenta las visitas que ya cerraron")
+        void promedioSoloDeLasCerradas() {
+            // El que todavía está adentro no tiene duración: meterlo como cero hundiría el
+            // promedio, y justo a las horas de más gente.
+            var r = service.resumirDia(java.util.List.of(
+                    visita(180, 60), visita(120, 90), visita(10, null)));
+
+            assertEquals(75, r.promedioMin());
+        }
+
+        @Test
+        @DisplayName("sin ninguna visita cerrada el promedio es NULL, no cero")
+        void sinCerradasNoHayPromedio() {
+            // Cero diría que la gente entra y sale en el acto. "Todavía no sé" es otra cosa.
+            var r = service.resumirDia(java.util.List.of(visita(30, null)));
+
+            assertEquals(1, r.total());
+            assertNull(r.promedioMin());
+        }
+
+        @Test
+        @DisplayName("un día sin nadie no rompe")
+        void diaVacio() {
+            var r = service.resumirDia(java.util.List.of());
+            assertEquals(0, r.total());
+            assertNull(r.promedioMin());
         }
     }
 }

@@ -44,16 +44,25 @@ const TECHO_CARGANDO_MS = 12000;
  */
 const enVuelo = new Map();
 
+/**
+ * @returns {{pedido: Promise, empezo: number}} `empezo` es cuándo arrancó EL PEDIDO, no
+ *          cuándo esta pantalla se enganchó a él.
+ *
+ * ⚠️ La diferencia importa. Al compartir el pedido en vuelo, quien se engancha tarde mide
+ * solo lo que faltaba: un pedido que tardó 8 segundos se reportaba como 1,6, y ese número
+ * es justamente el que usamos para saber si el problema es la conexión o el servidor.
+ */
 function pedirUnaSolaVez(key, fetchFn) {
   const yaVa = enVuelo.get(key);
   if (yaVa) return yaVa;
 
-  const pedido = Promise.resolve()
+  const registro = { empezo: Date.now() };
+  registro.pedido = Promise.resolve()
     .then(fetchFn)
     .finally(() => { enVuelo.delete(key); });
 
-  enVuelo.set(key, pedido);
-  return pedido;
+  enVuelo.set(key, registro);
+  return registro;
 }
 
 /** Solo para los tests: nadie debería tener que limpiar esto a mano. */
@@ -121,9 +130,9 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
       // Si los datos están obsoletos o no existen, pedimos nuevos a la DB en background
       if (isStale) {
         setIsFetching(true);
-        const empezo = Date.now();
+        const { pedido, empezo } = pedirUnaSolaVez(key, fetchFn);
         try {
-          const result = await pedirUnaSolaVez(key, fetchFn);
+          const result = await pedido;
           if (isMounted) setDemoraMs(Date.now() - empezo);
           if (isMounted) {
             writeEntry(key, ns, result);
