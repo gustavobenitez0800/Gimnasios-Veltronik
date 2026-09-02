@@ -281,3 +281,113 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════
+   EL ARANCEL EN LA LISTA
+   Se elige desde la propia fila: con cientos de socios, abrir una ficha por cada uno no
+   es una opción. Por eso el select no parece un campo de formulario —sería ruido en una
+   tabla— sino texto, hasta que se lo toca.
+   ═══════════════════════════════════════════ */
+.arancel-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 0.3rem 0.4rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  max-width: 22ch;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.arancel-select:hover,
+.arancel-select:focus {
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
+  outline: none;
+}
+
+.arancel-select:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Sin arancel no es un error, pero sí algo que el dueño tiene que poder ver de un vistazo
+   cuando recorre la lista: es plata que no se está cobrando bien. */
+.arancel-select.sin-arancel {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ─── Cobrar sin salir de Socios ─── */
+
+/* Los métodos como botones y no como desplegable: son cuatro y esto se usa veinte veces
+   por día. Un clic contra tres (abrir, buscar, elegir). */
+.cobro-metodos {
+  /* Dos por fila. Con flex quedaban 3 + 1 —'Tarjeta' sola abajo— porque el ancho depende
+     del largo de cada palabra. Acá el reparto es parejo pase lo que pase. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.cobro-metodo {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.cobro-metodo:hover {
+  border-color: var(--primary-500);
+}
+
+.cobro-metodo.elegido {
+  border-color: var(--primary-500);
+  background: var(--primary-soft);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* El monto es el único número que se escribe acá. */
+.cobro-monto {
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cobro-aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--warning-500);
+  margin-bottom: 0.75rem;
+}
+
+/* ─── Ya se cobró ───
+   Lo que se muestra es lo que contestó el servidor, no una fecha calculada acá. */
+.cobro-hecho {
+  text-align: center;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.cobro-hecho-tilde {
+  color: var(--success-500);
+  margin-bottom: 0.5rem;
+}
+
+.cobro-hecho-quien {
+  margin: 0 0 0.4rem;
+}
+
+.cobro-hecho-vence {
+  margin: 0;
+  color: var(--text-secondary);
+}
