@@ -107,6 +107,10 @@ export default function CajaPage() {
   // egresos todavía le falta el número grande, que es lo cobrado en efectivo. Y necesita
   // verla para no cargar dos veces el mismo gasto.
   const [movsCaja, setMovsCaja] = useState([]);
+  // ¿El backend de este gimnasio sabe de movimientos? Un escritorio o un servidor que
+  // todavía no actualizó responde 404, y ahí los botones se esconden en vez de ofrecer algo
+  // que va a fallar. Arranca en true para no parpadear mientras carga.
+  const [hayMovimientos, setHayMovimientos] = useState(true);
   const [anotando, setAnotando] = useState(false);
   const [movTipo, setMovTipo] = useState('EGRESO');
   const [movCategoria, setMovCategoria] = useState('');
@@ -122,12 +126,29 @@ export default function CajaPage() {
     setCargando(true);
     setFallo(false);
     try {
-      const [p, e, m] = await Promise.all([
-        cajaService.pendiente(), cajaService.estado(), cajaService.movimientosDeCaja(),
-      ]);
+      const [p, e] = await Promise.all([cajaService.pendiente(), cajaService.estado()]);
       setPendiente(p);
       setEstado(e);
-      setMovsCaja(m || []);
+
+      // ⚠️ LOS MOVIMIENTOS NO PUEDEN TUMBAR LA PANTALLA ENTERA.
+      //
+      // Son la parte nueva, y un backend que todavía no la tiene responde 404. Si eso
+      // viajara en el mismo Promise.all que lo demás, el cierre de caja —que SÍ funciona
+      // en cualquier versión— quedaría inutilizable por una función que el gimnasio ni
+      // sabe que existe. Es el mismo criterio que ya se aplicó con los avisos del mostrador.
+      //
+      // Y no es hipotético: entre que sale el frontend nuevo y que el backend viejo deja
+      // de recibir tráfico hay una ventana real en la que esto pasa.
+      try {
+        setMovsCaja((await cajaService.movimientosDeCaja()) || []);
+        setHayMovimientos(true);
+      } catch {
+        // El backend de este gimnasio todavía no sabe de movimientos: se esconden los
+        // botones en vez de dejar que alguien los apriete y reciba un error.
+        setMovsCaja([]);
+        setHayMovimientos(false);
+      }
+
       if (esDueno) {
         setAbierto(await cajaService.abierto());
         setHistorial(await cajaService.historial(60));
@@ -433,13 +454,20 @@ export default function CajaPage() {
                 </button>
                 {/* ⚠️ Anotar el gasto EN EL MOMENTO es lo que hace que el arqueo cierre. Si
                     espera al dueño, esa plata figura como faltante toda la tarde y le echa la
-                    culpa a quien atendió. Por eso el botón está acá y no en otra pantalla. */}
-                <button className="btn btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
-                  <Icon name="trendingDown" size="1em" /> Anotar un gasto
-                </button>
-                <button className="btn btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
-                  <Icon name="trendingUp" size="1em" /> Anotar un ingreso
-                </button>
+                    culpa a quien atendió. Por eso el botón está acá y no en otra pantalla.
+
+                    Se esconden si el backend todavía no sabe de movimientos: un botón que
+                    solo puede fallar es peor que no tener el botón. */}
+                {hayMovimientos && (
+                  <>
+                    <button className="btn btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
+                      <Icon name="trendingDown" size="1em" /> Anotar un gasto
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
+                      <Icon name="trendingUp" size="1em" /> Anotar un ingreso
+                    </button>
+                  </>
+                )}
                 {esDueno && (
                   <button className="btn btn-secondary" onClick={() => setConfirmandoCorte(true)} disabled={guardando}>
                     Cerrar sin contar

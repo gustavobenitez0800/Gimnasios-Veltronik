@@ -280,6 +280,20 @@ describe('los movimientos de caja', () => {
       .not.toContain('60.000');
   });
 
+  it('⚠️ si el backend NO conoce los movimientos, la caja sigue funcionando', async () => {
+    // Entre que sale el frontend nuevo y que el backend viejo deja de recibir tráfico hay
+    // una ventana real en la que este endpoint devuelve 404. Si eso tumbara la pantalla, el
+    // cierre de caja —que funciona en cualquier versión— quedaría inutilizable por una
+    // función que el gimnasio ni sabe que existe.
+    conCajaAbierta();
+    cajaService.movimientosDeCaja.mockRejectedValue(new Error('404'));
+    const texto = await pintar();
+
+    expect(texto, 'la caja se sigue pudiendo cerrar').toContain('Contar y cerrar caja');
+    expect(texto, 'y NO muestra la pantalla de error').not.toContain('No pudimos consultar');
+    expect(texto, 'pero el botón que solo puede fallar no se ofrece').not.toContain('Anotar un gasto');
+  });
+
   it('un método que no es efectivo avisa que no toca el cajón', async () => {
     conCajaAbierta();
     cajaService.movimientosDeCaja.mockResolvedValue([{ ...GASTO, id: 'g3', metodo: 'TRANSFER' }]);
