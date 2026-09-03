@@ -122,7 +122,9 @@ button, a, input, select, textarea, [role="button"] {
    compacto de íconos con tooltip nativo (title).
    ──────────────────────────────────────────── */
 
-@media (min-width: 769px) and (max-width: 1080px) {
+/* ⚠️ Era hasta 1080px: la barra quedaba en íconos solos en casi todos los laptops, y un
+   dueño que no es de tecnología necesita leer "Cierre de caja", no adivinar un ícono. */
+@media (min-width: 769px) and (max-width: 940px) {
 
   .sidebar {
     width: var(--sidebar-collapsed);

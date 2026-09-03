@@ -224,7 +224,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <div className="nav-section" key={section.title}>
               <div className="nav-section-title">{section.title}</div>
               {section.items.map((item) => (
-                <NavLink
+                <NavLink title={item.label}
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>

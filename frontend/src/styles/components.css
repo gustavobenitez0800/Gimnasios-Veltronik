@@ -235,6 +235,10 @@
   border: var(--card-border);
 }
 
+/* Dentro de una .card el marco lo pone la card: un segundo borde adentro se veía como una
+   caja metida en otra caja (Socios vacío lo mostraba clarito). */
+.card > .table-container { border: none; border-radius: 0; }
+
 /* Smart List (Floating Rows) */
 .table {
   width: 100%;

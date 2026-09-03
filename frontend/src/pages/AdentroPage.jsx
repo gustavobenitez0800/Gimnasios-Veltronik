@@ -94,7 +94,7 @@ export default function AdentroPage() {
         icon="dumbbell"
       />
 
-      <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="stats-grid stats-grid-3 mb-3">
         <StatCard icon="users" color="success" value={stats.inGym} label={`En el ${orgLabel}`} />
         <StatCard icon="door" color="primary" value={stats.totalToday} label="Accesos hoy" />
         <StatCard icon="clock" color="accent" value={stats.avgTime} label="Tiempo promedio" />

@@ -14,7 +14,7 @@ import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
-import { PageHeader, ConfirmDialog } from '../components/Layout';
+import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
@@ -541,7 +541,22 @@ export default function MembersPage() {
               ) : pagedMembers.length === 0 ? (
                 <tr>
                   <td colSpan={CUANTAS_COLUMNAS} className="table-empty">
-                    No se encontraron {membersLabelLower}
+                    {/* Primer día (ni un socio, sin buscar ni filtrar): el siguiente paso, con
+                        el botón ahí mismo. Con búsqueda o filtro, el "no encontramos" de siempre. */}
+                    {totalRecords === 0 && !search && !statusFilter ? (
+                      <EmptyState
+                        icon="users"
+                        title={`Todavía no cargaste ningún ${memberLabel.toLowerCase()}`}
+                        description="Cargá el primero y desde su ficha ya podés cobrarle la cuota y registrarle la entrada."
+                        action={(
+                          <button className="btn btn-primary" onClick={() => modal.open()}>
+                            <Icon name="plus" size="1em" /> Cargar el primer {memberLabel.toLowerCase()}
+                          </button>
+                        )}
+                      />
+                    ) : (
+                      <>No se encontraron {membersLabelLower}</>
+                    )}
                   </td>
                 </tr>
               ) : (
