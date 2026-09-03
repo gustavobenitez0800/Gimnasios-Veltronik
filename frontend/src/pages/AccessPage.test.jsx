@@ -28,6 +28,8 @@ import { createRoot } from 'react-dom/client';
 
 /** Estables a propósito: un objeto nuevo por render dispara un bucle infinito y cuelga el test. */
 const toastEstable = { showToast: vi.fn() };
+// Mutable: el botón del cartel del QR es solo del dueño, así que hay tests de los dos lados.
+// El OBJETO es siempre el mismo (uno nuevo por render cuelga el test en un bucle).
 const authEstable = { orgRole: 'reception' };
 
 const memberService = { searchForAccess: vi.fn() };
@@ -419,5 +421,90 @@ describe('el mostrador se entera solo de lo que pasa en la puerta', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('quién está adentro, sin salir del mostrador', () => {
+
+  const visitaAbierta = (id, nombre) => ({
+    id,
+    member: { id: 'm-' + id, fullName: nombre, dni: '30111222' },
+    checkInAt: new Date(Date.now() - 20 * 60000).toISOString(),
+    checkOutAt: null,
+  });
+
+  /**
+   * ⭐ EL PEDIDO DEL DUEÑO, TAL CUAL: "esta sección también tiene que estar en accesos, para
+   * que recepción pueda dar de baja a los alumnos sin tener que desplazarse por todos lados".
+   *
+   * La misma lista vive en "En el gimnasio" —la pantalla para MIRAR— y acá, que es la de
+   * TRABAJAR. Comparten el pedido y la caché, así que marcar de un lado deja el otro al día.
+   */
+  it('⭐ la lista de quién está adentro está en Acceso', async () => {
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+
+    const texto = (await pintar()).textContent;
+
+    expect(texto).toContain('Matias Benitez');
+    expect(texto).toContain('En el Gimnasio ahora');
+  });
+
+  it('y se le puede marcar la salida desde ahí mismo', async () => {
+    accessService.checkOut.mockResolvedValue({});
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    const salida = container.querySelector('.checkout-btn');
+    expect(salida, 'el botón de salida tiene que estar en el mostrador').toBeTruthy();
+    await act(async () => {
+      salida.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(accessService.checkOut).toHaveBeenCalledWith('a1');
+  });
+
+  it('sin nadie adentro lo dice, en vez de dejar un hueco', async () => {
+    const texto = (await pintar()).textContent;
+
+    expect(texto).toContain('Nadie en el gimnasio');
+  });
+
+  /**
+   * La pantalla tiene que entrar de una: es la que se usa parada y con gente esperando.
+   * El cartel del QR se imprime UNA vez y se pega en la puerta, así que vive detrás de un
+   * botón en vez de ocupar media pantalla todos los días.
+   */
+  it('el cartel del QR no ocupa la pantalla: está detrás de un botón', async () => {
+    authEstable.orgRole = 'owner';
+    try {
+      await pintar();
+
+      const botones = [...container.querySelectorAll('button')].map((b) => b.textContent);
+      expect(botones.some((t) => t.includes('Cartel de entrada'))).toBe(true);
+    } finally {
+      authEstable.orgRole = 'reception';
+    }
+  });
+
+  it('y a recepción ni siquiera se le ofrece: no es cosa suya', async () => {
+    await pintar();
+
+    const botones = [...container.querySelectorAll('button')].map((b) => b.textContent);
+    expect(botones.some((t) => t.includes('Cartel de entrada'))).toBe(false);
+  });
+
+  /**
+   * ⚠️ La estructura de dos columnas es lo que sostiene "una sola pantalla": el molinete a
+   * la izquierda, quién está adentro a la derecha, y cada lista con su scroll interno. Si
+   * alguien vuelve a apilar todo en una columna, la página vuelve a scrollear.
+   */
+  it('⚠️ el mostrador y la lista comparten fila (es lo que evita el scroll de página)', async () => {
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    const cuerpo = container.querySelector('.access-cuerpo');
+    expect(cuerpo, 'el contenedor de las dos columnas').toBeTruthy();
+    expect(cuerpo.querySelector('.checkin-section'), 'el molinete').toBeTruthy();
+    expect(cuerpo.querySelector('.access-adentro'), 'quién está adentro').toBeTruthy();
   });
 });

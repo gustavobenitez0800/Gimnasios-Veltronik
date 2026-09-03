@@ -2,12 +2,7 @@
    PHASE 3: ACCESS PAGE
    ============================================ */
 
-.access-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-@media (max-width: 1024px) { .access-grid { grid-template-columns: 1fr; } }
+/* (.access-grid se fue con el rediseño de una sola pantalla — ver .access-cuerpo abajo) */
 
 .checkin-section {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(14, 165, 233, 0.1));
@@ -248,4 +243,106 @@
   .acceso-aviso-cifra strong { font-size: 2rem; }
   .acceso-aviso-cifra span { margin-top: 0; font-size: var(--font-size-xs); }
   .acceso-aviso-pie { border-top: 0; padding-top: 0; flex-basis: 100%; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ACCESO ENTRA EN UNA SOLA PANTALLA (2026-09-02)
+
+   Pedido del dueño: "que en acceso quede una sola página, sin scrollbar". Y con
+   motivo — es la pantalla que se usa parada, con gente esperando: bajar la rueda
+   para llegar a algo es tiempo de cola.
+
+   Cómo se logra, que es lo que hay que respetar si se agrega algo acá:
+   la PÁGINA no scrollea, scrollean las LISTAS por dentro. Eso pide una cadena de
+   alturas sin cortes desde el layout, y `min-height: 0` en cada eslabón — sin eso
+   un hijo de grid/flex se niega a achicarse por debajo de su contenido y el que
+   termina estirándose es el documento.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Solo cuando la pantalla montada es esta: el resto de los módulos siguen con el
+   scroll de página de siempre, que para una tabla larga es lo correcto. */
+.page-content:has(.access-page) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.route-transition:has(.access-page) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.access-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 1rem;
+}
+
+/* El título y el botón del cartel del QR, en una sola línea. */
+.access-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.access-barra .page-header { margin-bottom: 0; }
+
+.access-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+/* El molinete: el campo arriba, y los resultados ocupando lo que sobre. */
+.access-page .checkin-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.access-page .search-results {
+  flex: 1;
+  min-height: 0;
+  max-height: none;   /* el tope de 300px lo pone la altura real de la pantalla */
+}
+
+/* Quién está adentro, al lado del buscador: la cabecera fija y la lista con su
+   propio scroll. Con veinte personas adentro, la página sigue quieta. */
+.access-adentro {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+.access-adentro .table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1rem 0.75rem;
+}
+.access-adentro .checked-in-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+}
+
+/* ⚠️ En pantallas chicas NO se fuerza nada: dos columnas apiladas dentro de una
+   altura fija dejarían dos ventanitas de cuatro centímetros con scroll cada una,
+   que es peor que scrollear la página. Ahí vuelve el flujo normal. */
+@media (max-width: 1024px), (max-height: 620px) {
+  .page-content:has(.access-page),
+  .route-transition:has(.access-page) { display: block; }
+  .access-page { display: block; }
+  .access-cuerpo { grid-template-columns: 1fr; }
+  .access-page .search-results { max-height: 300px; }
+  .access-adentro .checked-in-list { max-height: 320px; }
+  .access-barra { margin-bottom: 1rem; }
+  .access-cuerpo { margin-top: 1rem; }
 }

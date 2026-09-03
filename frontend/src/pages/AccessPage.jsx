@@ -23,16 +23,21 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
-import { getInitials, debounce } from '../lib/utils';
+import { getInitials, getRelativeTime, debounce } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { PageHeader } from '../components/Layout';
+import Modal from '../components/ui/Modal';
+import { GYM } from '../lib/gym';
 import Icon from '../components/Icon';
 
 export default function AccessPage() {
+  const orgLabel = GYM.placeLabel;
+  const orgLabelCap = GYM.placeLabelCap;
+
   const { showToast } = useToast();
   const { orgRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,6 +46,11 @@ export default function AccessPage() {
 
   // El campo del DNI. Es el centro de la pantalla y el foco vuelve siempre acá.
   const buscadorRef = useRef(null);
+
+  // El cartel del QR se imprime UNA vez y se pega en la puerta: no es de uso diario. Vive
+  // detrás de un botón para no comerse media pantalla del mostrador.
+  const [qrAbierto, setQrAbierto] = useState(false);
+  const puedeAdministrarQr = ['owner', 'admin'].includes(orgRole);
 
   // ─── Los avisos de entrada, apilados al costado ───
   //
@@ -73,7 +83,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, invalidate, isFetching } = useQueryCache(
+  const { data, loading, invalidate, isFetching } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -297,6 +307,22 @@ export default function AccessPage() {
     [checkedIn],
   );
 
+  // Sacar a alguien desde la lista de "quién está adentro".
+  //
+  // Está acá y no solo en "En el gimnasio" porque el pedido vino del mostrador: cuando el
+  // socio se va y avisa, la recepcionista tiene que poder marcarlo SIN cambiar de pantalla.
+  // Es el mismo endpoint y el mismo dato: las dos pantallas comparten la clave de caché, así
+  // que marcar la salida acá también actualiza la otra.
+  const handleCheckOut = async (logId, memberName) => {
+    try {
+      await accessService.checkOut(logId);
+      showToast(`${memberName} salió`, 'success');
+      loadData();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    }
+  };
+
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
     try {
@@ -381,23 +407,29 @@ export default function AccessPage() {
 
   return (
     <div className="access-page">
-      <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
+      {/* ─── LA BARRA DE ARRIBA ───
+          El título y, para el dueño, el acceso al cartel del QR. Ese cartel se imprime una
+          vez y se pega en la puerta: tenerlo desplegado todo el día costaba media pantalla
+          del mostrador, que es donde se trabaja. */}
+      <div className="access-barra">
+        <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
+        {puedeAdministrarQr && (
+          <button className="btn btn-secondary" onClick={() => setQrAbierto(true)}>
+            <Icon name="qrCode" size="1em" /> Cartel de entrada
+          </button>
+        )}
+      </div>
 
-      <div className="access-grid">
-        {/* El cartel del QR vive acá y no en Ajustes: es parte de operar la puerta, no de
-            configurar el negocio. Quien maneja los accesos es quien lo necesita a mano. */}
-        <CheckinQrPanel puedeAdministrar={['owner', 'admin'].includes(orgRole)} />
+      {/* Los avisos van ARRIBA del buscador y no cambió: si un socio entró vencido, eso
+          tiene que verse antes que lo que la recepcionista esté por hacer ahora. */}
+      <AvisosMostrador avisos={avisos} onAtendido={loadData} />
 
-        {/* Los avisos van DEBAJO del cartel y ARRIBA del buscador. Lo segundo es lo que
-            importa y no cambió: si un socio entró vencido, eso tiene que verse antes que
-            lo que la recepcionista esté por hacer ahora. El cartel del QR no compite por
-            esa atención — no es una acción, es un papel que se imprime una vez. */}
-        <AvisosMostrador avisos={avisos} onAtendido={loadData} />
-
-        {/* Check-in Search */}
-        {/* A lo ancho de las dos columnas: desde que "En el gimnasio" es su propio
-            módulo, el buscador no comparte fila con nadie — y es LO que se usa acá. */}
-        <div className="checkin-section" style={{ gridColumn: '1 / -1' }}>
+      {/* ─── EL CUERPO: DOS COLUMNAS QUE ENTRAN EN UNA PANTALLA ───
+          Izquierda el molinete (teclear, Enter, el que sigue). Derecha quién está adentro,
+          para marcar salidas sin moverse de acá. Cada una scrollea por dentro si hace falta:
+          la PÁGINA no se mueve, que es lo que se pidió. */}
+      <div className="access-cuerpo">
+        <section className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
           <div className="search-box">
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
@@ -423,18 +455,13 @@ export default function AccessPage() {
                     <div className="member-info">
                       <div className="member-name">{member.fullName}</div>
                       <div className="member-dni">DNI: {member.dni || '-'}</div>
-                      {/* Estado visible al instante (sin tener que registrar entrada) */}
+                      {/* El estado, al instante y sin abrir nada: es lo que decide si hay que
+                          hablarle al socio antes de dejarlo pasar. */}
                       <span className={`member-access-status ${isExpired ? 'is-expired' : 'is-active'}`}>
-                        <Icon name={isExpired ? 'xCircle' : 'checkCircle'} size="0.85em" />
-                        {isExpired ? 'Vencido' : 'Activo'}
+                        {daysInfo.label}
                       </span>
-                      {/* Que ya esté adentro es lo primero que la recepcionista necesita
-                          saber: cambia qué hace ese botón. Si marcó entrada por el QR y
-                          nadie lo dice acá, el mostrador lo vuelve a "ingresar" y en
-                          realidad lo está sacando. */}
                       {adentro && (
                         <span className="member-access-status is-inside">
-                          <Icon name="door" size="0.85em" />
                           Adentro desde {new Date(visita.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
@@ -443,9 +470,8 @@ export default function AccessPage() {
                       <div className={`days-countdown ${daysInfo.type === 'ok' ? 'days-ok' : daysInfo.type === 'warning' ? 'days-warning' : daysInfo.type === 'expired' || daysInfo.type === 'danger' ? 'days-danger' : 'days-none'}`}>
                         {daysInfo.label}
                       </div>
-                      {/* El botón dice lo que va a pasar de verdad. Antes decía siempre
-                          "Registrar entrada" y grababa una SALIDA si el socio ya estaba
-                          adentro — la recepcionista no tenía forma de saberlo. */}
+                      {/* El botón dice lo que REALMENTE va a pasar: el servidor decide la
+                          dirección mirando si el socio ya está adentro. */}
                       {adentro ? (
                         <button className="btn btn-sm btn-secondary" onClick={() => handleCheckIn(member)}>
                           <Icon name="door" size="0.9em" /> Registrar salida
@@ -461,9 +487,50 @@ export default function AccessPage() {
               })}
             </div>
           )}
-        </div>
+        </section>
 
+        {/* ─── QUIÉN ESTÁ ADENTRO, AL LADO DEL BUSCADOR ───
+            Pedido del mostrador: cuando el socio se va y avisa, hay que poder marcarle la
+            salida SIN cambiar de módulo. La misma lista vive también en "En el gimnasio",
+            que es la pantalla para mirar; esta es la de trabajar. Comparten el pedido y la
+            caché, así que marcar acá deja la otra al día sola. */}
+        <aside className="card access-adentro">
+          <div className="table-header">
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon name="building" size="1.2em" />
+              En el {orgLabelCap} ahora
+            </h3>
+            <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
+          </div>
+          <div className="checked-in-list">
+            {loading ? (
+              <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
+            ) : checkedIn.length === 0 ? (
+              <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
+            ) : checkedIn.map(log => {
+              const member = log.member;
+              const memberName = member?.fullName || 'Socio';
+              return (
+                <div key={log.id} className="checked-in-item">
+                  <div className="member-avatar">{getInitials(memberName)}</div>
+                  <div className="member-info">
+                    <div className="member-name">{memberName}</div>
+                    <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
+                  </div>
+                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
+                    <Icon name="handWave" size="1em" /> Salida
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
       </div>
+
+      {/* El cartel del QR, sin ocupar la pantalla mientras no se lo pide. */}
+      <Modal isOpen={qrAbierto} onClose={() => setQrAbierto(false)} title="Cartel de entrada">
+        <CheckinQrPanel puedeAdministrar={puedeAdministrarQr} />
+      </Modal>
 
       {/* ─── El aviso de entrada, al costado izquierdo ───
 
