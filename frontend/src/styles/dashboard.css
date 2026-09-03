@@ -135,8 +135,8 @@
   text-overflow: ellipsis;
 }
 
-.stat-value.stat-value-sm { font-size: clamp(1.2rem, 0.6rem + 1.8vw, 1.75rem); }
-.stat-value.stat-value-xs { font-size: clamp(1rem, 0.5rem + 1.4vw, 1.4rem); }
+.stat-value.stat-value-sm { font-size: clamp(1.15rem, 0.6rem + 1.5vw, 1.55rem); }
+.stat-value.stat-value-xs { font-size: clamp(0.95rem, 0.5rem + 1.1vw, 1.25rem); }
 
 .stat-label {
   font-size: var(--font-size-sm);
