@@ -13,6 +13,7 @@ import { formatDate, getInitials } from '../lib/utils';
 import { useQueryCache } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
+import StatCard from '../components/ui/StatCard';
 
 export default function RetentionPage() {
   const { showToast } = useToast();
@@ -57,34 +58,10 @@ export default function RetentionPage() {
 
       {/* Stats */}
       <div className="stats-grid mb-3">
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{analytics.retention_rate}%</div>
-            <div className="stat-label">Tasa de Retención</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-warning"><Icon name="alertTriangle" size="1.25rem" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{(analytics.expiring_soon || []).length}</div>
-            <div className="stat-label">Vencen esta semana</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><Icon name="trendingDown" size="1.25rem" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{(analytics.at_risk || []).length}</div>
-            <div className="stat-label">En riesgo</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-primary"><Icon name="check" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{analytics.active_members}</div>
-            <div className="stat-label">Socios activos</div>
-          </div>
-        </div>
+        <StatCard icon="users" color="success" value={`${analytics.retention_rate}%`} label="Tasa de retención" />
+        <StatCard icon="alertTriangle" color="warning" value={(analytics.expiring_soon || []).length} label="Vencen esta semana" />
+        <StatCard icon="trendingDown" color="error" value={(analytics.at_risk || []).length} label="En riesgo" />
+        <StatCard icon="check" color="primary" value={analytics.active_members} label="Socios activos" />
       </div>
 
       <div className="dashboard-grid">

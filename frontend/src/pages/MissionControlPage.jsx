@@ -58,7 +58,7 @@ export default function MissionControlPage() {
   };
 
   if (isFounder === null) {
-    return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Cargando…</div>;
+    return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Cargando...</div>;
   }
   if (!isFounder) {
     return (

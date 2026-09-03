@@ -28,6 +28,7 @@ import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
+import StatCard from '../components/ui/StatCard';
 
 export default function AdentroPage() {
   const orgLabel = GYM.placeLabel;
@@ -94,27 +95,9 @@ export default function AdentroPage() {
       />
 
       <div className="stats-grid mb-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-success"><Icon name="users" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.inGym}</div>
-            <div className="stat-label">En el {orgLabel}</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-primary"><Icon name="door" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalToday}</div>
-            <div className="stat-label">Accesos hoy</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-icon-accent"><Icon name="clock" /></div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.avgTime}</div>
-            <div className="stat-label">Tiempo promedio</div>
-          </div>
-        </div>
+        <StatCard icon="users" color="success" value={stats.inGym} label={`En el ${orgLabel}`} />
+        <StatCard icon="door" color="primary" value={stats.totalToday} label="Accesos hoy" />
+        <StatCard icon="clock" color="accent" value={stats.avgTime} label="Tiempo promedio" />
       </div>
 
       {/* La gente que está adentro. Acá tiene la página entera, así que va en varias

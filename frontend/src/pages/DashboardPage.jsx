@@ -260,8 +260,8 @@ function GymDashboard({ gym }) {
                 </div>
               </div>
             ) : (
-              insights.map((insight, i) => (
-                <div key={i} className={`insight-item ${insight.type}`}>
+              insights.map((insight) => (
+                <div key={`${insight.type}-${insight.title}`} className={`insight-item ${insight.type}`}>
                   <span className="insight-icon"><Icon name={insight.icon} size="1.1em" /></span>
                   <div className="insight-content">
                     <div className="insight-title">{insight.title}</div>
@@ -286,10 +286,10 @@ function GymDashboard({ gym }) {
                 <span className="alert-text">¡Excelente! No hay vencimientos próximos</span>
               </div>
             ) : (
-              alerts.slice(0, 8).map((alert, i) => {
+              alerts.slice(0, 8).map((alert) => {
                 const dotColor = alert.type === 'expired' ? 'var(--error-500)' : alert.type === 'urgent' ? 'var(--warning-500)' : 'var(--info-500)';
                 return (
-                  <div key={i} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
+                  <div key={`${alert.type}-${alert.message}`} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
                     <span className="alert-dot" style={{ background: dotColor, boxShadow: `0 0 0 3px color-mix(in srgb, ${dotColor} 18%, transparent)` }} />
                     <span className="alert-text">{alert.message}</span>
                   </div>

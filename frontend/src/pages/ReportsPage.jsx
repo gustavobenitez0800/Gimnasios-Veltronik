@@ -247,8 +247,8 @@ export default function ReportsPage() {
         {exportHistory.length === 0 ? (
           <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Los archivos exportados aparecerán aquí</div>
         ) : (
-          exportHistory.map((exp, i) => (
-            <div key={i} className="payment-history-item">
+          exportHistory.map((exp) => (
+            <div key={`${exp.date}-${exp.type}-${exp.format}`} className="payment-history-item">
               <div className="payment-info">
                 <span className="payment-amount">{exp.type} ({exp.format})</span>
                 <span className="payment-date">{exp.date}</span>

@@ -103,7 +103,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
           return;
         }
 
-        // El SDK de MP se baja de su CDN; con timeout para no quedar en "Cargando…" eterno.
+        // El SDK de MP se baja de su CDN; con timeout para no quedar en "Cargando..." eterno.
         await withTimeout(loadMercadoPago(), SDK_TIMEOUT_MS, 'sdk-timeout');
         if (cancelled) return;
         const mp = new window.MercadoPago(mpKey, { locale: 'es-AR' });

@@ -2,7 +2,7 @@
 // VELTRONIK V2 - TEAM PAGE
 // ============================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeamController } from '../controllers/useTeamController';
@@ -26,7 +26,6 @@ export default function TeamPage() {
     activityLog,
     loading: isFetching,
     activityLoading,
-    loadTeam,
     loadActivity,
     inviteMember: controllerInvite,
     updateRole: controllerUpdateRole,
@@ -50,8 +49,6 @@ export default function TeamPage() {
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState(null);
-
-  useEffect(() => { loadTeam(); }, [loadTeam]);
 
   const handleTabChange = (t) => {
     setTab(t);
@@ -227,7 +224,7 @@ export default function TeamPage() {
                 Sin actividad reciente
               </div>
             ) : activityLog.map((log, i) => (
-              <div key={i} className="activity-item" style={{ display: 'flex', gap: '0.75rem', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-color)' }}>
+              <div key={log.id || `${log.created_at}-${i}`} className="activity-item" style={{ display: 'flex', gap: '0.75rem', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-color)' }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', color: 'var(--primary-400)' }}>
                   <Icon name={getActivityIcon(log.type)} size="1em" />
                 </div>

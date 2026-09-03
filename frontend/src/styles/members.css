@@ -46,7 +46,7 @@
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   font-size: var(--font-size-sm);
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .page-btn:hover { background: var(--bg-tertiary); border-color: var(--primary-500); }
@@ -68,7 +68,7 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   user-select: none;
 }
 
@@ -261,7 +261,7 @@
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 

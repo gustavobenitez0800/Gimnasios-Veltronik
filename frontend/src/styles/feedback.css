@@ -27,7 +27,7 @@
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   transform: translateX(120%);
-  animation: toastSlide 0.4s var(--transition-bounce) forwards;
+  animation: toastSlide 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes toastSlide {
@@ -88,7 +88,7 @@
   z-index: 1000;
   padding: 2rem;
   opacity: 0;
-  animation: fadeIn 0.2s ease forwards;
+  animation: fadeIn var(--transition-fast) forwards;
 }
 
 @keyframes fadeIn {
@@ -108,7 +108,7 @@
   width: 100%;
   text-align: center;
   box-shadow: var(--shadow-xl), inset 0 1px 0 var(--card-highlight);
-  animation: modalIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: modalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes modalIn {

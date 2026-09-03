@@ -215,19 +215,40 @@ export default function CajaPage() {
     }
   };
 
-  const anularMovimiento = async (mov) => {
-    const motivo = window.prompt('¿Por qué se anula? (queda registrado)');
-    if (motivo === null) return;
+  // Anular un movimiento pide el motivo en un diálogo NUESTRO. Acá había un `window.prompt`:
+  // el cartel gris del navegador, sin el aspecto del sistema, que además bloquea toda la
+  // pantalla y en el escritorio (Electron) puede ni aparecer.
+  const [anulando, setAnulando] = useState(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+
+  const pedirAnulacion = (mov) => {
+    setMotivoAnulacion('');
+    setAnulando(mov);
+  };
+
+  const confirmarAnulacion = async (e) => {
+    e?.preventDefault();
+    if (!anulando) return;
+    // El motivo queda registrado a la vista de todos: es lo que hace que anular no sea
+    // borrar. Sin motivo no se anula.
+    if (!motivoAnulacion.trim()) {
+      showToast('Escribí por qué se anula. Queda registrado.', 'error');
+      return;
+    }
+    setGuardando(true);
     try {
       const turno = getShift();
-      await cajaService.anularMovimiento(mov.id, {
-        motivo,
+      await cajaService.anularMovimiento(anulando.id, {
+        motivo: motivoAnulacion.trim(),
         anuladoPor: turno?.name || profile?.fullName || 'Sin identificar',
       });
+      setAnulando(null);
       showToast('Movimiento anulado.', 'success');
       cargar();
     } catch (err) {
       showToast(errorService.getMessage(err), 'error');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -482,7 +503,7 @@ export default function CajaPage() {
                     <td data-label="Cuándo">{fecha(m.fecha)}</td>
                     <td>
                       {!anulado && (
-                        <button className="btn btn-sm btn-secondary" onClick={() => anularMovimiento(m)}>
+                        <button className="btn btn-sm btn-secondary" onClick={() => pedirAnulacion(m)}>
                           Anular
                         </button>
                       )}
@@ -593,6 +614,35 @@ export default function CajaPage() {
             </ul>
           </div>
         )}
+      </Modal>
+
+      {/* ─── ANULAR UN MOVIMIENTO: el motivo queda registrado ─── */}
+      <Modal
+        isOpen={!!anulando}
+        onClose={() => setAnulando(null)}
+        title="Anular movimiento"
+        actions={<ModalActions onCancel={() => setAnulando(null)} saving={guardando} submitText="Anular" />}
+      >
+        <form onSubmit={confirmarAnulacion} noValidate>
+          {anulando && (
+            <p className="form-hint" style={{ marginBottom: '1rem' }}>
+              {anulando.categoria} · {formatCurrency(anulando.monto)}
+              {anulando.detalle ? ` · ${anulando.detalle}` : ''}
+            </p>
+          )}
+          <div className="form-group">
+            <label className="form-label">¿Por qué se anula?</label>
+            <input
+              className="form-input" value={motivoAnulacion} autoFocus
+              placeholder="Cargado dos veces, monto equivocado…"
+              onChange={(e) => setMotivoAnulacion(e.target.value)}
+            />
+            <small className="form-hint">
+              No se borra: queda tachado, con este motivo y quién lo anuló. Un gasto que se
+              puede hacer desaparecer de la lista es justamente lo que no queremos.
+            </small>
+          </div>
+        </form>
       </Modal>
 
       {/* ─── ANOTAR UN GASTO O UN INGRESO ─── */}

@@ -694,7 +694,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   padding: 0;
 }
 
@@ -959,23 +959,10 @@
   opacity: 0.7;
 }
 
-/* ─── Animations ─── */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
+/* ─── Animations ───
+   fadeIn vive en feedback.css y spin en components.css: UNA definición de cada una. Acá
+   había copias (y un slideUp que nadie usaba) — dos definiciones del mismo nombre es una
+   carrera de orden de carga que gana la última, y nadie sabe cuál es. */
 
 /* ============================================
    CHECK-IN DEL SOCIO (público, celular)

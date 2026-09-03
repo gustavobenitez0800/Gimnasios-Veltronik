@@ -6,7 +6,7 @@
 // fechas del encabezado, no las clases).
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { errorService } from '../services';
 import { useClassController } from '../controllers/useClassController';
@@ -39,7 +39,6 @@ export default function ClassesPage() {
   const {
     classes,
     loading: isFetching,
-    loadClasses,
     saveClass,
     deleteClass,
   } = useClassController();
@@ -59,10 +58,6 @@ export default function ClassesPage() {
 
   // Delete
   const [deleteId, setDeleteId] = useState(null);
-
-  useEffect(() => {
-    loadClasses();
-  }, [loadClasses]);
 
   // Week navigation
   const weekDates = useMemo(() => {

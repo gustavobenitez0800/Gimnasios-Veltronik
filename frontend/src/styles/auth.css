@@ -224,7 +224,7 @@
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
-  transition: all 0.25s ease;
+  transition: all var(--transition-normal);
 }
 
 .auth-card .form-input::placeholder {
@@ -268,7 +268,7 @@
   border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: var(--btn-radius);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all var(--transition-normal);
   box-shadow:
     0 4px 16px rgba(59, 130, 246, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -326,7 +326,7 @@
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all var(--transition-normal);
 }
 
 .btn-google svg {

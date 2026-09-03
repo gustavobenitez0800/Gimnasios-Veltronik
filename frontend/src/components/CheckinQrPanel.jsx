@@ -97,7 +97,7 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
         <h3><Icon name="qrCode" size="1em" /> Cartel de entrada</h3>
       </div>
 
-      {cargando && <p className="text-muted">Cargando…</p>}
+      {cargando && <p className="text-muted">Cargando...</p>}
 
       {!cargando && !punto && (
         <button className="btn btn-primary" disabled={trabajando} onClick={() => crear(null)}>

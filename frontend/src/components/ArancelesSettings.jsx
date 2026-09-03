@@ -162,7 +162,7 @@ export default function ArancelesSettings() {
           <tbody>
             {cargando ? (
               <tr><td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
-                <span className="spinner" /> Cargando…</td></tr>
+                <span className="spinner" /> Cargando...</td></tr>
             ) : planes.length === 0 ? (
               <tr><td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
                 Todavía no cargaste ningún arancel</td></tr>

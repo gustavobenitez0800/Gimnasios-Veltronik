@@ -32,7 +32,7 @@
   padding: 0.75rem;
   border-left: 3px solid var(--primary-500);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 .class-card:hover { transform: translateX(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 .class-time { font-size: var(--font-size-xs); color: var(--primary-400); font-weight: 600; margin-bottom: 0.25rem; }
@@ -45,7 +45,7 @@
 .class-color-picker { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 .color-option {
   width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
-  border: 3px solid transparent; transition: all 0.2s;
+  border: 3px solid transparent; transition: all var(--transition-fast);
 }
 .color-option:hover, .color-option.selected { border-color: white; transform: scale(1.1); }
 

@@ -256,7 +256,7 @@
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .premium-btn-outline-small:hover {
@@ -273,7 +273,7 @@
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .premium-btn-ghost-small:hover {
@@ -526,7 +526,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all var(--transition-normal);
   box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.4);
 }
 
@@ -711,11 +711,6 @@
   animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 @keyframes bounceIn {
   0% { transform: scale(0); opacity: 0; }
   60% { transform: scale(1.2); }
@@ -861,7 +856,7 @@
   font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1078,7 +1073,7 @@
   font-weight: 700;
   font-size: 1.05rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .premium-btn-primary:hover {
@@ -1100,7 +1095,7 @@
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .premium-btn-secondary:hover:not(:disabled) {
@@ -1138,7 +1133,7 @@
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .premium-btn-outline:hover:not(:disabled) {
