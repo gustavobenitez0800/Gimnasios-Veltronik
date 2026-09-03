@@ -91,11 +91,10 @@ export function useDashboardController(gym) {
       const alDia = Number(resumen.socios?.activos) || 0;
       const vencidos = Number(resumen.socios?.vencidos) || 0;
       return {
-        // ⚠️ "Socios Activos" son los DADOS DE ALTA, vencidos incluidos — el mismo número que
-        // mostraba antes, cuando salía de un COUNT por `is_active`. El resumen los trae
-        // separados (al día / vencidos) porque la torta de abajo los distingue, pero la
-        // tarjeta tiene que seguir diciendo lo mismo: cambiar en silencio lo que cuenta un
-        // número que el dueño mira todos los días es peor que no haberlo tocado.
+        // Los dos números, con nombre propio: la tarjeta muestra "al día" y la torta de
+        // abajo distingue las tres porciones. `activeMembers` (los dados de alta, vencidos
+        // incluidos) se conserva porque es lo que contaba la versión anterior.
+        alDia,
         activeMembers: alDia + vencidos,
         expiredMembers: vencidos,
         expiringMembers: Number(resumen.vencimientos?.estaSemana) || 0,
@@ -104,13 +103,16 @@ export function useDashboardController(gym) {
     }
     if (stats) {
       return {
+        // Backend viejo: solo trae el total de dados de alta, así que "al día" se aproxima
+        // restándole los vencidos. Es la mejor cuenta posible con lo que ese servidor manda.
+        alDia: Math.max(0, (stats.activeMembers || 0) - (stats.expiredMembers || 0)),
         activeMembers: stats.activeMembers || 0,
         expiredMembers: stats.expiredMembers || 0,
         expiringMembers: stats.expiringMembers || 0,
         monthlyRevenue: parseFloat(stats.monthlyRevenue || 0),
       };
     }
-    return { activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
+    return { alDia: 0, activeMembers: 0, expiredMembers: 0, expiringMembers: 0, monthlyRevenue: 0 };
   }, [resumen, stats]);
 
   // ─── Gráficos, predicción, alertas e insights ───

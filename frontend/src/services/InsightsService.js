@@ -27,8 +27,23 @@ export default class InsightsService {
       monthlyRevenue[key] = (monthlyRevenue[key] || 0) + parseFloat(p.amount || 0);
     });
 
+    // ⚠️ Los meses SIN cobros entran como cero, no se saltean. Si el gimnasio cobró en
+    // junio, julio y septiembre, agosto tiene que valer 0: salteándolo, la regresión tomaba
+    // julio y septiembre como consecutivos y el mes malo desaparecía de la cuenta en vez de
+    // pesar. La tendencia salía mejor de lo que fue.
     const sortedKeys = Object.keys(monthlyRevenue).sort();
-    const values = sortedKeys.map((k) => monthlyRevenue[k]);
+    const values = [];
+    if (sortedKeys.length > 0) {
+      const [primerAnio, primerMes] = sortedKeys[0].split('-').map(Number);
+      const ultima = sortedKeys[sortedKeys.length - 1];
+      const cursor = new Date(primerAnio, primerMes - 1, 1);
+      const fin = (() => { const [a, m] = ultima.split('-').map(Number); return new Date(a, m - 1, 1); })();
+      while (cursor <= fin) {
+        const clave = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+        values.push(monthlyRevenue[clave] || 0);
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    }
 
     if (values.length < 2) {
       const avg = values.length > 0 ? values[0] : 0;

@@ -85,6 +85,41 @@ describe('la predicción de ingresos', () => {
     expect(nuevo.percentChange).toBe(viejo.percentChange);
   });
 
+  /**
+   * ⭐ EL ARREGLO DEL 2026-09-03. La serie solo trae meses CON cobros: si el gimnasio cobró
+   * en junio, julio y septiembre, agosto no venía y la regresión tomaba julio y septiembre
+   * como consecutivos. El mes malo desaparecía de la cuenta en vez de pesar, y la tendencia
+   * salía mejor de lo que fue — justo el mes que hay que ver.
+   */
+  it('⭐ un mes SIN cobros pesa como cero, no se saltea', () => {
+    const conHueco = [
+      { mes: mesAtras(3).toISOString(), total: 90000 },
+      { mes: mesAtras(2).toISOString(), total: 90000 },
+      // mesAtras(1) no está: ese mes no se cobró nada
+      { mes: mesAtras(0).toISOString(), total: 90000 },
+    ];
+
+    const r = prediccionDeIngresos(conHueco);
+
+    // Con el hueco relleno la serie es [90k, 90k, 0, 90k]: hubo un derrumbe y la tendencia
+    // no puede ser "estable". Salteándolo daban tres meses planos y tendencia neutral.
+    expect(r.trend, 'un mes en cero tiene que arrastrar la tendencia').toBe('down');
+    expect(r.confidence, 'y bajar la confianza: la serie es irregular').toBeLessThan(95);
+  });
+
+  it('sin huecos, la predicción no cambia', () => {
+    const serie = [
+      { mes: mesAtras(2).toISOString(), total: 100000 },
+      { mes: mesAtras(1).toISOString(), total: 120000 },
+      { mes: mesAtras(0).toISOString(), total: 140000 },
+    ];
+
+    const r = prediccionDeIngresos(serie);
+
+    expect(r.trend).toBe('up');
+    expect(r.predicted).toBe(160000);
+  });
+
   it('con un solo mes no se inventa una tendencia', () => {
     const r = prediccionDeIngresos([{ mes: mesAtras(0).toISOString(), total: 50000 }]);
 
@@ -187,10 +222,15 @@ describe('los insights del día', () => {
     expect(primero.message).toContain('2 socios');
   });
 
-  it('la tasa de actividad se lee sin hacer cuentas', () => {
-    const tasa = insightsDelDia(resumenBase).find((i) => i.title === 'Tasa de actividad');
+  /**
+   * ⚠️ EL MISMO VOCABULARIO QUE LA TARJETA DE ARRIBA. La pantalla decía "9 Socios Activos"
+   * arriba y "6 de 10 activos" abajo: no se contradicen (una cuenta a los dados de alta y la
+   * otra a los que pagaron) pero son dos números para la misma palabra, en la misma pantalla.
+   */
+  it('habla de socios "al día", igual que la tarjeta', () => {
+    const tasa = insightsDelDia(resumenBase).find((i) => i.title === 'Socios al día');
 
-    expect(tasa.message).toBe('70% de tus socios están activos (7 de 10)');
+    expect(tasa.message).toBe('70% de tus socios están al día (7 de 10)');
   });
 
   it('compara contra el mes anterior y dice si subió o bajó', () => {

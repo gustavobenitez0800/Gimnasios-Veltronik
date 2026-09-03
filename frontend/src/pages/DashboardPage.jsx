@@ -174,11 +174,18 @@ function GymDashboard({ gym }) {
       <div className="stats-grid">
         {!CONFIG.IS_DESKTOP && (
           <>
-            <StatCard icon="users" label={`${membersLabel} Activos`} value={dashboardStats.activeMembers} color="primary" />
+            {/* ⚠️ "Al día" y "vencidos" son dos cosas distintas y juntas dan el total de
+                socios dados de alta. Antes esta tarjeta decía "Socios Activos" y contaba a
+                los dos juntos, mientras el insight de abajo decía "6 de 10 activos"
+                contando solo a los que pagaron: dos números para la misma palabra, en la
+                misma pantalla. */}
+            <StatCard icon="users" label={`${membersLabel} al día`} value={dashboardStats.alDia} color="primary" />
             <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
           </>
         )}
-        <StatCard icon="bell" label="Pagos Vencidos" value={dashboardStats.expiredMembers} color="warning" />
+        {/* Cuenta SOCIOS con la cuota vencida, no pagos: se llamaba "Pagos Vencidos" y no
+            era lo que contaba. */}
+        <StatCard icon="bell" label={`${membersLabel} vencidos`} value={dashboardStats.expiredMembers} color="warning" />
         <StatCard icon="calendar" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
       </div>
 

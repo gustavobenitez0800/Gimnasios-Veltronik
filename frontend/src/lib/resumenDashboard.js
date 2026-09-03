@@ -54,14 +54,45 @@ export function graficoDeIngresos(serie, meses = 6) {
 }
 
 /**
- * La predicción del mes que viene: regresión lineal sobre los meses con cobros.
+ * Rellena los meses sin cobros con cero, del primero al último de la serie.
  *
- * Es la misma cuenta que hacía InsightsService.predictNextMonthRevenue, pero sobre la serie
- * que ya viene agrupada en vez de sobre miles de pagos sueltos. Los pasos están en el mismo
- * orden para que el resultado sea idéntico hasta el redondeo.
+ * ⚠️ ESTO ARREGLA UNA PREDICCIÓN QUE MENTÍA. La serie solo trae los meses que tuvieron
+ * ingresos: si el gimnasio cobró en junio, julio y septiembre, agosto simplemente no está, y
+ * la regresión tomaba julio y septiembre como consecutivos. O sea: **un mes malo desaparecía
+ * de la cuenta en vez de pesar**, y la tendencia salía mejor de lo que fue. Justo el mes que
+ * el dueño necesita ver es el que se borraba solo.
+ *
+ * Con los ceros, agosto vale lo que valió: cero.
+ */
+function conLosMesesVacios(serie) {
+  const meses = (serie || [])
+    .map((m) => ({ fecha: new Date(m.mes), total: Number(m.total) || 0 }))
+    .filter((m) => !Number.isNaN(m.fecha.getTime()))
+    .sort((a, b) => a.fecha - b.fecha);
+
+  if (meses.length < 2) return meses.map((m) => m.total);
+
+  const valores = [];
+  const cursor = new Date(meses[0].fecha.getFullYear(), meses[0].fecha.getMonth(), 1);
+  const ultimo = meses[meses.length - 1].fecha;
+  const porClave = new Map(meses.map((m) => [`${m.fecha.getFullYear()}-${m.fecha.getMonth()}`, m.total]));
+
+  while (cursor <= ultimo) {
+    valores.push(porClave.get(`${cursor.getFullYear()}-${cursor.getMonth()}`) || 0);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return valores;
+}
+
+/**
+ * La predicción del mes que viene: regresión lineal sobre los ingresos mes a mes.
+ *
+ * Es la misma cuenta que hacía InsightsService.predictNextMonthRevenue —los pasos están en el
+ * mismo orden para que el número no cambie— con UNA corrección: los meses sin cobros entran
+ * como cero en vez de desaparecer (ver `conLosMesesVacios`).
  */
 export function prediccionDeIngresos(serie) {
-  const valores = (serie || []).map((m) => Number(m.total) || 0);
+  const valores = conLosMesesVacios(serie);
 
   if (valores.length === 0) {
     return { predicted: 0, confidence: 0, trend: 'neutral', percentChange: '0.0' };
@@ -169,8 +200,10 @@ export function insightsDelDia(resumen) {
     insights.push({
       icon: 'chart',
       type: 'info',
-      title: 'Tasa de actividad',
-      message: `${tasa}% de tus socios están activos (${activos} de ${total})`,
+      title: 'Socios al día',
+      // El MISMO vocabulario que la tarjeta de arriba: si una dice "activos" y la otra
+      // "al día" para el mismo número, parecen dos cosas distintas.
+      message: `${tasa}% de tus socios están al día (${activos} de ${total})`,
     });
   }
 
