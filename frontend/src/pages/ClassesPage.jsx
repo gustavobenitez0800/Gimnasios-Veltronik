@@ -223,7 +223,7 @@ export default function ClassesPage() {
               </thead>
               <tbody>
                 {classes.length === 0 ? (
-                  <tr><td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>No hay clases registradas</td></tr>
+                  <tr><td colSpan="7" className="table-empty">No hay clases registradas</td></tr>
                 ) : classes.map(cls => (
                   <tr key={cls.id}>
                     <td data-label="Clase"><div className="flex items-center gap-1">

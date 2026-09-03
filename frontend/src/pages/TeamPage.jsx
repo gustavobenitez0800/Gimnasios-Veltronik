@@ -7,7 +7,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeamController } from '../controllers/useTeamController';
 import { getInitials, getRelativeTime } from '../lib/utils';
-import { PageHeader, ConfirmDialog } from '../components/Layout';
+import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import Icon from '../components/Icon';
 
 const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Empleado', reception: 'Recepción' };
@@ -168,10 +168,14 @@ export default function TeamPage() {
           {isFetching ? (
             <div className="dashboard-loading"><span className="spinner" /> Cargando equipo...</div>
           ) : teamMembers.length === 0 ? (
-            <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-              <div style={{ marginBottom: '1rem', opacity: 0.35, color: 'var(--text-muted)', display: 'flex', justifyContent: 'center' }}><Icon name="users" size="2.25rem" /></div>
-              <h3>No hay miembros en el equipo</h3>
-              <p className="text-muted">Invitá a tu primer empleado usando el formulario de arriba</p>
+            <div className="card">
+              {/* El componente compartido, no una tarjeta armada a mano: el mismo estado
+                  vacío que en el resto del sistema, con el mismo aire. */}
+              <EmptyState
+                icon="users"
+                title="Todavía no hay nadie en el equipo"
+                description="Invitá a tu primer empleado con el formulario de arriba."
+              />
             </div>
           ) : (
             <div className="team-grid">
@@ -215,11 +219,11 @@ export default function TeamPage() {
           </div>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
             {activityLoading ? (
-              <div className="text-center text-muted" style={{ padding: '3rem' }}>
+              <div className="table-empty">
                 <span className="spinner" /> Cargando actividad...
               </div>
             ) : activityLog.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '3rem' }}>
+              <div className="table-empty">
                 <div style={{ marginBottom: '0.5rem', opacity: 0.35, display: 'flex', justifyContent: 'center' }}><Icon name="clock" size="2rem" /></div>
                 Sin actividad reciente
               </div>

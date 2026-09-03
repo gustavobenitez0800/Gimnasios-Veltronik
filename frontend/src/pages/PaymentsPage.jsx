@@ -480,19 +480,19 @@ export default function PaymentsPage() {
             <tbody>
               {isFetching && payments.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan="7" className="table-empty">
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan="7" className="table-empty">
                     No se pudieron cargar los pagos
                   </td>
                 </tr>
               ) : payments.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan="7" className="table-empty">
                     No se encontraron pagos
                   </td>
                 </tr>

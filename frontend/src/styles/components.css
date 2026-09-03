@@ -378,3 +378,13 @@
   font-weight: 600;
   margin-top: 0.5rem;
 }
+
+/* ─── Fila vacía / cargando de una tabla ───
+   Antes cada tabla escribía `className="text-center text-muted" style={{ padding: '3rem' }}`
+   a mano (diez veces, con variantes). Una clase: el mismo aire en todas, y un solo lugar
+   para cambiarlo. */
+.table-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 3rem 1rem;
+}

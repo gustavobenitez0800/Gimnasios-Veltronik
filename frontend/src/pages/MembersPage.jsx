@@ -527,20 +527,20 @@ export default function MembersPage() {
             <tbody>
               {isFetching && pagedMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="table-empty">
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
               ) : loadError ? (
                 <tr>
                   {/* Una lista vacía porque fallo el pedido NO es un gimnasio sin socios. */}
-                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="table-empty">
                     No se pudieron cargar los {membersLabelLower}
                   </td>
                 </tr>
               ) : pagedMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={CUANTAS_COLUMNAS} className="text-center text-muted" style={{ padding: '3rem' }}>
+                  <td colSpan={CUANTAS_COLUMNAS} className="table-empty">
                     No se encontraron {membersLabelLower}
                   </td>
                 </tr>
