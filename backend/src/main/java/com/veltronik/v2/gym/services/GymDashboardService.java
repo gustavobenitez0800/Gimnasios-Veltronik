@@ -1,6 +1,8 @@
 package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.security.TenantContextHolder;
+import com.veltronik.v2.gym.dto.DashboardResumenDTO;
+import com.veltronik.v2.gym.dto.GymMemberDTO;
 import com.veltronik.v2.gym.mappers.GymMemberMapper;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
@@ -13,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -63,6 +66,95 @@ public class GymDashboardService {
         stats.put("expiredMembers", expiredMembers);
 
         return stats;
+    }
+
+    /**
+     * Todo el Dashboard en un solo viaje, y contado en la base.
+     *
+     * <p>⭐ Reemplaza al trío {@code stats + TODOS los socios + TODOS los pagos} que la
+     * pantalla pedía en cada apertura. Con 385 socios y un año de cobros eso eran miles de
+     * filas —cada socio con su ficha entera— cruzando la conexión del gimnasio para pintar
+     * cuatro números y dos gráficos. Lo que se manda ahora son conteos, una serie por mes y
+     * dos listas cortas.</p>
+     *
+     * <p><b>Los criterios son los MISMOS que usaba la pantalla</b>, a propósito: si el número
+     * cambiara al mudar la cuenta al servidor, el dueño vería que "el sistema empezó a decir
+     * otra cosa" y no habría forma de saber cuál de las dos versiones tenía razón.</p>
+     */
+    @Transactional(readOnly = true)
+    public DashboardResumenDTO getResumen() {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+
+        // ── El padrón, contado por estado ──
+        long total = memberRepository.countByTenantId(tenantId);
+        long activosSegunAlta = memberRepository.countByTenantIdAndIsActiveTrue(tenantId);
+        long vencidos = memberRepository.countByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, ahora);
+        DashboardResumenDTO.Socios socios = new DashboardResumenDTO.Socios(
+                total,
+                activosSegunAlta - vencidos,   // activo Y con la cuota al día
+                total - activosSegunAlta,      // dados de baja
+                vencidos,
+                0);                            // ver el comentario del record
+
+        // ── Los ingresos, agrupados por mes en Postgres ──
+        List<DashboardResumenDTO.MesConTotal> serie = paymentRepository.ingresosPorMes(tenantId).stream()
+                .map(fila -> new DashboardResumenDTO.MesConTotal(
+                        ((java.sql.Timestamp) fila[0]).toLocalDateTime(),
+                        (BigDecimal) fila[1]))
+                .toList();
+
+        YearMonth esteMes = YearMonth.now(BUSINESS_ZONE);
+        DashboardResumenDTO.Ingresos ingresos = new DashboardResumenDTO.Ingresos(
+                totalDelMes(serie, esteMes),
+                totalDelMes(serie, esteMes.minusMonths(1)),
+                serie);
+
+        // ── Quiénes necesitan atención: vencidos y los que vencen en 7 días ──
+        LocalDateTime en7Dias = ahora.plusDays(7);
+        long estaSemana = memberRepository.countByTenantIdAndMembershipEndBetween(tenantId, ahora, en7Dias);
+        long cuantosNecesitanAtencion = memberRepository.contarVencidosOPorVencer(tenantId, en7Dias);
+        List<DashboardResumenDTO.Alerta> alertas = memberRepository
+                .vencidosOPorVencer(tenantId, en7Dias, org.springframework.data.domain.PageRequest.of(0, MAXIMO_ALERTAS))
+                .stream()
+                .map(m -> new DashboardResumenDTO.Alerta(
+                        m.getId(),
+                        (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim(),
+                        // Hacia ARRIBA, como en la lista de socios: al que le quedan 12 horas
+                        // le falta "1 día", no cero. Negativo = ya venció.
+                        (long) Math.ceil(java.time.Duration.between(ahora, m.getMembershipEnd()).toMinutes() / 1440.0),
+                        m.getMembershipEnd()))
+                .toList();
+
+        // ── Los cumpleaños de hoy y las últimas altas ──
+        List<String> cumplen = memberRepository.cumplenHoy(tenantId, String.format("%02d-%02d", ahora.getMonthValue(), ahora.getDayOfMonth()))
+                .stream()
+                .map(m -> (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim())
+                .toList();
+
+        List<GymMemberDTO> ultimos = memberMapper.toDtoList(
+                memberRepository.findTop25ByTenantIdOrderByCreatedAtDesc(tenantId).stream().limit(5).toList(),
+                accessPolicy);
+
+        return new DashboardResumenDTO(socios, ingresos,
+                new DashboardResumenDTO.Vencimientos(estaSemana, cuantosNecesitanAtencion, alertas),
+                cumplen, ultimos);
+    }
+
+    /** Cuántos son los más urgentes que se mandan. El resto se cuenta, no se manda. */
+    private static final int MAXIMO_ALERTAS = 20;
+
+    /** El total de un mes dentro de la serie, o cero si ese mes no tuvo cobros. */
+    private BigDecimal totalDelMes(List<DashboardResumenDTO.MesConTotal> serie, YearMonth mes) {
+        return serie.stream()
+                .filter(m -> YearMonth.from(m.mes()).equals(mes))
+                .map(DashboardResumenDTO.MesConTotal::total)
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private static String nullSafe(String s) {
+        return s == null ? "" : s;
     }
 
     @Transactional(readOnly = true)

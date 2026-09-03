@@ -26,6 +26,18 @@ public class GymDashboardController {
         return ResponseEntity.ok(dashboardService.getDashboardStats());
     }
 
+    /**
+     * Todo el Dashboard en un pedido. Reemplaza al trío que la pantalla hacía en cada
+     * apertura (stats + todos los socios + todos los pagos).
+     *
+     * <p>El endpoint viejo /stats se deja en pie: lo usan los escritorios ya instalados, y
+     * un cliente que no actualizó no puede quedarse sin dashboard.</p>
+     */
+    @GetMapping("/resumen")
+    public ResponseEntity<com.veltronik.v2.gym.dto.DashboardResumenDTO> getResumen() {
+        return ResponseEntity.ok(dashboardService.getResumen());
+    }
+
     @GetMapping("/retention")
     public ResponseEntity<Map<String, Object>> getRetentionAnalytics() {
         return ResponseEntity.ok(dashboardService.getRetentionAnalytics());

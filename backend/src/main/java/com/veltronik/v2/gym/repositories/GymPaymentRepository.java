@@ -52,6 +52,31 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
      * la consulta sigue siendo insensible a mayúsculas a propósito: los pagos que ya están
      * en la base quedaron con la caja que les tocó, y tienen que contar igual.</p>
      */
+    /**
+     * Ingresos cobrados por MES, agrupados en la base.
+     *
+     * <p>⭐ Existe para que el Dashboard deje de traerse TODOS los pagos del gimnasio y
+     * sumarlos en el navegador. Con un año de operación eso son miles de filas viajando por
+     * la conexión del gimnasio cada vez que alguien abre la pantalla, para pintar seis
+     * barras. Acá vuelven seis renglones.</p>
+     *
+     * <p>Nativa y no JPQL porque necesita {@code date_trunc}, que JPQL no tiene. El corte de
+     * mes lo hace Postgres sobre el timestamp naive, que ya está en hora de Argentina.</p>
+     *
+     * @return filas [mes (timestamp del día 1), total]
+     */
+    @Query(value = """
+            SELECT date_trunc('month', p.payment_date) AS mes,
+                   COALESCE(SUM(p.amount), 0)          AS total
+            FROM gym_payments p
+            WHERE p.tenant_id = :tenantId
+              AND LOWER(p.status) = 'paid'
+              AND p.payment_date IS NOT NULL
+            GROUP BY 1
+            ORDER BY 1
+            """, nativeQuery = true)
+    List<Object[]> ingresosPorMes(@Param("tenantId") UUID tenantId);
+
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM GymPayment p WHERE p.tenant.id = :tenantId "
             + "AND p.paymentDate >= :startDate AND UPPER(p.status) = 'PAID'")
     BigDecimal sumAmountByTenantIdAndDateAfter(@Param("tenantId") UUID tenantId, @Param("startDate") LocalDateTime startDate);

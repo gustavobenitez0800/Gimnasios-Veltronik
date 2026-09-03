@@ -94,6 +94,42 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     // Para "Expiring Soon" (vencen en los próximos días)
     List<GymMember> findByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
 
+    /**
+     * Los socios que necesitan atención: vencidos o por vencer, del más urgente al menos.
+     *
+     * <p>Con un tope, y ese tope es el punto: un gimnasio que migró 385 socios puede tener
+     * cientos vencidos, y el Dashboard los traía TODOS para pintar una lista que nadie lee
+     * entera. Se muestran los primeros y se dice cuántos más hay.</p>
+     */
+    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.isActive = true "
+         + "AND m.membershipEnd IS NOT NULL AND m.membershipEnd <= :hasta "
+         + "ORDER BY m.membershipEnd ASC")
+    List<GymMember> vencidosOPorVencer(@Param("tenantId") UUID tenantId,
+                                       @Param("hasta") java.time.LocalDateTime hasta,
+                                       Pageable pageable);
+
+    /** Cuántos son en total, para poder decir "y N más" sin traerlos. */
+    @Query("SELECT COUNT(m) FROM GymMember m WHERE m.tenant.id = :tenantId AND m.isActive = true "
+         + "AND m.membershipEnd IS NOT NULL AND m.membershipEnd <= :hasta")
+    long contarVencidosOPorVencer(@Param("tenantId") UUID tenantId,
+                                  @Param("hasta") java.time.LocalDateTime hasta);
+
+    /**
+     * Los que cumplen años HOY. La comparación es por día y mes; el año no importa.
+     *
+     * <p>⚠️ {@code birth_date} se guarda como TEXTO en formato ISO (2005-02-07), no como
+     * fecha: por eso se compara el tramo "MM-DD" con SUBSTRING y no con EXTRACT, que sobre
+     * texto ni siquiera existe. Un valor con otro formato simplemente no coincide, que es
+     * mejor que hacer explotar la consulta entera.</p>
+     *
+     * <p>Traer el padrón entero para mirar diez fechas de nacimiento era el peor de los
+     * cálculos que hacía el Dashboard.</p>
+     */
+    @Query(value = "SELECT * FROM gym_members m WHERE m.tenant_id = :tenantId "
+                 + "AND m.birth_date IS NOT NULL AND m.is_active = true "
+                 + "AND SUBSTRING(m.birth_date FROM 6 FOR 5) = :mesYDia", nativeQuery = true)
+    List<GymMember> cumplenHoy(@Param("tenantId") UUID tenantId, @Param("mesYDia") String mesYDia);
+
     // Para "At Risk" (vencidos en el pasado pero siguen marcados como activos)
     List<GymMember> findByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 
