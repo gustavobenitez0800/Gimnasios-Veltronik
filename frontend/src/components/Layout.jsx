@@ -7,6 +7,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Icon from './Icon';
 import { useAuth } from '../contexts/AuthContext';
+import { useVersionNueva } from '../hooks/useVersionNueva';
 import CONFIG from '../lib/config';
 import GymLogo from './GymLogo';
 import { derivarPaleta } from '../lib/brandColor';
@@ -70,6 +71,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { loading, subscription, gym, orgName } = useAuth();
   const navigate = useNavigate();
+  const hayVersionNueva = useVersionNueva();
   const location = useLocation();
   const toggleRef = useRef(null);
   const [headerHidden, setHeaderHidden] = useAutoHideHeader();
@@ -169,6 +171,22 @@ export function AppLayout() {
           </span>
           <span className="mobile-header-spacer" aria-hidden="true" />
         </header>
+
+        {/* ─── HAY UNA VERSIÓN NUEVA ───
+            La app es una SPA: moverse entre módulos no recarga nada, así que un terminal
+            abierto todo el día sigue con el bundle de la mañana y no ve los arreglos que se
+            publicaron. Esto avisa; recarga la PERSONA — hacerlo solo le borraría lo que
+            estuviera escribiendo a alguien en medio de un cobro. */}
+        {hayVersionNueva && (
+          <div className="version-nueva">
+            <span className="version-nueva-texto">
+              Hay una versión nueva de Veltronik.
+            </span>
+            <button className="version-nueva-btn" onClick={() => window.location.reload()}>
+              Actualizar
+            </button>
+          </div>
+        )}
 
         {/* Payment warning banner */}
         {paymentWarning && (

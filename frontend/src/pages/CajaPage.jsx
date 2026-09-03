@@ -35,7 +35,7 @@ import { cajaService } from '../services/CajaService';
 import { errorService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import { getShift } from '../lib/shift';
-import { PageHeader } from '../components/Layout';
+import { PageHeader, EmptyState } from '../components/Layout';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
@@ -350,7 +350,7 @@ export default function CajaPage() {
         {cargando ? (
           <p className="text-muted" style={{ padding: '1rem' }}><span className="spinner" /> Cargando...</p>
         ) : !cobros.length ? (
-          <p className="text-muted" style={{ padding: '1rem' }}>Todavía no se cobró nada en este período.</p>
+          <EmptyState icon="wallet" title="Todavía no se cobró nada" description="Los cobros del día aparecen acá a medida que se registran." />
         ) : (
           <table className="table">
             <thead>
@@ -521,7 +521,7 @@ export default function CajaPage() {
         <div className="card caja-historial">
           <h3><Icon name="fileText" size="1em" /> Cierres anteriores</h3>
           {!historial.length ? (
-            <p className="text-muted">Todavía no se cerró ninguna caja.</p>
+            <EmptyState icon="fileText" title="Todavía no se cerró ninguna caja" description="Cuando cierres el primer día, el historial queda acá." />
           ) : (
             <table className="table">
               <thead>

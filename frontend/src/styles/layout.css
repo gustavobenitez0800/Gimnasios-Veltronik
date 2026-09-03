@@ -348,3 +348,31 @@
    RADICAL VERTICAL OVERRIDES (Layout & Sidebar)
    ============================================ */
 
+
+/* ─── "Hay una versión nueva" ───
+   Discreto y arriba de todo: tiene que verse sin tapar nada ni interrumpir a quien está
+   cobrando. No se cierra solo ni recarga solo — la decisión es de la persona. */
+.version-nueva {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  background: color-mix(in srgb, var(--primary-500) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-500) 30%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+.version-nueva-btn {
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-radius: var(--border-radius-full);
+  background: var(--primary-500);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.version-nueva-btn:hover { background: var(--primary-600, var(--primary-500)); }

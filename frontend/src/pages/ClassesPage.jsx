@@ -11,7 +11,7 @@ import { useToast } from '../contexts/ToastContext';
 import { errorService } from '../services';
 import { useClassController } from '../controllers/useClassController';
 import { formatTime, getDayName } from '../lib/utils';
-import { PageHeader, ConfirmDialog } from '../components/Layout';
+import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import DaySelector from '../components/ui/DaySelector';
@@ -223,7 +223,7 @@ export default function ClassesPage() {
               </thead>
               <tbody>
                 {classes.length === 0 ? (
-                  <tr><td colSpan="7" className="table-empty">No hay clases registradas</td></tr>
+                  <tr><td colSpan="7" className="table-empty"><EmptyState icon="calendar" title="Todavía no hay clases" description="Creá la primera y aparece en el calendario de la semana." /></td></tr>
                 ) : classes.map(cls => (
                   <tr key={cls.id}>
                     <td data-label="Clase"><div className="flex items-center gap-1">
