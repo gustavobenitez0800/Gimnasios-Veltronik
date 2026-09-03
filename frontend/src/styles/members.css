@@ -439,33 +439,3 @@
   color-scheme: dark;
   accent-color: var(--primary-500);
 }
-
-/* ─── "Más datos" en la ficha del socio ───
-   El alta pide cuatro cosas; el resto se abre con esto. Se ve como un renglón más del
-   formulario, no como un botón de acción: no compite con "Guardar". */
-.form-more-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  margin: 0.25rem 0 1rem;
-  padding: 0.7rem 0.9rem;
-  background: var(--bg-tertiary);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--border-radius-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition-fast);
-}
-.form-more-toggle:hover { color: var(--text-primary); border-color: var(--primary-500); }
-.form-more-toggle .text-muted { font-weight: 400; }
-
-/* El bloque desplegado entra con un fade corto, no aparece de golpe. */
-.form-more {
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-  animation: fadeIn var(--transition-fast) both;
-}
