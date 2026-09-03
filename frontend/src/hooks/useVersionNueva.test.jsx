@@ -146,6 +146,24 @@ describe('el aviso de versión nueva', () => {
     expect(opciones.cache).toBe('no-store');
   });
 
+  /**
+   * El aviso también se dispara al volver a la pestaña, y eso no tiene ritmo propio: alt-tab
+   * o mover la ventana lo llaman muchas veces seguidas. Sin freno, una tarde de idas y
+   * vueltas son cientos de pedidos para preguntar algo que cambia una vez por día.
+   */
+  it('⚠️ volver a la pestaña muchas veces NO dispara un pedido por vez', async () => {
+    corriendo('index-VIEJO.js');
+    servidorSirve('index-NUEVO.js');
+    await montar();
+
+    for (let i = 0; i < 10; i += 1) {
+      await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    }
+    for (let i = 0; i < 6; i += 1) { await act(async () => { await Promise.resolve(); }); }
+
+    expect(window.fetch.mock.calls.length, 'diez idas y vueltas, un solo pedido').toBeLessThanOrEqual(1);
+  });
+
   it('en desarrollo (sin bundle con hash) no pregunta nada', async () => {
     document.querySelectorAll('script[src]').forEach((s) => s.remove());
     window.fetch = vi.fn();

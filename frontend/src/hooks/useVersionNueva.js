@@ -60,9 +60,16 @@ export function useVersionNueva() {
     if (!actual) return undefined;
 
     let vivo = true;
+    let ultimaRevision = 0;
 
     const revisar = async () => {
       if (!vivo || document.visibilityState !== 'visible') return;
+      // ⚠️ FRENO. `revisar` también cuelga de `visibilitychange`, y eso no tiene un ritmo
+      // propio: alt-tab, cambiar de pestaña o mover la ventana pueden dispararlo muchas
+      // veces seguidas. Sin este piso de un minuto, una tarde de idas y vueltas serían
+      // cientos de pedidos para preguntar algo que cambia una vez por día.
+      if (Date.now() - ultimaRevision < 60000) return;
+      ultimaRevision = Date.now();
       try {
         const publicado = await bundlePublicado();
         if (vivo && publicado && publicado !== actual) setHayVersionNueva(true);
