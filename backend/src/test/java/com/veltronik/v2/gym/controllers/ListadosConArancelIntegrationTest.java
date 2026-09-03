@@ -201,6 +201,48 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
     }
 
     /**
+     * ⭐ EL PEOR DE LOS CASOS, Y EL MÁS CONFUSO PARA QUIEN USA EL SISTEMA.
+     *
+     * <p>Editar un socio con arancel GUARDABA el cambio y después respondía 500 al armar la
+     * respuesta. La pantalla mostraba un error rojo sobre algo que ya se había aplicado, así
+     * que quien editaba lo volvía a hacer creyendo que no se había guardado.</p>
+     */
+    @Test
+    @DisplayName("🔴 editar un socio con arancel no puede fallar DESPUÉS de guardar")
+    void editarSocioConArancel() {
+        dado(() -> crearSocio(gym, "Camila", arancel));
+        GymMemberDTO antes = memberController.getAllMembers().getBody().get(0);
+
+        var input = new com.veltronik.v2.gym.dto.GymMemberInputDTO();
+        input.setFirstName("Camila");
+        input.setLastName("Ferreyra");
+        input.setDocument(antes.getDni());
+        input.setPhone("1155667788");
+        input.setActive(true);
+        input.setPlanId(arancel);
+        input.setPlanIdPresente(true);
+
+        GymMemberDTO despues = memberController.updateMember(antes.getId(), input).getBody();
+
+        assertNotNull(despues);
+        assertEquals("1155667788", despues.getPhone());
+        assertEquals("Mensual", despues.getPlanNombre(),
+                "el arancel tiene que volver resuelto en la respuesta del guardado");
+    }
+
+    @Test
+    @DisplayName("🔴 abrir la ficha de un socio con arancel tampoco se cae")
+    void fichaDeSocioConArancel() {
+        dado(() -> crearSocio(gym, "Camila", arancel));
+        UUID id = memberController.getAllMembers().getBody().get(0).getId();
+
+        GymMemberDTO ficha = memberController.getMemberById(id).getBody();
+
+        assertNotNull(ficha);
+        assertEquals("Mensual", ficha.getPlanNombre());
+    }
+
+    /**
      * Los pagos tienen la misma relación lazy al arancel, y su consulta traía el socio pero
      * NO el plan. Cobrar con arancel —que es lo normal desde que existen— rompía la pantalla
      * de Pagos igual que la de Socios.

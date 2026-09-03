@@ -46,15 +46,30 @@ public class GymMemberService {
         return repository.findByTenantId(tenantId, pageable);
     }
     
+    /**
+     * ⚠️ Devuelve el socio con su ARANCEL YA CARGADO, y eso no es un detalle.
+     *
+     * <p>El controlador arma el DTO con lo que sale de acá, fuera de la transacción. Si el
+     * arancel quedara como proxy lazy, pedir su nombre explota (LazyInitializationException)
+     * y el request termina en 500 — pero el guardado YA se aplicó. El resultado era el peor
+     * de los mundos: el cambio quedaba hecho y la pantalla mostraba un error rojo, así que
+     * quien editaba lo volvía a intentar creyendo que no se había guardado.</p>
+     */
+    @Transactional
     public GymMember saveForCurrentTenant(GymMember member) {
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
         member.setTenant(tenant);
-        return repository.save(member);
+        GymMember guardado = repository.save(member);
+        // Se relee con el arancel adentro: {@code save} devuelve la entidad con el plan como proxy.
+        return repository.findWithPlanById(guardado.getId()).orElse(guardado);
     }
     
+    @Transactional(readOnly = true)
     public GymMember findByIdAndVerifyOwnership(UUID id) {
-        GymMember member = repository.findById(id)
+        // Con el arancel: es el mismo problema del listado, y por acá pasan la ficha, el
+        // cobro rápido y el guardado.
+        GymMember member = repository.findWithPlanById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro de gym no encontrado"));
                 
         if (!member.getTenant().getId().equals(TenantContextHolder.getTenantId())) {

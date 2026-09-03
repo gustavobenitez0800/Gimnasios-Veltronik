@@ -30,6 +30,16 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      */
     @EntityGraph(attributePaths = "plan")
     List<GymMember> findByTenantId(UUID tenantId);
+
+    /**
+     * El socio con su arancel ya resuelto. Mismo motivo que los listados: el DTO se arma
+     * fuera de la transacción, y sin esto la ficha y el GUARDADO responden 500 apenas el
+     * socio tiene arancel. El guardado es el peor de los dos: la edición SE APLICA y aun así
+     * la pantalla muestra un error rojo, así que parece que no se guardó y alguien lo hace
+     * de nuevo.
+     */
+    @EntityGraph(attributePaths = "plan")
+    java.util.Optional<GymMember> findWithPlanById(UUID id);
     long countByTenantId(UUID tenantId);
 
     /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */
