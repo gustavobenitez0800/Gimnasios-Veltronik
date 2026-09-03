@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.repositories;
 import com.veltronik.v2.gym.entities.GymMember;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,6 +14,21 @@ import java.util.UUID;
 
 @Repository
 public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
+    /**
+     * ⚠️⚠️ EL ARANCEL VIAJA EN LA MISMA CONSULTA (@EntityGraph), Y NO ES UNA OPTIMIZACIÓN.
+     *
+     * <p>{@code GymMember.plan} es LAZY y el DTO se arma en el CONTROLADOR, fuera de la
+     * transacción. Con {@code spring.jpa.open-in-view=false} —que es como corre este
+     * backend— la sesión de Hibernate ya está cerrada cuando el mapper pide el nombre del
+     * arancel: salta LazyInitializationException y <b>el listado entero responde 500</b>.</p>
+     *
+     * <p>No se vio durante meses porque ningún socio tenía arancel. Basta UNO para que la
+     * pantalla de Socios deje de abrir para todo el gimnasio. Ver
+     * ListadosConArancelIntegrationTest, que lo reproduce contra Postgres de verdad.</p>
+     *
+     * <p>De paso evita el N+1: sin esto serían 400 consultas para pintar 400 filas.</p>
+     */
+    @EntityGraph(attributePaths = "plan")
     List<GymMember> findByTenantId(UUID tenantId);
     long countByTenantId(UUID tenantId);
 
@@ -21,6 +37,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     long countByTenantIdAndIsActiveTrue(UUID tenantId);
 
     // ── Paginación server-side ──
+    @EntityGraph(attributePaths = "plan")
     Page<GymMember> findByTenantId(UUID tenantId, Pageable pageable);
 
     @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND (" +
@@ -28,6 +45,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
            "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(COALESCE(m.document, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(COALESCE(m.email, '')) LIKE LOWER(CONCAT('%', :q, '%')))")
+    @EntityGraph(attributePaths = "plan")
     Page<GymMember> searchByTenantId(@Param("tenantId") UUID tenantId, @Param("q") String q, Pageable pageable);
 
     /**

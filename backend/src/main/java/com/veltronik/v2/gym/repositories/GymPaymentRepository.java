@@ -14,11 +14,11 @@ import java.util.UUID;
 
 @Repository
 public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
-    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantId(@Param("tenantId") UUID tenantId);
 
     /** Últimos pagos del tenant (límite en BD por Pageable — para feeds/actividad, no cargar el historial entero). */
-    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
     List<GymPayment> findRecentByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
 
     /**
@@ -29,14 +29,14 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
      * (no podía inferir el tipo del bind-parameter dentro del IS NULL) → HTTP 400, que dejaba
      * Pagos y Reportes EN BLANCO con cualquier filtro de fecha.
      */
-    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId "
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId "
             + "AND p.paymentDate >= :from AND p.paymentDate <= :to "
             + "ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantIdAndDateRange(@Param("tenantId") UUID tenantId,
                                                 @Param("from") LocalDateTime from,
                                                 @Param("to") LocalDateTime to);
 
-    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId AND p.member.id = :memberId ORDER BY p.paymentDate DESC")
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId AND p.member.id = :memberId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantIdAndMemberId(@Param("tenantId") UUID tenantId, @Param("memberId") UUID memberId);
     
     /**
