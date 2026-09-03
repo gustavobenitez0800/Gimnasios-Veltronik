@@ -92,6 +92,17 @@ export default function MembersPage() {
 
   // A quién le estamos cobrando. null = el modal está cerrado.
   const [cobrando, setCobrando] = useState(null);
+
+  // ─── El alta en dos niveles ───
+  //
+  // Para dar de alta a alguien en el mostrador hacen falta CUATRO cosas: nombre, DNI,
+  // teléfono y qué arancel paga. Lo demás (email, nacimiento, fechas, estado, notas, días)
+  // existe y se puede cargar, pero no tiene por qué estar en la cara de quien tiene a un
+  // socio esperando: va plegado bajo "Más datos". Al EDITAR se abre todo, porque ahí se
+  // viene a corregir un dato puntual y hay que verlo.
+  const [masDatos, setMasDatos] = useState(false);
+  useEffect(() => { if (!modal.isOpen) setMasDatos(false); }, [modal.isOpen]);
+  const mostrarMasDatos = masDatos || modal.isEditing;
   // Qué fila está guardando su arancel desde la lista, para no dejar el select muerto.
   const [guardandoArancel, setGuardandoArancel] = useState(null);
 
@@ -668,10 +679,11 @@ export default function MembersPage() {
         title={modal.isEditing ? `Editar ${memberLabel}` : `Nuevo ${memberLabel}`}
       >
         <form onSubmit={handleSave} noValidate>
+          {/* ─── LO ESENCIAL: con esto el socio ya puede pagar y entrar ─── */}
           <div className="modal-form">
             <div className="form-group full-width">
               <label className="form-label">Nombre completo *</label>
-              <input type="text" className="form-input" value={modal.form.fullName}
+              <input type="text" className="form-input" value={modal.form.fullName} autoFocus
                 onChange={(e) => modal.handleChange('fullName', e.target.value)} />
             </div>
             <div className="form-group">
@@ -679,52 +691,19 @@ export default function MembersPage() {
               <input type="text" className="form-input" placeholder="12345678" pattern="\d*"
                 onInput={(e) => e.target.value = e.target.value.replace(/\D/g, '')}
                 value={modal.form.dni} onChange={(e) => modal.handleChange('dni', e.target.value)} />
+              <small className="form-hint">Con el DNI entra por la puerta y por el QR.</small>
             </div>
             <div className="form-group">
               <label className="form-label">Teléfono</label>
               <input type="tel" className="form-input" placeholder="11-1234-5678"
                 value={modal.form.phone} onChange={(e) => modal.handleChange('phone', e.target.value)} />
             </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input type="email" className="form-input"
-                value={modal.form.email} onChange={(e) => modal.handleChange('email', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fecha de nacimiento</label>
-              <input type="date" className="form-input"
-                value={modal.form.birthDate} onChange={(e) => modal.handleChange('birthDate', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Inicio de membresía</label>
-              <input type="date" className="form-input"
-                value={modal.form.membershipStart} onChange={(e) => cambiarInicioMembresia(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fin de membresía</label>
-              <input type="date" className="form-input"
-                value={modal.form.membershipEnd} onChange={(e) => modal.handleChange('membershipEnd', e.target.value)} />
-              <small className="form-hint">
-                Hasta cuándo puede entrar. Cobrarle la cuota la corre sola: acá se toca
-                solo para dar de alta a alguien que ya venía pagando, o para corregir.
-              </small>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <select className="form-select" value={modal.form.status}
-                onChange={(e) => modal.handleChange('status', e.target.value)}>
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
-                <option value="expired">Vencido</option>
-                <option value="suspended">Suspendido</option>
-              </select>
-            </div>
             {hayAranceles && (
-              <div className="form-group">
+              <div className="form-group full-width">
                 <label className="form-label">Arancel</label>
                 <select className="form-select" value={modal.form.planId || ''}
                   onChange={(e) => modal.handleChange('planId', e.target.value)}>
-                  <option value="">Sin arancel</option>
+                  <option value="">Sin arancel — se cobra escribiendo el monto</option>
                   {/* Igual que en la lista: si el suyo se dio de baja, se muestra igual para
                       no borrárselo sin querer al primer guardado. */}
                   {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId) && (
@@ -740,23 +719,69 @@ export default function MembersPage() {
                   {/* ⚠️ Acá NO se toca el vencimiento. El arancel dice cuánto suma cada cobro,
                       y esa cuenta la hace el backend al cobrar. Si la ficha además moviera la
                       fecha, habría dos lugares decidiendo lo mismo. */}
-                  Es lo que se le va a cobrar. El vencimiento se corre al registrar el pago.
+                  Es lo que se le va a cobrar cada mes. El vencimiento se corre solo al registrar el pago.
                 </small>
               </div>
             )}
-            <div className="form-group full-width">
-              <label className="form-label">Notas</label>
-              <textarea className="form-textarea" rows="2"
-                value={modal.form.notes} onChange={(e) => modal.handleChange('notes', e.target.value)} />
-            </div>
-            <div className="form-group full-width">
-              <label className="form-label">Días de Asistencia</label>
-              <DaySelector
-                selectedDays={modal.form.attendanceDays}
-                onChange={(days) => modal.handleChange('attendanceDays', days)}
-              />
-            </div>
           </div>
+
+          {/* ─── MÁS DATOS: todo lo demás, a un clic ─── */}
+          {!mostrarMasDatos && (
+            <button type="button" className="form-more-toggle" onClick={() => setMasDatos(true)}>
+              <Icon name="chevronRight" size="1em" /> Más datos
+              <span className="text-muted"> — email, nacimiento, fechas, notas, días</span>
+            </button>
+          )}
+          {mostrarMasDatos && (
+            <div className="modal-form form-more">
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input type="email" className="form-input"
+                  value={modal.form.email} onChange={(e) => modal.handleChange('email', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Fecha de nacimiento</label>
+                <input type="date" className="form-input"
+                  value={modal.form.birthDate} onChange={(e) => modal.handleChange('birthDate', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Inicio de membresía</label>
+                <input type="date" className="form-input"
+                  value={modal.form.membershipStart} onChange={(e) => cambiarInicioMembresia(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Fin de membresía</label>
+                <input type="date" className="form-input"
+                  value={modal.form.membershipEnd} onChange={(e) => modal.handleChange('membershipEnd', e.target.value)} />
+                <small className="form-hint">
+                  Hasta cuándo puede entrar. Cobrarle la cuota la corre sola: acá se toca
+                  solo para dar de alta a alguien que ya venía pagando, o para corregir.
+                </small>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Estado</label>
+                <select className="form-select" value={modal.form.status}
+                  onChange={(e) => modal.handleChange('status', e.target.value)}>
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                  <option value="expired">Vencido</option>
+                  <option value="suspended">Suspendido</option>
+                </select>
+              </div>
+              <div className="form-group full-width">
+                <label className="form-label">Notas</label>
+                <textarea className="form-textarea" rows="2"
+                  value={modal.form.notes} onChange={(e) => modal.handleChange('notes', e.target.value)} />
+              </div>
+              <div className="form-group full-width">
+                <label className="form-label">Días de Asistencia</label>
+                <DaySelector
+                  selectedDays={modal.form.attendanceDays}
+                  onChange={(days) => modal.handleChange('attendanceDays', days)}
+                />
+              </div>
+            </div>
+          )}
           <ModalActions onCancel={modal.close} saving={modal.saving} />
         </form>
       </Modal>
