@@ -35,7 +35,36 @@ function hora(iso) {
   } catch { return ''; }
 }
 
-export default function AvisosMostrador({ avisos = [], onAtendido }) {
+/**
+ * Encabezados y texto según de dónde viene el aviso.
+ *
+ * <p>QR y molinete resuelven el mismo problema —un socio que necesita que alguien le hable—
+ * pero cuentan cosas distintas: al del QR <b>lo dejó entrar</b> el sistema; al del molinete
+ * <b>la puerta lo frenó</b>. Mezclarlos en un solo texto haría que la recepcionista no sepa si
+ * el socio está adentro o se quedó en la vereda.</p>
+ */
+const VARIANTES = {
+  entrada: {
+    titulo: (n) => (n === 1 ? 'Un socio entró y necesita atención' : `${n} socios entraron y necesitan atención`),
+    marcar: (id) => accessService.marcarAvisoVisto(id),
+    frase: (a) => ` ${(TEXTO[a.estado] || (() => 'necesita atención'))(a)} · entró ${hora(a.hora)}`,
+  },
+  rechazo: {
+    titulo: (n) => (n === 1 ? 'La puerta frenó a un socio' : `La puerta frenó a ${n} socios`),
+    marcar: (id) => accessService.marcarRechazoVisto(id),
+    // Al rechazado la puerta NO lo dejó pasar, así que el texto es sobre por qué se lo frenó.
+    frase: (a) => ` quiso entrar por el molinete y no pudo — ${(TEXTO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
+  },
+};
+
+/**
+ * La lista de socios que necesitan atención en el mostrador.
+ *
+ * @param variante 'entrada' (entró por QR vencido) o 'rechazo' (la puerta lo frenó). El único
+ *                 cambio real es el encabezado, el texto y a qué endpoint se le avisa "visto".
+ */
+export default function AvisosMostrador({ avisos = [], onAtendido, variante = 'entrada' }) {
+  const v = VARIANTES[variante] || VARIANTES.entrada;
   const [ocultando, setOcultando] = useState(null);
   // Los que la recepcionista acaba de resolver: se sacan en el acto, sin esperar al
   // servidor. Ella ya está hablando con el socio y no tiene por qué mirar cómo el aviso
@@ -48,7 +77,7 @@ export default function AvisosMostrador({ avisos = [], onAtendido }) {
     setOcultando(aviso.accesoId);
     setAtendidos((prev) => [...prev, aviso.accesoId]);
     try {
-      await accessService.marcarAvisoVisto(aviso.accesoId);
+      await v.marcar(aviso.accesoId);
       onAtendido?.();
     } catch {
       // Si falló, vuelve en el próximo refresco. Mejor que reaparezca a que se pierda:
@@ -65,7 +94,7 @@ export default function AvisosMostrador({ avisos = [], onAtendido }) {
     <div className="avisos-mostrador">
       <h3 className="avisos-titulo">
         <Icon name="alertTriangle" size="1em" />
-        {visibles.length === 1 ? 'Un socio entró y necesita atención' : `${visibles.length} socios entraron y necesitan atención`}
+        {v.titulo(visibles.length)}
       </h3>
 
       <ul className="avisos-lista">
@@ -73,8 +102,7 @@ export default function AvisosMostrador({ avisos = [], onAtendido }) {
           <li key={a.accesoId} className={`aviso ${a.estado === 'SIN_DATOS' ? 'is-dato' : 'is-plata'}`}>
             <div className="aviso-info">
               <strong>{a.nombre}</strong>
-              <span> {(TEXTO[a.estado] || (() => 'necesita atención'))(a)}</span>
-              <span className="aviso-hora"> · entró {hora(a.hora)}</span>
+              <span>{v.frase(a)}</span>
             </div>
             <button
               className="btn btn-secondary aviso-btn"

@@ -175,6 +175,63 @@ public class MolineteService {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Los rechazados: a quién frenó la puerta y hay que llamar
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Un socio que el molinete no dejó pasar, listo para mostrar en el mostrador.
+     *
+     * <p>Mismos campos que el aviso del QR ({@link AccessLogService.Aviso}) para que la pantalla
+     * los pinte con el mismo componente. La diferencia es de texto, no de forma: al del QR
+     * <i>lo dejó entrar</i> y hay que hablarle; a este <b>la puerta lo frenó</b>.</p>
+     */
+    public record Rechazo(UUID accesoId, UUID socioId, String nombre, String estado,
+                          long diasVencido, LocalDateTime hora) {}
+
+    /**
+     * Los rechazos de hoy que el mostrador todavía no atendió, con el estado RECALCULADO.
+     *
+     * <p>El estado se recalcula y no se lee del registro a propósito, igual que en los avisos
+     * del QR: el socio pudo pagar en el mostrador entre que la puerta lo frenó y que alguien
+     * mire la lista. Si ya está al día, sigue apareciendo —fue frenado en la puerta, eso pasó y
+     * conviene saberlo para pedirle disculpas o resincronizar el equipo— pero con su situación
+     * de ahora, no con la de hace media hora.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<Rechazo> rechazosPendientes() {
+        LocalDateTime desde = java.time.LocalDate.now(BUSINESS_ZONE).atStartOfDay();
+        List<AccessDenied> rechazos = deniedRepository
+                .findByTenantIdAndAvisoVistoAtIsNullAndOccurredAtAfterOrderByOccurredAtDesc(
+                        TenantContextHolder.getTenantId(), desde);
+
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<Rechazo> salida = new ArrayList<>();
+        for (AccessDenied r : rechazos) {
+            GymMember m = r.getMember();
+            if (m == null) continue;
+            MemberAccessPolicy.Verdict v = accessPolicy.evaluate(m, ahora);
+            salida.add(new Rechazo(
+                    r.getId(), m.getId(),
+                    ((m.getFirstName() == null ? "" : m.getFirstName()) + " "
+                            + (m.getLastName() == null ? "" : m.getLastName())).trim(),
+                    v.status().name(), v.diasVencido(), r.getOccurredAt()));
+        }
+        return salida;
+    }
+
+    /** El mostrador ya lo habló con el socio: se saca de la lista, en todas las terminales. */
+    @Transactional
+    public void marcarRechazoVisto(UUID rechazoId) {
+        deniedRepository.findById(rechazoId)
+                .filter(r -> r.getTenant() != null
+                        && r.getTenant().getId().equals(TenantContextHolder.getTenantId()))
+                .ifPresent(r -> {
+                    r.setAvisoVistoAt(LocalDateTime.now(BUSINESS_ZONE));
+                    deniedRepository.save(r);
+                });
+    }
+
     /**
      * ¿El aviso viene del equipo que atiende esta puerta?
      *

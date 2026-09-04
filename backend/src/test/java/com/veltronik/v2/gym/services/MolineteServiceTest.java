@@ -298,6 +298,51 @@ class MolineteServiceTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Los rechazados para el mostrador
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("los rechazados pendientes salen con nombre y estado recalculado")
+    void rechazosConEstadoFresco() {
+        TenantContextHolder.setTenantId(TENANT);
+        GymMember vencido = socio("Carlos", "Vencido", true, LocalDateTime.now().minusDays(40));
+        AccessDenied r = new AccessDenied();
+        r.setId(UUID.randomUUID());
+        r.setMember(vencido);
+        r.setOccurredAt(LocalDateTime.now().minusMinutes(5));
+        r.setReason(AccessDenied.Reason.FUERA_DE_HORARIO);
+        when(deniedRepository.findByTenantIdAndAvisoVistoAtIsNullAndOccurredAtAfterOrderByOccurredAtDesc(
+                eq(TENANT), any())).thenReturn(java.util.List.of(r));
+
+        var pendientes = service.rechazosPendientes();
+
+        assertEquals(1, pendientes.size());
+        assertEquals("Carlos Vencido", pendientes.get(0).nombre());
+        // El estado se recalcula: no se lee del registro. 40 días > gracia = VENCIDO.
+        assertEquals("VENCIDO", pendientes.get(0).estado());
+    }
+
+    /**
+     * El socio pagó en el mostrador entre que la puerta lo frenó y que alguien miró la lista.
+     * Sigue apareciendo —fue frenado, eso pasó— pero con su situación de AHORA.
+     */
+    @Test
+    @DisplayName("si el rechazado ya pagó, aparece al día, no congelado en vencido")
+    void rechazoRecalculaAlDia() {
+        TenantContextHolder.setTenantId(TENANT);
+        GymMember yaPago = socio("Ana", "Pago", true, LocalDateTime.now().plusDays(20));
+        AccessDenied r = new AccessDenied();
+        r.setId(UUID.randomUUID());
+        r.setMember(yaPago);
+        r.setOccurredAt(LocalDateTime.now().minusMinutes(30));
+        r.setReason(AccessDenied.Reason.FUERA_DE_HORARIO);
+        when(deniedRepository.findByTenantIdAndAvisoVistoAtIsNullAndOccurredAtAfterOrderByOccurredAtDesc(
+                eq(TENANT), any())).thenReturn(java.util.List.of(r));
+
+        assertEquals("AL_DIA", service.rechazosPendientes().get(0).estado());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // El padrón que baja el escritorio
     // ─────────────────────────────────────────────────────────────────────────
 
