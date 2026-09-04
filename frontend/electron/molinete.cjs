@@ -126,7 +126,9 @@ const horario = (cfg, id, permitido) => pedir(cfg, '/person/createPasstime', {
     passtime: JSON.stringify({ personId: id, passtime: permitido ? ABIERTO : CERRADO }),
 });
 
-const baja = (cfg, id) => pedir(cfg, '/person/delete', { pass: cfg.clave, personId: id });
+// El campo del delete es `id`, no `personId` — el documento lo etiqueta "Person ID" pero la
+// clave real que espera el equipo es `id`. Con `personId` contesta "id is abnormal".
+const baja = (cfg, id) => pedir(cfg, '/person/delete', { pass: cfg.clave, id });
 
 /** El equipo saca la foto él mismo: la cara nunca pasa por Veltronik. */
 const foto = (cfg, id) => pedir(cfg, '/face/takeImg', { pass: cfg.clave, personId: id });

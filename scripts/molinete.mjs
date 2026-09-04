@@ -137,7 +137,8 @@ const baja = async (ip, pass, id) => {
   if (!ip || !pass || !id) morir('Uso: node scripts/molinete.mjs baja <ip> <clave> <id>');
   // El equipo entiende "-1" como "borrá a todos, con fotos y todo". Acá no se acepta por accidente.
   if (id === '-1') morir('"-1" le borra TODAS las personas al equipo. Si es lo que querés, hacelo a mano.');
-  mostrar(await pedir(ip, '/person/delete', { cuerpo: { pass, personId: id } }));
+  // El campo es `id`, no `personId` (el documento lo etiqueta "Person ID" pero engaña).
+  mostrar(await pedir(ip, '/person/delete', { cuerpo: { pass, id } }));
 };
 
 /** El equipo saca la foto él mismo: la cara nunca pasa por Veltronik. */
