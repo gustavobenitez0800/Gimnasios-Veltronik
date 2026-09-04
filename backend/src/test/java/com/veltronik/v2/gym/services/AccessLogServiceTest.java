@@ -122,6 +122,49 @@ class AccessLogServiceTest {
             assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
             verify(repo, never()).save(any(AccessLog.class));
         }
+
+        /**
+         * El molinete avisa por RECONOCIMIENTO, no por persona: mientras haya una cara frente a
+         * la cámara manda un aviso cada pocos segundos —en el equipo real, 6 en 15 segundos—.
+         * Con la ventana del QR, el socio que se queda charlando en la puerta entra y sale
+         * varias veces.
+         */
+        @Test
+        @DisplayName("el molinete disparando mientras el socio está parado enfrente no lo saca")
+        void laRafagaDelMolineteNoCuentaComoSalida() {
+            AccessLog abierta = visitaAbiertaDesde(LocalDateTime.now().minusSeconds(40));
+
+            var r = service.registerScan(MEMBER, AccessLogService.METODO_FACIAL, null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.REBOTE, r.direction(),
+                    "40 segundos después sigue siendo el mismo gesto para una cámara");
+            assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
+        }
+
+        @Test
+        @DisplayName("pasado el rato, el molinete sí marca la salida")
+        void pasadaLaVentanaElMolineteMarcaSalida() {
+            visitaAbiertaDesde(LocalDateTime.now().minusMinutes(45));
+
+            var r = service.registerScan(MEMBER, AccessLogService.METODO_FACIAL, null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+        }
+
+        /**
+         * El freno es para los aparatos, no para las personas: una recepcionista apretando un
+         * botón es siempre deliberada. Cuando esto se le aplicaba al mostrador, no se podía
+         * corregir nada durante quince segundos.
+         */
+        @Test
+        @DisplayName("el mostrador nunca rebota")
+        void elMostradorNoRebota() {
+            visitaAbiertaDesde(LocalDateTime.now().minusSeconds(3));
+
+            var r = service.registerScan(MEMBER, "MANUAL", null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+        }
     }
 
     /**
