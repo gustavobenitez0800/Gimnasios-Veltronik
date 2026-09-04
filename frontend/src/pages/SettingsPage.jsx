@@ -23,6 +23,7 @@ import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
 import GymLogo from '../components/GymLogo';
 import TerminalSettings from '../components/TerminalSettings';
+import MolineteSettings from '../components/MolineteSettings';
 import CoverageGaps from '../components/CoverageGaps';
 import CashierSettings from '../components/CashierSettings';
 import ArancelesSettings from '../components/ArancelesSettings';
@@ -524,6 +525,9 @@ export default function SettingsPage({ SubscriptionActions }) {
         {(currentRole === 'owner' || currentRole === 'admin') && <ArancelesSettings />}
 
         {CONFIG.IS_DESKTOP && <TerminalSettings />}
+
+        {/* El molinete solo se le puede hablar desde la computadora del local. */}
+        {CONFIG.IS_DESKTOP && <MolineteSettings />}
 
         {/* Equipos (Fase 1: registro + bautizo) */}
         {canManageDevices && (

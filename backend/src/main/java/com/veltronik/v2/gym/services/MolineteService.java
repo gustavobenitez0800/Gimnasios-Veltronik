@@ -7,6 +7,7 @@ import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.repositories.AccessDeniedRepository;
 import com.veltronik.v2.gym.repositories.CheckinPointRepository;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
+import com.veltronik.v2.gym.security.MemberAccessPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,12 +55,72 @@ public class MolineteService {
     private final GymMemberRepository memberRepository;
     private final AccessDeniedRepository deniedRepository;
     private final AccessLogService accessLogService;
+    private final MemberAccessPolicy accessPolicy;
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     /** Lo que manda el equipo en cada reconocimiento. Todo llega como texto. */
     public record Aviso(String personId, String deviceKey, String type, String time,
                         String passTimeType) {}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // El padrón: la lista que el escritorio le mantiene al día al equipo
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Un socio, como lo necesita el molinete: quién es y si hoy puede pasar.
+     *
+     * @param id        va al equipo sin guiones; es lo que vuelve en cada aviso
+     * @param nombre    lo que muestra la pantalla del equipo cuando lo reconoce
+     * @param permitido si le abrimos la ventana horaria o se la cerramos
+     */
+    public record SocioDelPadron(UUID id, String nombre, boolean permitido) {}
+
+    /**
+     * La lista completa de socios del gimnasio con el veredicto ya resuelto.
+     *
+     * <p><b>El veredicto se calcula ACÁ y no en el escritorio.</b> Es la misma regla que usa el
+     * mostrador y el check-in por QR ({@link MemberAccessPolicy}), y ya se aprendió caro que
+     * toda cuenta de fechas copiada termina estando mal en alguna de las copias. El escritorio
+     * no sabe qué es estar vencido: recibe un sí o un no y lo aplica.</p>
+     *
+     * <p><b>Quién puede pasar.</b> Al día y en gracia, obviamente. También el que <i>no tiene
+     * fecha de vencimiento cargada</i>: eso es un dato que falta —pasa con los migrados y los
+     * cargados a las apuradas— y no es lo mismo que deber. Dejar a un socio al día parado en
+     * la puerta por un campo vacío es peor que dejar entrar a uno que se fue ayer, y encima
+     * hace quedar mal al gimnasio delante de quien sí pagó. Quedan afuera el vencido y el dado
+     * de baja.</p>
+     *
+     * <p>Van TODOS los socios, incluidos los que no pueden pasar: el escritorio necesita
+     * distinguir "está y no puede" de "ya no es socio de este gimnasio" — al segundo hay que
+     * borrarle la cara del equipo, al primero solo cerrarle el horario.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<SocioDelPadron> padron(UUID tenantId) {
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<SocioDelPadron> padron = new ArrayList<>();
+        // Se traen las fichas enteras y no una proyección: la regla de arriba necesita el socio
+        // completo, y esto corre cada varios minutos, no cada quince segundos como el mostrador.
+        for (GymMember m : memberRepository.findByTenantId(tenantId)) {
+            MemberAccessPolicy.Status estado = accessPolicy.evaluate(m, ahora).status();
+            padron.add(new SocioDelPadron(m.getId(), nombreDe(m), puedePasar(estado)));
+        }
+        return padron;
+    }
+
+    private static boolean puedePasar(MemberAccessPolicy.Status estado) {
+        return estado == MemberAccessPolicy.Status.AL_DIA
+                || estado == MemberAccessPolicy.Status.EN_GRACIA
+                || estado == MemberAccessPolicy.Status.SIN_DATOS;
+    }
+
+    /** La pantalla del equipo corta a los 32 caracteres, así que se recorta acá y no allá. */
+    private static String nombreDe(GymMember m) {
+        String nombre = ((m.getFirstName() == null ? "" : m.getFirstName()) + " "
+                + (m.getLastName() == null ? "" : m.getLastName())).trim();
+        if (nombre.isEmpty()) nombre = "Socio";
+        return nombre.length() > 32 ? nombre.substring(0, 32) : nombre;
+    }
 
     /** Qué hicimos con el aviso. Sale en los logs y en la respuesta al equipo. */
     public enum Resultado {

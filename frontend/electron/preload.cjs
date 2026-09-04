@@ -139,6 +139,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // ============================================
+    // MOLINETE FACIAL (LAN)
+    // ============================================
+    //
+    // ⚠️ No confundir con `accessControl` de abajo, que es una fachada vieja SIN handlers,
+    // pensada para un modelo distinto: un aparato que nos pregunta si abre. El molinete no
+    // pregunta nada — decide solo y después avisa. Lo único que necesita de nosotros es la
+    // lista de socios al día.
+
+    molinete: {
+        /** IP y clave del equipo. Son de esta máquina, no de la cuenta. */
+        getConfig: () => ipcRenderer.invoke('molinete:config-get'),
+        setConfig: (cambios) => ipcRenderer.invoke('molinete:config-set', cambios),
+
+        /** ¿Contesta? Devuelve serie, firmware y cuántas personas y caras tiene cargadas. */
+        probar: () => ipcRenderer.invoke('molinete:probar'),
+
+        /**
+         * Deja al equipo con exactamente los socios del padrón y su horario de hoy.
+         * El padrón lo baja la pantalla del backend: el veredicto viene resuelto de allá.
+         */
+        sincronizar: (padron) => ipcRenderer.invoke('molinete:sincronizar', padron),
+
+        /** Pone al equipo en modo captura para un socio; hay que estar parado enfrente. */
+        sacarFoto: (socioId) => ipcRenderer.invoke('molinete:foto', socioId),
+
+        /** A qué dirección tiene que avisar el equipo cada reconocimiento. */
+        avisarA: (url) => ipcRenderer.invoke('molinete:avisar-a', url),
+
+        /** Avance de la sincronización, para no dejar la pantalla muda. */
+        onProgreso: (callback) => {
+            const handler = (_event, data) => callback(data);
+            ipcRenderer.on('molinete:progreso', handler);
+            return () => ipcRenderer.removeListener('molinete:progreso', handler);
+        },
+    },
+
+    // ============================================
     // CONTROL DE ACCESO FÍSICO - GESTOR UNIVERSAL
     // ============================================
 

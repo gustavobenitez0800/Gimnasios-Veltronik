@@ -60,7 +60,8 @@ class MolineteServiceTest {
         memberRepository = mock(GymMemberRepository.class);
         deniedRepository = mock(AccessDeniedRepository.class);
         accessLogService = mock(AccessLogService.class);
-        service = new MolineteService(pointRepository, memberRepository, deniedRepository, accessLogService);
+        service = new MolineteService(pointRepository, memberRepository, deniedRepository, accessLogService,
+                new com.veltronik.v2.gym.security.MemberAccessPolicy(3));
 
         punto = new CheckinPoint();
         punto.setId(PUNTO);
@@ -297,6 +298,52 @@ class MolineteServiceTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // El padrón que baja el escritorio
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("al día y en gracia pasan; vencido y dado de baja, no")
+    void elVeredictoDelPadron() {
+        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+                socio("Al", "Dia", true, LocalDateTime.now().plusDays(10)),
+                socio("En", "Gracia", true, LocalDateTime.now().minusDays(2)),
+                socio("Muy", "Vencido", true, LocalDateTime.now().minusDays(40)),
+                socio("Dado", "DeBaja", false, LocalDateTime.now().plusDays(10))));
+
+        var padron = service.padron(TENANT);
+
+        assertEquals(4, padron.size(), "van todos, también los que no pueden pasar");
+        assertEquals(true, padron.get(0).permitido());
+        assertEquals(true, padron.get(1).permitido(), "la gracia es para que no lo frenen en la puerta");
+        assertEquals(false, padron.get(2).permitido());
+        assertEquals(false, padron.get(3).permitido(), "la baja manda sobre la fecha");
+    }
+
+    /**
+     * Un socio sin fecha de vencimiento NO es un moroso: es un dato que falta —pasa con los
+     * migrados y los cargados a las apuradas—. Frenarlo en la puerta sería acusar de deudor a
+     * alguien que está al día, delante de todo el mundo.
+     */
+    @Test
+    @DisplayName("al socio sin fecha cargada se lo deja pasar, no se lo acusa")
+    void elSocioSinFechaPasa() {
+        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+                socio("Sin", "Datos", true, null)));
+
+        assertEquals(true, service.padron(TENANT).get(0).permitido());
+    }
+
+    @Test
+    @DisplayName("el nombre se recorta a lo que entra en la pantalla del equipo")
+    void elNombreSeRecorta() {
+        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+                socio("Maria Esperanza de los Angeles", "Fernandez Gutierrez", true,
+                        LocalDateTime.now().plusDays(10))));
+
+        assertEquals(32, service.padron(TENANT).get(0).nombre().length());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // El id de socio, ida y vuelta
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -324,6 +371,19 @@ class MolineteServiceTest {
 
     private static UUID isNullUuid() {
         return org.mockito.ArgumentMatchers.isNull();
+    }
+
+    private static GymMember socio(String nombre, String apellido, boolean activo, LocalDateTime vence) {
+        Tenant t = new Tenant();
+        t.setId(TENANT);
+        GymMember m = new GymMember();
+        m.setId(UUID.randomUUID());
+        m.setTenant(t);
+        m.setFirstName(nombre);
+        m.setLastName(apellido);
+        m.setActive(activo);
+        m.setMembershipEnd(vence);
+        return m;
     }
 
     private static GymMember socioDe(UUID tenantId) {

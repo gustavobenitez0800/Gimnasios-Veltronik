@@ -153,15 +153,60 @@ Decisiones que quedaron grabadas en el código, cada una con su porqué:
 mandó el equipo** —la ráfaga de 6 en 16 segundos incluida— y verifican que terminen siendo una
 sola visita.
 
+## La sincronización: cómo entran los socios al equipo
+
+La otra mitad. Vive en el **escritorio** y no en la nube porque el equipo está detrás del
+router del gimnasio, y porque el fabricante avisa que **un solo programa puede manejarlo**.
+
+```
+Ajustes → Molinete            el dueño pone IP y clave (son de ESA computadora)
+       ↓
+GET /api/gym/molinete/padron  [{id, nombre, permitido}] — el veredicto viene resuelto
+       ↓
+electron/molinete.cjs         lo traduce a pedidos LAN
+       ↓
+el equipo
+```
+
+| | |
+|---|---|
+| Endpoint del padrón | `GET /api/gym/molinete/padron` — gateado por `CONTROL_DE_ACCESO` |
+| Puente LAN | `frontend/electron/molinete.cjs` |
+| Pantalla | `components/MolineteSettings.jsx` (Ajustes, solo escritorio) |
+| Foto del socio | botón de cámara en la fila del socio (`useMolinete`) |
+
+**El veredicto lo calcula el backend**, con la misma `MemberAccessPolicy` que usan el mostrador
+y el QR. El escritorio recibe un sí o un no y lo aplica: una segunda cuenta de fechas allá
+terminaría desincronizada de la de acá el día que cambie cualquiera de las dos. Pasan el que
+está al día, el que está en gracia y **el que no tiene fecha cargada** —eso es un dato que
+falta, no una deuda—; quedan afuera el vencido y el dado de baja.
+
+Tres cuidados del lado del escritorio, cada uno con su test:
+
+- **El espejo.** El equipo sabe decir a quién tiene cargado, pero no en qué ventana horaria
+  quedó cada uno sin preguntárselo de a uno. Se guarda un espejo local de lo último aplicado,
+  así una sincronización normal son **cero pedidos** en vez de 385. Es una caché, no la verdad:
+  si se pierde, se reaplica.
+- **El freno de bajas.** Borrar a alguien del equipo **le borra la cara**, y recuperarla exige
+  tenerlo parado enfrente otra vez. Si el padrón llegara vacío o cortado, una sola corrida
+  dejaría al gimnasio entero teniendo que re-enrolarse. Si las bajas superan el 20% de lo que
+  hay cargado, no se borra nada y se avisa.
+- **Lo cargado a mano no se toca.** Solo se borran ids con nuestra forma (32 hex). Una persona
+  que cargó el técnico en el equipo no es asunto nuestro.
+
+⚠️ Sincronizar carga al socio **sin cara**: el equipo todavía no lo reconoce. La foto se toma
+una vez, desde la ficha, con la persona parada frente al equipo.
+
 ## Lo que falta
 
-1. **Cargarle la lista de socios al equipo.** Es la otra mitad, y sin ella el molinete no
-   conoce a nadie. Va en el escritorio (Electron): el equipo está detrás del router y **sólo un
-   programa puede manejarlo**. Alta con `/person/create`, foto con `/face/takeImg`, y la
-   ventana horaria abierta o cerrada según la cuota.
-2. **Mostrar los rechazados** en la pantalla de Acceso, al lado de los avisos del QR.
-3. **Apuntar el equipo a Cloud Run** y verificar ahí mismo un riesgo abierto: **no está
-   probado que el equipo hable HTTPS**, y Cloud Run no atiende otra cosa. Si no puede, el
-   escritorio recibe en la LAN y reenvía — el endpoint no cambia.
+1. **Mostrar los rechazados** en la pantalla de Acceso, al lado de los avisos del QR. El
+   backend ya los guarda; nadie los muestra todavía.
+2. **Apuntar el equipo a Cloud Run** y verificar ahí un riesgo abierto: **no está probado que
+   el equipo hable HTTPS**, y Cloud Run no atiende otra cosa. Si no puede, el escritorio recibe
+   en la LAN y reenvía — el endpoint no cambia.
+3. **Probar contra el equipo real** `person/update` y `person/delete`: son los dos únicos
+   pedidos que usa la sincronización y que todavía no se ejercitaron contra el aparato (el
+   resto sí: alta, horario abierto y cerrado, listado, foto y callback).
 4. **Cambiar la clave del equipo**, que hoy es la de fábrica.
-5. **Gateo del plan**: el control de acceso es premium y la llave va en el backend.
+5. **Limpiar `accessControl`** en `preload.cjs`: 25 canales sin handler, de un modelo distinto
+   —un aparato que nos pregunta si abre— que este equipo no usa.

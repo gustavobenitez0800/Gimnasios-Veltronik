@@ -20,6 +20,8 @@ export { deviceService } from './DeviceService';
 export { cashierService } from './CashierService';
 // Aranceles: el catálogo de lo que vende el gimnasio (días y/o clases por plan).
 export { planService } from './PlanService';
+// Molinete facial: el padrón que el escritorio le mantiene al día al equipo.
+export { molineteService } from './MolineteService';
 
 // Analytics
 import InsightsService from './InsightsService';

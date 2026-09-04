@@ -11,3 +11,5 @@ export { useRefrescoAutomatico } from './useRefrescoAutomatico';
 export { useLoadOnMount } from './useLoadOnMount';
 export { useVisualViewport } from './useVisualViewport';
 export { useMonthlyPrice, useMonthlyPriceLabel } from './useMonthlyPrice';
+// Molinete facial: si esta computadora le llega al equipo y está configurado.
+export { useMolinete } from './useMolinete';
