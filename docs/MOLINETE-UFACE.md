@@ -197,16 +197,36 @@ Tres cuidados del lado del escritorio, cada uno con su test:
 ⚠️ Sincronizar carga al socio **sin cara**: el equipo todavía no lo reconoce. La foto se toma
 una vez, desde la ficha, con la persona parada frente al equipo.
 
+## Los planes
+
+El molinete es la función del plan **premium = $80.000/mes**. El sistema actual (mostrador,
+socios, cobros, QR) es el **básico = $45.000/mes**. Coincide con el catálogo ya armado
+(`PlanCatalog`: básico 45k, premium 80k con `CONTROL_DE_ACCESO`). El candado del padrón usa
+`PlanPolicy.hasFeature(CONTROL_DE_ACCESO)`; el aviso de entrada NO se gatea (ver arriba).
+
+## Validado contra el hardware real (2026-09-04)
+
+Todos los pedidos de la integración, contra el UFACE5 (`E03C1CB7BBE61830`): alta, listado,
+horario abierto **y** cerrado, renombrar, borrar, foto, y el aviso con `face_0`/`face_1`
+reales. El sync completo (alta → renombrar → cambio de horario → borrado) corrió de punta a
+punta. El circuito de recepción se probó contra un backend local con el esquema real: `face_0`
+al día → `access_log FACIAL`; `face_1` vencido → `access_denied FUERA_DE_HORARIO`; `face_2`
+desconocido → nada; la puerta se apareó sola con el serial.
+
+⚠️ **El `delete` tenía un bug** que solo el hardware podía atrapar: el campo es `id`, no
+`personId` (el documento engaña). Arreglado.
+
 ## Lo que falta
 
-1. **Mostrar los rechazados** en la pantalla de Acceso, al lado de los avisos del QR. El
-   backend ya los guarda; nadie los muestra todavía.
-2. **Apuntar el equipo a Cloud Run** y verificar ahí un riesgo abierto: **no está probado que
+1. **El click-through visual en la app de escritorio.** Todo lo de arriba está probado por
+   código y hardware, pero nadie miró todavía el panel de Ajustes → Molinete ni la lista de
+   rechazados en una app corriendo. Es una ventana nativa de Electron: hay que estar en la PC
+   del local, con la app en modo desarrollo apuntada al backend, y entrar con la cuenta real.
+2. **Apuntar el equipo a Cloud Run** y verificar ahí el riesgo abierto: **no está probado que
    el equipo hable HTTPS**, y Cloud Run no atiende otra cosa. Si no puede, el escritorio recibe
    en la LAN y reenvía — el endpoint no cambia.
-3. **Probar contra el equipo real** `person/update` y `person/delete`: son los dos únicos
-   pedidos que usa la sincronización y que todavía no se ejercitaron contra el aparato (el
-   resto sí: alta, horario abierto y cerrado, listado, foto y callback).
-4. **Cambiar la clave del equipo**, que hoy es la de fábrica.
+3. **Cambiar la clave del equipo**, que hoy es la de fábrica.
+4. **Activar el premium en el checkout**: hoy el checkout no sabe elegir plan (`PlanCatalog`
+   tiene el premium, pero `premiumAvailable` lo mantiene oculto). Sin esto no se puede contratar.
 5. **Limpiar `accessControl`** en `preload.cjs`: 25 canales sin handler, de un modelo distinto
    —un aparato que nos pregunta si abre— que este equipo no usa.
