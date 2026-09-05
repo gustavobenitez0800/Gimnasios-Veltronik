@@ -117,6 +117,27 @@ const rutaDeArranque = () => {
 const necesitaSucursal = (path) => !NO_ORG_ROUTES.includes(path) && !matchesPublicPrefix(path);
 
 /**
+ * Pantallas cuyo trabajo ES elegir sucursal.
+ *
+ * <p>Para estas, cargar la sucursal ANTERIOR no es "adelantar trabajo": es trabajo muerto.
+ * Ni el Lobby ni el DeviceGate leen `gym` o `subscription` del contexto —los dos piden
+ * solo `profile`, `logout` y `refreshOrgContext`— y lo primero que hacen es fijar la
+ * sucursal ellos mismos: el Lobby al tocar una card, el DeviceGate borrando
+ * `current_org_id` apenas monta. Lo que precargáramos se sobreescribe sí o sí.</p>
+ *
+ * <p>Y no es gratis: son dos pedidos más peleando por el único vCPU del backend justo en
+ * el arranque, que es cuando salen todos juntos. Medido en el Lobby del dueño: con 5
+ * pedidos ninguno pasaba de 314 ms; con 9 saltaban a 2500 ms. El endpoint no se hizo
+ * lento — se hizo la cola.</p>
+ *
+ * <p>Es UNA ruta porque en el escritorio el DeviceGate ocupa la misma que el Lobby web.</p>
+ */
+const SELECTORES_DE_SUCURSAL = [CONFIG.ROUTES.LOBBY];
+
+/** ¿Esta pantalla va a fijar la sucursal ella misma? */
+const eligeSucursal = (path) => SELECTORES_DE_SUCURSAL.includes(path);
+
+/**
  * ⏱️ EL CRONÓMETRO DEL ARRANQUE — POR QUÉ ESTÁ Y POR QUÉ NO SE SACA.
  *
  * <p>Mientras `loading` es true no se dibuja NADA: solo el logo con el spinner. Cuando
@@ -307,6 +328,23 @@ export function AuthProvider({ children }) {
   // Initialize auth state from Supabase
   const doInitAuth = async () => {
     const reloj = cronometro();
+    /**
+     * La carga de sucursal que quedó corriendo por detrás.
+     *
+     * <p>⚠️ ES LO QUE MANTIENE CERRADO EL DEDUPE, y no es un detalle. Supabase emite
+     * `SIGNED_IN` a los pocos milisegundos del arranque, y su listener vuelve a llamar a
+     * `initAuth`. El guard de `initAuthPromiseRef` lo atrapa solo mientras la corrida
+     * anterior siga en vuelo — y desde que esta función dejó de ESPERAR la sucursal,
+     * terminaba en un suspiro y soltaba el candado antes de que llegara el evento. La
+     * segunda corrida entonces pedía todo de nuevo: se veía como `/tenants/{id}` y su
+     * suscripción duplicados, 30 ms aparte, en el arranque del Lobby.</p>
+     *
+     * <p>Por eso la promesa de `doInitAuth` sigue viva hasta que la carga de fondo
+     * termina, aunque la pantalla ya se haya dibujado hace rato. Dibujar y deduplicar son
+     * dos relojes distintos: el primero lo cierra `setLoading(false)`, el segundo tiene
+     * que durar todo lo que dure el trabajo de verdad.</p>
+     */
+    let enSegundoPlano = null;
     try {
       const session = await authService.getSession().catch(() => null);
       reloj.marca('sesion');
@@ -360,7 +398,11 @@ export function AuthProvider({ children }) {
       // Intentar cargar el contexto de la org seleccionada
       const orgId = localStorage.getItem('current_org_id');
 
-      if (orgId) {
+      // La ruta se lee UNA vez: entre acá y el final de la función el usuario no navegó,
+      // y preguntarla dos veces invita a que las dos ramas de abajo discrepen.
+      const ruta = rutaDeArranque();
+
+      if (orgId && !eligeSucursal(ruta)) {
         const contexto = Promise.all([
           loadOrgById(orgId),
           loadSubscriptionForOrg(orgId),
@@ -397,11 +439,11 @@ export function AuthProvider({ children }) {
         // instante de más, nunca que un moroso entre gratis.
         //
         // Se siguen cargando igual — por detrás, sin bloquear el dibujo.
-        if (necesitaSucursal(rutaDeArranque())) {
+        if (necesitaSucursal(ruta)) {
           await contexto;
           reloj.marca('sucursal');
         } else {
-          contexto.catch((e) => console.warn('[auth] no se pudo precargar la sucursal anterior:', e?.message));
+          enSegundoPlano = contexto.catch((e) => console.warn('[auth] no se pudo precargar la sucursal anterior:', e?.message));
         }
       }
     } catch (error) {
@@ -411,6 +453,11 @@ export function AuthProvider({ children }) {
       setLoading(false);
       initCompleteRef.current = true;
     }
+
+    // La pantalla ya se dibujó (el `finally` de arriba). Esto de acá no la demora: solo
+    // mantiene viva la promesa —y con ella el dedupe— hasta que la carga de fondo termine.
+    // Ver el comentario de `enSegundoPlano`.
+    if (enSegundoPlano) await enSegundoPlano;
   };
 
   const initAuth = useCallback(async () => {

@@ -89,7 +89,13 @@ async function tick() {
 }
 
 beforeEach(() => {
+  // `clearAllMocks` borra las LLAMADAS pero no las implementaciones ni los valores de
+  // retorno: sin este reseteo, el pedido congelado de un test se filtraba al siguiente y
+  // lo hacía fallar por el orden en que corrieron, no por el código.
   vi.clearAllMocks();
+  apiClient.get.mockReset();
+  authService.onAuthStateChange.mockReset();
+  authService.onAuthStateChange.mockReturnValue({ unsubscribe: vi.fn() });
   localStorage.clear();
   authService.getSession.mockResolvedValue(SESION);
   authService.getCurrentUser.mockResolvedValue(SESION.user);
@@ -104,16 +110,52 @@ afterEach(() => {
 describe('el arranque de la app', () => {
   it('entra al Lobby sin esperar las consultas de la sucursal anterior', async () => {
     localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
-    // Las dos consultas de la sucursal NO contestan nunca: es el peor caso real —
-    // Cloud Run recién despertando. La pantalla tiene que dibujarse igual.
+    // Las consultas NO contestan nunca: el peor caso real, el backend recién despertando.
     apiClient.get.mockReturnValue(new Promise(() => {}));
 
     await pintarEn('#/lobby');
 
     expect(hayLogoGirando()).toBe(false);
     expect(container.textContent).toContain('ya se ve la app');
-    // Y se piden igual, por detrás: el contexto no se abandona, solo deja de bloquear.
-    expect(apiClient.get).toHaveBeenCalled();
+  });
+
+  it('en el Lobby NI SIQUIERA pide la sucursal anterior', async () => {
+    localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
+    apiClient.get.mockResolvedValue({ data: {} });
+
+    await pintarEn('#/lobby');
+
+    // El Lobby no lee `gym` ni `subscription` del contexto, y fija la sucursal él mismo
+    // al tocar una card. Precargar la anterior es trabajo muerto — y en el arranque son
+    // dos pedidos más peleando por el único vCPU del backend, que es lo que hacía que
+    // TODOS los demás pasaran de 300 ms a 2500 ms.
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it('no dispara dos veces el arranque cuando Supabase avisa SIGNED_IN', async () => {
+    localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
+    let avisar;
+    authService.onAuthStateChange.mockImplementation((cb) => {
+      avisar = cb;
+      return { unsubscribe: vi.fn() };
+    });
+    // La sucursal tarda: es lo que mantiene abierta la ventana del dedupe.
+    apiClient.get.mockReturnValue(new Promise(() => {}));
+
+    await pintarEn('#/plans'); // ruta que SÍ precarga la sucursal
+    const pedidosDelArranque = apiClient.get.mock.calls.length;
+    expect(pedidosDelArranque).toBeGreaterThan(0);
+
+    // Supabase emite SIGNED_IN a los pocos ms del arranque y su listener vuelve a llamar
+    // a initAuth. Si la corrida anterior ya soltó el candado, se pide TODO de nuevo: era
+    // /tenants/{id} y su suscripción duplicados, 30 ms aparte, en cada arranque.
+    // ⚠️ SIN await sobre `avisar`: el dedupe devuelve la promesa de la corrida EN VUELO,
+    // que en este test no resuelve nunca (las consultas están congeladas a propósito).
+    // Esperarla es esperar para siempre — el síntoma de que el arreglo anda, no de que falle.
+    await act(async () => { avisar('SIGNED_IN', { access_token: 'x', user: SESION.user }); });
+    await tick();
+
+    expect(apiClient.get.mock.calls.length).toBe(pedidosDelArranque);
   });
 
   it('sí espera la sucursal cuando la pantalla de destino la necesita para dibujarse', async () => {
