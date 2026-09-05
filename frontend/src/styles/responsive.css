@@ -52,8 +52,54 @@ button, a, input, select, textarea, [role="button"] {
 }
 
 /* El scroll del drawer/listas no "rebota" hacia el body */
-.sidebar-nav, .table-container, .alerts-panel, .checked-in-list, .payment-history-list {
+.sidebar-nav, .alerts-panel, .checked-in-list, .payment-history-list {
   overscroll-behavior: contain;
+}
+
+/* ⚠️ LA TABLA VA APARTE, Y CON EL EJE EXPLÍCITO. NO PONER EL SHORTHAND ACÁ.
+
+   Síntoma: con el mouse encima de una tabla ancha, la ruedita no movía NADA — ni la
+   tabla ni la página. Sin error y sin pista. Pasaba en Socios y en el Dashboard.
+
+   Son dos reglas de CSS que se combinan mal:
+
+   1. "overflow-x: auto" junto a "overflow-y: visible" es una combinación imposible, así
+      que el navegador computa overflow-y como auto. O sea que .table-container termina
+      siendo un scroller en LOS DOS EJES aunque solo pedimos uno. (Verificado en el
+      navegador: getComputedStyle devuelve overflowY "auto" aunque nadie lo escribió.)
+
+   2. "overscroll-behavior: contain" corta el encadenamiento del scroll hacia el padre.
+      Como la caja ya cuenta como scroller vertical —sin nada que scrollear ahí— la
+      rueda no la mueve a ella NI se la pasa a la página. El gesto se pierde.
+
+   Con el eje explícito se contiene solo lo horizontal, que es lo único que quisimos
+   contener desde el principio, y la rueda vuelve a llegar a la página.
+
+   Los paneles de arriba NO están afectados: se probaron los tres casos en el navegador
+   y encadenan bien, porque su contenido no desborda en ningún eje y ahí el navegador
+   sí propaga. Por eso conservan el shorthand. */
+.table-container {
+  overscroll-behavior-x: contain;
+}
+
+/* ── EL AIRE DE LA PÁGINA CEDE ANTES QUE LA TABLA ──
+
+   Entre el layout de tarjetas (≤768px) y las pantallas grandes queda una banda —una
+   notebook de 1366, o cualquier ventana que no esté maximizada— donde la tabla de Socios
+   no entra por unas decenas de píxeles y aparece la barra horizontal.
+
+   Medido a 1366px: disponible 984px, la tabla pide 1018px. Faltaban 34.
+
+   Se recuperan recortando relleno, que es lo único de esos 984px que no es información:
+   el aire de la página, y el de la tarjeta QUE CONTIENE UNA TABLA (solo esa — las demás
+   conservan el suyo, porque ahí el aire es lo que hace legible el contenido).
+
+   Si algún día no alcanza, el orden para seguir es: acortar los encabezados —hoy son
+   ellos y el select de Arancel los que ponen el piso, no el texto de las celdas— y
+   recién después esconder columnas. Bajar más el padding ya no mueve la aguja: medido. */
+@media (min-width: 769px) and (max-width: 1400px) {
+  .page-content { padding: 1.25rem; }
+  .card:has(> .table-container) { padding: 1rem; }
 }
 
 /* Scroll horizontal de tablas con inercia nativa en iOS */

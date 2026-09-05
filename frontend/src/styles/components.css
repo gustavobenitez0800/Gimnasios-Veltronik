@@ -247,14 +247,37 @@
   font-size: var(--font-size-sm);
 }
 
+/* ⭐ POR QUÉ LA TABLA PUEDE ENCOGER (y antes no)
+
+   Antes: "padding: 1rem 1.25rem" + "white-space: nowrap" en TODA celda. Medido sobre la
+   tabla de Socios (10 columnas), eso da un ancho mínimo de ~1080px — y 400 de esos 1080
+   eran padding, el 37%. Con la barra lateral (270px) y el aire de la página, la tabla no
+   entraba abajo de ~1460px de ventana: en cualquier notebook aparecía la barra de scroll
+   horizontal, incluso con UN solo socio cargado.
+
+   Dos cambios, y ninguno pierde información:
+
+   · Padding más ajustado: 8px menos por lado × 2 lados × 10 columnas = 160px.
+
+   · Las celdas pueden partir el texto. Los números, las fechas y los badges NO tienen
+     espacios, así que no se parten aunque se lo permitas — el único que aprovecha esto
+     es el nombre largo, que es justo el que fijaba el ancho de la tabla. El nowrap queda
+     solo donde partir sí rompe algo. */
 .table th,
 .table td {
-  padding: 1rem 1.25rem;
+  padding: 0.9rem 0.85rem;
   text-align: left;
   border-bottom: none;
   transition: all var(--transition-fast);
-  white-space: nowrap;
+  white-space: normal;
 }
+
+/* El encabezado no se parte: "Vencimiento" en dos renglones desalinea toda la fila. */
+.table th { white-space: nowrap; }
+
+/* Los botones de acción tampoco: .table-actions es flex-wrap, y dejarlo partir apila los
+   íconos en dos filas y estira el alto de TODAS las filas de la tabla. */
+.table td[data-label="Acciones"] { white-space: nowrap; }
 
 .table th {
   background: transparent;
