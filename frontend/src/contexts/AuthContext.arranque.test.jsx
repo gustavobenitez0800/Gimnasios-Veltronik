@@ -132,6 +132,19 @@ describe('el arranque de la app', () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it('abierta en el dominio pelado tampoco pide la sucursal anterior', async () => {
+    localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
+    apiClient.get.mockResolvedValue({ data: {} });
+
+    // Sin "#" en la dirección la ruta de arranque es "/" (el login), no "/lobby". Es la
+    // forma MÁS COMÚN de abrir la app, y se colaba por el costado de la regla anterior:
+    // precargaba la sucursal anterior y después el guard mandaba al Lobby igual, donde
+    // esos datos no se usan. Dos pedidos de más justo cuando el backend está despertando.
+    await pintarEn('#');
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it('no dispara dos veces el arranque cuando Supabase avisa SIGNED_IN', async () => {
     localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
     let avisar;

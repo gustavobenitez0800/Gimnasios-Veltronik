@@ -135,7 +135,31 @@ const necesitaSucursal = (path) => !NO_ORG_ROUTES.includes(path) && !matchesPubl
 const SELECTORES_DE_SUCURSAL = [CONFIG.ROUTES.LOBBY];
 
 /** ¿Esta pantalla va a fijar la sucursal ella misma? */
-const eligeSucursal = (path) => SELECTORES_DE_SUCURSAL.includes(path);
+const eligeSucursal = (path) => SELECTORES_DE_SUCURSAL.includes(path) || rebotaAlLobby(path);
+
+/**
+ * ¿Con sesión abierta, esta ruta pública termina rebotando al Lobby?
+ *
+ * <p><b>Esto tapa el agujero más común de todos: la app abierta en el dominio pelado.</b>
+ * Sin "#" en la dirección, la ruta de arranque es "/" —el login—, que NO es "/lobby", así
+ * que la lista de arriba no la reconocía y la precarga de la sucursal anterior volvía a
+ * salir. Y para nada: el guard de rutas, dos pantallas más abajo, ve a alguien logueado en
+ * una pantalla pública y lo manda al Lobby igual. O sea que el destino real SIEMPRE fue el
+ * selector; lo único que cambiaba era por dónde se entraba.</p>
+ *
+ * <p>Se ve en la medición: dos pedidos extra en el arranque, justo cuando el backend está
+ * despertándose y cada pedido de más empeora la cola.</p>
+ *
+ * <p>Las dos excepciones son las mismas que las del guard, y por el mismo motivo: terminan
+ * un trámite y no rebotan a ningún lado (reset-password y desktop-auth), igual que las
+ * públicas con parámetro (el cartel de QR que el dueño abre para probarlo).</p>
+ */
+function rebotaAlLobby(path) {
+  const conParametro = matchesPublicPrefix(path);
+  const esPublica = PUBLIC_ROUTES.includes(path) || conParametro;
+  const permitidaLogueado = PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN.includes(path) || conParametro;
+  return esPublica && !permitidaLogueado;
+}
 
 /**
  * ⏱️ EL CRONÓMETRO DEL ARRANQUE — POR QUÉ ESTÁ Y POR QUÉ NO SE SACA.
