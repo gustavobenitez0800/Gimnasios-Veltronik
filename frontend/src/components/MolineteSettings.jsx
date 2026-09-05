@@ -12,11 +12,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { molineteService } from '../services';
+import { sincronizarMolinete } from '../lib/molinete';
 import Icon from '../components/Icon';
-
-/** Cada cuánto se le refresca la lista al equipo mientras la app está abierta. */
-const CADA_MINUTOS = 5;
 
 export default function MolineteSettings() {
   const { showToast } = useToast();
@@ -57,45 +54,27 @@ export default function MolineteSettings() {
   };
 
   /**
-   * Baja el padrón y se lo aplica al equipo.
-   *
-   * <p>Las dos mitades están separadas a propósito: si el backend no contesta, no se toca el
-   * equipo. Sincronizar contra una lista incompleta sería peor que no sincronizar — puede
-   * terminar cerrándole el horario a socios que están al día.</p>
+   * Sincronizar a mano. <b>No hace falta en la operación normal</b> —el sistema lo hace solo
+   * al cobrar y cada pocos minutos— pero existe para cuando alguien quiere ver el resultado
+   * con sus propios ojos: después de configurar el equipo, o para confirmar que anda.
    */
-  const sincronizar = useCallback(async (silencioso = false) => {
-    if (!api) return;
+  const sincronizar = useCallback(async () => {
     setSincronizando(true);
     setProgreso(null);
-    try {
-      const padron = await molineteService.getPadron();
-      const r = await api.sincronizar(padron);
-      setUltima(r);
-      if (!r.ok) {
-        if (!silencioso) showToast(r.error, 'error');
-      } else if (r.bajasFrenadas) {
-        showToast(
-          `Se frenaron ${r.bajasFrenadas} bajas: son demasiadas de una vez. Revisá el padrón antes de borrar caras.`,
-          'error');
-      } else if (!silencioso) {
-        showToast(`Molinete al día: ${r.total} socios.`, 'success');
-      }
-    } catch (e) {
-      setUltima({ ok: false, error: e.message });
-      if (!silencioso) showToast(`No se pudo traer el padrón: ${e.message}`, 'error');
-    } finally {
-      setSincronizando(false);
-      setProgreso(null);
+    const r = await sincronizarMolinete();
+    setUltima(r);
+    if (!r.ok) {
+      showToast(r.error, 'error');
+    } else if (r.bajasFrenadas) {
+      showToast(
+        `Se frenaron ${r.bajasFrenadas} bajas: son demasiadas de una vez. Revisá el padrón antes de borrar caras.`,
+        'error');
+    } else {
+      showToast(`Molinete al día: ${r.total} socios.`, 'success');
     }
-  }, [api, showToast]);
-
-  // Mientras la app esté abierta, la lista se mantiene sola. Sin esto, un socio que paga a
-  // las 9 seguiría rebotando contra el molinete hasta que alguien se acuerde de sincronizar.
-  useEffect(() => {
-    if (!api || !cfg?.activo || !cfg?.ip) return undefined;
-    const t = setInterval(() => sincronizar(true), CADA_MINUTOS * 60 * 1000);
-    return () => clearInterval(t);
-  }, [api, cfg?.activo, cfg?.ip, sincronizar]);
+    setSincronizando(false);
+    setProgreso(null);
+  }, [showToast]);
 
   if (!api || !cfg) return null;
 
@@ -146,25 +125,15 @@ export default function MolineteSettings() {
         </p>
       )}
 
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.9rem', padding: '1rem 0', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={!!cfg.activo}
-          onChange={(e) => guardar({ activo: e.target.checked })}
-          style={{ marginTop: '0.2rem', width: '1.05rem', height: '1.05rem', flexShrink: 0 }}
-        />
-        <span>
-          <span style={{ display: 'block', fontWeight: 600 }}>Mantener la lista al día sola</span>
-          <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginTop: '0.2rem', lineHeight: 1.5 }}>
-            Cada {CADA_MINUTOS} minutos, mientras Veltronik esté abierto en esta computadora. Sin
-            esto, el socio que paga a la mañana sigue rebotando contra el molinete hasta que
-            alguien sincronice a mano.
-          </span>
-        </span>
-      </label>
+      <p style={{ margin: '1rem 0', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--surface-2, rgba(255,255,255,0.03))', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', lineHeight: 1.6 }}>
+        <strong style={{ color: 'var(--text)' }}>El sistema mantiene la lista al día solo.</strong>{' '}
+        Cuando se cobra una cuota, el equipo se entera en el momento; además se revisa cada
+        pocos minutos, porque hay socios que se vencen sin que nadie toque nada. En el mostrador
+        no hay que hacer nada.
+      </p>
 
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={() => sincronizar(false)} disabled={sincronizando || !cfg.ip || !cfg.clave}>
+        <button className="btn btn-secondary" onClick={sincronizar} disabled={sincronizando || !cfg.ip || !cfg.clave}>
           {sincronizando ? 'Sincronizando...' : 'Sincronizar ahora'}
         </button>
         {progreso && (

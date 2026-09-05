@@ -36,6 +36,19 @@ function hora(iso) {
 }
 
 /**
+ * El estado del rechazado se recalcula al mostrarlo, así que puede haberse resuelto solo entre
+ * que la puerta lo frenó y que alguien mire la lista — típicamente porque pagó en el mostrador.
+ *
+ * <p>Ese caso es el MÁS común de todos y con el texto genérico quedaba como "revisá su ficha",
+ * que no dice nada. Es justo al revés: es la buena noticia, y lo único que hay que hacer es
+ * avisarle que ya puede pasar.</p>
+ */
+const TEXTO_RECHAZO = {
+  ...TEXTO,
+  AL_DIA: () => 'y ya está al día — si acaba de pagar, avisale que puede volver a pasar',
+};
+
+/**
  * Encabezados y texto según de dónde viene el aviso.
  *
  * <p>QR y molinete resuelven el mismo problema —un socio que necesita que alguien le hable—
@@ -53,7 +66,7 @@ const VARIANTES = {
     titulo: (n) => (n === 1 ? 'La puerta frenó a un socio' : `La puerta frenó a ${n} socios`),
     marcar: (id) => accessService.marcarRechazoVisto(id),
     // Al rechazado la puerta NO lo dejó pasar, así que el texto es sobre por qué se lo frenó.
-    frase: (a) => ` quiso entrar por el molinete y no pudo — ${(TEXTO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
+    frase: (a) => ` quiso entrar por el molinete y no pudo — ${(TEXTO_RECHAZO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
   },
 };
 

@@ -1,5 +1,6 @@
 import apiClient from '../lib/apiClient';
 import { refrescarSocios } from '../lib/localMembers';
+import { avisarCambioDeCobertura } from '../lib/molinete';
 
 class PaymentService {
   async getAll() {
@@ -29,11 +30,16 @@ class PaymentService {
     // sigue apareciendo vencido en el buscador de al lado.
     const tenantId = localStorage.getItem('current_org_id');
     if (tenantId) refrescarSocios(tenantId).catch(() => {});
+    // Y el molinete quedó viejo en lo mismo: el socio que acaba de pagar camina hasta la
+    // puerta en veinte segundos, y la puerta no puede seguir diciéndole que no.
+    avisarCambioDeCobertura();
     return response.data;
   }
 
   async update(id, updates) {
     const response = await apiClient.put(`/gym/payments/${id}`, updates);
+    // Marcar un pago como cobrado corre el vencimiento igual que cobrarlo de cero.
+    avisarCambioDeCobertura();
     return response.data;
   }
 
@@ -56,6 +62,8 @@ class PaymentService {
   /** Corrige a UN socio: le pone la fecha hasta la que realmente pagó. */
   async fixCoverageGap(memberId) {
     const response = await apiClient.post(`/gym/payments/coverage-gaps/${memberId}/fix`);
+    // Corregir a un socio que pagó y figuraba vencido también le abre la puerta.
+    avisarCambioDeCobertura();
     return response.data?.membershipEnd || null;
   }
 }

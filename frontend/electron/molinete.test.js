@@ -1,9 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
-
-// `molinete.cjs` corre en el proceso principal de Electron y pide `app` para saber dónde
-// guardar el espejo. Acá solo se prueba la parte pura —el plan— así que alcanza con que el
-// require no explote.
-vi.mock('electron', () => ({ app: { getPath: () => '.' } }));
+import { describe, it, expect } from 'vitest';
 
 const { planificar } = await import('./molinete.cjs');
 
@@ -12,53 +7,88 @@ const id = (n) => String(n).padStart(32, '0');
 
 const socio = (n, nombre, permitido) => ({ id: id(n), nombre, permitido });
 
-const equipoCon = (...ids) => new Map(ids.map((x) => [id(x), { nombre: `Socio ${x}` }]));
+/** Una ficha como la devuelve el equipo. `tag` es el sello de lo que ya le aplicamos. */
+const ficha = (n, nombre, tag) => [id(n), { id: id(n), name: nombre, tag, facePermission: 2 }];
+
+const equipo = (...fichas) => new Map(fichas);
+
+const tipos = (r) => r.acciones.map((a) => a.tipo);
 
 /**
  * La sincronización del molinete es de las pocas cosas del sistema que pueden hacer un daño
- * IRREVERSIBLE: borrar a alguien del equipo le borra la cara, y recuperarla exige tener a la
- * persona parada enfrente otra vez. Estos tests cuidan sobre todo eso.
+ * IRREVERSIBLE (borrar a alguien le borra la cara) y de las pocas que pueden fallar en
+ * SILENCIO: si concluye "no hay nada que hacer" cuando sí lo había, el socio pagó y la puerta
+ * no se abre, y nadie se entera hasta que hay alguien parado en la puerta.
  */
 describe('el plan de sincronización', () => {
 
-    it('da de alta al socio que el equipo no tiene, con su horario', () => {
-        const { acciones } = planificar([socio(1, 'Juan', true)], new Map(), {});
+    it('da de alta al socio que el equipo no tiene', () => {
+        const r = planificar([socio(1, 'Juan', true)], new Map());
 
-        expect(acciones).toEqual([{ tipo: 'alta', id: id(1), nombre: 'Juan', permitido: true }]);
+        expect(r.acciones).toEqual([
+            { tipo: 'alta', id: id(1), nombre: 'Juan', permitido: true, etiqueta: 'VT-OK' },
+        ]);
+    });
+
+    it('no toca al socio que el equipo ya tiene en el estado correcto', () => {
+        const r = planificar([socio(1, 'Juan', true)], equipo(ficha(1, 'Juan', 'VT-OK')));
+
+        expect(r.acciones).toEqual([]);
+    });
+
+    it('le abre la puerta al que pagó', () => {
+        const r = planificar([socio(1, 'Juan', true)], equipo(ficha(1, 'Juan', 'VT-NO')));
+
+        expect(tipos(r)).toEqual(['permiso']);
+        expect(r.acciones[0].permitido).toBe(true);
+    });
+
+    it('se la cierra al que se venció', () => {
+        const r = planificar([socio(1, 'Juan', false)], equipo(ficha(1, 'Juan', 'VT-OK')));
+
+        expect(tipos(r)).toEqual(['permiso']);
+        expect(r.acciones[0].permitido).toBe(false);
     });
 
     /**
-     * Lo que hace que una sincronización normal —donde no pasó nada— sean cero pedidos en vez
-     * de 385 contra un aparato de red local.
+     * EL CASO QUE FALLÓ DE VERDAD. Con el espejo local, si la copia decía "permitido" y el
+     * padrón decía "permitido", la sincronización concluía que no había nada que hacer — aunque
+     * el equipo tuviera la puerta cerrada, porque algo lo había cambiado por fuera. El socio
+     * había pagado y la puerta seguía diciéndole que no.
+     *
+     * Preguntándole al equipo esto no puede pasar: si el equipo dice que está bloqueado, se lo
+     * desbloquea, sin importar lo que crea nadie más.
      */
-    it('no toca al socio que ya está igual', () => {
-        const espejo = { [id(1)]: { nombre: 'Socio 1', permitido: true } };
+    it('reaplica cuando el equipo quedó en otro estado por algo de afuera', () => {
+        const r = planificar([socio(1, 'Juan', true)], equipo(ficha(1, 'Juan', 'VT-NO')));
 
-        const { acciones } = planificar([socio(1, 'Socio 1', true)], equipoCon(1), espejo);
-
-        expect(acciones).toEqual([]);
+        expect(tipos(r)).toEqual(['permiso']);
     });
 
-    it('le cambia el horario al que pagó, y solo el horario', () => {
-        const espejo = { [id(1)]: { nombre: 'Socio 1', permitido: false } };
+    it('a un socio sin sellar se lo sella, aunque ya esté cargado', () => {
+        const r = planificar([socio(1, 'Juan', true)], equipo(ficha(1, 'Juan', '')));
 
-        const { acciones } = planificar([socio(1, 'Socio 1', true)], equipoCon(1), espejo);
-
-        expect(acciones).toEqual([{ tipo: 'horario', id: id(1), nombre: 'Socio 1', permitido: true }]);
+        expect(tipos(r)).toEqual(['permiso']);
     });
 
-    it('renombra al socio al que le corrigieron el nombre', () => {
-        const espejo = { [id(1)]: { nombre: 'Socio 1', permitido: true } };
+    it('renombra sin tocar el permiso cuando lo único que cambió es el nombre', () => {
+        const r = planificar([socio(1, 'Juan Pérez', true)], equipo(ficha(1, 'Juan', 'VT-OK')));
 
-        const { acciones } = planificar([socio(1, 'Juan Pérez', true)], equipoCon(1), espejo);
-
-        expect(acciones).toEqual([{ tipo: 'renombrar', id: id(1), nombre: 'Juan Pérez' }]);
+        expect(tipos(r)).toEqual(['renombrar']);
+        expect(r.acciones[0].nombre).toBe('Juan Pérez');
     });
 
-    it('sin espejo reaplica el horario: es una caché, no la verdad', () => {
-        const { acciones } = planificar([socio(1, 'Socio 1', true)], equipoCon(1), {});
+    /** El renombre viaja con la ficha del equipo porque el update REEMPLAZA la persona entera. */
+    it('la acción lleva la ficha del equipo, para no borrarle los otros campos', () => {
+        const r = planificar([socio(1, 'Juan Pérez', true)], equipo(ficha(1, 'Juan', 'VT-OK')));
 
-        expect(acciones.map((a) => a.tipo)).toEqual(['horario']);
+        expect(r.acciones[0].ficha).toMatchObject({ id: id(1), facePermission: 2 });
+    });
+
+    it('el nombre se recorta a lo que entra en la pantalla del equipo', () => {
+        const r = planificar([socio(1, 'Maria Esperanza de los Angeles Fernandez', true)], new Map());
+
+        expect(r.acciones[0].nombre).toHaveLength(32);
     });
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -66,70 +96,40 @@ describe('el plan de sincronización', () => {
     describe('las bajas, que son irreversibles', () => {
 
         it('borra del equipo al que ya no es socio del gimnasio', () => {
-            const padron = [socio(1, 'Socio 1', true), socio(2, 'Socio 2', true),
-                socio(3, 'Socio 3', true), socio(4, 'Socio 4', true),
-                socio(5, 'Socio 5', true), socio(6, 'Socio 6', true),
-                socio(7, 'Socio 7', true), socio(8, 'Socio 8', true),
-                socio(9, 'Socio 9', true)];
+            const padron = Array.from({ length: 9 }, (_, i) => socio(i + 1, 'Socio ' + (i + 1), true));
+            const enEquipo = equipo(
+                ...padron.map((p, i) => ficha(i + 1, 'Socio ' + (i + 1), 'VT-OK')),
+                ficha(99, 'Ex socio', 'VT-OK'));
 
-            const { acciones } = planificar(padron, equipoCon(1, 2, 3, 4, 5, 6, 7, 8, 9, 99), {});
+            const r = planificar(padron, enEquipo);
 
-            expect(acciones.filter((a) => a.tipo === 'baja')).toEqual([{ tipo: 'baja', id: id(99) }]);
+            expect(r.acciones.filter((a) => a.tipo === 'baja')).toEqual([{ tipo: 'baja', id: id(99) }]);
         });
 
-        /**
-         * El escenario que este freno existe para evitar: el padrón llega vacío o cortado por
-         * un error, y una sola corrida deja al gimnasio entero teniendo que sacarse la foto de
-         * nuevo, uno por uno.
-         */
         it('con el padrón vacío NO borra a nadie', () => {
-            const { acciones, bajasFrenadas } = planificar([], equipoCon(1, 2, 3, 4, 5), {});
+            const r = planificar([], equipo(...[1, 2, 3, 4, 5].map((n) => ficha(n, 'S' + n, 'VT-OK'))));
 
-            expect(acciones).toEqual([]);
-            expect(bajasFrenadas).toBe(5);
+            expect(r.acciones).toEqual([]);
+            expect(r.bajasFrenadas).toBe(5);
         });
 
         it('si las bajas son demasiadas de una vez, se frenan todas y se avisa', () => {
-            const padron = [socio(1, 'Socio 1', true), socio(2, 'Socio 2', true)];
+            const padron = [socio(1, 'S1', true), socio(2, 'S2', true)];
+            const enEquipo = equipo(...[1, 2, 3, 4, 5].map((n) => ficha(n, 'S' + n, 'VT-OK')));
 
-            const { acciones, bajasFrenadas } = planificar(padron, equipoCon(1, 2, 3, 4, 5), {});
+            const r = planificar(padron, enEquipo);
 
-            expect(acciones.filter((a) => a.tipo === 'baja')).toEqual([]);
-            expect(bajasFrenadas).toBe(3);
+            expect(r.acciones.filter((a) => a.tipo === 'baja')).toEqual([]);
+            expect(r.bajasFrenadas).toBe(3);
         });
 
-        /**
-         * Alguien pudo haber cargado una persona a mano en el equipo —una prueba, el técnico—
-         * y esos ids no tienen nuestra forma. Borrarle la cara a alguien que no pusimos
-         * nosotros no es nuestro trabajo.
-         */
         it('no borra a las personas cargadas a mano en el equipo', () => {
-            const equipo = new Map([['PRUEBA1', { nombre: 'Prueba Veltronik' }]]);
+            const enEquipo = new Map([['PRUEBA1', { id: 'PRUEBA1', name: 'Prueba', tag: '' }]]);
 
-            const { acciones, bajasFrenadas } = planificar([socio(1, 'Socio 1', true)], equipo, {});
+            const r = planificar([socio(1, 'Juan', true)], enEquipo);
 
-            expect(acciones.filter((a) => a.tipo === 'baja')).toEqual([]);
-            expect(bajasFrenadas).toBe(0);
+            expect(r.acciones.filter((a) => a.tipo === 'baja')).toEqual([]);
+            expect(r.bajasFrenadas).toBe(0);
         });
-    });
-
-    // ─────────────────────────────────────────────────────────────────────────
-
-    it('el espejo nuevo refleja lo que se le va a dejar al equipo', () => {
-        const { espejoNuevo } = planificar(
-            [socio(1, 'Juan', true), socio(2, 'Ana', false)], new Map(), {});
-
-        expect(espejoNuevo).toEqual({
-            [id(1)]: { nombre: 'Juan', permitido: true },
-            [id(2)]: { nombre: 'Ana', permitido: false },
-        });
-    });
-
-    it('el nombre se recorta a lo que entra en la pantalla del equipo', () => {
-        const largo = 'Maria Esperanza de los Angeles Fernandez';
-
-        const { acciones } = planificar([socio(1, largo, true)], new Map(), {});
-
-        expect(acciones[0].nombre).toHaveLength(32);
     });
 });

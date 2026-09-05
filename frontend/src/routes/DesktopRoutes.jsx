@@ -42,6 +42,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage';
 import BillingWall from '../pages/BillingWall';
 import DeepLinkAuthBridge from '../components/DeepLinkAuthBridge';
 import ShiftGate from '../components/ShiftGate';
+import MolineteAlDia from '../components/MolineteAlDia';
 
 export default function DesktopRoutes() {
   return (
@@ -55,6 +56,11 @@ export default function DesktopRoutes() {
         que cada cobro y cada acceso queden firmados. Solo aparece si el gimnasio ya cargó
         gente en el mostrador — ver el porqué en el componente. */}
     <ShiftGate />
+
+    {/* Mantiene la lista del molinete al día. No dibuja nada y va fuera de <Routes> porque
+        tiene que correr en cualquier pantalla: si viviera adentro de Ajustes, solo
+        funcionaría mientras alguien tuviera esa pantalla abierta. */}
+    <MolineteAlDia />
 
     <Routes>
       {/* Auth pages (no sidebar) */}

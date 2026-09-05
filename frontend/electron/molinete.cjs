@@ -24,10 +24,7 @@
  * termina estando mal en alguna de las copias.
  */
 
-const { app } = require('electron');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const store = require('./store.cjs');
 
 const PUERTO = 8090;
@@ -95,14 +92,46 @@ const info = (cfg) => pedir(cfg, '/device/information', { pass: cfg.clave }, 'GE
 /** El serial. Es el único pedido que no lleva contraseña: sirve para probar la conexión. */
 const serie = (cfg) => pedir(cfg, '/getDeviceKey', null, 'GET');
 
-/** Todas las personas cargadas. `personId=-1` es "todas"; el equipo pagina de a 1000. */
+/**
+ * Cómo queda anotado en el equipo lo que ya le aplicamos.
+ *
+ * <p><b>Por qué el estado vive en el equipo y no en un archivo nuestro.</b> Antes se guardaba
+ * un espejo local de lo último aplicado, para no repetir trabajo. Un espejo es una copia de la
+ * verdad, y toda copia se puede desfasar: alcanza con que otra computadora sincronice, que
+ * alguien toque el equipo a mano, o que se resetee. Cuando se desfasa, la sincronización
+ * compara contra la copia, concluye "no cambió nada" y <b>no hace nada, sin avisar</b>. El
+ * síntoma es el peor posible para algo que se cobra: el socio pagó y la puerta no se abre.</p>
+ *
+ * <p>El campo `tag` de cada persona viaja en el MISMO pedido con el que ya leemos la lista, así
+ * que preguntarle al equipo en vez de creerle a un archivo no cuesta un pedido más.</p>
+ */
+const ETIQUETA = { PERMITIDO: 'VT-OK', BLOQUEADO: 'VT-NO' };
+
+const etiquetaDe = (permitido) => (permitido ? ETIQUETA.PERMITIDO : ETIQUETA.BLOQUEADO);
+
+/**
+ * Los campos de una persona que nos importa conservar.
+ *
+ * <p>⚠️ <b>`/person/update` REEMPLAZA la persona entera, no actualiza campos sueltos.</b>
+ * Mandarle `{id, name}` le borra el teléfono, la tarjeta y los permisos. Por eso toda
+ * actualización se arma sobre la ficha que devolvió el equipo y se manda completa.</p>
+ */
+const CAMPOS = [
+    'id', 'name', 'idcardNum', 'iDNumber', 'phone', 'password', 'qrCode', 'tag',
+    'facePermission', 'idCardPermission', 'iDNumberPermission', 'passwordPermission',
+    'fingerPermission', 'qrCodePermission', 'faceAndCardPermission', 'faceAndPasswordPermission',
+    'faceAndFingerPermission', 'faceAndQrCodePermission', 'cardAndPasswordPermission',
+    'fingerAndPasswordPermission',
+];
+
+/** Todas las personas cargadas, con su ficha completa. `personId=-1` es "todas". */
 async function personasDelEquipo(cfg) {
     const porId = new Map();
     for (let pagina = 0; pagina < 20; pagina++) {
         const r = await pedir(cfg, '/person/findByPage',
             { pass: cfg.clave, personId: '-1', length: '1000', index: String(pagina) }, 'GET');
         const lista = (r.data && r.data.personInfos) || [];
-        for (const p of lista) porId.set(String(p.id), { nombre: p.name || '' });
+        for (const p of lista) porId.set(String(p.id), p);
         const info = (r.data && r.data.pageInfo) || {};
         if (!lista.length || porId.size >= (info.total || 0)) break;
     }
@@ -113,13 +142,23 @@ const alta = (cfg, id, nombre) => pedir(cfg, '/person/create', {
     pass: cfg.clave,
     // facePermission 2 = reconocimiento prendido. Al vencido NO se lo apaga acá: se lo frena
     // con la ventana horaria, así el equipo lo reconoce y el aviso llega CON nombre.
-    person: JSON.stringify({ id, name: nombre, facePermission: 2 }),
+    //
+    // Nace SIN etiqueta a propósito: la etiqueta es el sello de "ya le apliqué el horario", y
+    // todavía no se lo aplicamos. Si el proceso se corta acá, la próxima corrida lo completa.
+    person: JSON.stringify({ id, name: nombre, facePermission: 2, tag: '' }),
 });
 
-const renombrar = (cfg, id, nombre) => pedir(cfg, '/person/update', {
-    pass: cfg.clave,
-    person: JSON.stringify({ id, name: nombre }),
-});
+/** Actualiza una persona mandando su ficha COMPLETA con los cambios encima. */
+const actualizar = (cfg, ficha, cambios) => {
+    const completa = {};
+    for (const campo of CAMPOS) {
+        if (ficha[campo] !== undefined && ficha[campo] !== null) completa[campo] = ficha[campo];
+    }
+    return pedir(cfg, '/person/update', {
+        pass: cfg.clave,
+        person: JSON.stringify({ ...completa, ...cambios }),
+    });
+};
 
 const horario = (cfg, id, permitido) => pedir(cfg, '/person/createPasstime', {
     pass: cfg.clave,
@@ -135,48 +174,6 @@ const foto = (cfg, id) => pedir(cfg, '/face/takeImg', { pass: cfg.clave, personI
 
 /** Dónde tiene que avisar el equipo cada reconocimiento. */
 const avisarA = (cfg, url) => pedir(cfg, '/setIdentifyCallBack', { pass: cfg.clave, callbackUrl: url });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Lo último que le aplicamos al equipo
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Un espejo de lo que le mandamos la última vez, para no repetir trabajo.
- *
- * <p><b>Por qué hace falta.</b> El equipo sabe decir qué personas tiene, pero no en qué ventana
- * horaria quedó cada una sin preguntárselo de a una — 385 pedidos para averiguar algo que
- * cambia dos veces por día. Con este espejo, una sincronización normal son cero o tres pedidos.</p>
- *
- * <p>Es una caché, no la verdad: si se pierde o queda vieja, lo peor que pasa es que la próxima
- * sincronización reaplique de más. La verdad de quién está cargado la sigue teniendo el equipo,
- * y se le pregunta en cada corrida.</p>
- */
-const ARCHIVO_ESPEJO = 'veltronik-molinete.json';
-
-function rutaEspejo() {
-    return path.join(app.getPath('userData'), ARCHIVO_ESPEJO);
-}
-
-function leerEspejo() {
-    try {
-        const parsed = JSON.parse(fs.readFileSync(rutaEspejo(), 'utf8'));
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-        return {};   // primera vez, corrupto, o sin permisos: se reaplica y listo
-    }
-}
-
-function guardarEspejo(valores) {
-    const destino = rutaEspejo();
-    const temporal = `${destino}.tmp`;
-    try {
-        fs.writeFileSync(temporal, JSON.stringify(valores), 'utf8');
-        fs.renameSync(temporal, destino);
-    } catch (e) {
-        console.warn('[Molinete] No se pudo guardar el espejo:', e.message);
-        try { fs.unlinkSync(temporal); } catch { /* nada que limpiar */ }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuración
@@ -219,6 +216,9 @@ const esNuestro = (id) => /^[0-9a-fA-F]{32}$/.test(id);
  */
 const TOPE_DE_BAJAS = 0.2;
 
+/** ¿Ya sincronizamos en este arranque? La primera vez se reaplica todo. */
+let yaCorrioUnaVez = false;
+
 /**
  * Qué habría que hacerle al equipo. <b>Función pura: no toca la red.</b>
  *
@@ -228,40 +228,42 @@ const TOPE_DE_BAJAS = 0.2;
  * equipo ni simular un socket.</p>
  *
  * @param padron      lo que dice Veltronik
- * @param enElEquipo  Map de id → {nombre}, lo que el equipo tiene cargado ahora
- * @param espejo      lo último que le aplicamos nosotros
+ * @param enElEquipo  Map de id → ficha completa, lo que el equipo tiene cargado ahora
  */
-function planificar(padron, enElEquipo, espejo) {
+function planificar(padron, enElEquipo, reaplicarTodo = false) {
     const acciones = [];
-    const espejoNuevo = {};
+    const delPadron = new Set();
 
     for (const socio of padron) {
         const id = sinGuiones(socio.id);
         const nombre = String(socio.nombre || 'Socio').slice(0, 32);
         const permitido = !!socio.permitido;
-        const enEquipo = enElEquipo.get(id);
-        const antes = espejo[id];
+        const etiqueta = etiquetaDe(permitido);
+        const ficha = enElEquipo.get(id);
+        delPadron.add(id);
 
-        if (!enEquipo) {
+        if (!ficha) {
             // Alta: queda cargado pero SIN CARA. Recién cuando alguien le saque la foto desde
             // la ficha del socio, el equipo lo va a reconocer.
-            acciones.push({ tipo: 'alta', id, nombre, permitido });
-        } else {
-            if (enEquipo.nombre !== nombre) acciones.push({ tipo: 'renombrar', id, nombre });
-            // El horario solo se reaplica si cambió. Es lo que hace que una sincronización
-            // normal —donde no pasó nada— sean cero pedidos en vez de 385.
-            if (!antes || antes.permitido !== permitido) {
-                acciones.push({ tipo: 'horario', id, nombre, permitido });
-            }
+            acciones.push({ tipo: 'alta', id, nombre, permitido, etiqueta });
+            continue;
         }
-        espejoNuevo[id] = { nombre, permitido };
+
+        // El equipo dice en qué estado lo dejamos. Si no coincide con el que corresponde hoy
+        // —o si nunca se lo aplicamos— hay que reaplicarlo. Nada de esto depende de un archivo
+        // nuestro, así que no hay copia que se pueda desfasar.
+        if (reaplicarTodo || (ficha.tag || '') !== etiqueta) {
+            acciones.push({ tipo: 'permiso', id, nombre, permitido, etiqueta, ficha });
+        } else if ((ficha.name || '') !== nombre) {
+            acciones.push({ tipo: 'renombrar', id, nombre, ficha });
+        }
     }
 
     // Los que están en el equipo y ya no son socios de este gimnasio. Se filtran los ids que
     // no tienen nuestra forma: alguien pudo haber cargado una persona a mano en el equipo
     // —una prueba, el técnico— y borrarle la cara a alguien que no pusimos nosotros no es
     // nuestro trabajo.
-    const sobran = [...enElEquipo.keys()].filter((id) => esNuestro(id) && !espejoNuevo[id]);
+    const sobran = [...enElEquipo.keys()].filter((id) => esNuestro(id) && !delPadron.has(id));
 
     // ⚠️ El freno. Si el padrón llegara vacío o cortado, sin esto una sola corrida dejaría al
     // gimnasio entero teniendo que volver a sacarse la foto uno por uno.
@@ -270,7 +272,7 @@ function planificar(padron, enElEquipo, espejo) {
         for (const id of sobran) acciones.push({ tipo: 'baja', id });
     }
 
-    return { acciones, espejoNuevo, bajasFrenadas: demasiadas ? sobran.length : 0 };
+    return { acciones, bajasFrenadas: demasiadas ? sobran.length : 0 };
 }
 
 /**
@@ -295,7 +297,16 @@ async function sincronizar(padron, alAvanzar) {
         return { ok: false, error: `No se pudo leer el equipo: ${e.message}` };
     }
 
-    const { acciones, espejoNuevo, bajasFrenadas } = planificar(padron, enElEquipo, leerEspejo());
+    // La primera corrida de cada arranque reaplica TODO, sin creerle a las etiquetas.
+    //
+    // La etiqueta cubre el caso en que el desfasaje es nuestro (perdimos el estado, otra
+    // computadora sincronizó, el equipo se reseteó). Lo que no puede cubrir es que alguien
+    // toque el equipo a mano sin tocar la etiqueta. Esto acota ese riesgo a un arranque: en un
+    // gimnasio la computadora se prende todas las mañanas, así que como mucho el desfasaje
+    // dura hasta que alguien abre Veltronik. Cuesta una pasada completa, una vez.
+    const primera = !yaCorrioUnaVez;
+    yaCorrioUnaVez = true;
+    const { acciones, bajasFrenadas } = planificar(padron, enElEquipo, primera);
     if (bajasFrenadas) {
         console.warn(`[Molinete] ${bajasFrenadas} bajas de ${enElEquipo.size}: no se borra nada.`);
     }
@@ -310,31 +321,45 @@ async function sincronizar(padron, alAvanzar) {
         try {
             if (a.tipo === 'alta') {
                 await alta(cfg, a.id, a.nombre);
-                await horario(cfg, a.id, a.permitido);
+                await aplicarPermiso(cfg, { id: a.id, name: a.nombre, facePermission: 2 },
+                    a.permitido, a.etiqueta);
                 resumen.creados++;
-            } else if (a.tipo === 'renombrar') {
-                await renombrar(cfg, a.id, a.nombre);
-                resumen.renombrados++;
-            } else if (a.tipo === 'horario') {
-                await horario(cfg, a.id, a.permitido);
+            } else if (a.tipo === 'permiso') {
+                await aplicarPermiso(cfg, a.ficha, a.permitido, a.etiqueta, a.nombre);
                 resumen.horarios++;
+            } else if (a.tipo === 'renombrar') {
+                await actualizar(cfg, a.ficha, { name: a.nombre });
+                resumen.renombrados++;
             } else if (a.tipo === 'baja') {
                 await baja(cfg, a.id);
                 resumen.borrados++;
             }
         } catch (e) {
-            // Un socio que falla no puede frenar a los otros 384. Se anota, se lo saca del
-            // espejo y se sigue: la próxima corrida lo reintenta solo.
-            delete espejoNuevo[a.id];
+            // Un socio que falla no puede frenar a los otros 384. Se anota y se sigue: como el
+            // estado vive en el equipo y la etiqueta no se llegó a sellar, la próxima corrida
+            // lo reintenta sola.
             resumen.errores.push({ socio: a.nombre || a.id, error: e.message });
         }
         hecho++;
         if (alAvanzar && hecho % 10 === 0) alAvanzar(hecho, acciones.length);
     }
 
-    guardarEspejo(espejoNuevo);
     resumen.cuando = new Date().toISOString();
     return resumen;
+}
+
+/**
+ * Le aplica a un socio el horario que le corresponde y recién entonces lo sella.
+ *
+ * <p><b>El orden importa y es la garantía de todo.</b> Primero la ventana horaria —que es lo
+ * que realmente abre o cierra la puerta— y después la etiqueta, que es el sello de "ya está
+ * hecho". Si el proceso se corta en el medio, la etiqueta sigue diciendo el estado viejo y la
+ * próxima corrida lo vuelve a intentar. Al revés, un corte dejaría al socio sellado como
+ * listo con la puerta en el estado equivocado, y nadie volvería a mirarlo.</p>
+ */
+async function aplicarPermiso(cfg, ficha, permitido, etiqueta, nombre) {
+    await horario(cfg, ficha.id, permitido);
+    await actualizar(cfg, ficha, nombre ? { tag: etiqueta, name: nombre } : { tag: etiqueta });
 }
 
 /** Prueba la conexión. Devuelve lo que el equipo dice de sí mismo. */
