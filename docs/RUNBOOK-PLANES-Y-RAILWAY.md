@@ -56,6 +56,30 @@ URL está configurada una sola vez en el panel de MP, y apunta a Railway.
 
 # Parte 2 — Los dos planes
 
+> 🛑 **EN REVISIÓN — no ejecutar el paso 7 todavía (2026-09-05).**
+>
+> Lo de abajo está construido y probado para **dos** planes (45.000 y 80.000). Pero después de
+> escribirlo llegó que el dueño quiere **tres**:
+>
+> | | Precio | Qué incluye |
+> |---|---|---|
+> | Básico | 45.000 | El sistema actual (ya es lo que se cobra) |
+> | Intermedio | 63.000 | Solo reconocimiento facial |
+> | Alto | *sin definir* | Facial + apertura de molinete |
+>
+> **Faltan dos decisiones y ninguna se puede adivinar:** el precio del tercero, y **dónde corta
+> el medio contra el alto**. Hoy hay UNA sola llave (`PlanFeature.CONTROL_DE_ACCESO`, usada en
+> `MolineteController`); con tres planes hacen falta dos: *registrar* la entrada contra *dejar
+> pasar*.
+>
+> **Por qué importa el orden:** el monto queda grabado en el preapproval de Mercado Pago. Vender
+> un premium de 80.000 y después decidir que valía 63.000 obliga a que cada cliente vuelva a
+> pasar la tarjeta. Encender el premium es barato; apagarlo después de haberlo vendido, no.
+>
+> Lo que SÍ vale igual y no hay que rehacer: el checkout manda el código y el backend pone el
+> precio, la suscripción graba `plan_code`, y `PlanCode` nunca se renombra (un plan que se
+> discontinúa se apaga con `available=false`). Agregar el tercero es agregar un código nuevo.
+
 ## Precios
 
 | Plan | Precio | Variable | Incluye |
