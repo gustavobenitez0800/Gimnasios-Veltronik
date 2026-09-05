@@ -113,6 +113,30 @@ export default function LobbyPage() {
   const loadOrgs = useCallback(async () => {
     try {
       if (!hasLoadedOnceRef.current) setLoading(true);
+
+      // ⭐ LAS TRES CONSULTAS DEL LOBBY SALEN JUNTAS, NO UNA ATRÁS DE OTRA.
+      //
+      // Antes eran dos vueltas al backend EN SERIE para dibujar una sola pantalla:
+      // primero los negocios y recién entonces las suscripciones. Y no hace falta:
+      // `/tenants/my/subscriptions` ya devuelve las de TODOS los negocios del usuario,
+      // así que no necesita saber cuáles son. Lo único que sí depende de la lista es el
+      // plan B de abajo (una consulta por negocio), y ese sigue esperándola.
+      //
+      // En un backend tibio son ~200 ms de más; con Cloud Run recién despertado, la
+      // segunda vuelta es otro arranque en frío entero encima del primero.
+      //
+      // El `.catch` va PEGADO al disparo, no donde se consume: una promesa que se
+      // rechaza mientras todavía nadie la está esperando queda como "unhandled
+      // rejection" en la consola del cliente.
+      const subsPromise = apiClient.get('/tenants/my/subscriptions')
+        .then((res) => res.data || [])
+        .catch(() => null); // null = no se pudo; abajo cae al método por-negocio
+
+      // Grupos del dueño (para organizar el lobby). Best-effort.
+      const groupsPromise = groupService.getMyGroups()
+        .then(g => setGroups(g || []))
+        .catch(() => setGroups([]));
+
       const data = await gymService.getUserGyms();
       // Filtrar duplicados en caso de errores en la DB
       const orgsList = Array.from(new Map((data || []).map(org => [org.id, org])).values());
@@ -123,19 +147,11 @@ export default function LobbyPage() {
       hasLoadedOnceRef.current = true;
       setLoading(false);
 
-      // Grupos del dueño (para organizar el lobby), en paralelo. Best-effort.
-      const groupsPromise = groupService.getMyGroups()
-        .then(g => setGroups(g || []))
-        .catch(() => setGroups([]));
-
       if (orgsList.length > 0) {
-        // 1 sola request batch con TODAS las suscripciones del usuario. Si el backend
-        // aún no tiene el endpoint (deploy desfasado), cae al método viejo por-negocio.
-        let allSubsRaw;
-        try {
-          const res = await apiClient.get('/tenants/my/subscriptions');
-          allSubsRaw = res.data || [];
-        } catch {
+        // La batch ya viene en camino desde arriba. Si el backend no tiene el endpoint
+        // (deploy desfasado) devolvió null y recién ahí se pregunta negocio por negocio.
+        let allSubsRaw = await subsPromise;
+        if (allSubsRaw === null) {
           const subPromises = orgsList.map(org =>
             apiClient.get(`/tenants/${org.id}/subscription`, {
               // X-Tenant-ID explícito = la org que se está consultando (no la del localStorage).
