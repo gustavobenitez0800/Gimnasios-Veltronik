@@ -60,19 +60,42 @@ jobs:
           image: ${{ env.IMAGE_URL }}
           # Ajustes para Spring Boot en Cloud Run.
           #
-          # `--cpu-boost` da CPU extra durante el arranque. En una JVM eso NO es un lujo: con
-          # min-instances=0 el contenedor se apaga cuando no hay tráfico, y el primer socio
-          # de la mañana paga el arranque completo de Spring más las migraciones de Flyway.
+          # `--cpu-boost` da CPU extra durante el arranque. En una JVM eso NO es un lujo:
+          # Spring más las migraciones de Flyway tardan lo suyo aunque la instancia arranque.
           #
-          # min-instances en 0 para ahorrar: el gimnasio consulta cada 15 segundos mientras
-          # está abierto, así que la instancia se mantiene viva sola durante el día y solo se
-          # apaga de noche. Si el arranque de la mañana molesta, subir a 1 (se paga siempre).
+          # ⭐ POR QUÉ min-instances ES 1 Y NO 0 — MEDIDO, NO SUPUESTO (2026-09-05)
+          #
+          # Estuvo en 0 para ahorrar, con este razonamiento: "el gimnasio consulta cada 15
+          # segundos mientras está abierto, así que la instancia se mantiene viva sola
+          # durante el día y solo se apaga de noche". El razonamiento era correcto y aun así
+          # el resultado era malo: lo que no se veía es cuánto duele esa única vez.
+          #
+          # La primera apertura del día, medida en producción desde el navegador del dueño:
+          #
+          #     8 pedidos salen juntos a los ~1362 ms
+          #     todos duran 19173–20004 ms   ← el timeout de axios es exactamente 20000
+          #     el reintento a los 21884 ms  ← 94–174 ms
+          #
+          # O sea que el arranque en frío no era "un ratito más": los ocho pedidos MORÍAN
+          # por timeout y recién el reintento levantaba la pantalla. Entre ellos estaba
+          # /api/public/payment-config, que ni siquiera lleva sesión — así que no había
+          # nada del lado del cliente que arreglar. Era la JVM arrancando, y punto.
+          #
+          # ⚠️ Antes de esa medición yo había sondeado /actuator/health tras 17 y 45 minutos
+          # sin tráfico y me dio 267 y 281 ms, y con eso di el arranque en frío por
+          # descartado. Estaba mal: mis sondas cayeron en momentos en que la instancia
+          # seguía viva. Una sonda sintética no puede desmentir al que sufre el problema.
+          #
+          # Esto SE PAGA TODOS LOS MESES (una instancia encendida las 24 h). Fue una
+          # decisión explícita del dueño con el número a la vista. Si alguien lo vuelve a
+          # poner en 0 para ahorrar, que sepa que está reintroduciendo 20 segundos de
+          # pantalla muerta cada mañana.
           flags: >-
             --allow-unauthenticated
             --memory=1024Mi
             --cpu=1
             --cpu-boost
-            --min-instances=0
+            --min-instances=1
             --max-instances=3
           # Inyectar las variables de entorno de producción desde los Secrets de GitHub.
           #
