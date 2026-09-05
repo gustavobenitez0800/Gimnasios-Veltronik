@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,9 +34,12 @@ public class SubscriptionController {
 
     private final MercadoPagoService mercadoPagoService;
     private final TenantRepository tenantRepository;
+    private final com.veltronik.v2.core.config.PlanCatalog planCatalog;
 
     @PostMapping("/checkout")
-    public ResponseEntity<?> createCheckout() {
+    public ResponseEntity<?> createCheckout(@RequestBody(required = false) Map<String, String> body) {
+        // El plan que eligió el cliente. El precio NO viaja: lo pone el catálogo.
+        String planPedido = body == null ? null : body.get("plan");
         // En un entorno Cero Error, tomamos el Tenant del contexto de seguridad, 
         // no confiamos en IDs enviados desde el frontend.
         java.util.UUID tenantId = TenantContextHolder.getTenantId();
@@ -52,7 +56,8 @@ public class SubscriptionController {
             return ResponseEntity.status(401).body(Map.of("error", "No se pudo obtener el email del usuario"));
         }
         try {
-            String initPoint = mercadoPagoService.createSubscriptionForTenant(tenant, userEmail);
+            String initPoint = mercadoPagoService.createSubscriptionForTenant(
+                    tenant, userEmail, planCatalog.resolverPedido(planPedido));
             return ResponseEntity.ok(Map.of(
                     "ok", true,
                     "init_point", initPoint

@@ -21,9 +21,23 @@ public class BillingController {
 
     private final BillingService billingService;
     private final TenantRepository tenantRepository;
+    private final com.veltronik.v2.core.config.PlanCatalog planCatalog;
+    private final com.veltronik.v2.core.security.PlanPolicy planPolicy;
+
+    /**
+     * El plan que este gimnasio YA tiene contratado.
+     *
+     * <p>Lo usan los caminos que <b>no</b> son una compra: cambiar la tarjeta no es elegir plan
+     * de nuevo. Sin esto, alguien en premium que actualiza su tarjeta se generaría un
+     * preapproval de básico y quedaría cobrado de menos y sin molinete, sin haber pedido nada.</p>
+     */
+    private com.veltronik.v2.core.config.PlanCatalog.Plan planActual(UUID tenantId) {
+        return planCatalog.get(planPolicy.planOf(tenantId));
+    }
 
     @GetMapping("/billing/subscription-link")
-    public ResponseEntity<?> getSubscriptionLink() {
+    public ResponseEntity<?> getSubscriptionLink(
+            @RequestParam(name = "plan", required = false) String planPedido) {
         UUID tenantId = TenantContextHolder.getTenantId();
         if (tenantId == null) {
             return ResponseEntity.badRequest().body("No tenant context");
@@ -35,7 +49,8 @@ public class BillingController {
         }
 
         try {
-            String link = billingService.createSubscriptionLink(tenant, SecurityUtils.getCurrentUserEmail());
+            String link = billingService.createSubscriptionLink(
+                    tenant, SecurityUtils.getCurrentUserEmail(), planCatalog.resolverPedido(planPedido));
             return ResponseEntity.ok(Map.of("init_point", link));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating subscription: " + e.getMessage());
@@ -52,7 +67,9 @@ public class BillingController {
         Tenant tenant = currentTenant();
         if (tenant == null) return ResponseEntity.badRequest().body(Map.of("error", "No hay gimnasio en la sesión."));
         try {
-            String link = billingService.createSubscriptionLink(tenant, SecurityUtils.getCurrentUserEmail());
+            // Cambiar la tarjeta CONSERVA el plan contratado: no es una compra nueva.
+            String link = billingService.createSubscriptionLink(
+                    tenant, SecurityUtils.getCurrentUserEmail(), planActual(tenant.getId()));
             return ResponseEntity.ok(Map.of("data", Map.of("init_point", link)));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo generar el link de pago: " + e.getMessage()));
@@ -103,7 +120,9 @@ public class BillingController {
         if (payerEmail == null || payerEmail.isBlank()) payerEmail = SecurityUtils.getCurrentUserEmail();
 
         try {
-            return ResponseEntity.ok(billingService.subscribeWithCard(tenant, payerEmail, cardToken));
+            // El código de plan viaja, el PRECIO no: lo pone el catálogo del backend.
+            return ResponseEntity.ok(billingService.subscribeWithCard(
+                    tenant, payerEmail, cardToken, planCatalog.resolverPedido(body.get("plan"))));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "No se pudo procesar el pago: " + e.getMessage()));
         }

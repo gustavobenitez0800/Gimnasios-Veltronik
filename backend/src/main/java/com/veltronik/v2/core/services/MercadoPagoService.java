@@ -6,6 +6,7 @@ import com.mercadopago.client.preapproval.PreApprovalAutoRecurringCreateRequest;
 import com.mercadopago.resources.preapproval.Preapproval;
 import com.veltronik.v2.core.config.BillingProperties;
 import com.veltronik.v2.core.config.MercadoPagoProperties;
+import com.veltronik.v2.core.config.PlanCatalog;
 import com.veltronik.v2.core.entities.Tenant;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +49,7 @@ public class MercadoPagoService {
      * Cero Margen de Error: Usamos el ID del Tenant como external_reference para
      * no perder jamás la trazabilidad del pago.
      */
-    public String createSubscriptionForTenant(Tenant tenant, String payerEmail) {
+    public String createSubscriptionForTenant(Tenant tenant, String payerEmail, PlanCatalog.Plan plan) {
         try {
             // Anti-duplicado: acá NO se cancelan las suscripciones previas. El link se crea en
             // estado 'pending' (no cobra) y el cliente puede abandonar el checkout: cancelar
@@ -61,7 +62,9 @@ public class MercadoPagoService {
             PreApprovalAutoRecurringCreateRequest autoRecurring = PreApprovalAutoRecurringCreateRequest.builder()
                     .frequency(1)
                     .frequencyType("months")
-                    .transactionAmount(billing.getMonthlyPrice())
+                    // El monto lo pone el CATÁLOGO, nunca el pedido: si viniera del navegador,
+                    // cualquiera contrataría el premium por mil pesos editando la request.
+                    .transactionAmount(plan.price())
                     .currencyId("ARS")
                     .build();
 
@@ -103,18 +106,21 @@ public class MercadoPagoService {
      * mensual automático. Resuelve el "Tu e-mail no coincide": ya no hay login de MP, la tarjeta
      * se cobra directo. El 1er cobro real ocurre ~1h después (llega por webhook).</p>
      */
-    public CardSubscriptionResult createCardSubscription(Tenant tenant, String payerEmail, String cardToken) {
+    public CardSubscriptionResult createCardSubscription(Tenant tenant, String payerEmail, String cardToken,
+                                                         PlanCatalog.Plan plan) {
         // Por HTTP directo: el SDK 2.9.2 NO expone card_token_id en PreapprovalCreateRequest
         // (verificado: el builder no tiene .cardTokenId()). Mismo patrón que getAuthorizedPayment().
         try {
             java.util.Map<String, Object> autoRecurring = new java.util.LinkedHashMap<>();
             autoRecurring.put("frequency", 1);
             autoRecurring.put("frequency_type", "months");
-            autoRecurring.put("transaction_amount", billing.getMonthlyPrice());
+            autoRecurring.put("transaction_amount", plan.price());
             autoRecurring.put("currency_id", "ARS");
 
             java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
-            payload.put("reason", "Suscripción Veltronik V2 - " + tenant.getName());
+            // El plan va en el texto que ve el cliente en su resumen de tarjeta: cuando alguien
+            // llame preguntando por qué le debitan 80.000, ahí está la respuesta.
+            payload.put("reason", "Veltronik " + plan.name() + " - " + tenant.getName());
             payload.put("external_reference", tenant.getId().toString());
             payload.put("payer_email", payerEmail);
             payload.put("card_token_id", cardToken);   // tarjeta ya tokenizada por el Brick

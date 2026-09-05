@@ -37,11 +37,17 @@ const S = {
   TIMEOUT: 'timeout', ERROR: 'error',
 };
 
-export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuccess, onError }) {
+/**
+ * @param plan  código del plan que se está comprando (BASICO / PREMIUM). Viaja el CÓDIGO, no el
+ *              precio: el monto lo pone el catálogo del backend. Si el importe viniera de acá,
+ *              cualquiera contrataría el premium por mil pesos editando la request. El `amount`
+ *              es solo para que el Brick muestre la cifra correcta en pantalla.
+ */
+export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan, onSuccess, onError }) {
   const [status, setStatus] = useState(S.LOADING);
   const [message, setMessage] = useState('');
   const [attempt, setAttempt] = useState(0); // re-monta el Brick al reintentar
-  const propsRef = useRef({ amount, onSuccess, onError });
+  const propsRef = useRef({ amount, plan, onSuccess, onError });
   const pollRef = useRef(null);
   const statusRef = useRef(status);
 
@@ -49,7 +55,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
   // siempre los valores vigentes sin re-suscribirse. Se sincronizan en un effect
   // (no durante el render) y ANTES del effect del Brick, que los consume.
   useEffect(() => {
-    propsRef.current = { amount, onSuccess, onError };
+    propsRef.current = { amount, plan, onSuccess, onError };
     statusRef.current = status;
   });
 
@@ -133,7 +139,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, onSuc
               setMessage('');
               try {
                 // Crea la suscripción (NO activa). Arranca el polling del cobro real.
-                await subscriptionService.subscribeWithCard({ card_token: cardToken, payer_email: payerEmail });
+                await subscriptionService.subscribeWithCard({ card_token: cardToken, payer_email: payerEmail, plan: propsRef.current.plan });
                 startPolling();
               } catch (e) {
                 console.error('[CardCheckout] subscribe error:', e);

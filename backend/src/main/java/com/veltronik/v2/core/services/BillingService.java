@@ -38,7 +38,8 @@ public class BillingService {
      * conexión/transacción abierta durante llamadas remotas era justo lo que esta clase
      * documenta que hay que evitar.
      */
-    public String createSubscriptionLink(Tenant tenant, String payerEmail) throws Exception {
+    public String createSubscriptionLink(Tenant tenant, String payerEmail,
+                                         com.veltronik.v2.core.config.PlanCatalog.Plan plan) throws Exception {
         log.info("Generando link de suscripción para Tenant '{}' ({}), pagador: {}",
                 tenant.getName(), tenant.getId(), payerEmail);
 
@@ -47,12 +48,13 @@ public class BillingService {
         PreApprovalAutoRecurringCreateRequest autoRecurring = PreApprovalAutoRecurringCreateRequest.builder()
                 .frequency(1)
                 .frequencyType("months")
-                .transactionAmount(billing.getMonthlyPrice())
+                // El monto sale del CATÁLOGO, nunca del pedido del navegador.
+                .transactionAmount(plan.price())
                 .currencyId("ARS")
                 .build();
 
         PreapprovalCreateRequest request = PreapprovalCreateRequest.builder()
-                .reason("Suscripción Veltronik V2 - " + tenant.getName())
+                .reason("Veltronik " + plan.name() + " - " + tenant.getName())
                 .autoRecurring(autoRecurring)
                 .backUrl(billing.paymentCallbackUrl())
                 .externalReference(tenant.getId().toString())
@@ -84,9 +86,11 @@ public class BillingService {
      * transacción; la escritura local se delega a {@code updatePreapprovalStatus} (que abre su
      * propia transacción corta).</p>
      */
-    public Map<String, Object> subscribeWithCard(Tenant tenant, String payerEmail, String cardToken) {
+    public Map<String, Object> subscribeWithCard(Tenant tenant, String payerEmail, String cardToken,
+                                                 com.veltronik.v2.core.config.PlanCatalog.Plan plan) {
         // 1) Crear la suscripción en MP con la tarjeta tokenizada. NO otorga acceso todavía.
-        MercadoPagoService.CardSubscriptionResult pre = mercadoPagoService.createCardSubscription(tenant, payerEmail, cardToken);
+        MercadoPagoService.CardSubscriptionResult pre =
+                mercadoPagoService.createCardSubscription(tenant, payerEmail, cardToken, plan);
 
         // 2) Persistir la suscripción local como PENDING_PAYMENT (esperando el primer cobro).
         //    SIN período ni is_active: el acceso lo otorga EXCLUSIVAMENTE el cobro aprobado (webhook).
@@ -110,6 +114,14 @@ public class BillingService {
         }
         sub.setMpPayerEmail(payerEmail);
         sub.setMpSubscriptionId(pre.preapprovalId());
+        // QUÉ COMPRÓ, grabado acá y en ningún otro lado.
+        //
+        // Es lo que después lee PlanPolicy para decidir si este gimnasio tiene molinete. Se
+        // escribe ahora —cuando sabemos qué eligió— y no cuando entra el cobro: el webhook no
+        // recibe el plan, solo el aviso de que la plata entró. Por eso reutiliza esta misma
+        // fila y no la pisa: si lo guardáramos allá, el cliente pagaría el premium y el
+        // sistema lo dejaría en básico.
+        sub.setPlanCode(plan.code().name());
         subscriptionRepository.save(sub);
 
         log.info("Suscripción con tarjeta creada ({}) Tenant '{}': preapproval={}, statusMP={}.",

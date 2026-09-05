@@ -111,4 +111,22 @@ public class PlanCatalog {
     public boolean unlocks(PlanCode code, PlanFeature feature) {
         return get(code).unlocks().contains(feature);
     }
+
+    /**
+     * El plan que pidió el cliente al ir a pagar, resuelto y verificado.
+     *
+     * <p><b>Es el único lugar donde se decide cuánto se le cobra a alguien.</b> El monto no
+     * puede salir de lo que mande el navegador: llega un código de plan, y el precio lo pone
+     * el catálogo. Si viniera el precio en el pedido, cualquiera podría contratar el premium
+     * por mil pesos editando la request.</p>
+     *
+     * <p><b>Falla hacia MENOS acceso</b>, igual que {@link com.veltronik.v2.core.security.PlanPolicy}:
+     * un código que no se entiende, o un plan que todavía no está a la venta, caen en básico.
+     * Equivocarse hacia abajo se arregla con una llamada del cliente; hacia arriba, se regala
+     * lo que se está vendiendo.</p>
+     */
+    public Plan resolverPedido(String codigoPedido) {
+        Plan pedido = get(PlanCode.from(codigoPedido));
+        return pedido.available() ? pedido : get(PlanCode.BASICO);
+    }
 }
