@@ -81,6 +81,19 @@ describe('con internet, se escribe derecho', () => {
     const [, , opciones] = apiClient.post.mock.calls[0];
     expect(opciones.timeout).toBeLessThanOrEqual(5000);
   });
+
+  it('⚠️ pero SIN cola no corta a los 5 s: ahí no hay dónde caer', async () => {
+    // El plazo corto existe para poder encolar y seguir. En el portal web no hay cola, así
+    // que cortar antes no salva a nadie: solo le falla más rápido a la conexión lenta, que
+    // es justo la que más necesita que el pedido llegue.
+    delete window.electronAPI;
+    apiClient.post.mockResolvedValue({ data: {} });
+
+    await accessService.checkIn('m1');
+
+    const [, , opciones] = apiClient.post.mock.calls[0];
+    expect(opciones.timeout).toBeUndefined();
+  });
 });
 
 describe('sin internet, se guarda', () => {

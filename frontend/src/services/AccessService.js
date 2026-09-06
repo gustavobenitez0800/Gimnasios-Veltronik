@@ -67,12 +67,20 @@ class AccessService {
     }
 
     try {
+      // ⚠️ EL PLAZO CORTO SOLO VALE SI HAY DÓNDE CAER.
+      //
+      // Cinco segundos existen para no dejar a la recepcionista mirando un spinner: se corta,
+      // se encola, y la pantalla lo dice. Pero en el PORTAL WEB no hay cola — cortar a los
+      // cinco segundos ahí no la salva de nada, solo le falla antes en una conexión lenta,
+      // que es justo el cliente que más necesita que el pedido llegue. Sin cola, se espera lo
+      // que el apiClient espera siempre.
+      const opciones = disponible() ? { timeout: 5000 } : {};
       const response = await apiClient.post('/gym/access/register', {
         memberId,
         method: accessMethod,
         clientRef,
         ocurridoEn,
-      }, { timeout: 5000 });
+      }, opciones);
       return response.data;
     } catch (error) {
       // Si el SERVIDOR contestó, no es un problema de conexión: es un rechazo real y hay
