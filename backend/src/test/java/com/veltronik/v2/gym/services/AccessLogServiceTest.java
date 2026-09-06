@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -71,11 +72,22 @@ class AccessLogServiceTest {
         log.setCheckInAt(entrada);
         when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TENANT, MEMBER))
                 .thenReturn(Optional.of(log));
+        // La consulta CONSCIENTE DEL MOMENTO solo la devuelve si la visita ya habia empezado.
+        // Asi el mock refleja lo que hace la base y no lo que nos gustaria que hiciera.
+        when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
+                eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
+                .thenAnswer(i -> {
+                    LocalDateTime momento = i.getArgument(2);
+                    return momento.isBefore(entrada) ? Optional.empty() : Optional.of(log);
+                });
         return log;
     }
 
     private void sinVisitaAbierta() {
         when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TENANT, MEMBER))
+                .thenReturn(Optional.empty());
+        when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
+                eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
                 .thenReturn(Optional.empty());
     }
 
@@ -316,6 +328,47 @@ class AccessLogServiceTest {
 
             assertEquals(AccessLogService.Direction.SALIDA, r.direction());
             assertEquals(salida, abierta.getCheckOutAt());
+        }
+
+        @Test
+        @DisplayName("⚠️⚠️ un acceso viejo NO le cierra la salida a una visita que empezó después")
+        void elAccesoViejoNoCierraUnaVisitaPosterior() {
+            // ENCONTRADO EN UNA MÁQUINA DE VERDAD, y el síntoma fue una visita con la SALIDA
+            // ANTES QUE LA ENTRADA (16:35 → 16:00) más un tiempo promedio NEGATIVO en el
+            // resumen del día.
+            //
+            // La causa: el registro viajaba en el tiempo A MEDIAS. Usaba el momento del
+            // acceso para el sello y para la duración, pero buscaba la visita abierta de
+            // AHORA — la última, fuera de cuándo hubiera empezado.
+            //
+            // Y pasa de verdad: el check-in por QR entra por el CELULAR DEL SOCIO, que tiene
+            // su propia conexión, así que puede llegar antes que lo que el mostrador tiene
+            // encolado. Del lado del cliente ya se cerró la otra puerta (con cola pendiente
+            // nadie escribe derecho), pero esta queda abierta desde el teléfono.
+            LocalDateTime entroDespues = LocalDateTime.now().minusMinutes(10);
+            AccessLog posterior = visitaAbiertaDesde(entroDespues);
+            LocalDateTime accesoViejo = LocalDateTime.now().minusMinutes(45);
+
+            var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), accesoViejo);
+
+            assertEquals(AccessLogService.Direction.ENTRADA, r.direction(),
+                    "en ese momento el socio no estaba adentro: es una entrada, no una salida");
+            assertNull(posterior.getCheckOutAt(),
+                    "la visita posterior no se toca: nadie puede salir antes de haber entrado");
+        }
+
+        @Test
+        @DisplayName("pero si la visita ya estaba abierta ANTES, el acceso tardío sí es la salida")
+        void elAccesoTardioSiCierraLaQueYaEstabaAbierta() {
+            // El otro lado de la misma moneda, y sin él el test de arriba pasaría con un
+            // servicio que directamente nunca cierra nada.
+            AccessLog anterior = visitaAbiertaDesde(LocalDateTime.now().minusHours(2));
+            LocalDateTime salida = LocalDateTime.now().minusMinutes(45);
+
+            var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), salida);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+            assertEquals(salida, anterior.getCheckOutAt(), "la salida queda con SU momento");
         }
 
         @Test

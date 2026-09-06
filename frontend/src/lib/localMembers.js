@@ -37,6 +37,7 @@
 // se corrompe con el enchufe; SQLite así configurado no. En el navegador sigue todo igual.
 
 import apiClient from './apiClient';
+import { situacionDe } from './situacionSocio';
 
 const DB = 'veltronik-local';
 const STORE = 'members';
@@ -283,6 +284,21 @@ export function buscarSocios(termino, limite = 20) {
 
 /** El formato que espera la UI (mismo contrato que tenía el buscador de la nube). */
 function vista(s) {
+  // ⭐⭐ ACÁ SE LE HACE PASAR EL TIEMPO AL VEREDICTO, Y ES EL ÚNICO LUGAR DONDE PASA.
+  //
+  // El servidor manda la situación ya resuelta, y eso está bien mientras se refresque cada
+  // pocos minutos. Pero ESTA copia vale 30 días por decisión del dueño, y un veredicto es una
+  // respuesta con fecha de vencimiento: un socio con 10 días restantes cuando se cortó
+  // internet seguiría mostrando 10 al mes siguiente, con quince de vencido. Un dato viejo se
+  // nota; uno equivocado con cara de correcto, no.
+  //
+  // ⚠️ Se hace SOLO acá, sobre el espejo, y no en las pantallas. Lo que llega del servidor
+  // —los avisos del QR, quién está adentro— ya es fresco por definición, y además no trae el
+  // vencimiento: recalcularlo lo convertiría en "sin fecha cargada".
+  //
+  // La regla vive en `lib/situacionSocio.js`, que es hermana de `MemberAccessPolicy` y lleva
+  // escrito por qué esa copia existe y qué la hace distinta de las cinco que hubo antes.
+  const alDia = situacionDe(s);
   return {
     id: s.id,
     firstName: s.firstName,
@@ -297,9 +313,9 @@ function vista(s) {
     isActive: s.isActive,
     planId: s.planId ?? null,
     planNombre: s.planNombre ?? null,
-    situacion: s.situacion,
-    diasVencido: s.diasVencido,
-    diasRestantes: s.diasRestantes,
+    situacion: alDia.situacion,
+    diasVencido: alDia.diasVencido,
+    diasRestantes: alDia.diasRestantes,
   };
 }
 

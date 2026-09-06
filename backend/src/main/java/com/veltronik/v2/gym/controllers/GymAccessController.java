@@ -74,6 +74,13 @@ public class GymAccessController {
     public ResponseEntity<Map<String, Object>> mostrador() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
+
+        // Los días de gracia, para que el terminal pueda contar solo cuando no haya internet.
+        // Sin este número, los días restantes y la situación de cada socio quedan congelados
+        // en el último refresco — y a los treinta días de corte eso deja de ser un dato viejo
+        // para pasar a ser un dato equivocado con cara de correcto. Va acá, y no en la ficha
+        // de cada socio, porque es UNO para todo el gimnasio.
+        body.put("graceDays", accessService.getGraceDays());
         // ⚠️ La lista de hoy va RECORTADA. La pantalla muestra 30 filas; mandar las 250 de
         // un dia entero, cada una con la ficha completa del socio, es cientos de fichas
         // viajando por la conexion del gimnasio cada quince segundos para pintar 30 renglones

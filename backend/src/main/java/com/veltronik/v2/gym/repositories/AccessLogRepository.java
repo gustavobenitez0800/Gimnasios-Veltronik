@@ -41,6 +41,26 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId, UUID memberId);
 
     /**
+     * La visita que estaba abierta EN UN MOMENTO DADO, y no simplemente la última abierta.
+     *
+     * <p><b>Por qué hace falta, y el bug que cierra.</b> Un acceso que se registró sin internet
+     * llega tarde y trae consigo el momento en que pasó. La consulta de arriba toma la última
+     * visita abierta <i>sea de cuando sea</i>, así que un acceso de las 16:00 que llega a las
+     * 16:45 podía cerrarle la salida a una visita que había empezado a las 16:35 — es decir,
+     * <b>después de él</b>. El resultado es una visita con la salida ANTES que la entrada, y
+     * un tiempo promedio negativo en el resumen del día. Se vio así, en una máquina real.</p>
+     *
+     * <p>La causa de fondo era que el registro viajaba en el tiempo a medias: usaba el momento
+     * del acceso para el sello y para la duración, pero preguntaba por el estado de AHORA. Con
+     * esta consulta, "¿estaba adentro?" se responde en el momento correcto.</p>
+     *
+     * <p>Para un acceso normal —donde el momento ES ahora— devuelve exactamente lo mismo que
+     * la de arriba: toda visita ya abierta empezó antes que ahora.</p>
+     */
+    Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
+            UUID tenantId, UUID memberId, LocalDateTime momento);
+
+    /**
      * Visitas que quedaron abiertas con la entrada anterior a {@code limite} — las que el socio
      * nunca cerró. Las busca el cierre nocturno.
      *

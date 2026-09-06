@@ -51,6 +51,23 @@ public class AccessLogService {
      */
     private static final int ATRASO_MAXIMO_HORAS = 36;
 
+    /**
+     * Los días de gracia que aplica este servidor.
+     *
+     * <p><b>Se publica para que el TERMINAL pueda contar solo.</b> Sin internet, los días que
+     * le quedan a un socio y su situación quedarían congelados en el último refresco: alguien
+     * con 10 días restantes seguiría mostrando 10 al mes siguiente, cuando hace 20 que está
+     * vencido. Eso no es un dato viejo, es un dato con confianza y equivocado.</p>
+     *
+     * <p>Para contar en el escritorio hacen falta tres cosas: el vencimiento del socio y si
+     * está activo —las dos ya viajan en su ficha— y este número. Mandarlo evita que quede
+     * escrito a mano del otro lado, que es exactamente la clase de valor que alguien cambia
+     * de un lado y no del otro.</p>
+     */
+    public int getGraceDays() {
+        return accessPolicy.getGraceDays();
+    }
+
     public List<AccessLog> getTodayAccesses() {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime startOfDay = today.atStartOfDay();
@@ -186,9 +203,19 @@ public class AccessLogService {
         GymMember member = memberService.findByIdAndVerifyOwnership(memberId);
         LocalDateTime now = momentoDelHecho(ocurridoEn);
 
+        // ⚠️ LA VISITA ABIERTA SE BUSCA EN EL MOMENTO DEL ACCESO, NO EN "AHORA".
+        //
+        // Antes acá se tomaba la última visita abierta fuera de cuando fuera, y eso hacía que
+        // el registro viajara en el tiempo A MEDIAS: usaba `ocurridoEn` para el sello y para
+        // la duración, pero preguntaba por el estado del presente. Un acceso de las 16:00 que
+        // llegaba 16:45 le cerraba la salida a una visita empezada a las 16:35 —después de
+        // él— y quedaba una visita con la salida ANTES que la entrada, con su tiempo promedio
+        // negativo en el resumen del día. Se encontró así, en una máquina real.
+        //
+        // Para un acceso normal no cambia nada: toda visita ya abierta empezó antes que ahora.
         Optional<AccessLog> abierta = accessLogRepository
-                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(
-                        TenantContextHolder.getTenantId(), memberId);
+                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
+                        TenantContextHolder.getTenantId(), memberId, now);
 
         if (abierta.isPresent()) {
             AccessLog log = abierta.get();

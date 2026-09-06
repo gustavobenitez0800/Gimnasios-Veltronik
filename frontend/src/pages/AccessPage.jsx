@@ -29,6 +29,7 @@ import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
 import { cuantosPendientes } from '../lib/colaAccesos';
+import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
 import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { PageHeader } from '../components/Layout';
@@ -96,6 +97,26 @@ export default function AccessPage() {
   const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
   const loadData = invalidate;
+
+  // ─── Los días de gracia, guardados para cuando NO haya servidor ───
+  //
+  // Es el único dato de la regla que el terminal no puede deducir de la ficha del socio. Se
+  // guarda cada vez que el servidor lo dice, así el conteo local usa el número de verdad y no
+  // uno escrito a mano de este lado — que es justo la clase de valor que alguien cambia en un
+  // lugar y olvida en el otro.
+  useEffect(() => {
+    if (typeof data?.graceDays === 'number') recordarGraceDays(data.graceDays);
+  }, [data]);
+
+  // ─── La red de seguridad contra la deriva ───
+  //
+  // Con internet llegan las DOS respuestas: la del servidor y la que calculamos acá. Tienen
+  // que coincidir. Si algún día no coinciden es que una de las dos copias de la regla cambió
+  // sin la otra, y sin este chequeo eso vive meses escondido: son dos números que nunca se
+  // muestran juntos. No corrige nada — solo hace ruido en la consola.
+  useEffect(() => {
+    (data?.adentro || []).forEach((a) => a?.member && compararConElServidor(a.member));
+  }, [data]);
 
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
@@ -240,6 +261,13 @@ export default function AccessPage() {
   // enorme en el cartel de la puerta, y `unidad` es la aclaración chiquita de abajo.
   // Partirlo acá y no en el cartel es lo que evita que alguien lo recomponga con una
   // expresión regular sobre el texto ya armado.
+  // ⭐ ACÁ NO SE RECALCULA NADA, Y ES A PROPÓSITO.
+  //
+  // La puesta al día del conteo vive en el ESPEJO (`lib/localMembers.js`), que es el único
+  // dato que se pone viejo. Lo que llega del servidor —los avisos del QR, los que están
+  // adentro— ya es fresco por definición: existe porque el servidor lo acaba de procesar. Y
+  // además esos avisos NO traen el vencimiento, así que recalcularlos los convertiría en
+  // "sin fecha cargada" — un socio al día pasaría a mostrar un guion.
   const getDaysInfo = useCallback((member) => {
     const { situacion, diasVencido, diasRestantes } = member || {};
     if (!situacion || situacion === 'SIN_DATOS') {
