@@ -13,6 +13,9 @@ import { clearQueryCache } from '../hooks/useQueryCache';
 // La copia local de socios se borra al cerrar sesión: la lista de un gimnasio no puede
 // quedar en la máquina para que la vea quien entre después.
 import { olvidarSocios } from '../lib/localMembers';
+import { sesionGuardada } from '../lib/boveda';
+import { CLAVE_DE_SESION } from '../lib/supabase';
+import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
@@ -203,6 +206,79 @@ function cronometro() {
   };
 }
 
+/**
+ * El usuario de Supabase, traducido a lo que espera la app.
+ *
+ * <p>El nombre real vive en `user_metadata.full_name` (el signup manda un único "fullName");
+ * `first_name`/`last_name` casi siempre vienen vacíos. Por eso se prioriza `full_name` y
+ * recién después el split o el prefijo del email.</p>
+ *
+ * <p>Está acá afuera porque lo usan los DOS arranques —el normal y el de sin conexión— y una
+ * segunda copia de esta traducción terminaría mostrando un nombre distinto según cómo abrió
+ * la app, que es de esos bugs que nadie reporta y todos notan.</p>
+ */
+function identidadDe(u) {
+  const meta = u.user_metadata || {};
+  const emailPrefix = u.email ? u.email.split('@')[0] : '';
+  const fullName = (
+    meta.full_name ||
+    meta.name ||
+    `${meta.first_name || ''} ${meta.last_name || ''}`.trim() ||
+    emailPrefix
+  ).trim();
+  return {
+    user: {
+      id: u.id,
+      email: u.email,
+      firstName: meta.first_name || '',
+      lastName: meta.last_name || '',
+      fullName,
+    },
+    profile: { fullName, email: u.email },
+  };
+}
+
+/**
+ * ⭐ ¿Se puede abrir el mostrador con la sesión guardada, aunque la nube no conteste?
+ *
+ * <p><b>El caso que resuelve</b> es el más probable de todos: se corta la luz, el terminal
+ * reinicia, el token de una hora ya venció y todavía no volvió internet. Hasta acá eso
+ * terminaba en la pantalla de login —con la contraseña en manos de alguien que no está— y
+ * el gimnasio sin sistema hasta que volviera la línea.</p>
+ *
+ * <p><b>Por qué hace falta mirar el dato crudo.</b> `getSession()` devuelve `null` tanto
+ * cuando no hay sesión como cuando la hay pero no se pudo renovar. Son cosas distintas: en
+ * el segundo caso la sesión SIGUE GUARDADA (Supabase solo la borra si el refresh token fue
+ * rechazado de verdad, no ante un error de red). Esto las distingue.</p>
+ *
+ * <p><b>Dos guardas antes de aceptarla</b>, y las dos importan:</p>
+ * <ol>
+ *   <li>Solo en el ESCRITORIO. El portal web no promete funcionar sin internet, y ahí la
+ *       pantalla de login es la respuesta correcta.</li>
+ *   <li>Solo si de verdad no se llega al servidor. Si el backend contesta y aun así no hay
+ *       sesión, entonces la sesión está muerta en serio y corresponde el login.</li>
+ * </ol>
+ *
+ * <p>⚠️ <b>Esto es confianza en el EQUIPO, no una verificación de identidad</b>, y está
+ * asumido: la sucursal ya la decide la máquina (`terminal_org_id`) y no la persona. El
+ * alcance de lo que habilita es exactamente el espejo local — todo pedido al backend va a
+ * fallar igual, porque el token está vencido. Es la misma decisión que ya se tomó para la
+ * copia de socios: la prioridad es que la caja no pare nunca.</p>
+ */
+async function sesionSinConexion() {
+  // El portal web no juega este partido.
+  if (typeof window === 'undefined' || !window.electronAPI) return null;
+
+  const guardada = await sesionGuardada(CLAVE_DE_SESION);
+  if (!guardada?.user) return null;
+
+  // ¿Es de verdad un problema de red? Si el backend contesta, la sesión está muerta en serio.
+  const estado = await diagnoseConnectivity().catch(() => CONNECTIVITY.OFFLINE);
+  if (estado === CONNECTIVITY.ONLINE) return null;
+
+  return identidadDe(guardada.user);
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -211,6 +287,9 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isTrialActive, setIsTrialActive] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  // ¿La app se abrió sin poder confirmar la sesión contra la nube? Lo leen las pantallas
+  // para decir la verdad en vez de aparentar que todo está normal.
+  const [modoSinConexion, setModoSinConexion] = useState(false);
   const [orgRole, setOrgRole] = useState(localStorage.getItem('current_org_role') || 'owner');
   const [orgName, setOrgName] = useState(localStorage.getItem('current_org_name') || '');
   // Track if initial auth has completed to prevent premature redirects
@@ -373,11 +452,43 @@ export function AuthProvider({ children }) {
       const session = await authService.getSession().catch(() => null);
       reloj.marca('sesion');
       if (!session) {
+        // ⭐ "NO HAY SESIÓN" Y "NO PUDE CONFIRMARLA" SE VEN IGUAL DESDE ACÁ, Y NO SON LO MISMO.
+        //
+        // Verificado en el código de @supabase/auth-js: si el token venció, `getSession()`
+        // intenta renovarlo y, ante CUALQUIER error de esa renovación —incluida la falta de
+        // internet—, devuelve `null`. Pero la sesión sigue guardada: la biblioteca solo la
+        // borra cuando el error NO es de red, o sea cuando el refresh token fue rechazado
+        // de verdad.
+        //
+        // Sin esto, el caso más probable de todos —se corta la luz, el terminal reinicia,
+        // el token venció y todavía no volvió internet— termina en la pantalla de login,
+        // con el mostrador muerto y la contraseña en manos de alguien que no está.
+        // ⚠️ Lo que el modo local NO carga: `gym` y `subscription`, que salen del backend.
+        // El mostrador no los necesita —la sucursal la lee de `current_org_id`, que
+        // sobrevive al reinicio, y el muro de cobro lo decide el 402 del backend, que sin
+        // conexión no llega— pero la marca del gimnasio (color y logo) queda en los valores
+        // por defecto hasta que vuelva internet. Es cosmético y está asumido; espejar el
+        // negocio es trabajo de otra pasada.
+        const local = await sesionSinConexion();
+        if (local) {
+          console.warn('[auth] sin internet y con la sesión vencida: se abre en modo local');
+          setUser(local.user);
+          setProfile(local.profile);
+          setModoSinConexion(true);
+          reloj.informe('modo local (sin conexión)');
+          setLoading(false);
+          initCompleteRef.current = true;
+          return;
+        }
+
         reloj.informe('sin sesión guardada → login');
         setLoading(false);
         initCompleteRef.current = true;
         return;
       }
+
+      // Volvió la conexión (o nunca se fue): se sale del modo local si estaba puesto.
+      setModoSinConexion(false);
 
       // ⭐ EL USUARIO YA VIENE ADENTRO DE LA SESIÓN — NO SE LO VUELVE A PEDIR.
       //
@@ -395,28 +506,11 @@ export function AuthProvider({ children }) {
       // El fallback queda por si la sesión llegara sin el usuario adentro.
       const currentUser = session.user || await authService.getCurrentUser().catch(() => null);
       if (currentUser) {
-        // Map Supabase user to our expected format.
-        // El nombre real vive en user_metadata.full_name (el signup manda un único
-        // "fullName"); first_name/last_name casi siempre vienen vacíos. Por eso
-        // priorizamos full_name y recién después el split o el prefijo del email.
-        const meta = currentUser.user_metadata || {};
-        const emailPrefix = currentUser.email ? currentUser.email.split('@')[0] : '';
-        const fullName = (
-          meta.full_name ||
-          meta.name ||
-          `${meta.first_name || ''} ${meta.last_name || ''}`.trim() ||
-          emailPrefix
-        ).trim();
-        setUser({
-          id: currentUser.id,
-          email: currentUser.email,
-          firstName: meta.first_name || '',
-          lastName: meta.last_name || '',
-          fullName,
-        });
+        const { user: usuario, profile: perfil } = identidadDe(currentUser);
+        setUser(usuario);
         // Sidebar / Settings / Lobby leen `profile?.fullName`; sin poblar `profile`
         // queda siempre en "Usuario" aunque el nombre exista en la sesión.
-        setProfile({ fullName, email: currentUser.email });
+        setProfile(perfil);
       }
 
       // Intentar cargar el contexto de la org seleccionada
@@ -694,6 +788,7 @@ export function AuthProvider({ children }) {
     loading,
     isTrialActive,
     trialDaysRemaining,
+    modoSinConexion,
     hasValidAccess,
     orgRole,
     orgName,

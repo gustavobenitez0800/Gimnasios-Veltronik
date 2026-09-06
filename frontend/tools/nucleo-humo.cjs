@@ -26,6 +26,7 @@ const fs = require('fs');
 
 const nucleoDb = require(path.join(__dirname, '..', 'electron', 'nucleo', 'db.cjs'));
 const espejo = require(path.join(__dirname, '..', 'electron', 'nucleo', 'espejo.cjs'));
+const boveda = require(path.join(__dirname, '..', 'electron', 'nucleo', 'boveda.cjs'));
 
 /** Dos gimnasios de mentira, para no pisar el espejo real de nadie. */
 const GIMNASIO = 'de000000-0000-4000-8000-000000000001';
@@ -109,7 +110,30 @@ app.whenReady().then(() => {
     chequear('el archivo está en el disco', fs.existsSync(ruta), `${fs.statSync(ruta).size} bytes`);
     chequear('hay WAL', fs.existsSync(`${ruta}-wal`));
 
+    // ── LA BÓVEDA ──
+    // Acá se prueba el cifrado del sistema operativo de verdad (DPAPI en Windows), que es
+    // otra cosa que la suite no puede tocar.
+    console.log('');
+    const puedeCifrar = boveda.disponible();
+    chequear('el sistema puede cifrar', puedeCifrar, puedeCifrar ? '' : 'sin llavero: se usa localStorage');
+
+    if (puedeCifrar) {
+        const CLAVE = 'humo-sesion';
+        const SECRETO = '{"refresh_token":"rt-de-mentira","user":{"id":"u1"}}';
+
+        chequear('guarda', boveda.escribir(CLAVE, SECRETO));
+        chequear('devuelve lo mismo que guardó', boveda.leer(CLAVE) === SECRETO);
+
+        // Lo que importa de verdad: que en el disco NO esté el texto en claro. Si esto
+        // fallara, la bóveda sería un archivo con otro nombre y el mismo problema.
+        const enDisco = fs.readFileSync(boveda.ruta(), 'utf8');
+        chequear('en el disco NO está en claro', !enDisco.includes('rt-de-mentira'));
+
+        chequear('borra', boveda.borrar(CLAVE) && boveda.leer(CLAVE) === null);
+    }
+
     // Limpieza: esto es una prueba, no puede dejar basura en el espejo de nadie.
+    console.log('');
     espejo.olvidar(GIMNASIO);
     espejo.olvidar(OTRO);
     chequear('limpia lo que ensució', espejo.leer(GIMNASIO).socios.length === 0);

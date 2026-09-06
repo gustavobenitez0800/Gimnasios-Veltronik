@@ -134,6 +134,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
          * encontrar el mostrador listo aunque todavía no haya internet.
          */
         olvidarEspejo: (tenantId) => ipcRenderer.invoke('nucleo:espejo-olvidar', tenantId),
+
+        /**
+         * La bóveda: los tokens de sesión, cifrados por el sistema operativo.
+         *
+         * Hasta acá la sesión vivía en el `localStorage` de Chromium — un archivo del perfil
+         * del usuario, en claro—. Con esto la clave la tiene Windows (DPAPI) y está atada a
+         * la cuenta de esa máquina: copiar el archivo a otra PC no sirve de nada.
+         *
+         * `disponible()` puede dar false (algunos Linux sin llavero). Ahí NO se guarda en un
+         * archivo que finja estar cifrado: se sigue usando el `localStorage` de siempre.
+         */
+        boveda: {
+            /** @returns {Promise<boolean>} */
+            disponible: () => ipcRenderer.invoke('nucleo:boveda-disponible'),
+            /** @returns {Promise<string|null>} */
+            leer: (clave) => ipcRenderer.invoke('nucleo:boveda-leer', clave),
+            /** @returns {Promise<boolean>} false = NO se guardó. */
+            escribir: (clave, valor) => ipcRenderer.invoke('nucleo:boveda-escribir', { clave, valor }),
+            /** @returns {Promise<boolean>} */
+            borrar: (clave) => ipcRenderer.invoke('nucleo:boveda-borrar', clave),
+        },
     },
 
     // ============================================

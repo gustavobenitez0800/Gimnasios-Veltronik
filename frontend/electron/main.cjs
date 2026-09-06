@@ -17,6 +17,7 @@ const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
 const espejo = require('./nucleo/espejo.cjs');
+const boveda = require('./nucleo/boveda.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
@@ -432,6 +433,13 @@ ipcMain.handle('nucleo:espejo-guardar', (_event, { tenantId, socios }) =>
 ipcMain.handle('nucleo:espejo-estado', (_event, tenantId) => espejo.estado(tenantId));
 
 ipcMain.handle('nucleo:espejo-olvidar', (_event, tenantId) => espejo.olvidar(tenantId));
+
+// La bóveda: los tokens de sesión, cifrados por el sistema operativo. Hasta acá vivían en
+// el localStorage de Chromium, en claro, en un archivo del perfil del usuario.
+ipcMain.handle('nucleo:boveda-disponible', () => boveda.disponible());
+ipcMain.handle('nucleo:boveda-leer', (_event, clave) => boveda.leer(clave));
+ipcMain.handle('nucleo:boveda-escribir', (_event, { clave, valor }) => boveda.escribir(clave, valor));
+ipcMain.handle('nucleo:boveda-borrar', (_event, clave) => boveda.borrar(clave));
 
 // Cerrar la base al salir integra el WAL al archivo principal. Sin esto queda un checkpoint
 // pendiente que el próximo arranque tiene que rehacer — no se pierde nada, pero el arranque
