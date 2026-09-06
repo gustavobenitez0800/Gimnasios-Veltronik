@@ -112,6 +112,45 @@ CREATE TABLE IF NOT EXISTS espejo_estado (
     actualizado  INTEGER NOT NULL,
     socios       INTEGER NOT NULL DEFAULT 0
 );
+
+-- ── LA COLA: lo que pasó en la puerta y el servidor todavía no sabe ──
+--
+-- Es la única tabla de este archivo que contiene algo que NO está en ningún otro lado. El
+-- espejo se puede perder y se vuelve a bajar; una visita que está acá y se pierde, se
+-- perdió para siempre. Por eso la base va en synchronous = FULL: acá adentro hay datos
+-- del gimnasio que todavía no tiene nadie más.
+--
+-- client_ref es la CLAVE PRIMARIA y no un campo más. Es el mismo UUID que viaja al
+-- servidor, donde un índice único parcial por tenant (V54) lo rechaza si ya lo vio. Que
+-- acá sea la primary key significa que encolar dos veces el mismo acceso es imposible en
+-- los dos extremos de la línea, no solo en uno.
+CREATE TABLE IF NOT EXISTS cola_accesos (
+    client_ref   TEXT PRIMARY KEY,
+
+    -- DE QUÉ GIMNASIO es este acceso. La cola es de la MÁQUINA, pero cada acceso es de un
+    -- gimnasio: sin esto, otra sucursal entrando en el mismo terminal mandaría estas
+    -- visitas a su propio negocio.
+    tenant_id    TEXT,
+
+    member_id    TEXT NOT NULL,
+    member_name  TEXT,
+    method       TEXT NOT NULL DEFAULT 'manual',
+
+    -- CUÁNDO PASÓ, según el reloj del terminal. El servidor evalúa la dirección contra
+    -- este instante y no contra el momento en que le llega. Sin esto, la salida de un
+    -- socio que sube tarde se lee como visita abandonada y abre una entrada nueva.
+    ocurrido_en  TEXT NOT NULL,
+
+    intentos     INTEGER NOT NULL DEFAULT 0,
+    ultimo_error TEXT,
+
+    -- Para ordenar con criterio estable y para saber a quién descartar si la cola se llena.
+    creado_en    INTEGER NOT NULL
+);
+
+-- El orden de vaciado. Por el momento REAL, no por el de encolado: es lo único que
+-- garantiza que reproducir la cola dé el mismo resultado que si hubiera habido internet.
+CREATE INDEX IF NOT EXISTS ix_cola_accesos_orden ON cola_accesos (tenant_id, ocurrido_en, creado_en);
 `;
 
 /** ¿Hay base local en esta máquina? */

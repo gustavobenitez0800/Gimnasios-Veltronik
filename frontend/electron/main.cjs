@@ -18,6 +18,7 @@ const windowState = require('./window-state.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
 const espejo = require('./nucleo/espejo.cjs');
 const boveda = require('./nucleo/boveda.cjs');
+const cola = require('./nucleo/cola.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
@@ -440,6 +441,16 @@ ipcMain.handle('nucleo:boveda-disponible', () => boveda.disponible());
 ipcMain.handle('nucleo:boveda-leer', (_event, clave) => boveda.leer(clave));
 ipcMain.handle('nucleo:boveda-escribir', (_event, { clave, valor }) => boveda.escribir(clave, valor));
 ipcMain.handle('nucleo:boveda-borrar', (_event, clave) => boveda.borrar(clave));
+
+// La cola: lo que pasó en la puerta y el servidor todavía no sabe. A diferencia del espejo,
+// esto NO es una copia de nada: si se pierde, el gimnasio perdió una visita.
+ipcMain.handle('nucleo:cola-encolar', (_event, item) => cola.encolar(item));
+ipcMain.handle('nucleo:cola-pendientes', (_event, tenantId) => cola.pendientes(tenantId));
+ipcMain.handle('nucleo:cola-contar', (_event, tenantId) => cola.contar(tenantId));
+ipcMain.handle('nucleo:cola-sacar', (_event, clientRef) => cola.sacar(clientRef));
+ipcMain.handle('nucleo:cola-anotar-fallo', (_event, { clientRef, mensaje }) =>
+    cola.anotarFallo(clientRef, mensaje));
+ipcMain.handle('nucleo:cola-olvidar', () => cola.olvidar());
 
 // Cerrar la base al salir integra el WAL al archivo principal. Sin esto queda un checkpoint
 // pendiente que el próximo arranque tiene que rehacer — no se pierde nada, pero el arranque

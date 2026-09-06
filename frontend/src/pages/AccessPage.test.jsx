@@ -212,7 +212,9 @@ describe('Enter registra y deja lugar al siguiente', () => {
 
     await apretar('Enter');
 
-    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'manual');
+    // El nombre viaja para que la cola pueda mostrar de quién es el acceso que espera, sin
+    // depender de que el socio siga en el espejo cuando se vacíe.
+    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'manual', expect.any(String));
     expect(campo().value, 'el campo queda vacío para el que sigue').toBe('');
     expect(document.activeElement, 'y con el foco puesto: nadie agarra el mouse').toBe(campo());
   });

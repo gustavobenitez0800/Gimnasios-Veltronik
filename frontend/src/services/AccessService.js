@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { encolar, disponible, nuevoSello, momentoLocal } from '../lib/colaAccesos';
 
 /**
  * Servicio de Control de Acceso.
@@ -18,10 +19,72 @@ class AccessService {
     return response.data;
   }
 
-  async checkIn(memberId, accessMethod = 'manual') {
+  /**
+   * ⭐ REGISTRAR EL PASO DE UN SOCIO. Con internet va derecho; sin internet, a la cola.
+   *
+   * <p><b>La regla es escribir derecho y encolar solo como paracaídas</b>, no al revés.
+   * Escribir siempre local metería un retraso entre lo que pasa en el gimnasio y lo que el
+   * dueño puede ver, a cambio de nada: el mostrador ya es rápido porque lo que era lento
+   * eran las LECTURAS, y esas ya salen del espejo.</p>
+   *
+   * <p><b>⚠️ EL SELLO SE GENERA ANTES DE INTENTAR, Y VIAJA TAMBIÉN EN EL PEDIDO ONLINE.</b>
+   * Esto es lo que cierra el agujero del momento ambiguo: el pedido salió, el servidor lo
+   * guardó, y la respuesta se perdió en el camino de vuelta. Sin el sello, encolaríamos un
+   * acceso NUEVO y el servidor lo procesaría como un segundo paso — y dos pasos del mismo
+   * socio no duplican, INVIERTEN: quedaría "afuera" sin haberse ido. Con el mismo sello, el
+   * índice único (V54) lo reconoce y devuelve el que ya tenía.</p>
+   *
+   * <p>Plazo corto a propósito. Que la recepcionista mire un spinner de veinte segundos con
+   * un socio esperando es exactamente lo que la copia local vino a matar, y no puede volver
+   * a entrar por la puerta de la escritura: a los cinco segundos se deja de esperar, se
+   * guarda, y la pantalla lo dice.</p>
+   *
+   * @returns lo que devolvió el servidor, o `{encolado: true}` si quedó guardado para después.
+   */
+  async checkIn(memberId, accessMethod = 'manual', memberName = '') {
+    const clientRef = nuevoSello();
+    const ocurridoEn = momentoLocal();
+    const paraLaCola = { memberId, method: accessMethod, memberName, ocurridoEn, clientRef };
+
+    // Sin red no se intenta: se guarda y listo. Intentar sería regalarle al socio la espera
+    // del timeout para terminar en el mismo lugar.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false && disponible()) {
+      const ref = await encolar(paraLaCola);
+      if (ref) return { encolado: true, clientRef: ref };
+    }
+
+    try {
+      const response = await apiClient.post('/gym/access/register', {
+        memberId,
+        method: accessMethod,
+        clientRef,
+        ocurridoEn,
+      }, { timeout: 5000 });
+      return response.data;
+    } catch (error) {
+      // Si el SERVIDOR contestó, no es un problema de conexión: es un rechazo real y hay
+      // que mostrarlo. Encolarlo sería reintentar para siempre algo que ya dijo que no.
+      if (error?.response || !disponible()) throw error;
+
+      const ref = await encolar(paraLaCola);
+      if (!ref) throw error; // no hay dónde guardarlo: que falle como antes, sin mentir
+      return { encolado: true, clientRef: ref };
+    }
+  }
+
+  /**
+   * Manda UN acceso que estaba en la cola. Lo usa el vaciado, de a uno y en orden.
+   *
+   * <p>Va sin plazo corto a propósito: acá no hay nadie esperando en el mostrador, y darse
+   * por vencido rápido solo lograría cortar la tanda antes de tiempo. El que espera es el
+   * dato, y el dato puede esperar.</p>
+   */
+  async enviarEncolado(item) {
     const response = await apiClient.post('/gym/access/register', {
-      memberId: memberId,
-      method: accessMethod
+      memberId: item.memberId,
+      method: item.method,
+      clientRef: item.clientRef,
+      ocurridoEn: item.ocurridoEn,
     });
     return response.data;
   }

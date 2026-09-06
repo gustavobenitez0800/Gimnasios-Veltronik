@@ -27,6 +27,7 @@ const fs = require('fs');
 const nucleoDb = require(path.join(__dirname, '..', 'electron', 'nucleo', 'db.cjs'));
 const espejo = require(path.join(__dirname, '..', 'electron', 'nucleo', 'espejo.cjs'));
 const boveda = require(path.join(__dirname, '..', 'electron', 'nucleo', 'boveda.cjs'));
+const cola = require(path.join(__dirname, '..', 'electron', 'nucleo', 'cola.cjs'));
 
 /** Dos gimnasios de mentira, para no pisar el espejo real de nadie. */
 const GIMNASIO = 'de000000-0000-4000-8000-000000000001';
@@ -131,6 +132,38 @@ app.whenReady().then(() => {
 
         chequear('borra', boveda.borrar(CLAVE) && boveda.leer(CLAVE) === null);
     }
+
+    // ── LA COLA ──
+    // Lo único de esta base que NO es copia de nada: si se pierde, el gimnasio perdió una
+    // visita. Por eso se prueba contra el motor de verdad y no solo con una conexión falsa.
+    console.log('');
+    const acceso = (ref, cuando) => ({
+        clientRef: ref, tenantId: GIMNASIO, memberId: 'de000000-0000-4000-8000-00000000aaaa',
+        memberName: 'José Pérez', method: 'manual', ocurridoEn: cuando,
+    });
+
+    chequear('encola', cola.encolar(acceso('humo-b', '2026-09-06T11:00:00')).ok);
+    chequear('encola otro', cola.encolar(acceso('humo-a', '2026-09-06T10:00:00')).ok);
+
+    // El orden es lo único que sostiene la corrección: mandar la salida antes que la entrada
+    // invierte las dos marcas.
+    const enCola = cola.pendientes(GIMNASIO);
+    chequear('sale en el orden en que OCURRIÓ, no en el que se encoló',
+        enCola.map((i) => i.clientRef).join(',') === 'humo-a,humo-b',
+        enCola.map((i) => i.clientRef).join(','));
+
+    // Encolar dos veces el mismo acceso tiene que ser inofensivo en los DOS extremos.
+    cola.encolar(acceso('humo-a', '2026-09-06T10:00:00'));
+    chequear('el mismo sello no entra dos veces', cola.contar(GIMNASIO) === 2, `${cola.contar(GIMNASIO)} en cola`);
+
+    cola.anotarFallo('humo-a', 'Network Error');
+    chequear('anota el fallo SIN sacarlo de la cola',
+        cola.contar(GIMNASIO) === 2 && cola.pendientes(GIMNASIO)[0].intentos === 1);
+
+    chequear('sacar saca uno solo', cola.sacar('humo-a') && cola.contar(GIMNASIO) === 1);
+
+    cola.olvidar();
+    chequear('limpia la cola', cola.contar(GIMNASIO) === 0);
 
     // Limpieza: esto es una prueba, no puede dejar basura en el espejo de nadie.
     console.log('');

@@ -155,6 +155,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
             /** @returns {Promise<boolean>} */
             borrar: (clave) => ipcRenderer.invoke('nucleo:boveda-borrar', clave),
         },
+
+        /**
+         * La cola: los accesos que pasaron y el servidor todavía no sabe.
+         *
+         * ⚠️ A diferencia del espejo, esto NO es copia de nada. Si se pierde, el gimnasio
+         * perdió una visita. Nada sale de la cola salvo que el servidor la haya confirmado
+         * o rechazado por algo que no se arregla reintentando.
+         */
+        cola: {
+            /** @returns {Promise<{ok: boolean, clientRef?: string, motivo?: string}>} */
+            encolar: (item) => ipcRenderer.invoke('nucleo:cola-encolar', item),
+            /** Los pendientes de un gimnasio, EN EL ORDEN EN QUE OCURRIERON. */
+            pendientes: (tenantId) => ipcRenderer.invoke('nucleo:cola-pendientes', tenantId),
+            /** @returns {Promise<number>} */
+            contar: (tenantId) => ipcRenderer.invoke('nucleo:cola-contar', tenantId),
+            /** Solo cuando el servidor confirmó o rechazó definitivamente. */
+            sacar: (clientRef) => ipcRenderer.invoke('nucleo:cola-sacar', clientRef),
+            /** Anota el intento fallido. NO saca nada de la cola. */
+            anotarFallo: (clientRef, mensaje) =>
+                ipcRenderer.invoke('nucleo:cola-anotar-fallo', { clientRef, mensaje }),
+            /** ⚠️ NO se llama al cerrar sesión: son visitas reales que el gimnasio no tiene. */
+            olvidar: () => ipcRenderer.invoke('nucleo:cola-olvidar'),
+        },
     },
 
     // ============================================

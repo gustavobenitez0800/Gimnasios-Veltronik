@@ -28,6 +28,11 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
+import {
+  cuantosPendientes,
+  vaciar as vaciarColaAccesos,
+  disponible as colaDisponible,
+} from '../lib/colaAccesos';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
@@ -116,6 +121,55 @@ export default function AccessPage() {
     const t = setInterval(() => { refrescarSocios(tenantId).catch(() => {}); }, REFRESCO_MS);
     return () => clearInterval(t);
   }, []);
+
+  // ─── LA COLA: lo que se registró sin internet y todavía no subió ───
+  //
+  // Cuántos esperan. Es lo único de la cola que la pantalla muestra, y tiene que estar: una
+  // cola invisible es una cola que nadie vacía, y lo que hay adentro son visitas que el
+  // gimnasio todavía no tiene en ningún otro lado.
+  const [pendientesCola, setPendientesCola] = useState(0);
+
+  const contarPendientes = useCallback(async () => {
+    setPendientesCola(await cuantosPendientes());
+  }, []);
+
+  /**
+   * Vacía la cola: en orden, de a uno, cortando ante el primer fallo de red.
+   *
+   * <p>El orden y el candado viven en `lib/colaAccesos.js` porque son la parte difícil; acá
+   * solo se decide CUÁNDO intentar. Se intenta al abrir la pantalla, cada vez que el
+   * navegador avisa que volvió la red, y en el mismo latido que refresca el espejo.</p>
+   */
+  const vaciarCola = useCallback(async () => {
+    if (!colaDisponible()) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    try {
+      const { enviados } = await vaciarColaAccesos((item) => accessService.enviarEncolado(item));
+      if (enviados > 0) {
+        showToast(
+          `Se registraron ${enviados} ${enviados === 1 ? 'entrada' : 'entradas'} que estaban esperando`,
+          'success',
+        );
+        loadData();
+      }
+    } catch {
+      // Que el vaciado falle no puede romper la pantalla: los accesos siguen en la cola y
+      // se reintentan en el próximo ciclo. Es exactamente para lo que existe la cola.
+    }
+    contarPendientes();
+  }, [contarPendientes, showToast, loadData]);
+
+  useEffect(() => {
+    contarPendientes();
+    vaciarCola();
+    const alVolverLaRed = () => vaciarCola();
+    window.addEventListener('online', alVolverLaRed);
+    const t = setInterval(vaciarCola, REFRESCO_MS);
+    return () => {
+      window.removeEventListener('online', alVolverLaRed);
+      clearInterval(t);
+    };
+  }, [contarPendientes, vaciarCola]);
 
   // ─── EL TECLADO NO SE APAGA NUNCA ───
   //
@@ -326,7 +380,28 @@ export default function AccessPage() {
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
     try {
-      const r = await accessService.checkIn(member.id, 'manual');
+      const r = await accessService.checkIn(member.id, 'manual', member.fullName);
+
+      // ⚠️ SIN CONEXIÓN EL CARTEL NO DICE "ENTRADA REGISTRADA", Y NO ES UN DETALLE.
+      //
+      // La dirección —entrada o salida— la decide el SERVIDOR mirando el estado del socio.
+      // Acá todavía no se sabe cuál de las dos es, así que anunciar "Entrada registrada"
+      // sería inventar la mitad del dato. Se dice lo único que es cierto: quedó guardado.
+      if (r?.encolado) {
+        mostrarAviso({
+          name: member.fullName,
+          type: 'warning',
+          accion: 'Guardado sin conexión',
+          detalle: 'Se manda solo cuando vuelva internet',
+          initials: getInitials(member.fullName),
+        });
+        setSearchQuery('');
+        setSearchResults([]);
+        contarPendientes();
+        buscadorRef.current?.focus();
+        return;
+      }
+
       const daysInfo = getDaysInfo(member);
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
@@ -457,6 +532,19 @@ export default function AccessPage() {
               onKeyDown={alTeclear} />
           </div>
           <EstadoCopiaLocal />
+          {/* Lo que se registró sin internet y todavía no subió. Se muestra SOLO cuando hay
+              algo: un cartel que está siempre prendido deja de avisar. Y se muestra siempre
+              que haya algo, con o sin conexión — mientras quede una visita sin subir, el
+              gimnasio no la tiene. */}
+          {pendientesCola > 0 && (
+            <p className="copia-local is-vieja">
+              <Icon name="wifiOff" size="0.9em" />
+              <span>
+                {pendientesCola} {pendientesCola === 1 ? 'entrada guardada' : 'entradas guardadas'} sin
+                conexión · se {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet
+              </span>
+            </p>
+          )}
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
           {searchResults.length > 0 && (
             <div className="search-results">
