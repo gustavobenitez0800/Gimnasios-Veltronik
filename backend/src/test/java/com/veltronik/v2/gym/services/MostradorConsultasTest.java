@@ -9,6 +9,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -69,6 +70,25 @@ class MostradorConsultasTest extends EmbeddedPostgresTest {
                     .setParameter("vence", LocalDateTime.now().plusDays(20))
                     .executeUpdate();
 
+            /*
+             * ⚠️ "HACE UNA HORA" NO SIEMPRE ES HOY.
+             *
+             * Acá decía `LocalDateTime.now().minusHours(1)`, y a las 00:20 eso cae en el
+             * día ANTERIOR. `getTodayAccesses()` filtra por día CALENDARIO —de 00:00 a
+             * 23:59—, así que no encontraba ninguna de las 12 marcas y el test fallaba con
+             * "expected: <12> but was: <0>".
+             *
+             * O sea: este test se rompía TODAS las noches, entre las 00:00 y las 00:59, sin
+             * que nadie tocara nada. Lo agarró un CI que corrió 00:20 hora argentina.
+             *
+             * Se toma el más tardío entre "hace una hora" y el arranque de hoy: durante el
+             * día la marca queda realista, y de madrugada queda pegada al inicio del día —
+             * siempre dentro de la ventana que la consulta va a mirar.
+             */
+            LocalDateTime haceUnaHora = LocalDateTime.now().minusHours(1);
+            LocalDateTime arranqueDeHoy = LocalDate.now().atStartOfDay();
+            LocalDateTime cuando = haceUnaHora.isBefore(arranqueDeHoy) ? arranqueDeHoy : haceUnaHora;
+
             // Una visita abierta hoy: cuenta para "adentro" y para "el registro de hoy".
             em.createNativeQuery("""
                     INSERT INTO access_log (id, tenant_id, member_id, check_in_at, access_method, created_at, updated_at)
@@ -77,7 +97,7 @@ class MostradorConsultasTest extends EmbeddedPostgresTest {
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("tenant", gym)
                     .setParameter("socio", socio)
-                    .setParameter("cuando", LocalDateTime.now().minusHours(1))
+                    .setParameter("cuando", cuando)
                     .executeUpdate();
         }
         em.flush();

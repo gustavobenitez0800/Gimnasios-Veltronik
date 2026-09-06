@@ -89,6 +89,120 @@ const NO_ORG_ROUTES = [
   CONFIG.ROUTES.OWNER_INSIGHTS,
 ];
 
+/**
+ * La ruta con la que se abrió la app, leída del "#".
+ *
+ * <p>Se lee de `window.location` y no del `location` de React Router a propósito:
+ * `doInitAuth` corre una sola vez, desde un callback creado en el primer render, así que
+ * cualquier `location` que capturara quedaría congelado ahí. Ir a la barra de direcciones
+ * es explícito y no depende de qué render capturó qué.</p>
+ *
+ * <p>HashRouter: la ruta vive DESPUÉS del "#" ("...index.html#/lobby"). Sin sesión previa
+ * el hash viene vacío, y eso es la raíz.</p>
+ */
+const rutaDeArranque = () => {
+  if (typeof window === 'undefined') return '/';
+  const hash = window.location.hash || '';
+  const sinNumeral = hash.startsWith('#') ? hash.slice(1) : hash;
+  return sinNumeral.split('?')[0] || '/';
+};
+
+/**
+ * ¿Esta pantalla necesita tener una sucursal cargada para poder dibujarse?
+ *
+ * <p>Mismo criterio que el guard de rutas de más abajo, y a propósito: si las dos
+ * respondieran distinto, el arranque podría no esperar un dato que el guard sí da por
+ * puesto. Cuando se toque una, hay que tocar la otra.</p>
+ */
+const necesitaSucursal = (path) => !NO_ORG_ROUTES.includes(path) && !matchesPublicPrefix(path);
+
+/**
+ * Pantallas cuyo trabajo ES elegir sucursal.
+ *
+ * <p>Para estas, cargar la sucursal ANTERIOR no es "adelantar trabajo": es trabajo muerto.
+ * Ni el Lobby ni el DeviceGate leen `gym` o `subscription` del contexto —los dos piden
+ * solo `profile`, `logout` y `refreshOrgContext`— y lo primero que hacen es fijar la
+ * sucursal ellos mismos: el Lobby al tocar una card, el DeviceGate borrando
+ * `current_org_id` apenas monta. Lo que precargáramos se sobreescribe sí o sí.</p>
+ *
+ * <p>Y no es gratis: son dos pedidos más peleando por el único vCPU del backend justo en
+ * el arranque, que es cuando salen todos juntos. Medido en el Lobby del dueño: con 5
+ * pedidos ninguno pasaba de 314 ms; con 9 saltaban a 2500 ms. El endpoint no se hizo
+ * lento — se hizo la cola.</p>
+ *
+ * <p>Es UNA ruta porque en el escritorio el DeviceGate ocupa la misma que el Lobby web.</p>
+ */
+const SELECTORES_DE_SUCURSAL = [CONFIG.ROUTES.LOBBY];
+
+/** ¿Esta pantalla va a fijar la sucursal ella misma? */
+const eligeSucursal = (path) => SELECTORES_DE_SUCURSAL.includes(path) || rebotaAlLobby(path);
+
+/**
+ * ¿Con sesión abierta, esta ruta pública termina rebotando al Lobby?
+ *
+ * <p><b>Esto tapa el agujero más común de todos: la app abierta en el dominio pelado.</b>
+ * Sin "#" en la dirección, la ruta de arranque es "/" —el login—, que NO es "/lobby", así
+ * que la lista de arriba no la reconocía y la precarga de la sucursal anterior volvía a
+ * salir. Y para nada: el guard de rutas, dos pantallas más abajo, ve a alguien logueado en
+ * una pantalla pública y lo manda al Lobby igual. O sea que el destino real SIEMPRE fue el
+ * selector; lo único que cambiaba era por dónde se entraba.</p>
+ *
+ * <p>Se ve en la medición: dos pedidos extra en el arranque, justo cuando el backend está
+ * despertándose y cada pedido de más empeora la cola.</p>
+ *
+ * <p>Las dos excepciones son las mismas que las del guard, y por el mismo motivo: terminan
+ * un trámite y no rebotan a ningún lado (reset-password y desktop-auth), igual que las
+ * públicas con parámetro (el cartel de QR que el dueño abre para probarlo).</p>
+ */
+function rebotaAlLobby(path) {
+  const conParametro = matchesPublicPrefix(path);
+  const esPublica = PUBLIC_ROUTES.includes(path) || conParametro;
+  const permitidaLogueado = PUBLIC_ROUTES_ALLOWED_WHEN_LOGGED_IN.includes(path) || conParametro;
+  return esPublica && !permitidaLogueado;
+}
+
+/**
+ * ⏱️ EL CRONÓMETRO DEL ARRANQUE — POR QUÉ ESTÁ Y POR QUÉ NO SE SACA.
+ *
+ * <p>Mientras `loading` es true no se dibuja NADA: solo el logo con el spinner. Cuando
+ * alguien dice "tarda muchísimo en entrar", eso es todo lo que se ve, y desde afuera no
+ * hay forma de saber cuál de los pasos se comió el tiempo — si la sesión de Supabase (que
+ * a la mañana suele estar renovando el token), si el backend recién despertándose, o el
+ * internet del gimnasio. Los tres se parecen: un logo girando.</p>
+ *
+ * <p>Solo habla cuando hay algo que decir: por debajo de {@link ARRANQUE_LENTO_MS} no
+ * imprime nada. Un arranque sano no ensucia la consola; uno lento deja UNA línea con el
+ * desglose, en warning, para que salte a la vista sin ir a buscarla. (Además el lint del
+ * proyecto solo admite `warn` y `error`, que es la misma idea escrita como regla.)</p>
+ */
+const ARRANQUE_LENTO_MS = 3000;
+
+function cronometro() {
+  const t0 = Date.now();
+  const tramos = {};
+  let ultimo = t0;
+  // El `finally` de doInitAuth informa siempre, y los caminos que cortan antes también
+  // quieren dejar su contexto. Se informa UNA vez: gana el primero, que es el que sabe
+  // por qué terminó.
+  let yaInformado = false;
+  return {
+    /** Cierra un tramo y lo nombra. */
+    marca(nombre) {
+      const ahora = Date.now();
+      tramos[nombre] = ahora - ultimo;
+      ultimo = ahora;
+    },
+    informe(extra) {
+      if (yaInformado) return;
+      yaInformado = true;
+      const total = Date.now() - t0;
+      const detalle = Object.entries(tramos).map(([k, v]) => `${k} ${v}ms`).join(' · ');
+      if (total < ARRANQUE_LENTO_MS) return;
+      console.warn(`[arranque] ${total}ms — ${detalle}${extra ? ` · ${extra}` : ''}`);
+    },
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -237,15 +351,49 @@ export function AuthProvider({ children }) {
 
   // Initialize auth state from Supabase
   const doInitAuth = async () => {
+    const reloj = cronometro();
+    /**
+     * La carga de sucursal que quedó corriendo por detrás.
+     *
+     * <p>⚠️ ES LO QUE MANTIENE CERRADO EL DEDUPE, y no es un detalle. Supabase emite
+     * `SIGNED_IN` a los pocos milisegundos del arranque, y su listener vuelve a llamar a
+     * `initAuth`. El guard de `initAuthPromiseRef` lo atrapa solo mientras la corrida
+     * anterior siga en vuelo — y desde que esta función dejó de ESPERAR la sucursal,
+     * terminaba en un suspiro y soltaba el candado antes de que llegara el evento. La
+     * segunda corrida entonces pedía todo de nuevo: se veía como `/tenants/{id}` y su
+     * suscripción duplicados, 30 ms aparte, en el arranque del Lobby.</p>
+     *
+     * <p>Por eso la promesa de `doInitAuth` sigue viva hasta que la carga de fondo
+     * termina, aunque la pantalla ya se haya dibujado hace rato. Dibujar y deduplicar son
+     * dos relojes distintos: el primero lo cierra `setLoading(false)`, el segundo tiene
+     * que durar todo lo que dure el trabajo de verdad.</p>
+     */
+    let enSegundoPlano = null;
     try {
       const session = await authService.getSession().catch(() => null);
+      reloj.marca('sesion');
       if (!session) {
+        reloj.informe('sin sesión guardada → login');
         setLoading(false);
         initCompleteRef.current = true;
         return;
       }
 
-      const currentUser = await authService.getCurrentUser().catch(() => null);
+      // ⭐ EL USUARIO YA VIENE ADENTRO DE LA SESIÓN — NO SE LO VUELVE A PEDIR.
+      //
+      // Acá antes se llamaba a `getCurrentUser()`, que es una vuelta de red COMPLETA a
+      // Supabase (`GET /auth/v1/user`), en serie, con la pantalla del logo girando. Y no
+      // traía nada nuevo: `session.user` ya tiene el id, el mail y el `user_metadata`,
+      // que es todo lo que se lee dos líneas más abajo.
+      //
+      // Peor: era la primera pieza del arranque que se podía colgar. El fetch de Supabase
+      // tiene 10 s de timeout y DOS reintentos, así que un internet malo la convertía en
+      // 30 segundos de logo girando. Y si al final fallaba, `currentUser` quedaba en null
+      // → el guard de rutas mandaba al login a alguien con la sesión perfectamente viva.
+      // O sea que un parpadeo de red en el arranque se veía como "me sacó solo".
+      //
+      // El fallback queda por si la sesión llegara sin el usuario adentro.
+      const currentUser = session.user || await authService.getCurrentUser().catch(() => null);
       if (currentUser) {
         // Map Supabase user to our expected format.
         // El nombre real vive en user_metadata.full_name (el signup manda un único
@@ -274,28 +422,66 @@ export function AuthProvider({ children }) {
       // Intentar cargar el contexto de la org seleccionada
       const orgId = localStorage.getItem('current_org_id');
 
-      if (orgId) {
-        const [gymData, sub] = await Promise.all([
+      // La ruta se lee UNA vez: entre acá y el final de la función el usuario no navegó,
+      // y preguntarla dos veces invita a que las dos ramas de abajo discrepen.
+      const ruta = rutaDeArranque();
+
+      if (orgId && !eligeSucursal(ruta)) {
+        const contexto = Promise.all([
           loadOrgById(orgId),
           loadSubscriptionForOrg(orgId),
-        ]);
+        ]).then(([gymData, sub]) => {
+          setGym(gymData);
+          setSubscription(sub);
 
-        setGym(gymData);
-        setSubscription(sub);
+          if (gymData) {
+            const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
+            const trialDays = getTrialDays(gymData);
+            setIsTrialActive(trialActive);
+            setTrialDaysRemaining(trialDays);
+          }
+        });
 
-        if (gymData) {
-          const trialActive = checkTrialStatus(gymData) && !['active', 'past_due', 'canceled'].includes(sub?.status);
-          const trialDays = getTrialDays(gymData);
-          setIsTrialActive(trialActive);
-          setTrialDaysRemaining(trialDays);
+        // ⭐ EL LOGO NO ESPERA DATOS QUE LA PANTALLA SIGUIENTE VA A TIRAR.
+        //
+        // Estas dos consultas son de la sucursal ANTERIOR (la que quedó en localStorage).
+        // Una pantalla de operación sí las necesita para dibujarse, así que ahí se espera.
+        // Pero las de NO_ORG_ROUTES —el Lobby, donde aterriza casi todo arranque, y el
+        // DeviceGate del escritorio, que ocupa su misma ruta— existen justamente para
+        // ELEGIR sucursal: el Lobby las vuelve a pedir en `refreshOrgContext` apenas se
+        // toca una card, y el DeviceGate arranca BORRANDO `current_org_id`.
+        //
+        // O sea que el arranque más común pagaba dos vueltas al backend, en el camino
+        // crítico, por datos que se descartan. Y son las PRIMERAS consultas del día: las
+        // que se comen el arranque en frío de Cloud Run. Ahí "tarda muchísimo en entrar"
+        // deja de ser un segundo y pasa a ser medio minuto de logo girando.
+        //
+        // La única de esa lista que igual LEE el contexto es /plans, y ya venía escrita
+        // para no tenerlo: cae a `localStorage` para saber a qué sucursal cobrarle, y
+        // `hasAccess(null, null)` da false — o sea, muestra la página de pago. Falla del
+        // lado seguro: lo peor que puede pasar es que un cliente al día vea el precio un
+        // instante de más, nunca que un moroso entre gratis.
+        //
+        // Se siguen cargando igual — por detrás, sin bloquear el dibujo.
+        if (necesitaSucursal(ruta)) {
+          await contexto;
+          reloj.marca('sucursal');
+        } else {
+          enSegundoPlano = contexto.catch((e) => console.warn('[auth] no se pudo precargar la sucursal anterior:', e?.message));
         }
       }
     } catch (error) {
       console.error('Auth init error:', error);
     } finally {
+      reloj.informe(`ruta ${rutaDeArranque()}`);
       setLoading(false);
       initCompleteRef.current = true;
     }
+
+    // La pantalla ya se dibujó (el `finally` de arriba). Esto de acá no la demora: solo
+    // mantiene viva la promesa —y con ella el dedupe— hasta que la carga de fondo termine.
+    // Ver el comentario de `enSegundoPlano`.
+    if (enSegundoPlano) await enSegundoPlano;
   };
 
   const initAuth = useCallback(async () => {
