@@ -206,8 +206,30 @@ describe('sin conexión, el equipo se acuerda de su sucursal', () => {
     await pintar();
 
     expect(deviceService.me).not.toHaveBeenCalled();
-    expect(navegado).toEqual(['/dashboard']);
     expect(localStorage.getItem('current_org_id')).toBe('org1');
+  });
+
+  it('sin red entra por ACCESO, no por el Dashboard, aunque sea el dueño', async () => {
+    // El Dashboard es, sin internet, la pantalla que menos sirve: todo lo que muestra viene
+    // del servidor. El mostrador funciona entero contra la copia local. Sin conexión se
+    // entra por la puerta que anda, no por la que corresponde al rol.
+    yaSeIdentificoAntes(); // rol 'owner', que con red iría al Dashboard
+    sinRed(false);
+
+    await pintar();
+
+    expect(navegado).toEqual(['/access']);
+  });
+
+  it('sin red NO pide el contexto de la sucursal', async () => {
+    // Serían tres pedidos condenados a fallar (sucursal, suscripción, rol), cada uno con
+    // sus reintentos, en el arranque de un terminal que ya sabe todo lo que necesita saber.
+    yaSeIdentificoAntes();
+    sinRed(false);
+
+    await pintar();
+
+    expect(auth.refreshOrgContext).not.toHaveBeenCalled();
   });
 
   it('⚠️ sin red NO se queda sin sucursal: el mostrador necesita saber de qué gimnasio es su copia', async () => {
@@ -231,7 +253,7 @@ describe('sin conexión, el equipo se acuerda de su sucursal', () => {
 
     await pintar();
 
-    expect(navegado).toEqual(['/dashboard']);
+    expect(navegado).toEqual(['/access']);
     expect(localStorage.getItem('current_org_id')).toBe('org1');
   });
 

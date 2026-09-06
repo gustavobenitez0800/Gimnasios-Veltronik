@@ -123,8 +123,17 @@ export default function DeviceGate() {
   /** Corrida en curso: lo que devuelva una vieja se descarta (ver `vigente`). */
   const corridaRef = useRef(0);
 
-  /** Deja la sucursal fija para esta sesión y entra. */
-  const entrarA = useCallback(async (orgId, orgName, role) => {
+  /**
+   * Deja la sucursal fija para esta sesión y entra.
+   *
+   * @param {{sinRed?: boolean}} opciones  `sinRed` cambia dos cosas, y las dos importan:
+   *   no se pide el contexto de la sucursal (serían tres pedidos condenados a fallar), y
+   *   se entra por ACCESO en vez de por el Dashboard. El Dashboard es, sin internet, la
+   *   pantalla que menos sirve —todo lo que muestra viene del servidor—, mientras que el
+   *   mostrador funciona entero contra la copia local. Sin conexión se entra por la puerta
+   *   que anda, no por la que corresponde al rol.
+   */
+  const entrarA = useCallback(async (orgId, orgName, role, { sinRed = false } = {}) => {
     localStorage.setItem('current_org_id', orgId);
     localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', orgName || '');
@@ -136,7 +145,13 @@ export default function DeviceGate() {
     localStorage.setItem('terminal_org_role', role);
     localStorage.setItem('terminal_org_name', orgName || '');
 
-    navigateRef.current(landingRoute(role), { replace: true });
+    navigateRef.current(sinRed ? CONFIG.ROUTES.ACCESS : landingRoute(role), { replace: true });
+
+    // Sin red no se pide el contexto: son tres pedidos (sucursal, suscripción, rol) que van
+    // a fallar seguro, y cada uno arrastra sus reintentos. La marca del gimnasio queda en
+    // los valores por defecto hasta que vuelva la línea, que es cosmético y está asumido.
+    if (sinRed) return;
+
     // A propósito NO se espera: la pantalla ya navegó y el contexto termina de cargar
     // por detrás. Pero sí lleva red — antes, si esto fallaba, era una promesa rechazada
     // que no miraba nadie: el contexto quedaba a medias, el guard rebotaba para acá y la
@@ -170,7 +185,7 @@ export default function DeviceGate() {
     const recordadaAlArrancar = sucursalRecordada();
     if (recordadaAlArrancar && typeof navigator !== 'undefined' && navigator.onLine === false) {
       console.warn('[DeviceGate] sin red: se entra con la sucursal recordada');
-      await entrarA(recordadaAlArrancar.id, recordadaAlArrancar.name, recordadaAlArrancar.role);
+      await entrarA(recordadaAlArrancar.id, recordadaAlArrancar.name, recordadaAlArrancar.role, { sinRed: true });
       return;
     }
 
@@ -262,7 +277,7 @@ export default function DeviceGate() {
       const recordada = sucursalRecordada();
       if (!error?.response && recordada) {
         console.warn('[DeviceGate] no se llegó al servidor: se entra con la sucursal recordada');
-        await entrarA(recordada.id, recordada.name, recordada.role);
+        await entrarA(recordada.id, recordada.name, recordada.role, { sinRed: true });
         return;
       }
 
