@@ -64,7 +64,8 @@ export default function EstadoCopiaLocal() {
   // son estos datos?", y "hace 12 días" obliga a hacer la cuenta mentalmente.
   let texto;
   if (banda === 'fresca') {
-    texto = `${cantidad} socios en esta computadora${actualizado ? ` · actualizado ${haceCuanto(actualizado, ahora)}` : ''}`;
+    const cuantos = `${cantidad} ${cantidad === 1 ? 'socio' : 'socios'}`;
+    texto = `${cuantos} en esta computadora${actualizado ? ` · actualizado ${haceCuanto(actualizado, ahora)}` : ''}`;
   } else if (banda === 'vieja') {
     texto = `Sin conexión${dia ? ` desde el ${dia}` : ''} · se atiende con la copia de esta computadora`;
   } else {

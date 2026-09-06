@@ -14,7 +14,7 @@ import { clearQueryCache } from '../hooks/useQueryCache';
 // quedar en la máquina para que la vea quien entre después.
 import { olvidarSocios } from '../lib/localMembers';
 import { sesionGuardada } from '../lib/boveda';
-import { CLAVE_DE_SESION } from '../lib/supabase';
+import { supabase, CLAVE_DE_SESION } from '../lib/supabase';
 import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
@@ -429,6 +429,25 @@ export function AuthProvider({ children }) {
   }, [user, loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg, loadRoleForOrg]);
 
   // Initialize auth state from Supabase
+  /**
+   * Abre el mostrador con la sesión que hay en el disco, sin nube.
+   *
+   * <p>Además de poblar al usuario, <b>apaga el reintento de renovación de Supabase</b>.
+   * Sin eso, su ticker vuelve cada 30 segundos a pelearse con una red que no está: no rompe
+   * nada, pero llena la consola de errores y hace trabajar de más a un equipo que, después
+   * de un apagón, puede estar colgado de un UPS. Se vuelve a prender solo cuando el
+   * navegador avisa que hay red (ver el efecto de reconexión, más abajo).</p>
+   */
+  const entrarEnModoLocal = useCallback((local) => {
+    console.warn('[auth] sin conexión: se abre en modo local, con la sesión guardada');
+    setUser(local.user);
+    setProfile(local.profile);
+    setModoSinConexion(true);
+    try { supabase.auth.stopAutoRefresh(); } catch { /* si no se puede, solo queda el ruido */ }
+    setLoading(false);
+    initCompleteRef.current = true;
+  }, []);
+
   const doInitAuth = async () => {
     const reloj = cronometro();
     /**
@@ -449,6 +468,32 @@ export function AuthProvider({ children }) {
      */
     let enSegundoPlano = null;
     try {
+      // ⭐ PRIMERO SE MIRA SI HAY RED, Y RECIÉN DESPUÉS SE LE PREGUNTA A LA NUBE.
+      //
+      // El orden no es un detalle: es la diferencia entre abrir en el acto y dejar el logo
+      // girando un minuto. Con el cable desenchufado, `getSession()` intenta renovar el
+      // token y Supabase REINTENTA CON BACKOFF durante 30 segundos (su
+      // AUTO_REFRESH_TICK_DURATION_MS), bajo un candado que además hace esperar a la
+      // recuperación de sesión del arranque. Y el ticker vuelve a empezar cada 30 s.
+      //
+      // No hay nada que esperar: si el sistema operativo dice que no hay red, la respuesta
+      // ya está en el disco. Es el caso del apagón —el terminal reinicia antes de que
+      // vuelva la línea— y tiene que ser instantáneo.
+      //
+      // Ojo: esto es un ATAJO, no la única puerta. `navigator.onLine` da true cuando se
+      // está conectado a un router sin internet, y ahí se sigue por el camino de siempre —
+      // que tarda, pero no confunde una conexión lenta con una conexión ausente. Confundir
+      // eso mandaría al login a alguien con la sesión perfectamente viva, que es
+      // exactamente el bug que todo esto vino a cerrar.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const local = await sesionSinConexion();
+        if (local) {
+          entrarEnModoLocal(local);
+          reloj.informe('modo local (sin red)');
+          return;
+        }
+      }
+
       const session = await authService.getSession().catch(() => null);
       reloj.marca('sesion');
       if (!session) {
@@ -471,13 +516,8 @@ export function AuthProvider({ children }) {
         // negocio es trabajo de otra pasada.
         const local = await sesionSinConexion();
         if (local) {
-          console.warn('[auth] sin internet y con la sesión vencida: se abre en modo local');
-          setUser(local.user);
-          setProfile(local.profile);
-          setModoSinConexion(true);
-          reloj.informe('modo local (sin conexión)');
-          setLoading(false);
-          initCompleteRef.current = true;
+          entrarEnModoLocal(local);
+          reloj.informe('modo local (la nube no contestó)');
           return;
         }
 
@@ -587,6 +627,31 @@ export function AuthProvider({ children }) {
     return initAuthPromiseRef.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
+
+  /**
+   * Cuando vuelve la red, el terminal sale solo del modo local.
+   *
+   * <p>Sin esto, un mostrador que abrió sin internet se quedaría trabajando contra la copia
+   * hasta que a alguien se le ocurriera reiniciar la app — y como el modo local no molesta,
+   * podrían pasar días sin que nadie lo note. Peor: mientras tanto, el reintento de
+   * renovación quedó apagado a propósito, así que la sesión tampoco se renovaría sola.</p>
+   *
+   * <p>El evento `online` del navegador es la señal más barata que hay para esto: lo emite
+   * el sistema operativo cuando aparece una interfaz de red. Puede mentir hacia el lado
+   * optimista —un router sin internet también lo dispara— y no importa: en ese caso
+   * `initAuth` no va a poder confirmar la sesión y volverá a entrar en modo local, que es
+   * donde ya estaba.</p>
+   */
+  useEffect(() => {
+    if (!modoSinConexion) return undefined;
+    const alVolverLaRed = () => {
+      console.warn('[auth] volvió la red: se reintenta la sesión');
+      try { supabase.auth.startAutoRefresh(); } catch { /* no siempre está disponible */ }
+      initAuth();
+    };
+    window.addEventListener('online', alVolverLaRed);
+    return () => window.removeEventListener('online', alVolverLaRed);
+  }, [modoSinConexion, initAuth]);
 
   // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
   // listener captura una referencia todavía no inicializada del primer render.
