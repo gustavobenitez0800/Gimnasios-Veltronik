@@ -28,11 +28,8 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import {
-  cuantosPendientes,
-  vaciar as vaciarColaAccesos,
-  disponible as colaDisponible,
-} from '../lib/colaAccesos';
+import { cuantosPendientes } from '../lib/colaAccesos';
+import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
@@ -133,43 +130,19 @@ export default function AccessPage() {
     setPendientesCola(await cuantosPendientes());
   }, []);
 
-  /**
-   * Vacía la cola: en orden, de a uno, cortando ante el primer fallo de red.
-   *
-   * <p>El orden y el candado viven en `lib/colaAccesos.js` porque son la parte difícil; acá
-   * solo se decide CUÁNDO intentar. Se intenta al abrir la pantalla, cada vez que el
-   * navegador avisa que volvió la red, y en el mismo latido que refresca el espejo.</p>
-   */
-  const vaciarCola = useCallback(async () => {
-    if (!colaDisponible()) return;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-    try {
-      const { enviados } = await vaciarColaAccesos((item) => accessService.enviarEncolado(item));
-      if (enviados > 0) {
-        showToast(
-          `Se registraron ${enviados} ${enviados === 1 ? 'entrada' : 'entradas'} que estaban esperando`,
-          'success',
-        );
-        loadData();
-      }
-    } catch {
-      // Que el vaciado falle no puede romper la pantalla: los accesos siguen en la cola y
-      // se reintentan en el próximo ciclo. Es exactamente para lo que existe la cola.
-    }
-    contarPendientes();
-  }, [contarPendientes, showToast, loadData]);
-
+  // El VACIADO no vive acá: vive en `<VaciadorDeCola />`, montado a nivel de la app, porque
+  // las visitas tienen que subir esté abierta la pantalla que esté. Esta pantalla solo
+  // MUESTRA cuántas esperan, y se entera de los cambios por su evento.
   useEffect(() => {
     contarPendientes();
-    vaciarCola();
-    const alVolverLaRed = () => vaciarCola();
-    window.addEventListener('online', alVolverLaRed);
-    const t = setInterval(vaciarCola, REFRESCO_MS);
-    return () => {
-      window.removeEventListener('online', alVolverLaRed);
-      clearInterval(t);
+    const alCambiarLaCola = () => {
+      contarPendientes();
+      // Si algo subió, "En el Gimnasio" quedó viejo: recién ahora el servidor sabe quién entró.
+      loadData();
     };
-  }, [contarPendientes, vaciarCola]);
+    window.addEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
+    return () => window.removeEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
+  }, [contarPendientes, loadData]);
 
   // ─── EL TECLADO NO SE APAGA NUNCA ───
   //
