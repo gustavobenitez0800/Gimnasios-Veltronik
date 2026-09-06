@@ -118,6 +118,37 @@ describe('sin internet, se guarda', () => {
   });
 });
 
+describe('⚠️ con cola pendiente, NADIE se adelanta', () => {
+  // ENCONTRADO EN UNA MÁQUINA DE VERDAD, y el síntoma fue una visita con la SALIDA ANTES QUE
+  // LA ENTRADA —y un tiempo promedio negativo en el resumen del día—.
+  //
+  // La regla del orden cubría el orden DENTRO de la cola. Pero escribir derecho abría una
+  // puerta lateral: si la conexión vuelve un segundo y ese acceso pasa por ahí, se registra
+  // ANTES que los que siguen esperando. Y como el servidor evalúa cada acceso contra el
+  // momento en que ocurrió, el viejo que llega tarde le cierra la salida a una visita que
+  // empezó después.
+
+  it('con algo esperando, el acceso nuevo también espera — aunque haya internet', async () => {
+    await cola.encolar({ clientRef: 'viejo', memberId: 'm9', ocurridoEn: '2026-09-06T16:00:00' });
+    apiClient.post.mockResolvedValue({ data: {} });
+
+    const r = await accessService.checkIn('m1');
+
+    expect(apiClient.post, 'adelantarse rompe el orden global').not.toHaveBeenCalled();
+    expect(r.encolado).toBe(true);
+    expect(cola.filas()).toHaveLength(2);
+  });
+
+  it('con la cola vacía sí escribe derecho: es el camino normal', async () => {
+    apiClient.post.mockResolvedValue({ data: { direccion: 'ENTRADA' } });
+
+    const r = await accessService.checkIn('m1');
+
+    expect(apiClient.post).toHaveBeenCalled();
+    expect(r.direccion).toBe('ENTRADA');
+  });
+});
+
 describe('lo que NO se encola', () => {
   it('un rechazo del servidor se muestra, no se guarda para reintentar para siempre', async () => {
     const rechazo = new Error('Ese socio no existe');

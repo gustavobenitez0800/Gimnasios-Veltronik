@@ -1,5 +1,5 @@
 import apiClient from '../lib/apiClient';
-import { encolar, disponible, nuevoSello, momentoLocal } from '../lib/colaAccesos';
+import { encolar, disponible, nuevoSello, momentoLocal, cuantosPendientes } from '../lib/colaAccesos';
 
 /**
  * Servicio de Control de Acceso.
@@ -46,9 +46,22 @@ class AccessService {
     const ocurridoEn = momentoLocal();
     const paraLaCola = { memberId, method: accessMethod, memberName, ocurridoEn, clientRef };
 
-    // Sin red no se intenta: se guarda y listo. Intentar sería regalarle al socio la espera
-    // del timeout para terminar en el mismo lugar.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false && disponible()) {
+    // ⚠️⚠️ SI HAY ALGO ESPERANDO, ESTE TAMBIÉN ESPERA. Y esto es corrección, no prolijidad.
+    //
+    // La regla del orden decía "se vacía en orden estricto", y eso cubría el orden DENTRO de
+    // la cola. Pero escribir derecho abre una puerta lateral: si la conexión vuelve un
+    // segundo y este acceso pasa por ahí, se registra ANTES que los que siguen esperando —
+    // y el orden global se rompe igual.
+    //
+    // Lo que pasa entonces no es un detalle: el servidor evalúa cada acceso contra el momento
+    // en que ocurrió, así que uno viejo llegando tarde le cierra la salida a una visita que
+    // empezó DESPUÉS. Se ve como una visita con la salida antes que la entrada, y un tiempo
+    // promedio NEGATIVO en el resumen del día. Se encontró exactamente así.
+    //
+    // Mientras haya cola, la cola es el único camino. Así el orden se mantiene de punta a
+    // punta y no solo de la mitad para adelante.
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolar(paraLaCola);
       if (ref) return { encolado: true, clientRef: ref };
     }
