@@ -49,6 +49,29 @@ function landingRoute(role) {
   return (role === 'owner' || role === 'admin') ? CONFIG.ROUTES.DASHBOARD : CONFIG.ROUTES.ACCESS;
 }
 
+/**
+ * La sucursal que este equipo tenía la última vez que se pudo identificar.
+ *
+ * <p><b>Por qué existe una copia aparte de `current_org_id`.</b> Aquella es de la SESIÓN: se
+ * borra al cerrarla, y —peor— esta misma pantalla la borra a propósito cada vez que arranca
+ * una identificación. Esta copia sobrevive a las dos cosas, porque responde otra pregunta:
+ * no "qué sucursal está mirando esta persona" sino <b>"a qué sucursal pertenece esta
+ * máquina"</b>. La sucursal la decide el equipo, y un equipo no se muda solo.</p>
+ */
+function sucursalRecordada() {
+  try {
+    const id = localStorage.getItem('terminal_org_id');
+    if (!id) return null;
+    return {
+      id,
+      name: localStorage.getItem('terminal_org_name') || '',
+      role: localStorage.getItem('terminal_org_role') || 'staff',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function DeviceGate() {
   const { profile, logout, refreshOrgContext } = useAuth();
   const { showToast } = useToast();
@@ -105,6 +128,14 @@ export default function DeviceGate() {
     localStorage.setItem('current_org_id', orgId);
     localStorage.setItem('current_org_role', role);
     localStorage.setItem('current_org_name', orgName || '');
+
+    // La copia durable del equipo (ver `sucursalRecordada`). Se escribe acá y en ningún
+    // otro lado: este es el único punto del que se sale con una sucursal CONFIRMADA por el
+    // servidor, y una copia que se escribiera antes de esa confirmación no valdría nada.
+    localStorage.setItem('terminal_org_id', orgId);
+    localStorage.setItem('terminal_org_role', role);
+    localStorage.setItem('terminal_org_name', orgName || '');
+
     navigateRef.current(landingRoute(role), { replace: true });
     // A propósito NO se espera: la pantalla ya navegó y el contexto termina de cargar
     // por detrás. Pero sí lleva red — antes, si esto fallaba, era una promesa rechazada
@@ -125,6 +156,23 @@ export default function DeviceGate() {
     setEstado('cargando');
     setDetalleError('');
     setAvisoReasignacion('');
+
+    // ⭐⭐ SIN RED, EL EQUIPO SE ACUERDA DE SU SUCURSAL — Y ESTO VA ANTES DE BORRAR NADA.
+    //
+    // Esta pantalla existe para preguntarle al servidor a qué sucursal pertenece este
+    // equipo. Sin servidor no hay pregunta que hacer, y la respuesta de la última vez sigue
+    // siendo buena: la sucursal la decide el EQUIPO, y un equipo no se muda solo.
+    //
+    // Sin esto, un arranque sin internet no mostraba solo un error: la línea de más abajo
+    // BORRA `current_org_id`, así que el mostrador quedaba sin saber de qué gimnasio es la
+    // copia de socios que tiene en el disco. La pantalla que existe para identificar el
+    // equipo terminaba dejándolo más perdido que antes de entrar.
+    const recordadaAlArrancar = sucursalRecordada();
+    if (recordadaAlArrancar && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      console.warn('[DeviceGate] sin red: se entra con la sucursal recordada');
+      await entrarA(recordadaAlArrancar.id, recordadaAlArrancar.name, recordadaAlArrancar.role);
+      return;
+    }
 
     // Sin sucursal en el contexto: si quedara una vieja, apiClient la mandaría en el
     // header y el propio chequeo de atadura podría rechazar esta consulta — la pantalla
@@ -201,6 +249,23 @@ export default function DeviceGate() {
       setEstado('activar');
     } catch (error) {
       if (!vigente()) return;
+
+      // Un error de TRANSPORTE —sin respuesta HTTP— no dice nada sobre este equipo: dice
+      // que no se llegó al servidor. Es la misma situación de arriba, para cuando
+      // `navigator.onLine` miente hacia el lado optimista: un router prendido sin internet
+      // del otro lado también cuenta como "hay red".
+      //
+      // ⚠️ Se asume el riesgo de entrar a una sucursal desactualizada (que al equipo lo
+      // hayan reasignado mientras no había línea). Es acotado y se corrige solo: en cuanto
+      // vuelva la conexión, el backend contesta DEVICE_BOUND_TO_OTHER_TENANT y apiClient ya
+      // sabe qué hacer con eso. La alternativa era un terminal muerto, que es peor.
+      const recordada = sucursalRecordada();
+      if (!error?.response && recordada) {
+        console.warn('[DeviceGate] no se llegó al servidor: se entra con la sucursal recordada');
+        await entrarA(recordada.id, recordada.name, recordada.role);
+        return;
+      }
+
       setEstado('error');
       setDetalleError(errorService.getMessage(error));
     }
