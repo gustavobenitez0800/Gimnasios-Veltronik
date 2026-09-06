@@ -80,6 +80,63 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // ============================================
+    // NÚCLEO LOCAL (fase 1: el espejo)
+    // ============================================
+    // La copia de los socios que hace que el mostrador funcione sin internet. Vive en un
+    // archivo de SQLite en el proceso principal, para que sobreviva a un corte de luz y a
+    // que la pantalla se recargue.
+    //
+    // La pantalla NUNCA busca por acá: se trae la lista entera una vez cada varios minutos
+    // y busca contra un array en memoria. Una consulta por tecla serían miles de idas y
+    // vueltas por búsqueda, y lo que esto vino a arreglar es justamente la espera.
+
+    nucleo: {
+        /**
+         * ¿Esta máquina tiene base local?
+         *
+         * Puede no tenerla —el módulo nativo no cargó, la carpeta no tiene permisos— y eso
+         * NO es un error que haya que mostrarle a nadie: la app vuelve a trabajar contra la
+         * nube como antes. Sirve para el diagnóstico y para el cartel de estado.
+         *
+         * @returns {Promise<{disponible: boolean, ruta: string|null, motivo: string|null}>}
+         */
+        disponible: () => ipcRenderer.invoke('nucleo:disponible'),
+
+        /**
+         * Trae el espejo entero de un gimnasio.
+         * @param {string} tenantId
+         * @returns {Promise<{socios: Array, actualizado: number|null}>}
+         */
+        leerEspejo: (tenantId) => ipcRenderer.invoke('nucleo:espejo-leer', tenantId),
+
+        /**
+         * Reemplaza el espejo de un gimnasio. Cada socio tiene que traer su campo
+         * `busqueda` ya normalizado: la regla de normalizar vive del lado de la pantalla,
+         * que es la que también la usa para preguntar.
+         *
+         * Una lista vacía NO se guarda: casi siempre es una consulta que falló, y pisar la
+         * lista buena con nada deja al mostrador ciego.
+         *
+         * @returns {Promise<{ok: boolean, socios?: number, actualizado?: number, motivo?: string}>}
+         */
+        guardarEspejo: (tenantId, socios) =>
+            ipcRenderer.invoke('nucleo:espejo-guardar', { tenantId, socios }),
+
+        /**
+         * Cuántos socios hay y de cuándo son, sin traerlos.
+         * @returns {Promise<{cantidad: number, actualizado: number|null}>}
+         */
+        estadoEspejo: (tenantId) => ipcRenderer.invoke('nucleo:espejo-estado', tenantId),
+
+        /**
+         * Borra el espejo de un gimnasio. Al CAMBIAR DE SUCURSAL, no al cerrar sesión: la
+         * lista es del gimnasio, no de quien atiende, y el próximo turno tiene que
+         * encontrar el mostrador listo aunque todavía no haya internet.
+         */
+        olvidarEspejo: (tenantId) => ipcRenderer.invoke('nucleo:espejo-olvidar', tenantId),
+    },
+
+    // ============================================
     // AUTO-UPDATES
     // ============================================
 
