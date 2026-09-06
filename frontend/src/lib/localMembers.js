@@ -225,6 +225,15 @@ export async function prepararSocios(tenantId, { refrescar = true } = {}) {
 export async function refrescarSocios(tenantId) {
   if (!tenantId || cargando) return cargando;
 
+  // Sin red no se intenta. Parece un detalle y no lo es: el buscador llama a
+  // `prepararSocios` en CADA TECLA, así que un mostrador sin internet disparaba —y
+  // fallaba— un pedido por cada dígito del DNI. No rompía nada, pero llenaba la consola
+  // de errores rojos que tapaban los de verdad, y hacía trabajar al equipo para nada.
+  //
+  // Lo que hay en memoria sigue estando: buscar anda igual. Y cuando vuelva la red, el
+  // temporizador de la pantalla y el evento `online` la ponen al día sin que nadie toque nada.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return memoria.socios;
+
   cargando = (async () => {
     try {
       // Timeout corto: esto corre en el fondo y nadie lo está esperando. Si la conexión

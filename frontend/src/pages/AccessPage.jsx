@@ -361,7 +361,23 @@ export default function AccessPage() {
       // el mouse entre un socio y el siguiente.
       buscadorRef.current?.focus();
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      // ⚠️ SIN CONEXIÓN, LA ENTRADA NO QUEDA REGISTRADA — Y HAY QUE DECIRLO ASÍ.
+      //
+      // Buscar al socio sí funciona sin internet (sale de la copia local), pero registrar
+      // el paso todavía no: la cola de accesos es la fase que viene. Mientras tanto esto
+      // mostraba el "Network Error" crudo de axios, en inglés, que a una recepcionista no
+      // le dice nada — y sobre todo no le dice lo único que importa: que esa entrada se
+      // perdió y hay que anotarla a mano.
+      //
+      // Un error de transporte no trae `response`; un rechazo del servidor sí, y ese se
+      // muestra tal cual porque dice algo real sobre este socio.
+      const sinRed = !error?.response;
+      showToast(
+        sinRed
+          ? 'Sin conexión: la entrada NO se registró. Anotala a mano.'
+          : errorService.getMessage(error), // sin el ternario este test no distingue nada
+        'error',
+      );
     }
   };
 

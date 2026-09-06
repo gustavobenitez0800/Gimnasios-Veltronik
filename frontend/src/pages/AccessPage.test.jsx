@@ -235,6 +235,41 @@ describe('Enter registra y deja lugar al siguiente', () => {
       .toBe(2);
   });
 
+  // ⚠️ ESCRITO DESPUÉS DE VERLO EN UNA MÁQUINA DE VERDAD, con el Wi-Fi apagado. Buscar al
+  // socio ya funciona sin internet (sale de la copia local), pero registrar el paso todavía
+  // no: la cola de accesos es la fase que viene. Lo que se veía mientras tanto era el
+  // "Network Error" crudo de axios, en inglés — que no le dice nada a una recepcionista, y
+  // sobre todo no le dice lo único que importa: que esa entrada se perdió.
+  //
+  // La regla de esta pantalla es que el cartel no miente. Si no se registró, se dice.
+  it('sin conexión avisa que la entrada NO se registró, y en castellano', async () => {
+    const sinRed = new Error('Network Error'); // un error de transporte no trae `response`
+    accessService.checkIn.mockRejectedValue(sinRed);
+    await pintar();
+    await tipear('24732531');
+
+    await apretar('Enter');
+
+    const mensaje = toastEstable.showToast.mock.calls.at(-1)?.[0] || '';
+    expect(mensaje).toContain('Sin conexión');
+    expect(mensaje, 'tiene que decir que NO quedó registrada, no solo que falló').toMatch(/no se registró/i);
+    expect(mensaje, 'nadie en un mostrador sabe qué es un "Network Error"').not.toContain('Network Error');
+  });
+
+  it('un rechazo DEL SERVIDOR se muestra tal cual: dice algo real del socio', async () => {
+    const rechazo = new Error('Este socio está dado de baja');
+    rechazo.response = { status: 409 };
+    accessService.checkIn.mockRejectedValue(rechazo);
+    await pintar();
+    await tipear('24732531');
+
+    await apretar('Enter');
+
+    const mensaje = toastEstable.showToast.mock.calls.at(-1)?.[0] || '';
+    expect(mensaje).toContain('dado de baja');
+    expect(mensaje, 'no es un problema de conexión y no hay que fingir que lo es').not.toContain('Sin conexión');
+  });
+
   it('cuando no encuentra a nadie lo DICE', async () => {
     memberService.searchForAccess.mockResolvedValue([]);
     await pintar();
