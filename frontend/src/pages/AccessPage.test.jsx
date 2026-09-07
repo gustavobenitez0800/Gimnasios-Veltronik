@@ -61,8 +61,12 @@ const mostrador = vi.hoisted(() => ({
 // test del latido, y mockearlo lo dejaría verificando nada.
 vi.mock('../hooks', async () => {
   const { useRefrescoAutomatico } = await vi.importActual('../hooks/useRefrescoAutomatico');
+  // ⚠️ Este va REAL, igual que el latido: el test de "sin red no se insiste" prueba
+  // justamente que los dos se hablen. Con un mock verificaría nada.
+  const { useEstaEnLinea } = await vi.importActual('../hooks/useEstaEnLinea');
   return {
     useRefrescoAutomatico,
+    useEstaEnLinea,
     useQueryCache: () => ({
       data: mostrador.datos,
       loading: false,
@@ -658,5 +662,83 @@ describe('⭐ sin conexión el cartel MUESTRA los días', () => {
     await apretar('Enter');
 
     expect(container.querySelector('.acceso-aviso').className).not.toMatch(/success/);
+  });
+});
+
+describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para siempre', () => {
+  // LO REPORTÓ EL DUEÑO: apagó el wifi con la app ya cargada y la lista quedó en "Cargando…"
+  // hasta que volvió a prenderlo.
+  //
+  // Y no era el cartel: el latido seguía disparando un pedido cada quince segundos, cada uno
+  // con su plazo de espera y sus reintentos con espera creciente. Pedidos condenados a fallar,
+  // apilados, que además tapan el problema — cuanto más se insiste, más tarda en aparecer la
+  // respuesta honesta.
+  //
+  // Quién está adentro es lo ÚNICO de esta pantalla que el terminal no puede saber por su
+  // cuenta: la dirección la decide el servidor. Sin él no hay respuesta, y prometerla con un
+  // spinner deja a quien atiende esperando en vez de resolver por otro lado.
+
+  function sinRed(hay) {
+    Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+  }
+
+  afterEach(() => sinRed(true));
+
+  it('lo dice, en vez de dejar el spinner girando', async () => {
+    sinRed(false);
+    accessService.getMostrador.mockImplementation(() => new Promise(() => {})); // nunca contesta
+
+    await pintar();
+
+    const lista = container.querySelector('.checked-in-list');
+    expect(lista.textContent).toContain('Sin conexión');
+    expect(lista.querySelector('.spinner'), 'un spinner promete algo que no va a llegar').toBeNull();
+  });
+
+  it('y deja de insistir: no apila pedidos condenados a fallar', async () => {
+    // ⚠️ SE MIDE EL LATIDO, NO EL SERVICIO. La caché está mockeada y nunca llama al servicio
+    // de verdad, así que contar `getMostrador` daba cero siempre — el test pasaba con y sin
+    // el arreglo. Lo que hay que mirar es cuántas veces el latido pidió refrescar.
+    sinRed(false);
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    // `visibilitychange` fuerza un pedido salteándose el ritmo: es el camino más directo
+    // para provocar lo que en la máquina pasa cada quince segundos.
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await Promise.resolve();
+      });
+    }
+
+    expect(mostrador.refrescos, 'sin red no hay nada que preguntar').toBe(alPrincipio);
+  });
+
+  it('y con red sí insiste, que es lo que hace que el QR aparezca solo', async () => {
+    // La otra mitad: frenar de más apagaría el latido que hace que un check-in por QR
+    // aparezca en el mostrador sin que nadie toque nada.
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve();
+    });
+
+    expect(mostrador.refrescos).toBeGreaterThan(alPrincipio);
+  });
+
+  it('con red vuelve a mostrar la lista normal', async () => {
+    mostrador.datos = {
+      adentro: [{ id: 'a1', member: { fullName: 'Lurdes Rollet' }, checkInAt: new Date().toISOString() }],
+      hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null,
+    };
+
+    await pintar();
+
+    const lista = container.querySelector('.checked-in-list');
+    expect(lista.textContent).toContain('Lurdes Rollet');
+    expect(lista.textContent).not.toContain('Sin conexión');
   });
 });

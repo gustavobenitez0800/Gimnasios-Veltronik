@@ -31,7 +31,7 @@ import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMember
 import { resumenDeCola } from '../lib/colaAccesos';
 import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
 import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
-import { useQueryCache, useRefrescoAutomatico } from '../hooks';
+import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import { GYM } from '../lib/gym';
@@ -127,7 +127,16 @@ export default function AccessPage() {
   // El latido vive en `useRefrescoAutomatico` y no acá: lo comparte con "En el gimnasio", y
   // la forma de escribirlo mal —depender de la identidad de `invalidate`— es el bug que
   // hacía que el cartel del QR tardara. Está explicado en el hook, en un solo lugar.
-  useRefrescoAutomatico(loadData, isFetching);
+  // ⚠️ Y SIN RED NO SE LATE. Apagar el wifi con la app abierta dejaba "En el gimnasio" en
+  // "Cargando…" hasta que volvía la conexión, y no por un cartel mal puesto: el latido seguía
+  // disparando un pedido cada quince segundos, cada uno con su plazo de espera y sus
+  // reintentos con espera creciente. Pedidos condenados a fallar, apilados, que además tapan
+  // el problema — cuanto más se insiste, más tarda en aparecer la respuesta honesta.
+  //
+  // Pasarlo como "en vuelo" es lo que frena el latido sin tocar el hook: mientras no hay red
+  // no hay nada que preguntar. Al volver, el `online` actualiza esto y el latido sigue solo.
+  const enLinea = useEstaEnLinea();
+  useRefrescoAutomatico(loadData, isFetching || !enLinea);
 
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
@@ -650,7 +659,16 @@ export default function AccessPage() {
             <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
           </div>
           <div className="checked-in-list">
-            {loading ? (
+            {/* ⚠️ SIN RED NO SE GIRA EL SPINNER, SE DICE LA VERDAD.
+                Quién está adentro es lo ÚNICO de esta pantalla que el terminal no puede
+                saber por su cuenta: la dirección la decide el servidor, y sin él no hay
+                respuesta posible. Un spinner ahí promete algo que no va a llegar, y quien
+                atiende se queda esperando en vez de resolver por otro lado. */}
+            {!enLinea && checkedIn.length === 0 ? (
+              <div className="text-center text-muted" style={{ padding: '2rem' }}>
+                Sin conexión · no se puede saber quién está adentro
+              </div>
+            ) : loading ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
