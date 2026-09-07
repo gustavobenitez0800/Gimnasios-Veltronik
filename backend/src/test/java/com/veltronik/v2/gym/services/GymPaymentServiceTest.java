@@ -324,14 +324,28 @@ class GymPaymentServiceTest {
         }
 
         @Test
-        @DisplayName("Sin período de cobertura no se sabe hasta cuándo: no se toca")
-        void sinPeriodoNoExtiende() {
-            LocalDateTime vigente = LocalDateTime.of(2026, 8, 10, 23, 59);
+        @DisplayName("⭐ Sin período NI arancel, la cuota corre UN MES igual (ADR-013)")
+        void sinPeriodoCorreUnMes() {
+            // ⚠️ ESTE TEST DECÍA LO CONTRARIO, y decirlo era el bug.
+            //
+            // La regla vieja era "sin período no se sabe hasta cuándo: no se toca". Sonaba
+            // prudente, pero significaba que un cobro con "monto a mano" —lo que el mostrador
+            // usa todo el tiempo— no movía el vencimiento ni un día: la plata entraba a la caja
+            // y el socio seguía vencido, sin que nadie se enterara hasta que no lo dejaban
+            // entrar jurando que había pagado.
+            //
+            // Lo corrigió el dueño: "lo que hace que el alumno venza es EL MES, simple. Los
+            // aranceles son para saber qué tipo de entrenamiento eligió". Ahora sí se sabe
+            // hasta cuándo: un mes.
+            // La cobertura vigente va en el FUTURO a propósito: si estuviera vencida, el mes
+            // arrancaría desde hoy —no se le regalan los meses que estuvo sin pagar— y el
+            // resultado dependería de la fecha en que corre el test.
+            LocalDateTime vigente = LocalDateTime.now().plusDays(5).withNano(0);
             socio.setMembershipEnd(vigente);
 
             service.saveForCurrentTenant(pago("paid", null));
 
-            assertNoSeTocoAlSocio(vigente);
+            assertCoberturaHasta(vigente.plusMonths(1));
         }
 
         @Test

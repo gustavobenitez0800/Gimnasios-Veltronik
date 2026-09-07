@@ -21,7 +21,32 @@ import { formatCurrency } from '../lib/utils';
 import { ConfirmDialog } from './Layout';
 import Icon from './Icon';
 
-const FORM_VACIO = { name: '', price: '', durationDays: '' };
+/**
+ * ⭐ LO QUE CUBRE UN ARANCEL, EN LAS PALABRAS DE UN DUEÑO DE GIMNASIO (ADR-013).
+ *
+ * <p>Antes esto era un campo de número libre que decía "días que cubre", con 0 por defecto —y
+ * 0 significaba "no corre la fecha", así que el valor por defecto era el que rompía, en
+ * silencio—. Ahora es una lista: no hay ningún número que escribir ni que traducir. "Pase
+ * Semanal" se elige diciendo una semana, no 7.</p>
+ *
+ * <p><b>⚠️ Esta lista salió del catálogo REAL de los clientes, no de la cabeza de nadie.</b> La
+ * primera versión era solo de meses (1/3/6/12) y le rompía tres de los once aranceles que vende
+ * HaA Fitness: Pase Diario, Pase Semanal y Pase Bimestral.</p>
+ */
+const COBERTURAS = [
+  { valor: '1|DIA', etiqueta: '1 día' },
+  { valor: '7|DIA', etiqueta: '1 semana' },
+  { valor: '15|DIA', etiqueta: '15 días' },
+  { valor: '1|MES', etiqueta: '1 mes' },
+  { valor: '2|MES', etiqueta: '2 meses' },
+  { valor: '3|MES', etiqueta: '3 meses' },
+  { valor: '6|MES', etiqueta: '6 meses' },
+  { valor: '12|MES', etiqueta: '1 año' },
+  { valor: '0|DIA', etiqueta: 'No cubre tiempo (clase suelta)' },
+];
+
+/** El default es UN MES, y es el corazón de la decisión: sin pensar nada, la cuota corre. */
+const FORM_VACIO = { name: '', price: '', cobertura: '1|MES' };
 
 export default function ArancelesSettings() {
   const { showToast } = useToast();
@@ -51,18 +76,14 @@ export default function ArancelesSettings() {
     e.preventDefault();
     if (!form.name.trim()) { showToast('Ponele un nombre al arancel', 'error'); return; }
 
-    const dias = parseInt(form.durationDays, 10) || 0;
-    if (dias === 0) {
-      showToast('Poné cuántos días cubre el arancel (un mes son 30)', 'error');
-      return;
-    }
 
     setGuardando(true);
     try {
       const cuerpo = {
         name: form.name.trim(),
         price: parseFloat(form.price) || 0,
-        durationDays: dias,
+        coberturaCantidad: parseInt(form.cobertura.split('|')[0], 10),
+        coberturaUnidad: form.cobertura.split('|')[1],
       };
       if (editando) await planService.update(editando, cuerpo);
       else await planService.create(cuerpo);
@@ -81,7 +102,9 @@ export default function ArancelesSettings() {
     setForm({
       name: p.name || '',
       price: p.price ?? '',
-      durationDays: p.durationDays ?? '',
+      // Un arancel viejo que todavía no tenga cobertura cargada se muestra como un mes, que
+      // es el default: es lo que la migración le puso a todos.
+      cobertura: `${p.coberturaCantidad ?? 1}|${p.coberturaUnidad || 'MES'}`,
     });
   };
 
@@ -107,12 +130,20 @@ export default function ArancelesSettings() {
     }
   };
 
-  /** "1 mes", "3 meses", "7 días" — en criollo, no en campos. */
+  /** "1 mes", "3 meses", "1 semana" — la misma etiqueta que se eligió al crearlo. */
   const queOtorga = (p) => {
-    if (!(p.durationDays > 0)) return '—';
-    return p.durationDays % 30 === 0 && p.durationDays >= 30
-      ? `${p.durationDays / 30} ${p.durationDays === 30 ? 'mes' : 'meses'}`
-      : `${p.durationDays} ${p.durationDays === 1 ? 'día' : 'días'}`;
+    const clave = `${p.coberturaCantidad ?? 1}|${p.coberturaUnidad || 'MES'}`;
+    const conocida = COBERTURAS.find((c) => c.valor === clave);
+    if (conocida) return conocida.etiqueta;
+
+    // Un valor que no está en la lista: se muestra tal cual en vez de forzarlo a la opción más
+    // parecida. La migración conserva como días lo que no mapea, y un arancel que nadie previó
+    // no puede cambiar de significado por comodidad de esta función.
+    const n = p.coberturaCantidad ?? 0;
+    if (n <= 0) return 'No cubre tiempo';
+    return p.coberturaUnidad === 'MES'
+      ? `${n} ${n === 1 ? 'mes' : 'meses'}`
+      : `${n} ${n === 1 ? 'día' : 'días'}`;
   };
 
   return (
@@ -138,10 +169,17 @@ export default function ArancelesSettings() {
               onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))} />
           </div>
           <div className="form-group">
-            <label className="form-label">Días que cubre</label>
-            <input type="number" className="form-input" value={form.durationDays} placeholder="30"
-              onChange={(e) => setForm(f => ({ ...f, durationDays: e.target.value }))} />
-            <small className="form-hint">Un mes son 30, un trimestre 90.</small>
+            <label className="form-label">Cuánto cubre</label>
+            <select className="form-input" value={form.cobertura}
+              onChange={(e) => setForm(f => ({ ...f, cobertura: e.target.value }))}>
+              {COBERTURAS.map((c) => (
+                <option key={c.valor} value={c.valor}>{c.etiqueta}</option>
+              ))}
+            </select>
+            <small className="form-hint">
+              Un mes vence el mismo día del mes que viene. El arancel dice qué entrena el
+              socio; el tiempo lo corre el sistema.
+            </small>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '.6rem', marginTop: '1rem' }}>

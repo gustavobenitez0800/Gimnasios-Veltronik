@@ -119,10 +119,28 @@ public class GymPaymentService {
         // Se resuelve ANTES de guardar para que el pago quede grabado con el período que
         // realmente se le va a aplicar al socio: si el pago dijera una cosa y la cobertura
         // otra, tendríamos otra vez dos verdades para el mismo hecho.
+        // ⭐⭐ EL MES CORRE SOLO, HAYA ARANCEL O NO (ADR-013).
+        //
+        // Antes la cobertura salía EXCLUSIVAMENTE del arancel: un cobro sin arancel —"monto a
+        // mano", que es lo que el mostrador usa todo el tiempo— no movía el vencimiento ni un
+        // día. La plata entraba a la caja y el socio seguía vencido, sin que nadie se enterara
+        // hasta que no lo dejaban entrar.
+        //
+        // Lo dijo el dueño: "lo que hace que el alumno venza es EL MES, simple. Los aranceles
+        // son para saber qué tipo de entrenamiento eligió". Así que el arancel es una etiqueta
+        // que PUEDE decir otra cosa —dos meses, una semana, no cubre tiempo—, y cuando no dice
+        // nada, la cuota corre un mes.
+        //
+        // ⚠️ Solo cuando el cobro entra de verdad. Un pago pendiente o anulado no corre nada:
+        // esa comprobación vive en `extenderCobertura`, que es el único lugar que la hace.
         if (payment.getPlan() != null && payment.getPlan().getId() != null) {
             GymPlan plan = planService.findByIdAndVerifyOwnership(payment.getPlan().getId());
             payment.setPlan(plan);
             aplicarPeriodoDelPlan(payment, plan, member);
+        } else if (payment.getPeriodEnd() == null) {
+            // Sin arancel: un mes. Se respeta el período si quien carga el pago lo trajo
+            // escrito —el portal deja hacerlo— porque ahí alguien ya decidió a mano.
+            aplicarPeriodoDelPlan(payment, null, member);
         }
 
         GymPayment saved = repository.save(payment);
@@ -141,14 +159,29 @@ public class GymPaymentService {
      * visitas. Por eso el período queda en null y {@code aplicarCobertura} no mueve la fecha.</p>
      */
     private void aplicarPeriodoDelPlan(GymPayment payment, GymPlan plan, GymMember member) {
-        if (plan.getDurationDays() <= 0) return;
+        int cantidad = (plan == null) ? 1 : plan.getCoberturaCantidad();
+        String unidad = (plan == null) ? "MES" : plan.getCoberturaUnidad();
+
+        // 0 = no cubre tiempo. Es la clase suelta o el pase diario: cobra plata y no corre la
+        // fecha. Va explícito en el arancel, no escondido en un cero como estaba antes.
+        if (cantidad <= 0) return;
 
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime vigente = (member != null) ? member.getMembershipEnd() : null;
         LocalDateTime desde = (vigente != null && vigente.isAfter(ahora)) ? vigente : ahora;
 
+        // ⭐ SUMAR MESES, NO DÍAS, Y LA DIFERENCIA NO ES COSMÉTICA.
+        //
+        // La regla del negocio es "el mismo día del mes que viene": paga el 7 de marzo, vence
+        // el 7 de abril. Con días eso era el 6, y el 7 de febrero más 30 caía el 9 de marzo. En
+        // un año son 360 días en vez de 365 — el socio paga doce veces y le faltan cinco.
+        //
+        // `plusMonths` recorta solo al último día que existe: quien paga un 31 de enero vence
+        // el 28 (o 29) de febrero, que es lo que la gente espera y lo que hace todo el mundo.
         payment.setPeriodStart(desde);
-        payment.setPeriodEnd(desde.plusDays(plan.getDurationDays()));
+        payment.setPeriodEnd("MES".equals(unidad)
+                ? desde.plusMonths(cantidad)
+                : desde.plusDays(cantidad));
     }
 
     /**

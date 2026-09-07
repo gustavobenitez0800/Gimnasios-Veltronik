@@ -31,6 +31,20 @@ const METODOS = [
   { valor: 'card', etiqueta: 'Tarjeta' },
 ];
 
+/**
+ * Cuánto corre el vencimiento este arancel, en criollo. `null` = no lo corre.
+ *
+ * <p>No calcula ninguna fecha: solo nombra lo que el arancel ya declara. La fecha la corre el
+ * backend, y dos cuentas para lo mismo es el error que este proyecto ya cometió.</p>
+ */
+function queCubre(plan) {
+  const n = plan?.coberturaCantidad ?? 1;
+  if (!(n > 0)) return null;
+  return (plan?.coberturaUnidad || 'MES') === 'MES'
+    ? `${n} ${n === 1 ? 'mes' : 'meses'}`
+    : `${n} ${n === 1 ? 'día' : 'días'}`;
+}
+
 export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCobrar }) {
   const [planId, setPlanId] = useState('');
   const [monto, setMonto] = useState('');
@@ -149,15 +163,25 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
               </option>
             ))}
           </select>
-          {elegido && (
-            <small className="form-hint">
-              {elegido.durationDays > 0 && `Suma ${elegido.durationDays} días`}
-              {elegido.durationDays > 0 && elegido.classes ? ' · ' : ''}
-              {elegido.classes ? `${elegido.classes} clases` : ''}
-              {/* Lo dice el backend cuando aplica la cobertura. Acá NO se calcula la fecha:
-                  dos cuentas para lo mismo es exactamente lo que ya salió mal antes. */}
-            </small>
-          )}
+          {/* ⭐ QUÉ VA A PASAR CON LA FECHA, ANTES DE COBRAR — y sobre todo cuando NO va a
+              pasar nada. Un arancel que no corre el vencimiento es legítimo (la clase suelta),
+              pero si eso se descubre dos semanas después, en la puerta, con el socio jurando
+              que pagó, ya es tarde. Sin arancel elegido también se dice: la cuota corre un mes
+              igual, y quien atiende tiene que saberlo (ADR-013).
+
+              Acá NO se calcula ninguna fecha: solo se nombra la cobertura que el arancel ya
+              declara. La fecha la corre el backend, y dos cuentas para lo mismo es exactamente
+              lo que ya salió mal antes. */}
+          <small className="form-hint">
+            {!elegido && 'Sin arancel la cuota corre 1 mes.'}
+            {elegido && queCubre(elegido) === null && (
+              <strong style={{ color: 'var(--warning-500)' }}>
+                Este arancel NO corre el vencimiento
+              </strong>
+            )}
+            {elegido && queCubre(elegido) !== null && `Corre el vencimiento ${queCubre(elegido)}`}
+            {elegido?.classes ? ` · ${elegido.classes} clases` : ''}
+          </small>
         </div>
 
         <div className="form-group">

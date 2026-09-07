@@ -15,8 +15,8 @@ import { createRoot } from 'react-dom/client';
 import CobroRapido from './CobroRapido';
 
 const ARANCELES = [
-  { id: 'p1', name: 'Mensual', price: 45000, durationDays: 30, isActive: true },
-  { id: 'p2', name: 'Pase Libre', price: 60000, durationDays: 30, classes: 12, isActive: true },
+  { id: 'p1', name: 'Mensual', price: 45000, coberturaCantidad: 1, coberturaUnidad: 'MES', isActive: true },
+  { id: 'p2', name: 'Pase Libre', price: 60000, coberturaCantidad: 1, coberturaUnidad: 'MES', classes: 12, isActive: true },
 ];
 
 const SOCIO = { id: 's1', fullName: 'LURDES ROLLET', planId: 'p2', planNombre: 'Pase Libre' };
@@ -221,5 +221,39 @@ describe('⚠️ sin conexión no se promete un vencimiento nuevo', () => {
 
     expect(container.textContent).toContain('Ahora vence el');
     expect(container.textContent).not.toContain('sin conexión');
+  });
+});
+
+describe('⭐ el modal dice QUÉ va a pasar con la fecha, antes de cobrar', () => {
+  // ADR-013. Un arancel que no corre el vencimiento es legítimo —la clase suelta— pero si eso
+  // se descubre dos semanas después, en la puerta, con el socio jurando que pagó y la
+  // recepcionista sin saber qué contestar, ya es tarde. Es el silencio que costaba clientes.
+
+  const SUELTA = {
+    id: 'p3', name: 'Pase Diario', price: 10000,
+    coberturaCantidad: 0, coberturaUnidad: 'DIA', isActive: true,
+  };
+  const TRIMESTRAL = {
+    id: 'p4', name: 'Trimestral', price: 120000,
+    coberturaCantidad: 3, coberturaUnidad: 'MES', isActive: true,
+  };
+
+  it('⚠️ avisa cuando el arancel NO corre el vencimiento', async () => {
+    await pintar({ aranceles: [SUELTA], socio: { ...SOCIO, planId: 'p3' } });
+
+    expect(container.textContent).toContain('NO corre el vencimiento');
+  });
+
+  it('y cuando sí, dice cuánto', async () => {
+    await pintar({ aranceles: [TRIMESTRAL], socio: { ...SOCIO, planId: 'p4' } });
+
+    expect(container.textContent).toContain('Corre el vencimiento 3 meses');
+  });
+
+  it('⭐ sin arancel elegido dice que igual corre un mes', async () => {
+    // Es el cambio de fondo: antes, cobrar sin arancel no movía nada y nadie lo sabía.
+    await pintar({ aranceles: [], socio: { ...SOCIO, planId: null } });
+
+    expect(container.textContent).toContain('Sin arancel la cuota corre 1 mes');
   });
 });
