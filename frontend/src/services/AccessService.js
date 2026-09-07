@@ -110,7 +110,43 @@ class AccessService {
     return response.data;
   }
 
-  async checkOut(accessLogId) {
+  /**
+   * Marcar la salida. Sin conexión también, pero por otro camino.
+   *
+   * <p><b>Sin red, marcar la salida es EL MISMO hecho que marcar el paso:</b> se anota el
+   * momento y el servidor deduce la dirección contra ese instante. Como el socio tiene una
+   * visita abierta, la deduce SALIDA. Por eso va por la misma cola que las entradas, con su
+   * sello y su momento, y respeta la misma regla de orden — si hay algo esperando, este
+   * también espera, o se registraría antes que accesos que ocurrieron primero.</p>
+   *
+   * <p><b>⚠️ Y POR ESO MISMO NO SE ENCOLA SI EL PEDIDO YA SALIÓ Y FALLÓ EL TRANSPORTE.</b>
+   * Esa es la diferencia con `checkIn`, y es deliberada. El registro de un paso lleva
+   * `clientRef`, así que si la respuesta se pierde el servidor reconoce el reintento y no lo
+   * procesa dos veces. Este endpoint <b>no lleva sello</b>: si la salida se guardó y la
+   * respuesta se perdió, encolar un paso lo haría procesar de nuevo — y con la visita ya
+   * cerrada el servidor lo leería como una ENTRADA. El socio quedaría adentro justo después
+   * de haberse ido. Ese es el bug que ya apareció dos veces en este proyecto, y no se paga
+   * una tercera vez por ahorrarle un mensaje a alguien.</p>
+   *
+   * <p>Entonces: sin red <b>conocida</b>, a la cola. Con red y fallo de transporte, falla —
+   * pero con un mensaje que se entiende.</p>
+   *
+   * @param memberId  necesario para poder encolar; sin él, sin conexión no hay nada que hacer.
+   */
+  async checkOut(accessLogId, memberId = null, memberName = '') {
+    const puedeEncolar = disponible() && !!memberId;
+
+    if (puedeEncolar) {
+      const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+      if (sinRed || (await cuantosPendientes()) > 0) {
+        const ref = await encolar({
+          memberId, method: 'manual', memberName,
+          ocurridoEn: momentoLocal(), clientRef: nuevoSello(),
+        });
+        if (ref) return { encolado: true, clientRef: ref };
+      }
+    }
+
     const response = await apiClient.put(`/gym/access/${accessLogId}/checkout`);
     return response.data;
   }

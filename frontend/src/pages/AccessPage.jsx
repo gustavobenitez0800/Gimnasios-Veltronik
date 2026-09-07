@@ -391,13 +391,27 @@ export default function AccessPage() {
   // socio se va y avisa, la recepcionista tiene que poder marcarlo SIN cambiar de pantalla.
   // Es el mismo endpoint y el mismo dato: las dos pantallas comparten la clave de caché, así
   // que marcar la salida acá también actualiza la otra.
-  const handleCheckOut = async (logId, memberName) => {
+  const handleCheckOut = async (logId, memberName, memberId) => {
     try {
-      await accessService.checkOut(logId);
-      showToast(`${memberName} salió`, 'success');
+      const r = await accessService.checkOut(logId, memberId, memberName);
+      // Sin conexión no se anuncia "salió": eso lo confirma el servidor. Lo único cierto
+      // acá es que quedó guardado, igual que con las entradas.
+      showToast(
+        r?.encolado ? `Salida de ${memberName} guardada sin conexión` : `${memberName} salió`,
+        r?.encolado ? 'warning' : 'success',
+      );
+      contarPendientes();
       loadData();
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      // ⚠️ "Network Error" en inglés era lo que veía la recepcionista, y no dice ni qué pasó
+      // ni qué hacer. Sin respuesta del servidor es un problema de conexión; con respuesta,
+      // es un rechazo real y se muestra tal cual.
+      showToast(
+        error?.response
+          ? errorService.getMessage(error)
+          : 'Sin conexión: la salida NO se registró. Anotala a mano.',
+        'error',
+      );
     }
   };
 
@@ -682,7 +696,9 @@ export default function AccessPage() {
                     <div className="member-name">{memberName}</div>
                     <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
                   </div>
-                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
+                  {/* El id del socio va sí o sí: sin él, sin conexión no hay a quién encolarle
+                      la salida y el botón vuelve a no hacer nada. */}
+                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName, member?.id)}>
                     <Icon name="handWave" size="1em" /> Salida
                   </button>
                 </div>

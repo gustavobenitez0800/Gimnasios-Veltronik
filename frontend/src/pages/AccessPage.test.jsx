@@ -510,7 +510,43 @@ describe('quién está adentro, sin salir del mostrador', () => {
       salida.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(accessService.checkOut).toHaveBeenCalledWith('a1');
+    // ⚠️ Y CON EL ID DEL SOCIO. Sin él, sin conexión no hay a quién encolarle la salida y el
+    // botón vuelve a no hacer nada — que es justo lo que reportó el dueño: "si me doy salida
+    // no responde y tira network error".
+    expect(accessService.checkOut).toHaveBeenCalledWith('a1', 'm-a1', 'Matias Benitez');
+  });
+
+  it('sin conexión la salida se guarda, y el cartel no dice "salió"', async () => {
+    // "Salió" lo confirma el servidor. Sin conexión lo único cierto es que quedó guardado.
+    accessService.checkOut.mockResolvedValue({ encolado: true, clientRef: 'x' });
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    await act(async () => {
+      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
+    expect(mensaje).toContain('guardada sin conexión');
+    expect(mensaje).not.toContain('salió');
+    expect(tipo).toBe('warning');
+  });
+
+  it('y si falla de verdad, el error se entiende: nada de "Network Error"', async () => {
+    const corte = new Error('Network Error'); // sin `response`: no contestó el servidor
+    accessService.checkOut.mockRejectedValue(corte);
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    await act(async () => {
+      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
+    expect(mensaje).toContain('Sin conexión');
+    expect(mensaje, 'y dice qué hacer').toContain('Anotala a mano');
+    expect(mensaje).not.toContain('Network Error');
+    expect(tipo).toBe('error');
   });
 
   it('sin nadie adentro lo dice, en vez de dejar un hueco', async () => {

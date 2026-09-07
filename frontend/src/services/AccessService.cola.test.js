@@ -181,3 +181,64 @@ describe('lo que NO se encola', () => {
     await expect(accessService.checkIn('m1')).rejects.toThrow('Network Error');
   });
 });
+
+describe('⭐ la salida sin conexión', () => {
+  // LO REPORTÓ EL DUEÑO: "si me doy salida no responde y tira network error". El botón iba
+  // derecho al servidor y no tenía dónde caer.
+  //
+  // Sin red, marcar la salida es EL MISMO hecho que marcar el paso: se anota el momento y el
+  // servidor deduce la dirección contra ese instante. Como hay una visita abierta, deduce
+  // SALIDA. Por eso va por la misma cola.
+
+  it('sin red se guarda en la cola en vez de fallar', async () => {
+    sinRed(false);
+
+    const r = await accessService.checkOut('log-1', 'm1', 'José Pérez');
+
+    expect(apiClient.put, 'intentar sería regalarle el timeout a quien atiende').not.toHaveBeenCalled();
+    expect(r.encolado).toBe(true);
+    expect(cola.filas()[0].memberId).toBe('m1');
+    expect(cola.filas()[0].ocurridoEn, 'con su momento: el servidor decide contra ÉL')
+      .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('con algo esperando, la salida también espera', async () => {
+    // Si se adelantara, se registraría antes que accesos que ocurrieron primero — que es
+    // exactamente cómo se fabricó la visita con la salida antes que la entrada.
+    await cola.encolar({ clientRef: 'viejo', memberId: 'm9', ocurridoEn: '2026-09-07T09:00:00' });
+
+    const r = await accessService.checkOut('log-1', 'm1', 'José Pérez');
+
+    expect(apiClient.put).not.toHaveBeenCalled();
+    expect(r.encolado).toBe(true);
+    expect(cola.filas()).toHaveLength(2);
+  });
+
+  it('con red normal va derecho al servidor', async () => {
+    apiClient.put.mockResolvedValue({ data: { ok: true } });
+
+    await accessService.checkOut('log-1', 'm1', 'José Pérez');
+
+    expect(apiClient.put).toHaveBeenCalledWith('/gym/access/log-1/checkout');
+    expect(cola.encolar).not.toHaveBeenCalled();
+  });
+
+  it('⚠️⚠️ un fallo de TRANSPORTE no se encola: encolarlo invertiría al socio', async () => {
+    // LA DIFERENCIA DELIBERADA CON checkIn. El registro de un paso lleva `clientRef`, así que
+    // un reintento se reconoce. Este endpoint NO lleva sello: si la salida se guardó y la
+    // respuesta se perdió, encolar un paso lo haría procesar de nuevo — y con la visita ya
+    // cerrada el servidor lo leería como una ENTRADA. El socio quedaría adentro justo después
+    // de haberse ido. Ese bug ya apareció dos veces en este proyecto.
+    apiClient.put.mockRejectedValue(new Error('Network Error')); // sin `response`
+
+    await expect(accessService.checkOut('log-1', 'm1', 'José Pérez')).rejects.toThrow('Network Error');
+    expect(cola.encolar, 'mejor fallar visible que invertir en silencio').not.toHaveBeenCalled();
+  });
+
+  it('sin el id del socio no hay a quién encolarle nada: falla como antes', async () => {
+    sinRed(false);
+    apiClient.put.mockRejectedValue(new Error('Network Error'));
+
+    await expect(accessService.checkOut('log-1')).rejects.toThrow('Network Error');
+  });
+});
