@@ -605,3 +605,58 @@ describe('⚠️ el aviso de la cola escala con los días', () => {
     expect(container.querySelector('.copia-local.is-muy-vieja')).toBeNull();
   });
 });
+
+describe('⭐ sin conexión el cartel MUESTRA los días', () => {
+  // ERA AL REVÉS DE LO QUE HACE FALTA, y lo vio el dueño en la pantalla: el cartel de
+  // "guardado sin conexión" salía sin el número.
+  //
+  // Sin internet el servidor no puede avisar nada, así que el único que puede decirle a quien
+  // atiende "este socio está vencido" es el conteo local. Es justo el caso para el que se
+  // construyó, y era el único lugar donde no se usaba.
+
+  it('un socio al día: se ve cuántos le quedan, aunque quede encolado', async () => {
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'AL_DIA', diasRestantes: 29 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.textContent).toContain('Guardado sin conexión');
+    expect(aviso.textContent, 'el número es lo que la persona del mostrador necesita')
+      .toContain('29');
+  });
+
+  it('⚠️ un socio VENCIDO se ve en rojo, aunque no haya conexión', async () => {
+    // Es el dato que cambia lo que hace quien atiende. Que no haya internet no lo vuelve
+    // menos urgente: lo vuelve MÁS, porque no hay nadie más que se lo pueda decir.
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'VENCIDO', diasVencido: 8, diasRestantes: 0 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.textContent).toContain('8');
+    expect(aviso.className, 'rojo, no ámbar').toMatch(/error/);
+  });
+
+  it('y nunca sale en verde: verde diría "confirmado" y esto no llegó al servidor', async () => {
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'AL_DIA', diasRestantes: 29 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(container.querySelector('.acceso-aviso').className).not.toMatch(/success/);
+  });
+});

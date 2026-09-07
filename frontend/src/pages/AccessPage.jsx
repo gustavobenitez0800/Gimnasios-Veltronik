@@ -403,10 +403,24 @@ export default function AccessPage() {
       // Acá todavía no se sabe cuál de las dos es, así que anunciar "Entrada registrada"
       // sería inventar la mitad del dato. Se dice lo único que es cierto: quedó guardado.
       if (r?.encolado) {
+        // ⭐ Y LOS DÍAS VAN IGUAL. Este cartel salía sin el número, que era exactamente al
+        // revés de lo que hace falta: sin internet el servidor no puede avisar nada, así que
+        // el único que puede decirle a quien atiende "este socio está vencido" es el conteo
+        // local. Justo el caso para el que se construyó, y el único donde no se usaba.
+        //
+        // El número sale de la copia local, que se recalcula contra el reloj — no es el
+        // veredicto congelado del último refresco.
+        const info = getDaysInfo(member);
         mostrarAviso({
           name: member.fullName,
-          type: 'warning',
+          // Rojo si debe, aunque no haya conexión: es el dato que cambia lo que hace la
+          // persona del mostrador. Y nunca verde — verde diría "listo, confirmado", y esto
+          // todavía no llegó al servidor.
+          type: info.type === 'expired' ? 'error' : 'warning',
           accion: 'Guardado sin conexión',
+          valor: info.valor,
+          unidad: info.unidad,
+          daysLabel: info.label,
           detalle: 'Se manda solo cuando vuelva internet',
           initials: getInitials(member.fullName),
         });
