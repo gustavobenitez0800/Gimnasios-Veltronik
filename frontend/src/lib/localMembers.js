@@ -43,9 +43,10 @@ const DB = 'veltronik-local';
 const STORE = 'members';
 const VERSION = 1;
 
-// Cada cuánto se refresca sola mientras la app está abierta. Cinco minutos es el punto
-// donde el dato es lo bastante fresco para el mostrador sin castigar una conexión pobre.
-export const REFRESCO_MS = 5 * 60 * 1000;
+// Cada cuánto se refresca sola mientras la app está abierta. Se define en `frescura` —que no
+// importa nada— y se re-exporta acá para no romperle el import a quien ya lo pedía desde este
+// archivo. La banda de frescura se calcula contra este número: tienen que viajar juntos.
+export { REFRESCO_MS } from './frescura';
 
 // Estado en memoria: es contra esto que se busca, NO contra la base. El archivo es el
 // respaldo entre sesiones y entre cortes de luz; el array es lo que hace que la búsqueda

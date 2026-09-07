@@ -15,7 +15,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # ⚠️ TAMBIÉN EN LAS RAMAS, y no solo en main.
+    #
+    # Antes esto era `[main]` a secas. Como acá se mergea empujando la rama a main
+    # (`git push origin <rama>:main`) y no por pull request, CI no veía NADA hasta después
+    # del merge: trece commits llegaron sin pasar por él y main quedó en rojo con un test
+    # que solo falla en Node 20 —el de CI—, no en la máquina de quien lo escribió.
+    #
+    # El costo son minutos; el beneficio es que el rojo aparece en la rama, que es donde se
+    # arregla sin que nadie más lo vea.
+    branches: [main, 'feat/**', 'fix/**', 'chore/**']
   pull_request: {}
   workflow_dispatch: {}
 

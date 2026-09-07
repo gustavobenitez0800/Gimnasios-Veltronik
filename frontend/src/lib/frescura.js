@@ -21,10 +21,27 @@
 // negocio, no una pantalla— y para que el día que algo más necesite saber si la copia está
 // vieja (el molinete, un cartel en otra pantalla) no la vuelva a escribir a su manera.
 
-import { REFRESCO_MS } from './localMembers';
+// ⚠️ ESTE ARCHIVO NO IMPORTA NADA. Y es a propósito.
+//
+// Antes traía REFRESCO_MS desde `localMembers`, que trae `apiClient`, que trae el cliente de
+// Supabase — y ese cliente se construye al cargarse el módulo. En Node 20, que es donde corre
+// CI, construirlo revienta: `realtime-js` pide WebSocket nativo y Node 20 no lo tiene. O sea
+// que una regla de negocio de cuatro líneas se caía por arrastrar la capa de datos entera.
+//
+// En una máquina con Node 22+ pasa igual y no se ve. Que una regla pura no importe nada la
+// hace probable en cualquier lado, y de paso hace imposible que vuelva a pasar esto.
 
 /** El plazo que decidió el dueño. No apaga nada: cambia el tono del aviso. */
 export const ESPEJO_DIAS = 30;
+
+/**
+ * Cada cuánto se refresca sola la copia mientras la app está abierta. Cinco minutos es el punto
+ * donde el dato es lo bastante fresco para el mostrador sin castigar una conexión pobre.
+ *
+ * <p>Vive acá y no en `localMembers` para que este archivo no dependa de nadie: la banda de
+ * frescura se calcula contra este número, así que los dos tienen que viajar juntos.</p>
+ */
+export const REFRESCO_MS = 5 * 60 * 1000;
 
 const HORA_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * HORA_MS;
