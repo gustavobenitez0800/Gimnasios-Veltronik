@@ -442,7 +442,17 @@ export default function MembersPage() {
   // distintas de días según qué pantalla se mire.
   const getDaysInfo = (member) => {
     const { situacion, diasVencido, diasRestantes } = member || {};
-    if (!situacion || situacion === 'SIN_DATOS') return { text: '-', className: 'days-none' };
+    // ⭐ "SIN CUOTA" Y NO UN GUION.
+    //
+    // Un guion se lee como "falta el dato", y acá el dato está: ese socio NO TIENE cobertura.
+    // Desde que el alta dejó de regalar un mes (ADR-013), este estado es el de todo socio
+    // recién dado de alta hasta que se le cobra — y decirle "-" al lado de un estado que dice
+    // ACTIVO hace que se vea igual que uno al día.
+    //
+    // No dice "sin pagar" a propósito: la política del servidor distingue "sin fecha cargada"
+    // de "debe" (un socio migrado sin fecha tampoco pagó por acá, y afirmar que no pagó sería
+    // inventar). "Sin cuota" es cierto en los dos casos.
+    if (!situacion || situacion === 'SIN_DATOS') return { text: 'sin cuota', className: 'days-none' };
     if (situacion === 'INACTIVO') return { text: 'baja', className: 'days-none' };
 
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
