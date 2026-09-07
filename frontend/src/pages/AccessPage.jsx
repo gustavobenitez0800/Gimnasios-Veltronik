@@ -138,6 +138,24 @@ export default function AccessPage() {
   const enLinea = useEstaEnLinea();
   useRefrescoAutomatico(loadData, isFetching || !enLinea);
 
+  // ⭐ Y AL VOLVER LA RED SE REFRESCA EN EL ACTO, sin esperar el próximo latido.
+  //
+  // Reportado por el dueño: marcó una salida sin conexión, prendió el wifi, y el socio siguió
+  // figurando adentro hasta que se fue a otro módulo y volvió. Mientras estuvo sin red esta
+  // lista quedó congelada en el último dato bueno, y ese dato ya es falso en el momento en que
+  // la cola sube lo que estaba esperando.
+  //
+  // El vaciado avisa por su evento cuando sube algo, y eso ya refresca. Esto es la otra mitad,
+  // y cubre lo que aquel no puede: que la red haya vuelto sin que hubiera nada encolado, o que
+  // el servidor haya cambiado por otro lado mientras este terminal estaba a ciegas. Volver a
+  // tener red es, por definición, el momento en que lo que se está mostrando dejó de ser lo
+  // mejor que se sabe.
+  const habiaRed = useRef(enLinea);
+  useEffect(() => {
+    if (enLinea && !habiaRed.current) loadData();
+    habiaRed.current = enLinea;
+  }, [enLinea, loadData]);
+
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
   // refresca sola cada tanto, en el fondo y sin que nadie la espere.
@@ -436,10 +454,17 @@ export default function AccessPage() {
         const info = getDaysInfo(member);
         mostrarAviso({
           name: member.fullName,
-          // Rojo si debe, aunque no haya conexión: es el dato que cambia lo que hace la
-          // persona del mostrador. Y nunca verde — verde diría "listo, confirmado", y esto
-          // todavía no llegó al servidor.
-          type: info.type === 'expired' ? 'error' : 'warning',
+          // ⚠️ EL COLOR ES EL DE SIEMPRE, el mismo que con internet. Lo pidió el dueño y
+          // tiene razón: EL NÚMERO LO MIRA EL SOCIO, no la recepcionista. Si a alguien al día
+          // se le pinta el cartel de amarillo porque el terminal no tiene wifi, lee que hay
+          // un problema CON ÉL —y pregunta, o se va preocupado— cuando el problema es del
+          // internet del gimnasio y no le incumbe.
+          //
+          // Que quedó guardado sin conexión es un dato de la CASA, no del socio: se dice en
+          // el renglón de abajo, en amarillo, donde lo lee quien atiende.
+          type: info.type === 'expired' ? 'error'
+            : info.type === 'danger' ? 'warning' : 'success',
+          sinConexion: true,
           accion: 'Guardado sin conexión',
           valor: info.valor,
           unidad: info.unidad,
@@ -744,7 +769,9 @@ export default function AccessPage() {
               <div className="acceso-aviso-pie">
                 {/* QUÉ se registró, no solo a quién: el servidor decide la dirección, así que
                     sin esto se puede apretar "entrada", grabarse una SALIDA y no enterarse. */}
-                <div className="acceso-aviso-accion">{aviso.accion}</div>
+                <div className={`acceso-aviso-accion${aviso.sinConexion ? ' sin-conexion' : ''}`}>
+                  {aviso.accion}
+                </div>
                 {aviso.detalle && <div className="acceso-aviso-detalle">{aviso.detalle}</div>}
               </div>
             </div>

@@ -687,7 +687,15 @@ describe('⭐ sin conexión el cartel MUESTRA los días', () => {
     expect(aviso.className, 'rojo, no ámbar').toMatch(/error/);
   });
 
-  it('y nunca sale en verde: verde diría "confirmado" y esto no llegó al servidor', async () => {
+  it('⭐ y el socio al día NO se pinta de amarillo: el número lo mira ÉL', async () => {
+    // DECISIÓN DEL DUEÑO, y tiene razón. La primera versión pintaba el cartel entero de
+    // amarillo para marcar "esto no llegó al servidor". Pero el número grande lo mira el
+    // SOCIO, no la recepcionista: si a alguien al día se le pinta de amarillo porque el
+    // terminal no tiene wifi, lee que hay un problema CON ÉL —y pregunta, o se va
+    // preocupado— cuando el problema es del internet del gimnasio y no le incumbe.
+    //
+    // El color queda como con internet. Que quedó guardado sin conexión es un dato de la
+    // CASA: va en el renglón de abajo, en amarillo, donde lo lee quien atiende.
     memberService.searchForAccess.mockResolvedValue([
       { ...SOCIO, situacion: 'AL_DIA', diasRestantes: 29 },
     ]);
@@ -697,7 +705,11 @@ describe('⭐ sin conexión el cartel MUESTRA los días', () => {
     await tipear('24732531');
     await apretar('Enter');
 
-    expect(container.querySelector('.acceso-aviso').className).not.toMatch(/success/);
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.className, 'el mismo color que con internet').toMatch(/success/);
+    expect(aviso.className, 'nada de amarillo en el cartel').not.toMatch(/warning/);
+    expect(aviso.querySelector('.acceso-aviso-accion.sin-conexion'),
+      'el amarillo va SOLO en el renglón que le habla a quien atiende').toBeTruthy();
   });
 });
 
@@ -776,5 +788,45 @@ describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para s
     const lista = container.querySelector('.checked-in-list');
     expect(lista.textContent).toContain('Lurdes Rollet');
     expect(lista.textContent).not.toContain('Sin conexión');
+  });
+});
+
+describe('⭐ al volver la red, la lista se pone al día sola', () => {
+  // REPORTADO POR EL DUEÑO: marcó una salida sin conexión, prendió el wifi, y el socio siguió
+  // figurando adentro hasta que se fue a Retención y volvió.
+  //
+  // Mientras no hay red la lista queda congelada en el último dato bueno, y ese dato ya es
+  // falso en el momento en que la cola sube lo que estaba esperando. Volver a tener red es,
+  // por definición, el momento en que lo que se muestra dejó de ser lo mejor que se sabe.
+
+  function red(hay) {
+    Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+    window.dispatchEvent(new Event(hay ? 'online' : 'offline'));
+  }
+
+  afterEach(() => {
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+  });
+
+  it('vuelve la red y refresca sin esperar el próximo latido', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => { red(true); await Promise.resolve(); });
+
+    expect(mostrador.refrescos, 'lo que se está mostrando ya no es lo mejor que se sabe')
+      .toBeGreaterThan(alPrincipio);
+  });
+
+  it('y no refresca de gusto si la red nunca se cortó', async () => {
+    // Si cada render pidiera de nuevo, volvería el problema que ya costó caro: el mostrador
+    // pidiendo sin parar mientras alguien teclea.
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => { window.dispatchEvent(new Event('online')); await Promise.resolve(); });
+
+    expect(mostrador.refrescos).toBe(alPrincipio);
   });
 });

@@ -204,6 +204,15 @@
   color: var(--text-secondary);
 }
 
+/* "Guardado sin conexión". EL AMARILLO VA ACÁ Y NO EN EL CARTEL ENTERO.
+   El número grande lo mira el SOCIO, y si se le pinta de amarillo porque el terminal no tiene
+   wifi, lee que hay un problema con él —y pregunta, o se va preocupado— cuando el problema es
+   del internet del gimnasio. Que quedó guardado sin conexión es un dato de la casa: se avisa
+   en este renglón, que es el que mira quien atiende. */
+.acceso-aviso-accion.sin-conexion {
+  color: var(--warning-500);
+}
+
 .acceso-aviso-detalle {
   font-size: var(--font-size-xs);
   color: var(--warning-500);
