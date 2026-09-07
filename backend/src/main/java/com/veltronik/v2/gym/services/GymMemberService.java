@@ -65,6 +65,23 @@ public class GymMemberService {
         return repository.findWithPlanById(guardado.getId()).orElse(guardado);
     }
     
+    /**
+     * Busca un socio por id <b>sin filtrar por gimnasio</b>, y devuelve vacío si no está.
+     *
+     * <p>⚠️ <b>Existe para UN solo uso y no debería tener otro:</b> comprobar, en el alta con id
+     * traído por el terminal, que ese identificador no sea el de un socio de otro gimnasio. Sin
+     * esa comprobación, mandar el UUID ajeno sobrescribiría su ficha y se la llevaría a este
+     * tenant, porque el {@code save} de JPA con id no nulo hace merge y no falla.</p>
+     *
+     * <p><b>No la use nadie para leer datos.</b> Para eso está
+     * {@link #findByIdAndVerifyOwnership}, que verifica el gimnasio y es la que corresponde en
+     * todos los demás casos. Acá solo interesa <i>si existe y de quién es</i>.</p>
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<GymMember> buscarEnCualquierTenant(UUID id) {
+        return repository.findById(id);
+    }
+
     @Transactional(readOnly = true)
     public GymMember findByIdAndVerifyOwnership(UUID id) {
         // Con el arancel: es el mismo problema del listado, y por acá pasan la ficha, el

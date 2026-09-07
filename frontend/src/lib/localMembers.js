@@ -38,6 +38,7 @@
 
 import apiClient from './apiClient';
 import { situacionDe } from './situacionSocio';
+import { altasPendientes } from './colaAccesos';
 
 const DB = 'veltronik-local';
 const STORE = 'members';
@@ -244,6 +245,22 @@ export async function refrescarSocios(tenantId) {
       const { data } = await apiClient.get('/gym/members', { timeout: 12000 });
       const lista = Array.isArray(data) ? data : (data?.content || []);
       const socios = lista.map(comprimir);
+
+      // ⭐ LOS QUE SE DIERON DE ALTA SIN CONEXIÓN NO SE PUEDEN PERDER ACÁ.
+      //
+      // El espejo se reemplaza ENTERO —es lo que evita que un socio dado de baja se quede para
+      // siempre—, así que un socio creado sin internet desaparecería en este mismo refresco,
+      // antes de que su alta llegue al servidor. Quien atiende lo daría de alta y no lo podría
+      // buscar para cobrarle, que es literalmente el paso siguiente.
+      //
+      // La cola es la fuente: mientras el alta siga ahí, el socio se vuelve a poner. Cuando
+      // sube, sale de la cola y ya viene en la lista del servidor — y entonces el `find` de
+      // abajo lo encuentra y no se agrega dos veces.
+      const conocidos = new Set(socios.map((s) => s.id));
+      for (const alta of await altasPendientes(tenantId)) {
+        if (alta?.id && !conocidos.has(alta.id)) socios.push(comprimir(alta));
+      }
+
       const actualizado = Date.now();
 
       // Primero la memoria y recién después el disco: buscar tiene que andar en el
@@ -259,6 +276,32 @@ export async function refrescarSocios(tenantId) {
   })();
 
   return cargando;
+}
+
+/**
+ * ⭐ Pone un socio en la copia local YA, sin esperar al servidor.
+ *
+ * <p>Para el alta sin conexión: quien atiende da de alta a alguien y el paso siguiente es
+ * cobrarle, así que tiene que poder buscarlo <b>en el acto</b>. Sin esto lo daría de alta y no
+ * lo encontraría.</p>
+ *
+ * <p>Primero la memoria y recién después el disco, igual que el refresco: buscar tiene que
+ * andar en el instante siguiente, sin esperar a que termine de escribirse el archivo.</p>
+ */
+export async function agregarSocioLocal(socio, tenantId = memoria.tenantId) {
+  if (!socio?.id) return false;
+
+  const fila = comprimir(socio);
+  const socios = [...memoria.socios.filter((s) => s.id !== fila.id), fila];
+  memoria = { ...memoria, tenantId: tenantId || memoria.tenantId, socios };
+
+  try {
+    if (memoria.tenantId) await almacen.guardar(memoria.tenantId, socios);
+  } catch {
+    // Que no se pueda escribir el archivo no puede impedir cobrarle: en memoria ya está, y el
+    // dato de verdad —el que no se puede perder— es el alta que quedó en la cola.
+  }
+  return true;
 }
 
 /**

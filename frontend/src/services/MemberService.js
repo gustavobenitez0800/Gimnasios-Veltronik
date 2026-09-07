@@ -1,5 +1,10 @@
 import apiClient from '../lib/apiClient';
-import { prepararSocios, buscarSocios, estadoSocios, refrescarSocios } from '../lib/localMembers';
+import {
+  prepararSocios, buscarSocios, estadoSocios, refrescarSocios, agregarSocioLocal,
+} from '../lib/localMembers';
+import {
+  encolarPendiente, disponible, nuevoSello, cuantosPendientes,
+} from '../lib/colaAccesos';
 
 /**
  * Servicio para gestionar Socios usando la API Java.
@@ -41,8 +46,53 @@ class MemberService {
     if (tenantId) refrescarSocios(tenantId).catch(() => {});
   }
 
+  /**
+   * ⭐ DAR DE ALTA. Con internet va derecho; sin internet, a la cola.
+   *
+   * <p><b>El id lo genera el terminal, siempre.</b> Y esa es la pieza que hace posible dar de
+   * alta y cobrar en el mismo acto sin conexión: el cobro que se encola detrás tiene que poder
+   * nombrar al socio, y si el id lo inventara el servidor apuntaría a alguien que todavía no
+   * existe. El backend lo respeta (`AssignableUuidGenerator`) y verifica que no sea el de otro
+   * gimnasio antes de aceptarlo.</p>
+   *
+   * <p><b>Y el socio queda en la copia local en el acto</b>, aunque el alta no haya subido: si
+   * no, quien atiende lo da de alta y no lo puede buscar para cobrarle, que es literalmente el
+   * paso siguiente.</p>
+   *
+   * @returns el socio como lo devolvió el servidor, o `{encolado: true, id}` si quedó guardado.
+   */
   async createMember(memberData) {
-    const response = await apiClient.post('/gym/members', memberData);
+    const id = memberData?.id || nuevoSello();
+    const cuerpo = { ...memberData, id };
+
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
+      const ref = await encolarPendiente({ ...cuerpo, tipo: 'ALTA', clientRef: id });
+      if (ref) {
+        await agregarSocioLocal(cuerpo);
+        return { ...cuerpo, encolado: true };
+      }
+    }
+
+    try {
+      const response = await apiClient.post('/gym/members', cuerpo);
+      this.refrescarCopiaLocal();
+      return response.data;
+    } catch (error) {
+      if (error?.response || !disponible()) throw error;
+
+      const ref = await encolarPendiente({ ...cuerpo, tipo: 'ALTA', clientRef: id });
+      if (!ref) throw error;
+      await agregarSocioLocal(cuerpo);
+      return { ...cuerpo, encolado: true };
+    }
+  }
+
+  /** Manda UN alta que estaba en la cola. Lo usa el vaciado, de a uno y en orden. */
+  async enviarEncolado(item) {
+    // eslint-disable-next-line no-unused-vars
+    const { tipo, clientRef, ocurridoEn, intentos, ultimoError, creadoEn, tenantId, ...cuerpo } = item;
+    const response = await apiClient.post('/gym/members', cuerpo);
     this.refrescarCopiaLocal();
     return response.data;
   }

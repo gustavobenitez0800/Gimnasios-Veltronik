@@ -247,6 +247,28 @@ export async function sociosConCobroPendiente(tenantId = orgActual()) {
   }
 }
 
+/**
+ * ⭐ LAS ALTAS QUE TODAVÍA NO SUBIERON.
+ *
+ * <p><b>Por qué la copia local las necesita.</b> El espejo se reemplaza ENTERO en cada refresco
+ * —es lo que evita que un socio dado de baja se quede para siempre—, así que un socio creado
+ * sin conexión desaparecería en el primer refresco, antes de que su alta llegue al servidor.
+ * Quien atiende lo daría de alta y no lo podría buscar para cobrarle, que es literalmente el
+ * paso siguiente.</p>
+ *
+ * <p>La cola es la fuente: mientras el alta esté acá, ese socio se vuelve a poner en el espejo
+ * después de cada reemplazo. Cuando sube, sale de la cola y ya viene del servidor.</p>
+ */
+export async function altasPendientes(tenantId = orgActual()) {
+  if (!disponible()) return [];
+  try {
+    const lista = await pendientes(tenantId);
+    return lista.filter((i) => i.tipo === 'ALTA');
+  } catch {
+    return [];
+  }
+}
+
 /** Cuántos esperan. Para que la pantalla lo pueda decir. */
 export async function cuantosPendientes(tenantId = orgActual()) {
   const c = nucleo();

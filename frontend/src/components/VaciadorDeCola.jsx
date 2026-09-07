@@ -19,7 +19,7 @@
 import { useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { accessService, paymentService } from '../services';
+import { accessService, paymentService, memberService } from '../services';
 import { vaciar, disponible } from '../lib/colaAccesos';
 
 /** Cada cuánto se reintenta si quedó algo. Cinco minutos: nadie está esperando esto. */
@@ -56,6 +56,9 @@ export default function VaciadorDeCola() {
       const { enviados } = await vaciar({
         ACCESO: (item) => accessService.enviarEncolado(item),
         COBRO: (item) => paymentService.enviarEncolado(item),
+        // ⚠️ El ALTA va en la MISMA cola y por eso sube antes que el cobro a ese socio: si
+        // fueran colas separadas, el servidor recibiría un cobro de alguien que no existe.
+        ALTA: (item) => memberService.enviarEncolado(item),
       });
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor
