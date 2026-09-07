@@ -69,7 +69,7 @@ function useAutoHideHeader() {
  */
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { loading, subscription, gym, orgName } = useAuth();
+  const { loading, subscription, gym, orgName, orgId } = useAuth();
   const navigate = useNavigate();
   const hayVersionNueva = useVersionNueva();
   const location = useLocation();
@@ -136,7 +136,24 @@ export function AppLayout() {
   // esto no toque a ningún gimnasio que no lo use.
   const paleta = useMemo(() => derivarPaleta(gym?.brandColor), [gym?.brandColor]);
 
-  if (loading) {
+  // ⭐ SIN SUCURSAL NO SE DIBUJA NADA DE ACÁ ADENTRO.
+  //
+  // Todas las pantallas que cuelgan de este layout son de UN gimnasio, y todas piden datos
+  // apenas se montan. El escritorio arranca borrando la sucursal a propósito
+  // (`main.desktop.jsx`: la manda el enrolamiento, no el localStorage), así que hay una
+  // ventana en la que todavía no se sabe cuál es.
+  //
+  // Dibujar durante esa ventana hacía que cada pantalla pidiera sus datos SIN sucursal, y el
+  // backend los cortaba con 401 "Falta contexto de negocio". Se veía sano porque el
+  // reintento salía después, ya con sucursal — pero no se curaba por el reintento, se curaba
+  // por suerte de timing. Y no era solo cosmético: el vaciador de la cola quemaba dos
+  // intentos en CADA arranque.
+  //
+  // Esperar acá lo resuelve en UN lugar, sin listas de rutas duplicadas del backend.
+  //
+  // ⚠️ No se cuelga: si no hay sucursal, el efecto de AuthContext manda al DeviceGate. Este
+  // cartel es lo que se ve mientras tanto, no un estado final.
+  if (loading || !orgId) {
     return <LoadingScreen />;
   }
 

@@ -292,6 +292,28 @@ export function AuthProvider({ children }) {
   const [modoSinConexion, setModoSinConexion] = useState(false);
   const [orgRole, setOrgRole] = useState(localStorage.getItem('current_org_role') || 'owner');
   const [orgName, setOrgName] = useState(localStorage.getItem('current_org_name') || '');
+
+  /**
+   * ⭐ EN QUÉ SUCURSAL ESTAMOS, COMO ESTADO Y NO COMO LECTURA SUELTA.
+   *
+   * <p><b>Por qué hace falta.</b> El escritorio arranca BORRANDO `current_org_id`
+   * (`main.desktop.jsx`), a propósito: cada arranque tiene que re-verificar a qué sucursal
+   * pertenece el equipo, porque eso lo manda el enrolamiento y no la memoria del navegador.
+   * O sea que hay una ventana —corta, pero real— en la que la app no sabe en qué gimnasio
+   * está.</p>
+   *
+   * <p>Todo pedido que sale en esa ventana viaja sin `X-Tenant-ID`, y el backend lo corta con
+   * <b>401 "Falta contexto de negocio"</b> (KillSwitchFilter). Había una guarda para eso, pero
+   * llegaba tarde: <b>en React los efectos de los hijos corren antes que los del padre</b>, así
+   * que la pantalla ya había pedido sus datos cuando el padre se enteraba de redirigir.</p>
+   *
+   * <p>Como estado, quien necesita sucursal puede <b>esperarla</b> en vez de pedir y fallar. Se
+   * sincroniza en la navegación porque los dos caminos que la fijan —el DeviceGate con red y
+   * sin red— navegan justo después de fijarla.</p>
+   */
+  const [orgId, setOrgId] = useState(() => {
+    try { return localStorage.getItem('current_org_id'); } catch { return null; }
+  });
   // Track if initial auth has completed to prevent premature redirects
   const initCompleteRef = useRef(false);
   // Guard reentrante del logout: el evento 'auth-unauthorized' y el botón Salir pueden
@@ -389,6 +411,9 @@ export function AuthProvider({ children }) {
     // (o contra ninguna). Se escribía en un solo lugar de toda la app —el click normal de
     // una card del Lobby—, así que entrar andaba y pagar no.
     localStorage.setItem('current_org_id', orgId);
+    // Y el estado, en el mismo acto: es lo que hace que AppLayout deje de esperar. Sin esto
+    // la pantalla se destrabaría recién en la próxima navegación.
+    setOrgId(orgId);
 
     // Limpiar la caché SOLO al cambiar de negocio (previene fugas cross-org). Antes se
     // limpiaba siempre: al re-entrar al MISMO negocio tiraba los datos recién cargados
@@ -780,13 +805,16 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    // La sucursal vigente, al día. Los dos caminos que la fijan —el DeviceGate con red y sin
+    // red— navegan apenas la fijan, así que este efecto vuelve a correr y la levanta. Es lo
+    // que le permite a AppLayout ESPERARLA en vez de dibujar y pedir sin ella.
+    const sucursalActual = localStorage.getItem('current_org_id');
+    if (sucursalActual !== orgId) setOrgId(sucursalActual);
+
     // Logged in, needs org context but none selected
-    if (user && needsOrg) {
-      const orgId = localStorage.getItem('current_org_id');
-      if (!orgId) {
-        navigate(CONFIG.ROUTES.LOBBY, { replace: true });
-        return;
-      }
+    if (user && needsOrg && !sucursalActual) {
+      navigate(CONFIG.ROUTES.LOBBY, { replace: true });
+      return;
     }
 
     // CRITICAL: Billing is now centralized in the Java Backend (KillSwitchFilter)
@@ -802,7 +830,7 @@ export function AuthProvider({ children }) {
         : `Tu período de prueba vence en ${trialDaysRemaining} días. Suscribite para no perder acceso.`;
       showToast(msg, 'warning', 10000);
     }
-  }, [user, loading, location.pathname, gym, subscription, isTrialActive, trialDaysRemaining, hasValidAccess, navigate, showToast]);
+  }, [user, loading, location.pathname, gym, subscription, isTrialActive, trialDaysRemaining, hasValidAccess, orgId, navigate, showToast]);
 
   // Auth actions
   const login = async (email, password) => {
@@ -857,6 +885,7 @@ export function AuthProvider({ children }) {
     hasValidAccess,
     orgRole,
     orgName,
+    orgId,
     login,
     register,
     loginWithGoogle,

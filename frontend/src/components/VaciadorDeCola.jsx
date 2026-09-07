@@ -18,6 +18,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { accessService } from '../services';
 import { vaciar, disponible } from '../lib/colaAccesos';
 
@@ -29,11 +30,21 @@ export const EVENTO_COLA_CAMBIO = 'veltronik-cola-cambio';
 
 export default function VaciadorDeCola() {
   const { showToast } = useToast();
+  const { orgId } = useAuth();
 
   const intentar = useCallback(async () => {
     if (!disponible()) return;
     // Sin red no se intenta: serían pedidos condenados a fallar, cada uno con su ruido.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+    // ⚠️ NI SIN SUCURSAL. El escritorio arranca borrando `current_org_id` a propósito, así
+    // que en cada arranque hay una ventana sin sucursal. Un acceso que sale en esa ventana
+    // viaja sin `X-Tenant-ID` y el backend lo corta con 401 "Falta contexto de negocio".
+    //
+    // No se perdía nada —un 401 no es definitivo, la fila se queda y se reintenta— pero se
+    // quemaban DOS intentos en cada arranque, para siempre. Se encontró al revés: una fila
+    // en la cola con `intentos: 2` y ningún motivo a la vista.
+    if (!orgId) return;
 
     try {
       const { enviados } = await vaciar((item) => accessService.enviarEncolado(item));
@@ -49,7 +60,7 @@ export default function VaciadorDeCola() {
       // reintentan solos. Es exactamente para lo que la cola existe.
     }
     window.dispatchEvent(new Event(EVENTO_COLA_CAMBIO));
-  }, [showToast]);
+  }, [showToast, orgId]);
 
   useEffect(() => {
     intentar();

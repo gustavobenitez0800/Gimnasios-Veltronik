@@ -21,8 +21,10 @@ import { createRoot } from 'react-dom/client';
 const toast = { showToast: vi.fn() };
 const accessService = { enviarEncolado: vi.fn() };
 const cola = { vaciar: vi.fn(), disponible: vi.fn(() => true) };
+const sesion = { orgId: '11111111-1111-1111-1111-111111111111' };
 
 vi.mock('../contexts/ToastContext', () => ({ useToast: () => toast }));
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => sesion }));
 vi.mock('../services', () => ({ accessService }));
 vi.mock('../lib/colaAccesos', () => ({
   vaciar: (...a) => cola.vaciar(...a),
@@ -52,6 +54,39 @@ beforeEach(() => {
   cola.disponible.mockReturnValue(true);
   cola.vaciar.mockResolvedValue({ enviados: 0, quedan: 0, descartados: 0 });
   sinRed(true);
+  sesion.orgId = '11111111-1111-1111-1111-111111111111';
+});
+
+describe('⚠️ sin sucursal no sale nada', () => {
+  // ENCONTRADO AL REVÉS: una fila en la cola con `intentos: 2` y ningún motivo a la vista.
+  //
+  // El escritorio arranca BORRANDO `current_org_id` a propósito (`main.desktop.jsx`: la
+  // sucursal la manda el enrolamiento, no el localStorage), así que en cada arranque hay una
+  // ventana sin sucursal. Un acceso que sale ahí viaja sin `X-Tenant-ID` y el backend lo corta
+  // con 401 "Falta contexto de negocio".
+  //
+  // No se perdía nada —un 401 no es definitivo, la fila se queda—, pero se quemaban dos
+  // intentos en CADA arranque, para siempre.
+
+  it('no intenta subir mientras la app no sabe en qué gimnasio está', async () => {
+    sesion.orgId = null;
+
+    await montar();
+
+    expect(cola.vaciar, 'sin sucursal el pedido es un 401 seguro').not.toHaveBeenCalled();
+  });
+
+  it('y arranca solo apenas la sucursal aparece', async () => {
+    sesion.orgId = null;
+    await montar();
+    expect(cola.vaciar).not.toHaveBeenCalled();
+
+    sesion.orgId = '22222222-2222-2222-2222-222222222222';
+    await act(async () => { root.render(<VaciadorDeCola />); });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(cola.vaciar, 'esperar no puede significar no subir nunca').toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('el vaciado corre esté abierta la pantalla que esté', () => {
