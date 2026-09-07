@@ -830,3 +830,28 @@ describe('⭐ al volver la red, la lista se pone al día sola', () => {
     expect(mostrador.refrescos).toBe(alPrincipio);
   });
 });
+
+describe('el contador de la cola tampoco afirma la dirección', () => {
+  it('dice "acceso guardado", no "entrada guardada"', async () => {
+    // Mismo motivo que el aviso del vaciado: ahí adentro puede haber salidas, y la dirección
+    // no la sabe nadie hasta que el servidor la decide contra el momento en que ocurrió.
+    colaFalsa.cuantos = 1;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    const cartel = container.querySelector('.copia-local.is-vieja').textContent;
+    expect(cartel).toContain('acceso guardado');
+    expect(cartel).not.toMatch(/entrada/i);
+  });
+
+  it('y en plural también', async () => {
+    colaFalsa.cuantos = 4;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    const cartel = container.querySelector('.copia-local.is-vieja').textContent;
+    expect(cartel).toContain('4 accesos guardados');
+  });
+});

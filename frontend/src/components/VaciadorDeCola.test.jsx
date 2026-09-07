@@ -139,6 +139,25 @@ describe('lo que le cuenta al resto de la app', () => {
     expect(mensaje).not.toMatch(/registraron/);
   });
 
+  it('⚠️ y dice "acceso", NO "entrada": la dirección no la sabe nadie todavía', async () => {
+    // Lo vio el dueño en pantalla: subió una SALIDA y el aviso le dijo "entrada".
+    //
+    // La cola no sabe la dirección —eso lo decide el servidor mirando el estado del socio en
+    // el momento en que ocurrió—, y desde que la salida sin conexión también pasa por acá,
+    // llamarle "entrada" a lo que sube es directamente falso la mitad de las veces. Es la
+    // misma regla que ya aplica el mostrador cuando dice "Guardado sin conexión" en vez de
+    // "Entrada registrada".
+    //
+    // Se fija con un test porque cuando cambió el texto, la suite entera siguió en verde: no
+    // había nada mirándolo.
+    cola.vaciar.mockResolvedValue({ enviados: 2, quedan: 0, descartados: 0 });
+    await montar();
+
+    const mensaje = toast.showToast.mock.calls.at(-1)?.[0] || '';
+    expect(mensaje).toContain('accesos');
+    expect(mensaje, 'puede haber sido una salida').not.toMatch(/entrada/i);
+  });
+
   it('si no subió nada, no molesta a nadie', async () => {
     await montar();
     expect(toast.showToast).not.toHaveBeenCalled();

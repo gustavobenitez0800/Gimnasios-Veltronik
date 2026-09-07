@@ -617,7 +617,10 @@ export default function AccessPage() {
             <p className={`copia-local ${cola.dias >= 3 ? 'is-muy-vieja' : 'is-vieja'}`}>
               <Icon name={cola.dias >= 3 ? 'alertTriangle' : 'wifiOff'} size="0.9em" />
               <span>
-                {pendientesCola} {pendientesCola === 1 ? 'entrada guardada' : 'entradas guardadas'} sin
+                {/* "Acceso" y no "entrada", por lo mismo que el aviso del vaciado: acá adentro
+                    puede haber salidas, y la dirección no la sabe nadie hasta que el servidor
+                    la decide contra el momento en que ocurrió. */}
+                {pendientesCola} {pendientesCola === 1 ? 'acceso guardado' : 'accesos guardados'} sin
                 conexión
                 {/* ⚠️ A partir del tercer día el cartel cambia de tono y DEJA DE PROMETER que
                     se arregla solo. Hasta ahí decir "se manda al volver internet" es cierto y

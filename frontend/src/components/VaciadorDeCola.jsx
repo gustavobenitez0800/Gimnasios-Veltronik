@@ -49,9 +49,16 @@ export default function VaciadorDeCola() {
     try {
       const { enviados } = await vaciar((item) => accessService.enviarEncolado(item));
       if (enviados > 0) {
+        // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor
+        // mirando el estado del socio en el momento en que ocurrió. Llamarle "entrada" a lo
+        // que subió es inventar la mitad del dato —y de hecho puede ser una SALIDA, porque
+        // marcar la salida sin conexión también pasa por acá—. Es la misma regla que ya
+        // aplica el cartel del mostrador cuando dice "Guardado sin conexión" en vez de
+        // "Entrada registrada". El dueño lo vio en pantalla: subió una salida y el aviso le
+        // dijo "entrada".
         showToast(
           `Se ${enviados === 1 ? 'registró' : 'registraron'} ${enviados} `
-          + `${enviados === 1 ? 'entrada que estaba esperando' : 'entradas que estaban esperando'}`,
+          + `${enviados === 1 ? 'acceso que estaba esperando' : 'accesos que estaban esperando'}`,
           'success',
         );
       }
