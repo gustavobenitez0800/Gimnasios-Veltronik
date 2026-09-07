@@ -73,10 +73,23 @@ describe('el formulario no puede perder campos', () => {
     expect(mapMemberToForm({ fullName: 'X' }).planId).toBe('');
   });
 
-  it('el alta sugiere un mes de membresía', () => {
+  it('⭐⭐ el alta NO regala cobertura: el socio nuevo nace sin vencimiento', () => {
+    // ⚠️ ESTE TEST DECÍA LO CONTRARIO ("el alta sugiere un mes"), y decirlo era el bug.
+    //
+    // El formulario venía con `membershipEnd: addOneMonth(hoy)`, así que dar de alta a un
+    // socio le daba un mes de cobertura SIN QUE HUBIERA PAGADO NADA. En producción, cada alta
+    // nueva regalaba un mes en silencio.
+    //
+    // Y contradecía la regla del negocio: "lo que hace que el alumno venza es el mes que
+    // paga". Si el alta ya le da un mes, la cobertura no la crea el pago.
+    //
+    // Cómo se descubrió: se dio de alta a un socio, se le cobró UNA vez, y quedó con 62 días.
+    // El dueño lo leyó como "le cobró dos veces" — eran 31 regalados por el alta más 31
+    // pagados. El cobro estaba bien; el alta no.
     const f = getInitialMemberForm();
-    expect(f.membershipStart).toBeTruthy();
-    expect(f.membershipEnd > f.membershipStart).toBe(true);
+
+    expect(f.membershipStart, 'cuándo empezó sí se sabe: es hoy').toBeTruthy();
+    expect(f.membershipEnd, 'la cobertura la crea el cobro, no el alta').toBe('');
   });
 });
 
