@@ -28,6 +28,7 @@ const nucleoDb = require(path.join(__dirname, '..', 'electron', 'nucleo', 'db.cj
 const espejo = require(path.join(__dirname, '..', 'electron', 'nucleo', 'espejo.cjs'));
 const boveda = require(path.join(__dirname, '..', 'electron', 'nucleo', 'boveda.cjs'));
 const cola = require(path.join(__dirname, '..', 'electron', 'nucleo', 'cola.cjs'));
+const respaldo = require(path.join(__dirname, '..', 'electron', 'nucleo', 'respaldo.cjs'));
 
 /** Dos gimnasios de mentira, para no pisar el espejo real de nadie. */
 const GIMNASIO = 'de000000-0000-4000-8000-000000000001';
@@ -156,6 +157,16 @@ app.whenReady().then(() => {
     cola.encolar(acceso('humo-a', '2026-09-06T10:00:00'));
     chequear('el mismo sello no entra dos veces', cola.contar(GIMNASIO) === 2, `${cola.contar(GIMNASIO)} en cola`);
 
+    // ⭐ Y LA COPIA LEGIBLE TAMPOCO PUEDE DUPLICARLO. La primera versión anotaba siempre, así
+    // que el sello repetido de arriba dejaba la línea dos veces en el archivo: la base lo
+    // ignoraba y la copia no. La regla de que un reintento no duplica tiene que valer en los
+    // DOS lados de la línea. Esto solo se ve acá, corriendo contra el SQLite de verdad.
+    const archivoCopia = respaldo.archivoDeHoy(respaldo.donde());
+    const texto = fs.existsSync(archivoCopia) ? fs.readFileSync(archivoCopia, 'utf8') : '';
+    const vecesA = (texto.match(/,humo-a,/g) || []).length;
+    chequear('la copia legible tiene el acceso UNA sola vez', vecesA === 1, `${vecesA} línea(s)`);
+    chequear('y tiene al otro también', (texto.match(/,humo-b,/g) || []).length === 1);
+
     cola.anotarFallo('humo-a', 'Network Error');
     chequear('anota el fallo SIN sacarlo de la cola',
         cola.contar(GIMNASIO) === 2 && cola.pendientes(GIMNASIO)[0].intentos === 1);
@@ -170,6 +181,14 @@ app.whenReady().then(() => {
     espejo.olvidar(GIMNASIO);
     espejo.olvidar(OTRO);
     chequear('limpia lo que ensució', espejo.leer(GIMNASIO).socios.length === 0);
+
+    // ⚠️ Y la copia también: esto escribe en los DOCUMENTOS de una persona de verdad. Dejar
+    // ahí un "José Pérez" de mentira es peor que no probar nada — el día que alguien abra esa
+    // carpeta buscando visitas reales se va a encontrar con las nuestras.
+    try {
+        if (fs.existsSync(archivoCopia)) fs.unlinkSync(archivoCopia);
+    } catch { /* si no se puede borrar, tampoco vale romper la prueba */ }
+    chequear('no deja el archivo de prueba en Documentos', !fs.existsSync(archivoCopia));
 
     nucleoDb.cerrar();
 

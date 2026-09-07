@@ -19,6 +19,7 @@
  */
 
 const { abrir } = require('./db.cjs');
+const respaldo = require('./respaldo.cjs');
 
 /** Tope de la cola. Un mostrador hace decenas de accesos por día; 5000 son semanas. */
 const MAX_EN_COLA = 5000;
@@ -68,10 +69,12 @@ function encolar(item, conexion) {
                     SELECT client_ref FROM cola_accesos ORDER BY ocurrido_en, creado_en LIMIT 1
                 )`).run();
             }
-            db.prepare(INSERT).run(registro);
+            // Devuelve si REALMENTE entró: con `INSERT OR IGNORE`, un sello repetido no
+            // cambia nada, y la copia tiene que enterarse. Ver abajo.
+            return db.prepare(INSERT).run(registro).changes > 0;
         });
 
-        guardar({
+        const entro = guardar({
             client_ref: String(item.clientRef),
             tenant_id: item.tenantId ? String(item.tenantId) : null,
             member_id: String(item.memberId),
@@ -82,6 +85,19 @@ function encolar(item, conexion) {
             ultimo_error: null,
             creado_en: Date.now(),
         });
+
+        // La copia legible, DESPUÉS de que la fila esté guardada y fuera de la transacción.
+        // El orden importa: el dato de verdad es la fila; esto es su respaldo. Y va sin
+        // try/catch acá porque `anotar` ya falla en silencio — si el disco está lleno o la
+        // carpeta es de solo lectura, el acceso se encola igual. Perder la visita por no
+        // poder escribir su respaldo sería exactamente al revés de lo que se busca.
+        //
+        // ⚠️ SOLO SI ENTRÓ DE VERDAD. La primera versión anotaba siempre, y el mismo sello
+        // encolado dos veces dejaba la línea repetida en el archivo — la base lo ignoraba y la
+        // copia no. Lo mostró el humo, que tiene justamente ese caso: la regla de que un
+        // reintento no duplica tiene que valer en los DOS lados de la línea, no en uno.
+        if (entro) respaldo.anotar(item);
+
         return { ok: true, clientRef: String(item.clientRef) };
     } catch (e) {
         console.warn('[Veltronik] No se pudo encolar el acceso:', e.message);
@@ -126,6 +142,31 @@ function contar(tenantId, conexion) {
             : db.prepare('SELECT COUNT(*) AS n FROM cola_accesos').get().n;
     } catch {
         return 0;
+    }
+}
+
+/**
+ * Cuántos esperan Y desde cuándo, en una sola consulta.
+ *
+ * <p><b>La antigüedad importa tanto como el número.</b> "3 pendientes" no dice nada: pueden ser
+ * de hace dos minutos —el vaciado está por correr— o de hace tres semanas, que significa que el
+ * gimnasio viene guardando visitas en un solo disco desde hace tres semanas y nadie se enteró.
+ * El diseño permite acumular 30 días; sin este dato, esos 30 días pasan en silencio.</p>
+ *
+ * <p>`MIN` sobre el texto alcanza: `ocurrido_en` es `YYYY-MM-DDTHH:mm:ss`, que ordena igual
+ * alfabéticamente que cronológicamente. Por eso ese formato y no uno "más lindo".</p>
+ */
+function resumen(tenantId, conexion) {
+    const db = conexion || abrir();
+    if (!db) return { cuantos: 0, masViejo: null };
+    try {
+        const fila = tenantId
+            ? db.prepare(`SELECT COUNT(*) AS n, MIN(ocurrido_en) AS viejo FROM cola_accesos
+                          WHERE tenant_id IS NULL OR tenant_id = ?`).get(String(tenantId))
+            : db.prepare('SELECT COUNT(*) AS n, MIN(ocurrido_en) AS viejo FROM cola_accesos').get();
+        return { cuantos: fila.n, masViejo: fila.viejo || null };
+    } catch {
+        return { cuantos: 0, masViejo: null };
     }
 }
 
@@ -183,4 +224,6 @@ function olvidar(conexion) {
     }
 }
 
-module.exports = { encolar, pendientes, contar, sacar, anotarFallo, olvidar, aVista, MAX_EN_COLA };
+module.exports = {
+    encolar, pendientes, contar, resumen, sacar, anotarFallo, olvidar, aVista, MAX_EN_COLA,
+};

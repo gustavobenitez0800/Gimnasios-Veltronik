@@ -447,6 +447,7 @@ ipcMain.handle('nucleo:boveda-borrar', (_event, clave) => boveda.borrar(clave));
 ipcMain.handle('nucleo:cola-encolar', (_event, item) => cola.encolar(item));
 ipcMain.handle('nucleo:cola-pendientes', (_event, tenantId) => cola.pendientes(tenantId));
 ipcMain.handle('nucleo:cola-contar', (_event, tenantId) => cola.contar(tenantId));
+ipcMain.handle('nucleo:cola-resumen', (_event, tenantId) => cola.resumen(tenantId));
 ipcMain.handle('nucleo:cola-sacar', (_event, clientRef) => cola.sacar(clientRef));
 ipcMain.handle('nucleo:cola-anotar-fallo', (_event, { clientRef, mensaje }) =>
     cola.anotarFallo(clientRef, mensaje));

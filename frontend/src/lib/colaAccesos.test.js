@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   encolar, pendientes, cuantosPendientes, vaciar, esDefinitivo,
-  momentoLocal, disponible, olvidarCola,
+  momentoLocal, disponible, olvidarCola, resumenDeCola,
 } from './colaAccesos';
 
 const GIMNASIO = '11111111-1111-1111-1111-111111111111';
@@ -220,5 +220,60 @@ describe('contar y limpiar', () => {
     await encolar({ memberId: 'm1', clientRef: 'a' });
     await olvidarCola();
     expect(cola.filas()).toHaveLength(0);
+  });
+});
+
+describe('⚠️ desde cuándo esperan, no solo cuántos son', () => {
+  // "3 pendientes" no dice nada: pueden ser de hace dos minutos —el vaciado está por correr—
+  // o de hace tres semanas, y eso segundo significa que el gimnasio viene guardando visitas
+  // en UN SOLO DISCO desde hace tres semanas. El diseño permite acumular 30 días; sin la
+  // antigüedad, esos 30 días pasan en silencio hasta el día que la máquina no arranca.
+
+  /** Fija qué contesta el núcleo, que es lo único que este cálculo consume. */
+  function elNucleoDice(respuesta) {
+    window.electronAPI = { nucleo: { cola: { ...cola, resumen: vi.fn(async () => respuesta) } } };
+  }
+
+  it('con la cola vacía no hay antigüedad que informar', async () => {
+    elNucleoDice({ cuantos: 0, masViejo: null });
+    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
+  });
+
+  it('lo de recién es de hoy: cero días', async () => {
+    elNucleoDice({ cuantos: 1, masViejo: momentoLocal(new Date(Date.now() - 60 * 1000)) });
+    expect((await resumenDeCola()).dias).toBe(0);
+  });
+
+  it('cuenta los días desde lo MÁS VIEJO, que es lo que mide el riesgo', async () => {
+    const hace4Dias = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+    elNucleoDice({ cuantos: 12, masViejo: momentoLocal(hace4Dias) });
+
+    const r = await resumenDeCola();
+
+    expect(r.cuantos).toBe(12);
+    expect(r.dias).toBe(4);
+  });
+
+  it('un momento ilegible no inventa una antigüedad', async () => {
+    // Preferible decir "0 días" que asustar con un número inventado — o peor, mostrar NaN.
+    elNucleoDice({ cuantos: 3, masViejo: 'no-es-una-fecha' });
+    expect(await resumenDeCola()).toEqual({ cuantos: 3, dias: 0 });
+  });
+
+  it('un reloj adelantado no da días negativos', async () => {
+    elNucleoDice({ cuantos: 1, masViejo: momentoLocal(new Date(Date.now() + 60 * 60 * 1000)) });
+    expect((await resumenDeCola()).dias).toBe(0);
+  });
+
+  it('en la web, donde no hay cola, contesta cero sin romperse', async () => {
+    delete window.electronAPI;
+    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
+  });
+
+  it('una versión vieja del núcleo, sin `resumen`, tampoco rompe', async () => {
+    // El escritorio se actualiza solo, pero no todos a la vez: durante un rato hay terminales
+    // con el preload viejo. Pedirle algo que no tiene no puede tumbar la pantalla.
+    window.electronAPI = { nucleo: { cola } };
+    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
   });
 });

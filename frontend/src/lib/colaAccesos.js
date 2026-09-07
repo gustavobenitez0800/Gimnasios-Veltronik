@@ -150,6 +150,36 @@ export async function pendientes(tenantId = orgActual()) {
   }
 }
 
+/**
+ * Cuántos esperan y DESDE CUÁNDO, para poder avisar antes de que sea tarde.
+ *
+ * <p><b>El número solo no alcanza.</b> "3 pendientes" pueden ser de hace dos minutos —el
+ * vaciado está por correr— o de hace tres semanas, que significa que el gimnasio viene
+ * guardando visitas en un solo disco desde hace tres semanas y nadie se enteró. El diseño
+ * permite acumular 30 días; sin la antigüedad, esos 30 días pasan en silencio.</p>
+ *
+ * @returns {Promise<{cuantos: number, dias: number}>} `dias` es la edad de lo más viejo.
+ */
+export async function resumenDeCola(tenantId = orgActual()) {
+  const c = nucleo();
+  if (!c?.resumen) return { cuantos: 0, dias: 0 };
+  try {
+    const { cuantos = 0, masViejo = null } = (await c.resumen(tenantId)) || {};
+    if (!cuantos || !masViejo) return { cuantos, dias: 0 };
+
+    // `masViejo` viene sin zona (`YYYY-MM-DDTHH:mm:ss`), que es hora LOCAL del terminal.
+    // `new Date()` sobre eso la interpreta como local, que es exactamente lo que corresponde:
+    // el reloj con el que se anotó es el mismo con el que se mide.
+    const cuando = new Date(masViejo).getTime();
+    if (!Number.isFinite(cuando)) return { cuantos, dias: 0 };
+
+    const dias = Math.floor((Date.now() - cuando) / (24 * 60 * 60 * 1000));
+    return { cuantos, dias: Math.max(0, dias) };
+  } catch {
+    return { cuantos: 0, dias: 0 };
+  }
+}
+
 /** Cuántos esperan. Para que la pantalla lo pueda decir. */
 export async function cuantosPendientes(tenantId = orgActual()) {
   const c = nucleo();

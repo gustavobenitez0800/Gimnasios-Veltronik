@@ -170,6 +170,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
             pendientes: (tenantId) => ipcRenderer.invoke('nucleo:cola-pendientes', tenantId),
             /** @returns {Promise<number>} */
             contar: (tenantId) => ipcRenderer.invoke('nucleo:cola-contar', tenantId),
+            /**
+             * Cuántos esperan y DESDE CUÁNDO.
+             *
+             * "3 pendientes" no dice nada: pueden ser de hace dos minutos o de hace tres
+             * semanas. El diseño permite acumular 30 días, y sin la antigüedad esos 30 días
+             * pasan en silencio.
+             *
+             * @returns {Promise<{cuantos: number, masViejo: string|null}>}
+             */
+            resumen: (tenantId) => ipcRenderer.invoke('nucleo:cola-resumen', tenantId),
             /** Solo cuando el servidor confirmó o rechazó definitivamente. */
             sacar: (clientRef) => ipcRenderer.invoke('nucleo:cola-sacar', clientRef),
             /** Anota el intento fallido. NO saca nada de la cola. */

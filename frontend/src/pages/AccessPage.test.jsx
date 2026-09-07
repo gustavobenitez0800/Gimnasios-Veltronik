@@ -80,6 +80,13 @@ vi.mock('../components/CheckinQrPanel', () => ({ default: () => null }));
 vi.mock('../components/Layout', () => ({ PageHeader: () => null }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
 
+// La cola: por defecto vacía, que es lo que ve el 99% de los días. Los tests del aviso la
+// cambian para simular un gimnasio que hace días no puede subir nada.
+const colaFalsa = { cuantos: 0, dias: 0 };
+vi.mock('../lib/colaAccesos', () => ({
+  resumenDeCola: async () => ({ ...colaFalsa }),
+}));
+
 const { default: AccessPage } = await import('./AccessPage');
 
 const SOCIO = {
@@ -145,6 +152,8 @@ beforeEach(() => {
   // vería un cartel que no disparó él.
   mostrador.datos = { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null };
   mostrador.refrescos = 0;
+  colaFalsa.cuantos = 0;
+  colaFalsa.dias = 0;
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
@@ -543,5 +552,56 @@ describe('quién está adentro, sin salir del mostrador', () => {
     expect(cuerpo, 'el contenedor de las dos columnas').toBeTruthy();
     expect(cuerpo.querySelector('.checkin-section'), 'el molinete').toBeTruthy();
     expect(cuerpo.querySelector('.access-adentro'), 'quién está adentro').toBeTruthy();
+  });
+});
+
+describe('⚠️ el aviso de la cola escala con los días', () => {
+  // EL RIESGO QUE ESTO CUBRE: un terminal, 30 días de tolerancia, y la cola en UN SOLO DISCO.
+  // Lo que hay ahí son visitas que el gimnasio todavía no tiene en ningún otro lado. Si nadie
+  // avisa, esos 30 días pasan en silencio hasta el día que la máquina no arranca.
+
+  const aviso = () => container.querySelector('.copia-local.is-vieja, .copia-local.is-muy-vieja');
+
+  it('con la cola vacía no hay cartel: uno siempre prendido deja de avisar', async () => {
+    await pintar();
+    expect(aviso()).toBeNull();
+  });
+
+  it('recién guardado dice que se manda solo, porque es verdad', async () => {
+    colaFalsa.cuantos = 2;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    expect(aviso().textContent).toContain('se mandan al volver internet');
+    expect(container.querySelector('.copia-local.is-muy-vieja'),
+      'a los cero días no hay nada que alarmar').toBeNull();
+  });
+
+  it('⭐ a los 3 días DEJA de prometer que se arregla solo y pide que revisen', async () => {
+    // Hasta ahí "se manda al volver internet" tranquiliza bien. Después de tres días ya no
+    // volvió, y seguir diciendo lo mismo es exactamente lo que hace que nadie llame al
+    // proveedor de internet.
+    colaFalsa.cuantos = 47;
+    colaFalsa.dias = 5;
+
+    await pintar();
+
+    const texto = aviso().textContent;
+    expect(container.querySelector('.copia-local.is-muy-vieja'), 'y cambia de tono').toBeTruthy();
+    expect(texto).toContain('5 días');
+    expect(texto, 'que estén en una sola máquina es EL dato').toContain('solo en esta computadora');
+    expect(texto, 'prometer que se arregla solo es lo que hay que dejar de decir')
+      .not.toContain('se mandan al volver internet');
+  });
+
+  it('entre medio dice desde cuándo, sin alarmar todavía', async () => {
+    colaFalsa.cuantos = 3;
+    colaFalsa.dias = 1;
+
+    await pintar();
+
+    expect(aviso().textContent).toContain('desde ayer');
+    expect(container.querySelector('.copia-local.is-muy-vieja')).toBeNull();
   });
 });

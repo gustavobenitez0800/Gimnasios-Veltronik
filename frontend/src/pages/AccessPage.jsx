@@ -28,7 +28,7 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { cuantosPendientes } from '../lib/colaAccesos';
+import { resumenDeCola } from '../lib/colaAccesos';
 import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
 import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
@@ -145,10 +145,24 @@ export default function AccessPage() {
   // Cuántos esperan. Es lo único de la cola que la pantalla muestra, y tiene que estar: una
   // cola invisible es una cola que nadie vacía, y lo que hay adentro son visitas que el
   // gimnasio todavía no tiene en ningún otro lado.
-  const [pendientesCola, setPendientesCola] = useState(0);
+  //
+  // ⚠️ Y DESDE CUÁNDO ESPERAN, que importa tanto como cuántos son. "3 pendientes" pueden ser
+  // de hace dos minutos —el vaciado está por correr— o de hace tres semanas, y eso segundo
+  // significa que el gimnasio viene guardando visitas en UN SOLO DISCO desde hace tres
+  // semanas. El diseño permite acumular 30 días; sin la antigüedad, esos 30 días pasan en
+  // silencio hasta el día que la máquina no arranca.
+  const [cola, setCola] = useState({ cuantos: 0, dias: 0 });
+  const pendientesCola = cola.cuantos;
 
   const contarPendientes = useCallback(async () => {
-    setPendientesCola(await cuantosPendientes());
+    const nuevo = await resumenDeCola();
+    // ⚠️ SE COMPARA POR VALOR, y no es prolijidad. Antes esto era un número, y React descarta
+    // solo un `setState` con el mismo número. Un objeto nuevo en cada refresco nunca es igual
+    // al anterior, así que redibujaba siempre — con un temporizador atrás, la pantalla del
+    // mostrador no paraba nunca. Lo atrapó la suite entera de Acceso, en timeout.
+    setCola((previo) => (
+      previo.cuantos === nuevo.cuantos && previo.dias === nuevo.dias ? previo : nuevo
+    ));
   }, []);
 
   // El VACIADO no vive acá: vive en `<VaciadorDeCola />`, montado a nivel de la app, porque
@@ -538,11 +552,25 @@ export default function AccessPage() {
               que haya algo, con o sin conexión — mientras quede una visita sin subir, el
               gimnasio no la tiene. */}
           {pendientesCola > 0 && (
-            <p className="copia-local is-vieja">
-              <Icon name="wifiOff" size="0.9em" />
+            <p className={`copia-local ${cola.dias >= 3 ? 'is-muy-vieja' : 'is-vieja'}`}>
+              <Icon name={cola.dias >= 3 ? 'alertTriangle' : 'wifiOff'} size="0.9em" />
               <span>
                 {pendientesCola} {pendientesCola === 1 ? 'entrada guardada' : 'entradas guardadas'} sin
-                conexión · se {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet
+                conexión
+                {/* ⚠️ A partir del tercer día el cartel cambia de tono y DEJA DE PROMETER que
+                    se arregla solo. Hasta ahí decir "se manda al volver internet" es cierto y
+                    tranquiliza bien; después de tres días ya no volvió, y seguir diciendo lo
+                    mismo es lo que hace que nadie llame al proveedor. Acá lo único honesto es
+                    decir cuánto hace y que eso está en una sola máquina. */}
+                {cola.dias >= 3 ? (
+                  <> · hace <strong>{cola.dias} días</strong> que no suben. Están solo en esta
+                  computadora: avisá que revisen el internet</>
+                ) : cola.dias >= 1 ? (
+                  <> {cola.dias === 1 ? 'desde ayer' : `hace ${cola.dias} días`} · se{' '}
+                  {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet</>
+                ) : (
+                  <> · se {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet</>
+                )}
               </span>
             </p>
           )}
