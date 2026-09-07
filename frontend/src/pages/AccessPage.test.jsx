@@ -86,9 +86,10 @@ vi.mock('../components/Icon', () => ({ default: () => null }));
 
 // La cola: por defecto vacía, que es lo que ve el 99% de los días. Los tests del aviso la
 // cambian para simular un gimnasio que hace días no puede subir nada.
-const colaFalsa = { cuantos: 0, dias: 0 };
+const colaFalsa = { cuantos: 0, dias: 0, sociosConCobro: [] };
 vi.mock('../lib/colaAccesos', () => ({
-  resumenDeCola: async () => ({ ...colaFalsa }),
+  resumenDeCola: async () => ({ cuantos: colaFalsa.cuantos, dias: colaFalsa.dias }),
+  sociosConCobroPendiente: async () => [...colaFalsa.sociosConCobro],
 }));
 
 const { default: AccessPage } = await import('./AccessPage');
@@ -158,6 +159,7 @@ beforeEach(() => {
   mostrador.refrescos = 0;
   colaFalsa.cuantos = 0;
   colaFalsa.dias = 0;
+  colaFalsa.sociosConCobro = [];
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
@@ -853,5 +855,57 @@ describe('el contador de la cola tampoco afirma la dirección', () => {
 
     const cartel = container.querySelector('.copia-local.is-vieja').textContent;
     expect(cartel).toContain('4 accesos guardados');
+  });
+});
+
+describe('⭐ el socio que pagó sin conexión no queda como moroso a secas', () => {
+  // EL CASO REAL: el socio paga en efectivo con el internet caído, camina hasta la puerta, y
+  // la pantalla lo trata de vencido delante de todos.
+  //
+  // Cobrar corre el vencimiento, pero eso lo hace el SERVIDOR: hasta que el cobro no sube, la
+  // copia local sigue diciendo lo que decía antes.
+  //
+  // ⚠️ Y NO SE ARREGLA CORRIÉNDOLE LA FECHA EN EL ESPEJO. Eso sería una segunda cuenta de la
+  // misma cobertura — el error que este proyecto ya cometió con las fechas y que costó tres
+  // bugs. El número no se toca: se explica al lado por qué está viejo.
+
+  const VENCIDO = { ...SOCIO, situacion: 'VENCIDO', diasVencido: 8, diasRestantes: 0 };
+
+  it('en la búsqueda dice que pagó recién, sin tocar el número', async () => {
+    // DOS resultados a propósito: con uno solo, Enter registra y limpia la lista antes de que
+    // se pueda mirar. Con dos, la pantalla no elige por nadie y la lista queda a la vista.
+    memberService.searchForAccess.mockResolvedValue([VENCIDO, OTRO]);
+    colaFalsa.sociosConCobro = ['m1'];
+
+    await pintar();
+    await tipear('Lurdes');
+    await apretar('Enter');
+
+    const fila = container.querySelector('.search-result-item');
+    expect(fila.textContent).toContain('Pagó recién');
+    expect(fila.textContent, 'el veredicto del servidor NO se corrige: se explica')
+      .toContain('8d vencido');
+  });
+
+  it('y el cartel de la puerta también lo dice', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO]);
+    colaFalsa.sociosConCobro = ['m1'];
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(container.querySelector('.acceso-aviso').textContent)
+      .toContain('se actualiza al volver internet');
+  });
+
+  it('sin cobro esperando, nada de esto aparece', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO, OTRO]);
+
+    await pintar();
+    await tipear('Lurdes');
+    await apretar('Enter');
+
+    expect(container.querySelector('.search-result-item').textContent).not.toContain('Pagó recién');
   });
 });

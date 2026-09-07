@@ -233,14 +233,17 @@ export async function resumenDeCola(tenantId = orgActual()) {
  *
  * @returns {Promise<boolean>}
  */
-export async function tieneCobroPendiente(memberId, tenantId = orgActual()) {
-  if (!memberId || !disponible()) return false;
+export async function sociosConCobroPendiente(tenantId = orgActual()) {
+  if (!disponible()) return [];
   try {
     const lista = await pendientes(tenantId);
-    return lista.some((i) => i.tipo === 'COBRO'
-      && String(i.member_id || i.memberId || '') === String(memberId));
+    return lista
+      .filter((i) => i.tipo === 'COBRO')
+      // El cobro viaja con el nombre que espera el backend (`member_id`), no en camelCase.
+      .map((i) => String(i.member_id || i.memberId || ''))
+      .filter(Boolean);
   } catch {
-    return false;
+    return [];
   }
 }
 

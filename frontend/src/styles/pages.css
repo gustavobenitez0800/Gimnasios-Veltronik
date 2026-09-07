@@ -1323,6 +1323,14 @@
   color: var(--primary-400, #60a5fa);
 }
 
+/* "Pagó recién · el vencimiento se actualiza al volver internet".
+   El número de días de al lado lo corre el SERVIDOR cuando el cobro sube, así que sin internet
+   sigue diciendo lo de antes. Este renglón no lo corrige: lo explica. Ámbar porque le habla a
+   quien atiende —es un estado de la casa, no del socio—, igual que el cartel de la puerta. */
+.member-access-status.is-pagado-sin-subir {
+  color: var(--warning-500, #f59e0b);
+}
+
 /* ============================================
    CARTEL DEL QR — en Accesos
    ============================================

@@ -28,7 +28,7 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { resumenDeCola } from '../lib/colaAccesos';
+import { resumenDeCola, sociosConCobroPendiente } from '../lib/colaAccesos';
 import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
 import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
 import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea } from '../hooks';
@@ -181,7 +181,30 @@ export default function AccessPage() {
   const [cola, setCola] = useState({ cuantos: 0, dias: 0 });
   const pendientesCola = cola.cuantos;
 
+  // ⭐ QUIÉNES PAGARON SIN QUE EL SERVIDOR SE HAYA ENTERADO.
+  //
+  // Cobrar corre el vencimiento, pero eso lo hace el SERVIDOR: sin internet el cobro queda en
+  // la cola y la copia local sigue diciendo lo que decía antes. Sin esto, el socio paga en
+  // efectivo, camina hasta la puerta, y la pantalla lo trata de vencido delante de todos.
+  //
+  // ⚠️ Y NO SE ARREGLA CORRIÉNDOLE LA FECHA EN EL ESPEJO. Eso sería una segunda cuenta de la
+  // misma cobertura, que es el error que este proyecto ya cometió con las fechas y que costó
+  // tres bugs. Acá no se recalcula nada: el veredicto sigue siendo el del servidor —viejo,
+  // pero de una sola fuente— y al lado se aclara por qué está viejo.
+  const [conCobroSinSubir, setConCobroSinSubir] = useState([]);
+  const tieneCobroSinSubir = useCallback(
+    (id) => !!id && conCobroSinSubir.includes(String(id)),
+    [conCobroSinSubir],
+  );
+
   const contarPendientes = useCallback(async () => {
+    const socios = await sociosConCobroPendiente();
+    // Se compara por valor: un array nuevo en cada refresco redibuja siempre, y con un
+    // temporizador atrás la pantalla del mostrador no para nunca. Ya pasó una vez.
+    setConCobroSinSubir((previo) => (
+      previo.length === socios.length && previo.every((v, i) => v === socios[i]) ? previo : socios
+    ));
+
     const nuevo = await resumenDeCola();
     // ⚠️ SE COMPARA POR VALOR, y no es prolijidad. Antes esto era un número, y React descarta
     // solo un `setState` con el mismo número. Un objeto nuevo en cada refresco nunca es igual
@@ -500,8 +523,12 @@ export default function AccessPage() {
         // salía AL MISMO TIEMPO que el cartelón: dos mensajes distintos, del mismo hecho,
         // en dos lugares de la pantalla. El que avisa que alguien se fue sin marcar salida
         // es el único que aporta algo que el resto del aviso no dice.
-        detalle: r?.recuperado && !salio && !rebote
-          ? 'La vez anterior se fue sin marcar salida' : '',
+        // ⭐ Y si pagó y el cobro todavía no subió, eso gana: es lo que explica por qué el
+        // número grande dice lo que dice. Sin esto, alguien que acaba de pagar en efectivo ve
+        // "8 días vencido" en la puerta y el cartel no da ninguna pista de por qué.
+        detalle: tieneCobroSinSubir(member.id)
+          ? 'Pagó recién · se actualiza al volver internet'
+          : (r?.recuperado && !salio && !rebote ? 'La vez anterior se fue sin marcar salida' : ''),
         initials: getInitials(member.fullName),
       });
 
@@ -661,6 +688,16 @@ export default function AccessPage() {
                       {adentro && (
                         <span className="member-access-status is-inside">
                           Adentro desde {new Date(visita.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {/* ⭐ PAGÓ, PERO EL SERVIDOR NO SE ENTERÓ TODAVÍA.
+                          El vencimiento de arriba lo corre el servidor cuando el cobro sube, así
+                          que sin internet sigue diciendo lo que decía antes. Sin este renglón, el
+                          socio paga en efectivo, camina hasta la puerta y la pantalla lo trata de
+                          vencido delante de todos. No se corrige el número: se explica. */}
+                      {tieneCobroSinSubir(member.id) && (
+                        <span className="member-access-status is-pagado-sin-subir">
+                          Pagó recién · el vencimiento se actualiza al volver internet
                         </span>
                       )}
                     </div>
