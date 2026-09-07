@@ -19,7 +19,7 @@
 import { useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { accessService } from '../services';
+import { accessService, paymentService } from '../services';
 import { vaciar, disponible } from '../lib/colaAccesos';
 
 /** Cada cuánto se reintenta si quedó algo. Cinco minutos: nadie está esperando esto. */
@@ -55,6 +55,7 @@ export default function VaciadorDeCola() {
       // todavía no sabe mandar, y tirarlo sería tirar plata.
       const { enviados } = await vaciar({
         ACCESO: (item) => accessService.enviarEncolado(item),
+        COBRO: (item) => paymentService.enviarEncolado(item),
       });
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor

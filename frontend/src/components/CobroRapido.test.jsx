@@ -197,3 +197,29 @@ describe('cobrar la cuota desde Socios', () => {
     expect(texto()).toContain('El vencimiento se actualizó');
   });
 });
+
+describe('⚠️ sin conexión no se promete un vencimiento nuevo', () => {
+  // La cobertura la corre el SERVIDOR cuando el cobro sube. Hasta entonces no se movió nada:
+  // decir "ahora vence el 7 de octubre" —o incluso "el vencimiento se actualizó"— sería
+  // afirmar algo que no pasó. Y calcularlo acá para poder mostrarlo sería una segunda cuenta
+  // de la misma cobertura, que es el error que este proyecto ya cometió con las fechas.
+
+  it('lo dice como lo que es: la plata quedó anotada, el vencimiento no se movió', async () => {
+    await pintar({ onCobrar: async () => ({ encolado: true }) });
+    await confirmar();
+
+    const texto = container.textContent;
+    expect(texto).toContain('sin conexión');
+    expect(texto).toContain('cuando vuelva internet');
+    expect(texto, 'no se afirma que ya se actualizó').not.toContain('El vencimiento se actualizó');
+    expect(texto, 'y no se inventa una fecha').not.toMatch(/Ahora vence el/);
+  });
+
+  it('con conexión sigue diciendo el vencimiento real', async () => {
+    await pintar({ onCobrar: async () => ({ membershipEnd: '2026-10-07T00:00:00' }) });
+    await confirmar();
+
+    expect(container.textContent).toContain('Ahora vence el');
+    expect(container.textContent).not.toContain('sin conexión');
+  });
+});

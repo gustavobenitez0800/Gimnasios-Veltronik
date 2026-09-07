@@ -86,7 +86,7 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
       <Modal
         isOpen={abierto}
         onClose={onCerrar}
-        title="Cobro registrado"
+        title={resultado.encolado ? 'Cobro guardado sin conexión' : 'Cobro registrado'}
         actions={<button className="btn btn-primary" onClick={onCerrar}>Listo</button>}
       >
         <div className="cobro-hecho">
@@ -94,7 +94,15 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
           <p className="cobro-hecho-quien">
             <strong>{socio.fullName}</strong> pagó {formatCurrency(parseFloat(monto) || 0)}
           </p>
-          {resultado.membershipEnd ? (
+          {resultado.encolado ? (
+            /* ⚠️ SIN CONEXIÓN EL VENCIMIENTO TODAVÍA NO SE MOVIÓ, y decir que sí sería
+               mentir. La cobertura la corre el servidor cuando el cobro sube. Lo único
+               cierto en este momento es que la plata entró y que el cobro está guardado. */
+            <p className="cobro-hecho-vence" style={{ color: 'var(--warning-500)' }}>
+              La plata quedó anotada. <strong>El vencimiento se actualiza cuando vuelva
+              internet</strong> — el cobro se manda solo.
+            </p>
+          ) : resultado.membershipEnd ? (
             <p className="cobro-hecho-vence">
               Ahora vence el <strong>{formatDate(resultado.membershipEnd)}</strong>
             </p>

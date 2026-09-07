@@ -25,6 +25,14 @@ public class GymPaymentInputDTO {
     private LocalDateTime periodStart;
     private LocalDateTime periodEnd;
 
+    /**
+     * El sello que genera el terminal antes de intentar mandar el cobro. Permite reintentar
+     * sin cobrar dos veces — y, sobre todo, sin extender la cobertura del socio de nuevo.
+     *
+     * <p>Null en el portal web y en todo lo que se carga con conexión desde antes.</p>
+     */
+    private UUID clientRef;
+
     /** Socio asociado. El frontend lo manda como {@code member_id}. */
     @JsonProperty("member_id")
     private UUID memberId;

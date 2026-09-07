@@ -86,6 +86,9 @@ public class GymPaymentController {
         if (input.getNotes() != null) payment.setNotes(input.getNotes());
         if (input.getPeriodStart() != null) payment.setPeriodStart(input.getPeriodStart());
         if (input.getPeriodEnd() != null) payment.setPeriodEnd(input.getPeriodEnd());
+        // El sello del terminal. Lo usa el service para reconocer un reintento ANTES de tocar
+        // nada — sin esto, un cobro que se reintenta le regala un mes al socio.
+        if (input.getClientRef() != null) payment.setClientRef(input.getClientRef());
         return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(payment)));
     }
 

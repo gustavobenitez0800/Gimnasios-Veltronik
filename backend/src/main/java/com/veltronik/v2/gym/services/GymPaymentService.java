@@ -70,6 +70,28 @@ public class GymPaymentService {
     }
     
     public GymPayment saveForCurrentTenant(GymPayment payment) {
+        // ⭐⭐ ANTES DE TOCAR NADA: ¿ESTE COBRO YA SE GUARDÓ?
+        //
+        // El mostrador puede cobrar sin internet y mandar cuando vuelve. Si el pedido salió,
+        // el servidor lo guardó y la respuesta se perdió en el camino de vuelta, el reintento
+        // llega con el mismo sello — y hay que devolver el que ya está, sin ejecutar nada.
+        //
+        // ⚠️ Y el "sin ejecutar nada" es lo importante, no el registro duplicado.
+        // `aplicarPeriodoDelPlan` arranca el período DONDE TERMINA la cobertura vigente del
+        // socio, así que procesarlo de nuevo arrancaría donde terminó la primera vez: el socio
+        // se lleva 30 días GRATIS y el ingreso queda contado dos veces en el arqueo. Es el
+        // mismo patrón que `AccessLogService.registerScan`, y por el mismo motivo: en esta
+        // clase de operación el daño no es la fila de más, es el efecto lateral.
+        //
+        // Esta consulta es la mitad BARATA de la garantía. La que de verdad garantiza es el
+        // índice único parcial de la V63: entre este SELECT y el INSERT hay una ventana, y dos
+        // vaciados en paralelo pasan por ella.
+        if (payment.getClientRef() != null && payment.getId() == null) {
+            java.util.Optional<GymPayment> yaEstaba = repository.findByTenantIdAndClientRef(
+                    TenantContextHolder.getTenantId(), payment.getClientRef());
+            if (yaEstaba.isPresent()) return yaEstaba.get();
+        }
+
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
         payment.setTenant(tenant);

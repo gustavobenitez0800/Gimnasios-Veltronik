@@ -292,13 +292,21 @@ export default function MembersPage() {
    * que ya costó los días de vencimiento en cinco lugares.</p>
    */
   const cobrarCuota = async ({ planId, monto, metodo }) => {
-    await paymentService.createPayment({
+    const r = await paymentService.createPayment({
       member_id: cobrando.id,
       plan_id: planId,
       amount: monto,
       paymentMethod: (metodo || 'cash').toUpperCase(),
       status: 'PAID',
     });
+
+    // ⚠️ SIN CONEXIÓN NO SE PROMETE UN VENCIMIENTO NUEVO. La cobertura la corre el SERVIDOR,
+    // y hasta que el cobro no suba no se movió nada: decir "ahora vence el 7 de octubre"
+    // —o incluso "el vencimiento se actualizó"— sería afirmar algo que todavía no pasó.
+    // Calcularlo acá para poder mostrarlo sería una segunda cuenta de la misma cobertura,
+    // que es el error que este proyecto ya cometió con las fechas.
+    if (r?.encolado) return { encolado: true };
+
     refresh();
     // Se devuelve el socio ya actualizado para poder mostrar el vencimiento REAL. Si no se
     // puede releer, se devuelve vacío: el modal prefiere no decir nada antes que inventar

@@ -110,6 +110,40 @@ export async function encolar({ memberId, method, memberName, ocurridoEn, tenant
 }
 
 /**
+ * Encola cualquier cosa: un cobro, un alta, un egreso, un cierre.
+ *
+ * <p>Es el hermano genérico de `encolar`, que sabe de accesos y les completa lo suyo. Todo lo
+ * demás pasa por acá: el que llama arma el ítem entero porque cada tipo tiene su forma, y esta
+ * función solo se ocupa de lo que es igual para todos — que haya sucursal y que haya momento.</p>
+ *
+ * <p><b>El sello y el momento se ponen si faltan, no se pisan.</b> Cuando el mostrador intentó
+ * mandar algo online y no llegó respuesta, se encola CON EL MISMO sello con el que salió: si el
+ * servidor llegó a guardarlo, lo reconoce y no lo procesa dos veces. Para un cobro eso no es
+ * una fila de más — es un mes regalado.</p>
+ *
+ * @param {object} item `{tipo, ...lo propio del tipo}`
+ * @returns {Promise<string|null>} el sello, o null si no hay dónde guardarlo
+ */
+export async function encolarPendiente(item) {
+  const c = nucleo();
+  if (!c || !item?.tipo) return null;
+
+  const completo = {
+    ...item,
+    clientRef: item.clientRef || nuevoSello(),
+    tenantId: item.tenantId || orgActual(),
+    ocurridoEn: item.ocurridoEn || momentoLocal(),
+  };
+
+  try {
+    const r = await c.encolar(completo);
+    return r?.ok ? completo.clientRef : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * ⭐ EL MOMENTO, EN LA HORA DEL MOSTRADOR Y SIN ZONA.
  *
  * <p><b>Acá NO va `toISOString()`, y la diferencia da tres horas.</b> Del otro lado
@@ -180,6 +214,33 @@ export async function resumenDeCola(tenantId = orgActual()) {
     return { cuantos, dias: Math.max(0, dias) };
   } catch {
     return { cuantos: 0, dias: 0 };
+  }
+}
+
+/**
+ * ⭐ ¿ESTE SOCIO TIENE UN COBRO ESPERANDO EN LA COLA?
+ *
+ * <p><b>Por qué hace falta, y por qué no se arregla de otra manera.</b> Cobrar corre el
+ * vencimiento del socio, pero eso lo hace el SERVIDOR. Sin internet el cobro queda en la cola y
+ * la copia local sigue diciendo lo que decía antes: el socio paga en efectivo, camina hasta la
+ * puerta, y la pantalla lo trata de vencido.</p>
+ *
+ * <p>La tentación es correrle la fecha en el espejo. <b>Eso sería una segunda cuenta de la
+ * misma cobertura</b>, que es exactamente el error que este proyecto ya cometió con las fechas
+ * y que costó tres bugs. Acá no se recalcula nada: se pregunta a la cola si hay un cobro de ese
+ * socio sin subir, y la pantalla lo dice. El veredicto sigue siendo el del servidor —viejo,
+ * pero de una sola fuente— y al lado se aclara por qué.</p>
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function tieneCobroPendiente(memberId, tenantId = orgActual()) {
+  if (!memberId || !disponible()) return false;
+  try {
+    const lista = await pendientes(tenantId);
+    return lista.some((i) => i.tipo === 'COBRO'
+      && String(i.member_id || i.memberId || '') === String(memberId));
+  } catch {
+    return false;
   }
 }
 
