@@ -72,13 +72,16 @@ class AccessLogServiceTest {
         log.setCheckInAt(entrada);
         when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TENANT, MEMBER))
                 .thenReturn(Optional.of(log));
-        // La consulta CONSCIENTE DEL MOMENTO solo la devuelve si la visita ya habia empezado.
-        // Asi el mock refleja lo que hace la base y no lo que nos gustaria que hiciera.
-        when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
-                eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
+        // La consulta CONSCIENTE DEL MOMENTO solo la devuelve si la visita ya habia empezado
+        // y seguia abierta en ese momento. Asi el mock refleja lo que hace la base y no lo que
+        // nos gustaria que hiciera.
+        when(repo.visitaAbiertaEn(eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
                 .thenAnswer(i -> {
                     LocalDateTime momento = i.getArgument(2);
-                    return momento.isBefore(entrada) ? Optional.empty() : Optional.of(log);
+                    if (momento.isBefore(entrada)) return Optional.empty();
+                    boolean sigueAbiertaEnEseMomento = log.getCheckOutAt() == null
+                            || (log.isAutoClosed() && log.getCheckOutAt().isAfter(momento));
+                    return sigueAbiertaEnEseMomento ? Optional.of(log) : Optional.empty();
                 });
         return log;
     }
@@ -98,8 +101,7 @@ class AccessLogServiceTest {
     private void sinVisitaAbierta() {
         when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TENANT, MEMBER))
                 .thenReturn(Optional.empty());
-        when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
-                eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
+        when(repo.visitaAbiertaEn(eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
                 .thenReturn(Optional.empty());
     }
 

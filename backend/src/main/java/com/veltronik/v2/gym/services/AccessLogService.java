@@ -214,11 +214,24 @@ public class AccessLogService {
         //
         // Para un acceso normal no cambia nada: toda visita ya abierta empezó antes que ahora.
         Optional<AccessLog> abierta = accessLogRepository
-                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
-                        TenantContextHolder.getTenantId(), memberId, now);
+                .visitaAbiertaEn(TenantContextHolder.getTenantId(), memberId, now);
 
         if (abierta.isPresent()) {
             AccessLog log = abierta.get();
+
+            // ⚠️ LA VISITA QUE CERRÓ EL SISTEMA Y ESTE ACCESO CAE ADENTRO.
+            //
+            // Su salida es una ESTIMACIÓN, no la marcó nadie. Este acceso ocurrió dentro de ese
+            // rango, así que es mejor información: es la salida de verdad, y deja de ser
+            // estimada. Sin esto, el mismo día contado en distinto orden de llegada daba
+            // distinta cantidad de visitas — entró 09:00, salió 10:00 y volvió 11:00 son DOS
+            // visitas, pero si el 11:00 llegaba primero quedaban TRES.
+            if (log.getCheckOutAt() != null) {
+                log.setCheckOutAt(now);
+                log.setAutoClosed(false);
+                if (clientRef != null) log.setClientRef(clientRef);
+                return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
+            }
             java.time.Duration desdeEntrada = java.time.Duration.between(log.getCheckInAt(), now);
 
             // (1) Rebote: el mismo gesto contado dos veces.
@@ -367,7 +380,13 @@ public class AccessLogService {
      * lo peor que puede pasar es una duración inflada, no una imposible.</p>
      */
     private LocalDateTime cierreEstimado(LocalDateTime entrada, LocalDateTime now) {
-        LocalDateTime finDelDia = entrada.toLocalDate().atTime(LocalTime.MAX);
+        // ⚠️ 23:59:59 Y NO LocalTime.MAX. LocalTime.MAX es 23:59:59.999999999 —nanosegundos—,
+        // y la columna de Postgres guarda MICROsegundos: al escribirla redondea para arriba y
+        // el instante cae en 00:00:00 DEL DÍA SIGUIENTE. O sea que "no cruza la medianoche" la
+        // cruzaba igual, por un pelo, en todas las visitas que cierra el sistema. En Java las
+        // dos fechas son del mismo día, así que esto solo se ve escribiendo en la base de
+        // verdad: lo encontró la regla 4 contra Postgres, no un test de unidad.
+        LocalDateTime finDelDia = entrada.toLocalDate().atTime(23, 59, 59);
         return finDelDia.isBefore(now) ? finDelDia : now;
     }
 

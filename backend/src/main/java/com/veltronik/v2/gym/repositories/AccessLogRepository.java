@@ -57,8 +57,28 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
      * <p>Para un acceso normal —donde el momento ES ahora— devuelve exactamente lo mismo que
      * la de arriba: toda visita ya abierta empezó antes que ahora.</p>
      */
-    Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtLessThanEqualOrderByCheckInAtDesc(
-            UUID tenantId, UUID memberId, LocalDateTime momento);
+    /**
+     * <p><b>Y también las que cerró el SISTEMA y contienen ese momento.</b> Una visita
+     * {@code autoClosed} tiene una salida <i>estimada</i>, no marcada por nadie. Si después
+     * llega un acceso que cae adentro de ese rango, ese acceso es mejor información que la
+     * estimación: es la salida de verdad. Sin esta mitad, el mismo día contado en distinto
+     * orden de llegada da distinta cantidad de visitas — y "¿vino este socio este mes?" pasa a
+     * depender de cómo estuvo el wifi.</p>
+     *
+     * <p>Una salida marcada de verdad ({@code autoClosed = false}) NO entra: eso ya es un hecho
+     * registrado y un acceso tardío no puede pisarlo.</p>
+     */
+    @Query("""
+            SELECT a FROM AccessLog a
+            WHERE a.tenant.id = :tenantId AND a.member.id = :memberId
+              AND a.checkInAt <= :momento
+              AND (a.checkOutAt IS NULL OR (a.autoClosed = true AND a.checkOutAt > :momento))
+            ORDER BY a.checkInAt DESC
+            LIMIT 1
+            """)
+    Optional<AccessLog> visitaAbiertaEn(@Param("tenantId") UUID tenantId,
+                                        @Param("memberId") UUID memberId,
+                                        @Param("momento") LocalDateTime momento);
 
     /**
      * La primera visita abierta que empezó DESPUÉS de un momento dado.
