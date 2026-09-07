@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Un socio que quiso entrar por el molinete y no pudo (V62).
+ * Un socio que quiso entrar por el molinete y no pudo (V64).
  *
  * <p><b>No es una visita, y por eso no vive en {@link AccessLog}.</b> Esa persona no entró al
  * gimnasio. Guardarlo junto a las visitas obligaría a que toda cuenta de asistencia se acuerde

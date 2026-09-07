@@ -128,8 +128,8 @@ Del lado del backend, la mitad que **recibe**:
 | Recibe el aviso | `POST /api/public/molinete/{token}` — público, sin sesión |
 | Lo procesa | `MolineteService` |
 | Entradas | van a `access_log` con `access_method = FACIAL` |
-| Rechazos | van a `access_denied` (tabla nueva, V62) |
-| Migración | `V62__Molinete_Facial.sql` |
+| Rechazos | van a `access_denied` (tabla nueva, V64) |
+| Migración | `V64__Molinete_Facial.sql` |
 
 Decisiones que quedaron grabadas en el código, cada una con su porqué:
 

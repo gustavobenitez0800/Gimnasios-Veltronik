@@ -1,4 +1,15 @@
--- V62__Molinete_Facial.sql
+-- V64__Molinete_Facial.sql
+--
+-- ⚠️ ESTA MIGRACIÓN ERA LA V62 Y SE RENUMERÓ A V64 (2026-09-07). No es un capricho: la V63
+-- (cobros sin internet) salió antes que esta rama, y `spring.flyway.out-of-order` está en
+-- `false`. Con el número viejo, esta migración YA NO PODÍA APLICARSE sobre una base que ya
+-- tuviera la V63 — Flyway se planta y el backend no arranca.
+--
+-- Renumerarla fue seguro porque NUNCA SE APLICÓ EN NINGUNA BASE: esta rama jamás se deployó
+-- (el historial de deploys tiene solo `main` y `feat/nucleo-local`). La regla que costó un
+-- outage en este proyecto es la otra, y sigue en pie: **nunca renumerar una migración YA
+-- APLICADA**. Si esta rama tarda más y aparecen V64/V65 en `main`, hay que volver a correrla
+-- al número que siga libre, por el mismo motivo y con la misma comprobación.
 --
 -- LA ENTRADA POR MOLINETE.
 --
