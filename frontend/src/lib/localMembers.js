@@ -305,6 +305,32 @@ export async function agregarSocioLocal(socio, tenantId = memoria.tenantId) {
 }
 
 /**
+ * ⭐ LA LISTA DE SOCIOS, PAGINADA, DESDE LA COPIA LOCAL.
+ *
+ * <p><b>Para qué.</b> La pantalla de Socios pide su página al servidor, así que sin internet
+ * quedaba en "Cargando…" para siempre y decía "0 socios registrados". Es la pantalla más usada
+ * del sistema, y un dueño que ve eso con el internet caído concluye —con razón— que el sistema
+ * no anda, por más que el alta y el cobro funcionen por otro lado.</p>
+ *
+ * <p>No hay que traer nada nuevo: la copia local <b>ya tiene todos los socios</b>, con nombre,
+ * documento, estado y vencimiento. Es la misma que usa el buscador de la puerta.</p>
+ *
+ * <p>Devuelve las filas CRUDAS —no la vista del buscador— porque quien llama las convierte con
+ * el mismo mapeo que usa para las del servidor. Una sola forma de leer un socio.</p>
+ *
+ * @returns {{socios: object[], total: number}}
+ */
+export function listarSocios(termino = '', pagina = 0, tamano = 50) {
+  const q = normalizar(termino);
+  const todos = q
+    ? memoria.socios.filter((s) => (s.busqueda || '').includes(q))
+    : memoria.socios;
+
+  const desde = Math.max(0, pagina) * tamano;
+  return { socios: todos.slice(desde, desde + tamano), total: todos.length };
+}
+
+/**
  * Busca en la copia local. INSTANTÁNEO: no toca la red.
  *
  * <p>Coincide por nombre, apellido o documento, sin tildes ni mayúsculas. Los que empiezan

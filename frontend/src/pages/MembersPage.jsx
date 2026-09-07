@@ -334,13 +334,21 @@ export default function MembersPage() {
         data.id = modal.editingId;
       }
       
-      await saveMember(data);
+      const guardado = await saveMember(data);
       // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador.
       // `refresh` pide de nuevo la MISMA vista que se está mirando; guardar ya marcó viejas
       // las demás páginas, que también dejaron de ser ciertas.
       refresh();
       
-      showToast(`${memberLabel} guardado exitosamente`, 'success');
+      // ⚠️ SIN CONEXIÓN NO SE DICE "GUARDADO EXITOSAMENTE". Está guardado acá, no en el
+      // servidor: quien atiende tiene que saber que todavía falta que suba, igual que en el
+      // cobro y en la entrada. Es la misma regla en la tercera pantalla.
+      showToast(
+        guardado?.encolado
+          ? `${memberLabel} guardado sin conexión · se manda al volver internet`
+          : `${memberLabel} guardado exitosamente`,
+        guardado?.encolado ? 'warning' : 'success',
+      );
       modal.close();
     } catch (error) {
       showToast(error.message || errorService.getMessage(error), 'error');

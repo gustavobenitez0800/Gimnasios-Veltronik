@@ -103,8 +103,13 @@ export async function encolar({ memberId, method, memberName, ocurridoEn, tenant
 
   try {
     const r = await c.encolar(item);
-    return r?.ok ? item.clientRef : null;
-  } catch {
+    if (r?.ok) return item.clientRef;
+    // Por el mismo motivo que en `encolarPendiente`: sin esto, un rechazo de la cola se
+    // convierte en un "Network Error" que no explica nada.
+    console.warn('[Veltronik] No se pudo encolar el acceso:', r?.motivo || 'sin motivo');
+    return null;
+  } catch (e) {
+    console.warn('[Veltronik] Falló el encolado del acceso:', e?.message || e);
     return null;
   }
 }
@@ -137,8 +142,22 @@ export async function encolarPendiente(item) {
 
   try {
     const r = await c.encolar(completo);
-    return r?.ok ? completo.clientRef : null;
-  } catch {
+    if (r?.ok) return completo.clientRef;
+
+    // ⚠️ SE AVISA POR QUÉ, Y NO ES UN DETALLE DE PROLIJIDAD.
+    //
+    // Devolver null a secas hace que quien llama caiga al pedido de red, falle, y muestre
+    // "Network Error" — un cartel que no tiene NADA que ver con el motivo real. Pasó de
+    // verdad con la primera alta sin conexión: el proceso principal de Electron todavía
+    // tenía la cola vieja (Ctrl+R recarga la pantalla pero NO el proceso principal), esa
+    // versión exigía `memberId`, y un alta no tiene. Rechazaba en silencio.
+    //
+    // El motivo lo sabe la cola. Que llegue hasta acá es la diferencia entre diez minutos y
+    // una tarde.
+    console.warn('[Veltronik] No se pudo encolar:', r?.motivo || 'sin motivo', completo.tipo);
+    return null;
+  } catch (e) {
+    console.warn('[Veltronik] Falló el encolado:', e?.message || e);
     return null;
   }
 }

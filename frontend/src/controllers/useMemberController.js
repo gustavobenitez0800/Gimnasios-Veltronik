@@ -170,7 +170,10 @@ export function useMemberController(initialPageSize = 25) {
         ? await memberService.updateMember(memberData.id, dto)
         : await memberService.createMember(dto);
       invalidarDerivados();
-      return fromApi(saved);
+      // `encolado` no es un campo del socio: es cómo terminó el guardado, y `fromApi` —que
+      // traduce socios— lo perdería. La pantalla lo necesita para no decir "guardado
+      // exitosamente" cuando todavía está esperando para subir.
+      return { ...fromApi(saved), encolado: saved?.encolado === true };
     } catch (err) {
       console.error('Error saving member:', err);
       // El backend manda el motivo real (DNI repetido, etc.); sin él el toast dice cualquier cosa.
