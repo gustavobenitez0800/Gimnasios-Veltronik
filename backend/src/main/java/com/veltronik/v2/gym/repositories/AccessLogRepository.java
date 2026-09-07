@@ -61,6 +61,21 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
             UUID tenantId, UUID memberId, LocalDateTime momento);
 
     /**
+     * La primera visita abierta que empezó DESPUÉS de un momento dado.
+     *
+     * <p><b>El caso que cubre: nadie está adentro dos veces.</b> Un acceso atrasado que no
+     * encuentra visita abierta en su momento abriría una nueva — pero si el socio ya tiene otra
+     * visita abierta más tarde, quedan DOS a la vez y aparece dos veces en "quién está adentro".
+     * Además de verse mal, infla las visitas del mes, que es el número con el que el dueño
+     * decide a quién llamar.</p>
+     *
+     * <p>Se ordena <b>ascendente</b> a propósito: la que interesa es la que sigue inmediatamente,
+     * porque es ahí donde termina la visita que el acceso atrasado viene a abrir.</p>
+     */
+    Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtGreaterThanOrderByCheckInAtAsc(
+            UUID tenantId, UUID memberId, LocalDateTime momento);
+
+    /**
      * Visitas que quedaron abiertas con la entrada anterior a {@code limite} — las que el socio
      * nunca cerró. Las busca el cierre nocturno.
      *

@@ -250,7 +250,34 @@ public class AccessLogService {
             return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
         }
 
-        return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now, clientRef), Direction.ENTRADA, false);
+        // ⚠️ NADIE ESTÁ ADENTRO DOS VECES.
+        //
+        // No había visita abierta en este momento, así que corresponde abrir una. Pero el socio
+        // puede tener otra visita abierta MÁS TARDE: pasa cuando un acceso atrasado llega
+        // después de que ya se registró uno nuevo. Abrir la segunda sin más lo deja con dos
+        // visitas abiertas a la vez — aparece dos veces en "quién está adentro", y sus visitas
+        // del mes quedan infladas.
+        //
+        // La visita que este acceso abre termina donde empieza la siguiente. Es lo que habría
+        // pasado si los accesos hubieran llegado en orden: el de las 10:01 habría sido la
+        // salida del de las 09:17. Va marcada como autoClosed porque la salida la dedujo el
+        // sistema y no la marcó nadie, que es exactamente lo que esa marca significa.
+        Optional<AccessLog> posterior = accessLogRepository
+                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtGreaterThanOrderByCheckInAtAsc(
+                        TenantContextHolder.getTenantId(), memberId, now);
+
+        AccessLog abierta2 = abrirVisita(member, method, checkinPointId, scannerId, now, clientRef);
+        if (posterior.isPresent()) {
+            // Acotado por el cierre estimado para no cruzar la medianoche: si la visita de más
+            // adelante es de otro día, cerrar contra ella grabaría una visita de 25 horas.
+            abierta2.setCheckOutAt(cierreEstimado(now, posterior.get().getCheckInAt()));
+            abierta2.setAutoClosed(true);
+            abierta2 = accessLogRepository.save(abierta2);
+        }
+
+        // `recuperado` queda en false a propósito: el mostrador lo traduce a "la vez anterior se
+        // fue sin marcar salida", y acá no pasó eso.
+        return new ScanResult(abierta2, Direction.ENTRADA, false);
     }
 
     /**

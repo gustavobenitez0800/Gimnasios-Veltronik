@@ -83,6 +83,18 @@ class AccessLogServiceTest {
         return log;
     }
 
+    /**
+     * El socio ya tiene una visita abierta que empezó DESPUÉS — el caso del acceso atrasado que
+     * llega cuando ya se registró uno nuevo. El mock solo la devuelve para momentos anteriores a
+     * ella, igual que la consulta de verdad.
+     */
+    private void visitaPosteriorAbierta(AccessLog log, LocalDateTime entrada) {
+        when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtGreaterThanOrderByCheckInAtAsc(
+                eq(TENANT), eq(MEMBER), any(LocalDateTime.class)))
+                .thenAnswer(i -> i.getArgument(2, LocalDateTime.class).isBefore(entrada)
+                        ? Optional.of(log) : Optional.empty());
+    }
+
     private void sinVisitaAbierta() {
         when(repo.findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(TENANT, MEMBER))
                 .thenReturn(Optional.empty());
@@ -355,6 +367,51 @@ class AccessLogServiceTest {
                     "en ese momento el socio no estaba adentro: es una entrada, no una salida");
             assertNull(posterior.getCheckOutAt(),
                     "la visita posterior no se toca: nadie puede salir antes de haber entrado");
+        }
+
+        @Test
+        @DisplayName("⚠️ y tampoco lo deja adentro DOS VECES: la visita vieja nace cerrada")
+        void elAccesoViejoNoDejaDosVisitasAbiertas() {
+            // LO VIO EL DUEÑO EN LA PANTALLA: "pero aparece 2 veces gustavo benitez en el
+            // gimnasio ahora". No alcanzaba con no romper la visita posterior — al abrir la
+            // suya, el socio quedaba con dos visitas abiertas a la vez.
+            //
+            // Además de verse mal, INFLA las visitas del mes, que es el número con el que el
+            // dueño decide a quién llamar. La visita que abre este acceso termina donde empieza
+            // la siguiente: es lo que habría pasado si hubieran llegado en orden.
+            LocalDateTime entroDespues = LocalDateTime.now().minusMinutes(10);
+            AccessLog posterior = visitaAbiertaDesde(entroDespues);
+            visitaPosteriorAbierta(posterior, entroDespues);
+            LocalDateTime accesoViejo = LocalDateTime.now().minusMinutes(45);
+
+            var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), accesoViejo);
+
+            assertEquals(AccessLogService.Direction.ENTRADA, r.direction(),
+                    "sigue siendo una entrada: en ese momento el socio no estaba adentro");
+            assertEquals(entroDespues, r.log().getCheckOutAt(),
+                    "termina donde empieza la siguiente, o quedan dos visitas abiertas a la vez");
+            assertTrue(r.log().isAutoClosed(),
+                    "esa salida la dedujo el sistema y no la marcó nadie: va marcada");
+            assertNull(posterior.getCheckOutAt(), "la visita posterior sigue intacta");
+            assertFalse(r.recuperado(),
+                    "el mostrador traduce recuperado a 'la vez anterior se fue sin marcar salida', y acá es falso");
+        }
+
+        @Test
+        @DisplayName("y si la siguiente visita es de otro día, la vieja no cruza la medianoche")
+        void laVisitaViejaNoCruzaLaMedianoche() {
+            // Sin acotar, cerrar contra una visita del día siguiente graba una visita de 25
+            // horas. Fechas de calendario explícitas a propósito: con horas relativas a now()
+            // este test se cae solo en la madrugada, cuando "hace 20 horas" sigue siendo hoy.
+            LocalDateTime anoche = java.time.LocalDate.now().minusDays(1).atTime(23, 50);
+            LocalDateTime estaMadrugada = java.time.LocalDate.now().atTime(0, 30);
+            AccessLog posterior = visitaAbiertaDesde(estaMadrugada);
+            visitaPosteriorAbierta(posterior, estaMadrugada);
+
+            var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), anoche);
+
+            assertEquals(anoche.toLocalDate(), r.log().getCheckOutAt().toLocalDate(),
+                    "se cierra el mismo día en que entró: lo peor posible es una duración inflada, no una imposible");
         }
 
         @Test
