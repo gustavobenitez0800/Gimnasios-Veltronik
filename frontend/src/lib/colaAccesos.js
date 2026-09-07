@@ -76,6 +76,9 @@ export async function encolar({ memberId, method, memberName, ocurridoEn, tenant
   if (!c || !memberId) return null;
 
   const item = {
+    // Qué es esto. La cola es una sola y guarda de todo —accesos, cobros, altas, egresos,
+    // cierres—; el tipo es lo que decide a qué endpoint va al vaciarse. Ver cola.cjs.
+    tipo: 'ACCESO',
     // El sello puede venir de afuera: cuando el mostrador intentó mandarlo online y no
     // llegó respuesta, se encola CON EL MISMO sello con el que salió. Si el servidor
     // llegó a guardarlo, el índice único lo reconoce y no lo procesa dos veces. Sin esto,
@@ -207,24 +210,52 @@ export function esDefinitivo(status) {
 /**
  * Manda lo que haya, en orden y de a uno.
  *
- * @param {(item: object) => Promise<any>} enviar  manda UN acceso. Debe rechazar con un
- *        error que traiga `response.status` cuando el servidor haya contestado.
- * @returns {Promise<{enviados: number, quedan: number, descartados: number}>}
+ * <p><b>⭐ EL ORDEN ES DE LA COLA ENTERA, SIN MIRAR EL TIPO.</b> Es lo que hace que el alta de
+ * un socio suba antes que el cobro a ese socio: si se mandaran por separado —los accesos por un
+ * lado, los cobros por otro— el servidor podría recibir un cobro de alguien que para él todavía
+ * no existe. Por eso la cola es una sola y esta función recorre esa lista y no varias.</p>
+ *
+ * @param {object|Function} enviadores  un objeto `{ACCESO: fn, COBRO: fn, …}` que dice cómo se
+ *        manda cada tipo. Cada `fn` recibe UN ítem y debe rechazar con un error que traiga
+ *        `response.status` cuando el servidor haya contestado. Se acepta también una función
+ *        suelta, que se toma como el enviador de ACCESO.
+ * @returns {Promise<{enviados: number, quedan: number, descartados: number, sinEnviador: number}>}
  */
-export async function vaciar(enviar, tenantId = orgActual()) {
+export async function vaciar(enviadores, tenantId = orgActual()) {
   const c = nucleo();
-  if (!c) return { enviados: 0, quedan: 0, descartados: 0 };
+  if (!c) return { enviados: 0, quedan: 0, descartados: 0, sinEnviador: 0 };
+
+  const porTipo = typeof enviadores === 'function' ? { ACCESO: enviadores } : (enviadores || {});
 
   // Regla 3: un solo vaciado a la vez. Sin esto, dos tandas en paralelo pueden mandar la
   // salida antes que la entrada y dejar al socio invertido.
-  if (candado) return { enviados: 0, quedan: await cuantosPendientes(tenantId), descartados: 0 };
+  if (candado) {
+    return { enviados: 0, quedan: await cuantosPendientes(tenantId), descartados: 0, sinEnviador: 0 };
+  }
   candado = true;
 
   let enviados = 0;
   let descartados = 0;
+  let sinEnviador = 0;
   try {
     const lista = await pendientes(tenantId);
     for (const item of lista) {
+      const enviar = porTipo[item.tipo || 'ACCESO'];
+
+      // ⚠️ UN TIPO SIN ENVIADOR SE QUEDA, NO SE TIRA.
+      //
+      // Pasa de verdad durante una actualización: el escritorio se actualiza solo pero no
+      // todos a la vez, así que un terminal con la versión vieja puede encontrarse en la cola
+      // un COBRO que su código todavía no sabe mandar. Descartarlo sería tirar plata; mandarlo
+      // al endpoint equivocado, peor. Se queda esperando a la versión que sí sabe.
+      //
+      // ⛔ Y CORTA LA TANDA. Saltearlo y seguir con el siguiente rompería el orden, que es
+      // justo lo que esta cola existe para garantizar.
+      if (typeof enviar !== 'function') {
+        sinEnviador = lista.length - enviados - descartados;
+        break;
+      }
+
       try {
         await enviar(item);
         await c.sacar(item.clientRef);
@@ -247,7 +278,7 @@ export async function vaciar(enviar, tenantId = orgActual()) {
   } finally {
     candado = false;
   }
-  return { enviados, quedan: await cuantosPendientes(tenantId), descartados };
+  return { enviados, quedan: await cuantosPendientes(tenantId), descartados, sinEnviador };
 }
 
 /** ¿Hay algo que viene fallando hace rato? La pantalla lo usa para avisar de verdad. */

@@ -277,3 +277,96 @@ describe('⚠️ desde cuándo esperan, no solo cuántos son', () => {
     expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
   });
 });
+
+describe('⭐ una sola cola, y el orden vale ENTRE TIPOS', () => {
+  // Es la razón de ser de la cola general, y sale de una decisión del dueño: se puede dar de
+  // alta a un socio Y COBRARLE en el mismo acto sin internet.
+  //
+  // Si cada tipo tuviera su cola, el servidor podría recibir el cobro de alguien que para él
+  // todavía no existe. Dos tablas no pueden garantizar un orden entre sí; una sola, ordenada
+  // por el momento real, sí.
+
+  it('manda cada tipo por su enviador, en el orden en que ocurrieron', async () => {
+    await encolar({ memberId: 'm1', clientRef: 'acc', ocurridoEn: '2026-09-07T10:02:00' });
+    // Se meten a mano porque el encolador de cobros todavía no existe: lo que se prueba acá
+    // es el VACIADO, no quién los puso.
+    cola.filas().push(
+      { clientRef: 'alta', tipo: 'ALTA', ocurridoEn: '2026-09-07T10:00:00', creadoEn: 1 },
+      { clientRef: 'cobro', tipo: 'COBRO', ocurridoEn: '2026-09-07T10:01:00', creadoEn: 2 },
+    );
+
+    const orden = [];
+    const r = await vaciar({
+      ACCESO: async (i) => orden.push(`ACCESO:${i.clientRef}`),
+      ALTA: async (i) => orden.push(`ALTA:${i.clientRef}`),
+      COBRO: async (i) => orden.push(`COBRO:${i.clientRef}`),
+    });
+
+    expect(orden, 'el alta ANTES que el cobro a ese socio')
+      .toEqual(['ALTA:alta', 'COBRO:cobro', 'ACCESO:acc']);
+    expect(r.enviados).toBe(3);
+  });
+
+  it('sin tipo se trata como ACCESO: la cola vieja sigue funcionando', async () => {
+    cola.filas().push({ clientRef: 'viejo', ocurridoEn: '2026-09-07T10:00:00', creadoEn: 1 });
+
+    const vistos = [];
+    await vaciar({ ACCESO: async (i) => vistos.push(i.clientRef) });
+
+    expect(vistos).toEqual(['viejo']);
+  });
+
+  it('una función suelta se toma como el enviador de accesos', async () => {
+    await encolar({ memberId: 'm1', clientRef: 'a1', ocurridoEn: '2026-09-07T10:00:00' });
+
+    const vistos = [];
+    await vaciar(async (i) => vistos.push(i.clientRef));
+
+    expect(vistos).toEqual(['a1']);
+  });
+});
+
+describe('⚠️ un tipo sin enviador se queda, y CORTA la tanda', () => {
+  // Pasa de verdad durante una actualización: el escritorio se actualiza solo pero no todos a
+  // la vez, así que un terminal con la versión vieja puede encontrarse en la cola un COBRO que
+  // su código todavía no sabe mandar.
+
+  it('no lo descarta: tirarlo sería tirar plata', async () => {
+    // Con los mismos campos que pone la cola de verdad — `intentos` incluido, que es lo que
+    // este test mira.
+    cola.filas().push({
+      clientRef: 'cobro', tipo: 'COBRO', ocurridoEn: '2026-09-07T10:00:00',
+      creadoEn: 1, intentos: 0, ultimoError: null,
+    });
+
+    const r = await vaciar({ ACCESO: async () => {} });
+
+    expect(r.enviados).toBe(0);
+    expect(r.descartados, 'no se tira lo que no se sabe mandar').toBe(0);
+    expect(r.sinEnviador).toBe(1);
+    expect(cola.filas(), 'se queda esperando a la versión que sí sabe').toHaveLength(1);
+
+    // ⭐ Y NO CUENTA COMO FALLO. Sin la compuerta, llamar a un enviador inexistente tira un
+    // TypeError que el vaciado toma por un problema de red: le suma un intento y le guarda un
+    // error. A los pocos arranques el terminal estaría gritando "algo viene fallando hace
+    // rato" por algo que no falló nunca — solo es un tipo que esta versión todavía no maneja.
+    expect(cola.filas()[0].intentos, 'no es un fallo: es un tipo que esta versión no maneja').toBe(0);
+    expect(cola.filas()[0].ultimoError).toBeFalsy();
+  });
+
+  it('⛔ y no se saltea al siguiente: saltearlo rompería el orden', async () => {
+    // Es la regla que la cola existe para garantizar. Mandar el acceso de las 10:05 dejando
+    // atrás el cobro de las 10:00 es exactamente el desorden que se quiere evitar.
+    cola.filas().push(
+      { clientRef: 'cobro', tipo: 'COBRO', ocurridoEn: '2026-09-07T10:00:00', creadoEn: 1 },
+      { clientRef: 'acc', tipo: 'ACCESO', ocurridoEn: '2026-09-07T10:05:00', creadoEn: 2 },
+    );
+
+    const vistos = [];
+    const r = await vaciar({ ACCESO: async (i) => vistos.push(i.clientRef) });
+
+    expect(vistos, 'el acceso de después NO puede adelantarse').toEqual([]);
+    expect(r.enviados).toBe(0);
+    expect(cola.filas()).toHaveLength(2);
+  });
+});

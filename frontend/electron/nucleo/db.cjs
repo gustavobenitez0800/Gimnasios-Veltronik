@@ -113,33 +113,46 @@ CREATE TABLE IF NOT EXISTS espejo_estado (
     socios       INTEGER NOT NULL DEFAULT 0
 );
 
--- ── LA COLA: lo que pasó en la puerta y el servidor todavía no sabe ──
+-- ── LA COLA: lo que pasó en el mostrador y el servidor todavía no sabe ──
 --
 -- Es la única tabla de este archivo que contiene algo que NO está en ningún otro lado. El
--- espejo se puede perder y se vuelve a bajar; una visita que está acá y se pierde, se
--- perdió para siempre. Por eso la base va en synchronous = FULL: acá adentro hay datos
--- del gimnasio que todavía no tiene nadie más.
+-- espejo se puede perder y se vuelve a bajar; una visita —o un cobro— que está acá y se
+-- pierde, se perdió para siempre. Por eso la base va en synchronous = FULL: acá adentro
+-- hay datos del gimnasio que todavía no tiene nadie más.
+--
+-- ⭐ UNA SOLA COLA PARA TODOS LOS TIPOS, Y ES UNA DECISIÓN, NO UNA COMODIDAD.
+-- Nació siendo cola_accesos. La fase 3 agrega cobros, altas, egresos y cierres, y el
+-- dueño decidió que se pueda dar de alta a un socio Y COBRARLE en el mismo acto sin
+-- internet. Eso obliga a que el orden valga ENTRE TIPOS DISTINTOS: el alta del socio X
+-- tiene que subir antes que el cobro al socio X, o el servidor recibe un cobro de alguien
+-- que para él no existe. Dos tablas no pueden garantizar un orden entre sí; una sola,
+-- ordenada por el momento real, sí. Ver docs/FASE3-CAMINOS.md.
 --
 -- client_ref es la CLAVE PRIMARIA y no un campo más. Es el mismo UUID que viaja al
--- servidor, donde un índice único parcial por tenant (V54) lo rechaza si ya lo vio. Que
--- acá sea la primary key significa que encolar dos veces el mismo acceso es imposible en
--- los dos extremos de la línea, no solo en uno.
-CREATE TABLE IF NOT EXISTS cola_accesos (
+-- servidor, donde un índice único parcial por tenant lo rechaza si ya lo vio (V54 para
+-- accesos, V63 para cobros y movimientos de caja). Que acá sea la primary key significa
+-- que encolar dos veces lo mismo es imposible en los dos extremos de la línea.
+CREATE TABLE IF NOT EXISTS cola (
     client_ref   TEXT PRIMARY KEY,
 
-    -- DE QUÉ GIMNASIO es este acceso. La cola es de la MÁQUINA, pero cada acceso es de un
+    -- ACCESO | COBRO | ALTA | EGRESO | CIERRE. Decide a qué endpoint va y con qué forma.
+    tipo         TEXT NOT NULL,
+
+    -- DE QUÉ GIMNASIO es. La cola es de la MÁQUINA, pero cada cosa encolada es de un
     -- gimnasio: sin esto, otra sucursal entrando en el mismo terminal mandaría estas
-    -- visitas a su propio negocio.
+    -- visitas —o estos cobros— a su propio negocio.
     tenant_id    TEXT,
 
-    member_id    TEXT NOT NULL,
-    member_name  TEXT,
-    method       TEXT NOT NULL DEFAULT 'manual',
-
-    -- CUÁNDO PASÓ, según el reloj del terminal. El servidor evalúa la dirección contra
-    -- este instante y no contra el momento en que le llega. Sin esto, la salida de un
-    -- socio que sube tarde se lee como visita abandonada y abre una entrada nueva.
+    -- CUÁNDO PASÓ, según el reloj del terminal. El servidor evalúa contra este instante y
+    -- no contra el momento en que le llega. Sin esto, la salida de un socio que sube tarde
+    -- se lee como visita abandonada, y un cierre hecho a las 22:00 que sube a las 09:00
+    -- barrería las ventas de la mañana siguiente.
     ocurrido_en  TEXT NOT NULL,
+
+    -- Lo propio de cada tipo, en JSON. Va acá y no en columnas porque cada tipo tiene su
+    -- forma y agregar un tipo nuevo no puede obligar a migrar la base de todos los
+    -- clientes. Lo que SÍ es columna es lo que se consulta: el gimnasio y el momento.
+    payload      TEXT NOT NULL,
 
     intentos     INTEGER NOT NULL DEFAULT 0,
     ultimo_error TEXT,
@@ -150,8 +163,74 @@ CREATE TABLE IF NOT EXISTS cola_accesos (
 
 -- El orden de vaciado. Por el momento REAL, no por el de encolado: es lo único que
 -- garantiza que reproducir la cola dé el mismo resultado que si hubiera habido internet.
-CREATE INDEX IF NOT EXISTS ix_cola_accesos_orden ON cola_accesos (tenant_id, ocurrido_en, creado_en);
+CREATE INDEX IF NOT EXISTS ix_cola_orden ON cola (tenant_id, ocurrido_en, creado_en);
 `;
+
+/**
+ * Pasa lo que quedó en la cola vieja de accesos a la cola general. Una sola vez.
+ *
+ * <p><b>Por qué esto existe y por qué es delicado.</b> En los terminales que ya están
+ * instalados puede haber visitas esperando en `cola_accesos`. Eso es lo único de todo el
+ * archivo que no se puede volver a bajar de ningún lado: si esta función las pierde, el
+ * gimnasio pierde entradas que registró de verdad.</p>
+ *
+ * <p><b>La trampa que resuelve el renombre.</b> Copiar con `INSERT OR IGNORE` es idempotente
+ * mirando UNA corrida, pero no mirando la vida del terminal: una fila que se copió, se subió
+ * y se sacó de la cola volvería a aparecer en el próximo arranque, porque el original sigue
+ * en la tabla vieja. Se resubiría para siempre. Por eso, al terminar, la tabla vieja se
+ * RENOMBRA: la copia deja de tener de dónde repetirse.</p>
+ *
+ * <p><b>Y no se borra.</b> Se queda como `cola_accesos_migrada`, ocupando nada, hasta que
+ * haga falta el espacio. Es un dato irreemplazable: primero se comprueba que la copia salió
+ * bien en máquinas de verdad, y recién después se piensa en borrarla.</p>
+ */
+function migrarColaVieja(conexion) {
+    const vieja = conexion.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='cola_accesos'",
+    ).get();
+    if (!vieja) return { migradas: 0 };
+
+    const paso = conexion.transaction(() => {
+        const antes = conexion.prepare('SELECT COUNT(*) AS n FROM cola_accesos').get().n;
+
+        conexion.prepare(`
+            INSERT OR IGNORE INTO cola
+                (client_ref, tipo, tenant_id, ocurrido_en, payload, intentos, ultimo_error, creado_en)
+            SELECT client_ref, 'ACCESO', tenant_id, ocurrido_en,
+                   json_object('memberId', member_id, 'memberName', member_name, 'method', method),
+                   intentos, ultimo_error, creado_en
+            FROM cola_accesos
+        `).run();
+
+        // Se comprueba ANTES de renombrar. Si por lo que sea no entraron todas, la tabla
+        // vieja se queda donde está y el próximo arranque lo vuelve a intentar: es preferible
+        // reintentar para siempre antes que renombrar sobre una copia incompleta.
+        const copiadas = conexion.prepare(`
+            SELECT COUNT(*) AS n FROM cola_accesos v
+            WHERE EXISTS (SELECT 1 FROM cola c WHERE c.client_ref = v.client_ref)
+        `).get().n;
+
+        if (copiadas < antes) {
+            throw new Error(`la copia quedó incompleta (${copiadas} de ${antes})`);
+        }
+
+        conexion.prepare('ALTER TABLE cola_accesos RENAME TO cola_accesos_migrada').run();
+        return antes;
+    });
+
+    try {
+        const migradas = paso();
+        if (migradas > 0) {
+            console.log(`[Veltronik] Cola: ${migradas} accesos pasados a la cola general.`);
+        }
+        return { migradas };
+    } catch (e) {
+        // Que falle no puede impedir que la app abra: la cola vieja sigue intacta y se
+        // reintenta en el próximo arranque. Lo que NO puede pasar es perderla.
+        console.warn('[Veltronik] No se pudo migrar la cola vieja:', e.message);
+        return { migradas: 0, error: e.message };
+    }
+}
 
 /** ¿Hay base local en esta máquina? */
 function disponible() {
@@ -196,6 +275,10 @@ function abrir() {
 
         conexion.exec(ESQUEMA);
 
+        // Después del esquema y antes de devolver la conexión: nadie puede leer la cola
+        // hasta que lo que estaba en la vieja esté adentro de la nueva.
+        migrarColaVieja(conexion);
+
         db = conexion;
         return db;
     } catch (e) {
@@ -223,4 +306,4 @@ function cerrar() {
     }
 }
 
-module.exports = { abrir, cerrar, disponible, porQueNo, ruta, ESQUEMA };
+module.exports = { abrir, cerrar, disponible, porQueNo, ruta, ESQUEMA, migrarColaVieja };

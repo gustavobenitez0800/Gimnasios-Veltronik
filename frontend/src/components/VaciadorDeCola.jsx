@@ -47,7 +47,15 @@ export default function VaciadorDeCola() {
     if (!orgId) return;
 
     try {
-      const { enviados } = await vaciar((item) => accessService.enviarEncolado(item));
+      // Un enviador por tipo. Hoy la cola solo guarda accesos; los cobros, altas y egresos
+      // se van sumando acá a medida que se construyen (ver docs/FASE3-CAMINOS.md).
+      //
+      // ⚠️ Lo que NO tiene enviador se queda en la cola y corta la tanda, no se descarta:
+      // durante una actualización un terminal viejo puede encontrarse un tipo que su código
+      // todavía no sabe mandar, y tirarlo sería tirar plata.
+      const { enviados } = await vaciar({
+        ACCESO: (item) => accessService.enviarEncolado(item),
+      });
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor
         // mirando el estado del socio en el momento en que ocurrió. Llamarle "entrada" a lo

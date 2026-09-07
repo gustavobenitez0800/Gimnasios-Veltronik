@@ -176,6 +176,86 @@ app.whenReady().then(() => {
     cola.olvidar();
     chequear('limpia la cola', cola.contar(GIMNASIO) === 0);
 
+    // ── UNA SOLA COLA: el orden vale ENTRE TIPOS ────────────────────────────────────────
+    //
+    // Es la razón de ser de la cola general, y sale de una decisión del dueño: se puede dar
+    // de alta a un socio Y COBRARLE en el mismo acto sin internet. Si cada tipo tuviera su
+    // cola, el servidor podría recibir el cobro de alguien que para él todavía no existe.
+    console.log('');
+    cola.encolar({ clientRef: 'humo-cobro', tipo: 'COBRO', tenantId: GIMNASIO,
+        ocurridoEn: '2026-09-06T10:05:00', monto: 45000, metodo: 'cash' });
+    cola.encolar({ clientRef: 'humo-alta', tipo: 'ALTA', tenantId: GIMNASIO,
+        ocurridoEn: '2026-09-06T10:00:00', nombre: 'Socio Nuevo' });
+    cola.encolar(acceso('humo-acc', '2026-09-06T10:10:00'));
+
+    const mezcla = cola.pendientes(GIMNASIO);
+    chequear('el alta sale ANTES que el cobro, aunque se encoló después',
+        mezcla.map((i) => i.tipo).join(',') === 'ALTA,COBRO,ACCESO',
+        mezcla.map((i) => i.tipo).join(','));
+
+    // El payload viaja en JSON y vuelve PLANO: el que manda el ítem recibe `item.monto`, no
+    // `item.payload.monto`. Sin esto habría que tocar todo el código que ya mandaba accesos.
+    const elCobro = mezcla.find((i) => i.tipo === 'COBRO');
+    chequear('el payload vuelve plano', elCobro.monto === 45000 && elCobro.metodo === 'cash');
+
+    const elAcceso = mezcla.find((i) => i.tipo === 'ACCESO');
+    chequear('y el acceso sigue teniendo la forma de siempre',
+        elAcceso.memberId === 'de000000-0000-4000-8000-00000000aaaa' && elAcceso.method === 'manual');
+
+    chequear('un tipo inventado no entra', !cola.encolar({
+        clientRef: 'humo-raro', tipo: 'LO_QUE_SEA', tenantId: GIMNASIO, ocurridoEn: '2026-09-06T10:00:00',
+    }).ok);
+
+    cola.olvidar();
+
+    // ── LA MIGRACIÓN DE LA COLA VIEJA ──────────────────────────────────────────────────
+    //
+    // Es la parte más delicada de todo esto: en los terminales ya instalados puede haber
+    // visitas esperando en `cola_accesos`. Eso es lo único de este archivo que no se puede
+    // volver a bajar de ningún lado — si la migración las pierde, el gimnasio pierde entradas
+    // que registró de verdad. Se prueba contra SQLite de verdad porque usa `json_object` y un
+    // `ALTER TABLE ... RENAME`, y ninguna de las dos cosas se puede simular con honestidad.
+    console.log('');
+    const conn = nucleoDb.abrir();
+    conn.exec(`
+        DROP TABLE IF EXISTS cola_accesos;
+        DROP TABLE IF EXISTS cola_accesos_migrada;
+        CREATE TABLE cola_accesos (
+            client_ref TEXT PRIMARY KEY, tenant_id TEXT, member_id TEXT NOT NULL,
+            member_name TEXT, method TEXT NOT NULL DEFAULT 'manual', ocurrido_en TEXT NOT NULL,
+            intentos INTEGER NOT NULL DEFAULT 0, ultimo_error TEXT, creado_en INTEGER NOT NULL
+        );
+        INSERT INTO cola_accesos VALUES
+            ('vieja-1', '${GIMNASIO}', 'de000000-0000-4000-8000-00000000aaaa', 'José Pérez',
+             'manual', '2026-09-06T09:00:00', 2, 'Network Error', 1000);
+    `);
+
+    const r1 = nucleoDb.migrarColaVieja(conn);
+    chequear('pasa la visita vieja a la cola general', r1.migradas === 1);
+
+    const migrada = cola.pendientes(GIMNASIO)[0];
+    chequear('con su tipo, su momento y su socio',
+        migrada && migrada.tipo === 'ACCESO' && migrada.ocurridoEn === '2026-09-06T09:00:00'
+        && migrada.memberId === 'de000000-0000-4000-8000-00000000aaaa');
+    chequear('y sin perder los intentos que ya llevaba', migrada.intentos === 2);
+
+    // ⭐ EL RENOMBRE ES LO QUE IMPIDE QUE SE REPITA PARA SIEMPRE. Sin él, una fila que se
+    // copió, se subió y se sacó de la cola volvería a aparecer en el próximo arranque —
+    // porque el original sigue en la tabla vieja— y se resubiría en cada encendido.
+    cola.sacar('vieja-1');
+    const r2 = nucleoDb.migrarColaVieja(conn);
+    chequear('correrla de nuevo NO revive lo que ya se subió',
+        r2.migradas === 0 && cola.contar(GIMNASIO) === 0);
+
+    // Y no se borra: es un dato irreemplazable, se queda hasta que haga falta el espacio.
+    const quedaLaVieja = conn.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='cola_accesos_migrada'",
+    ).get();
+    chequear('la tabla vieja se conserva, no se borra', !!quedaLaVieja);
+
+    conn.exec('DROP TABLE IF EXISTS cola_accesos_migrada');
+    cola.olvidar();
+
     // Limpieza: esto es una prueba, no puede dejar basura en el espejo de nadie.
     console.log('');
     espejo.olvidar(GIMNASIO);
@@ -185,10 +265,18 @@ app.whenReady().then(() => {
     // ⚠️ Y la copia también: esto escribe en los DOCUMENTOS de una persona de verdad. Dejar
     // ahí un "José Pérez" de mentira es peor que no probar nada — el día que alguien abra esa
     // carpeta buscando visitas reales se va a encontrar con las nuestras.
-    try {
-        if (fs.existsSync(archivoCopia)) fs.unlinkSync(archivoCopia);
-    } catch { /* si no se puede borrar, tampoco vale romper la prueba */ }
-    chequear('no deja el archivo de prueba en Documentos', !fs.existsSync(archivoCopia));
+    // ⚠️ TODOS los tipos que esta prueba escribió, no solo los accesos. Al generalizar la
+    // cola, el humo empezó a dejar también cobros-…csv y altas-…csv, y la limpieza vieja
+    // —que borraba un solo archivo— los dejaba ahí. Se listan desde los TIPOS de la cola para
+    // que el día que se agregue uno nuevo, la limpieza lo tome sola.
+    const copias = ['ACCESO', ...cola.TIPOS]
+        .map((t) => respaldo.archivoDeHoy(respaldo.donde(), new Date(), t));
+    for (const archivo of copias) {
+        try {
+            if (fs.existsSync(archivo)) fs.unlinkSync(archivo);
+        } catch { /* si no se puede borrar, tampoco vale romper la prueba */ }
+    }
+    chequear('no deja archivos de prueba en Documentos', !copias.some((a) => fs.existsSync(a)));
 
     nucleoDb.cerrar();
 
