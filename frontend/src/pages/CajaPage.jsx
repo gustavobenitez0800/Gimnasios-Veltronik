@@ -125,22 +125,27 @@ export default function CajaPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     setFallo(false);
+
+    // ⚠️ LOS MOVIMIENTOS SE CARGAN PRIMERO Y APARTE, Y AHORA NO ES SOLO PRECAUCIÓN.
+    //
+    // Nació así para que un backend sin esta función no dejara el cierre inutilizable. Con
+    // los egresos sin internet pasó a ser necesario: sin conexión, el período abierto falla
+    // —lo calcula el servidor— y dentro del mismo try eso se llevaba puesta la lista. Quien
+    // acaba de anotar un gasto no lo vería, y lo cargaría de nuevo.
+    try {
+      setMovsCaja((await cajaService.movimientosDeCaja()) || []);
+      setHayMovimientos(true);
+    } catch {
+      setMovsCaja([]);
+      setHayMovimientos(false);
+    }
+
     try {
       // El período abierto y sus cobros: los dos los necesita quien cierra, sea el dueño o
       // recepción. Antes los importes eran solo del dueño, por el conteo a ciegas.
       const [a, c] = await Promise.all([cajaService.abierto(), cajaService.movimientos()]);
       setAbierto(a);
       setCobros(c || []);
-
-      // ⚠️ LOS MOVIMIENTOS NO PUEDEN TUMBAR LA PANTALLA ENTERA: si viajaran en el mismo
-      // Promise.all, un backend sin esa función dejaría el cierre inutilizable.
-      try {
-        setMovsCaja((await cajaService.movimientosDeCaja()) || []);
-        setHayMovimientos(true);
-      } catch {
-        setMovsCaja([]);
-        setHayMovimientos(false);
-      }
 
       if (esDueno) setHistorial(await cajaService.historial(60));
     } catch (e) {
@@ -196,7 +201,7 @@ export default function CajaPage() {
     setGuardando(true);
     try {
       const turno = getShift();
-      await cajaService.registrarMovimiento({
+      const guardado = await cajaService.registrarMovimiento({
         tipo: movTipo,
         categoria: movCategoria,
         detalle: movDetalle.trim() || null,
@@ -205,7 +210,17 @@ export default function CajaPage() {
         hechoPor: turno?.name || profile?.fullName || 'Sin identificar',
       });
       setAnotando(false);
-      showToast(movTipo === 'EGRESO' ? 'Gasto anotado.' : 'Ingreso anotado.', 'success');
+      // ⚠️ SIN INTERNET NO SE DICE "ANOTADO" A SECAS. El renglón está guardado y la plata
+      // salió del cajón —eso es cierto y hay que decirlo— pero el servidor todavía no lo
+      // sabe. Decir lo mismo en los dos casos es la mentira chiquita que después vuelve
+      // como "lo anoté y no está".
+      const queEs = movTipo === 'EGRESO' ? 'Gasto' : 'Ingreso';
+      showToast(
+        guardado?.encolado
+          ? `${queEs} guardado sin conexión. Sube solo cuando vuelva el internet.`
+          : `${queEs} anotado.`,
+        'success',
+      );
       cargar();
       cargarBalance(periodo);
     } catch (err) {
@@ -482,6 +497,12 @@ export default function CajaPage() {
                     <td data-label="Qué">
                       <strong>{m.categoria}</strong>
                       {m.detalle && <div className="form-hint">{m.detalle}</div>}
+                      {/* ⭐ El que se anotó sin internet SE VE IGUAL, con su aclaración. Que no
+                          apareciera era el agujero: quien lo cargó no lo veía en la lista y lo
+                          cargaba otra vez, y el arqueo terminaba con un faltante inventado. */}
+                      {m.sinSubir && (
+                        <div className="form-hint">Guardado sin conexión · sube solo</div>
+                      )}
                       {anulado && (
                         <div className="form-hint">
                           Anulado por {m.anuladoPorNombre || '—'}
@@ -502,7 +523,10 @@ export default function CajaPage() {
                     <td data-label="Quién">{m.hechoPorNombre || '—'}</td>
                     <td data-label="Cuándo">{fecha(m.fecha)}</td>
                     <td>
-                      {!anulado && (
+                      {/* ⚠️ Lo que todavía no subió NO se puede anular, y fue una decisión
+                          tomada a propósito (decisión 2 de docs/FASE3-CAMINOS.md): anular es
+                          un pedido contra una fila que del otro lado no existe. */}
+                      {!anulado && !m.sinSubir && (
                         <button className="btn btn-sm btn-secondary" onClick={() => pedirAnulacion(m)}>
                           Anular
                         </button>

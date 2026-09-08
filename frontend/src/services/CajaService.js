@@ -1,4 +1,8 @@
 import apiClient from '../lib/apiClient';
+import {
+  encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes,
+  movimientosPendientes,
+} from '../lib/colaAccesos';
 
 /**
  * El cierre de caja, diario.
@@ -59,8 +63,55 @@ class CajaService {
    * plata igual, el cierre dice FALTANTE, y acusa a quien atendió sin que haya robado nada.
    */
   async registrarMovimiento({ tipo, categoria, detalle, monto, metodo, hechoPor }) {
+    const clientRef = nuevoSello();
+    const ocurridoEn = momentoLocal();
+    const cuerpo = { tipo, categoria, detalle, monto, metodo, hechoPor, clientRef, ocurridoEn };
+
+    // ⚠️ El tipo del MOVIMIENTO viaja aparte para la cola: `tipo` ahí adentro significa qué
+    // clase de cosa es (ACCESO, COBRO, EGRESO…), y mandarlo con "EGRESO" en los dos campos
+    // haría que un INGRESO manual volviera del otro lado convertido en un gasto.
+    const paraLaCola = {
+      ...cuerpo, tipo: 'EGRESO', movimientoTipo: tipo, ocurridoEn,
+    };
+
+    // Si hay algo esperando, este también espera: la cola es una sola y el orden vale entre
+    // tipos. Adelantarse por la escritura directa lo rompería.
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
+      const ref = await encolarPendiente(paraLaCola);
+      if (ref) return { encolado: true, clientRef: ref };
+    }
+
+    try {
+      const { data } = await apiClient.post('/gym/caja/movimientos-de-caja', cuerpo);
+      return data;
+    } catch (error) {
+      // Un rechazo del servidor es un rechazo real (monto en cero, egreso sin detalle) y se
+      // muestra. Encolarlo sería reintentar para siempre algo que ya dijo que no.
+      if (error?.response || !disponible()) throw error;
+
+      const ref = await encolarPendiente(paraLaCola);
+      if (!ref) throw error; // no hay dónde guardarlo: que falle como antes, sin mentir
+      return { encolado: true, clientRef: ref };
+    }
+  }
+
+  /**
+   * Manda UN movimiento que estaba en la cola. Lo usa el vaciado, de a uno y en orden.
+   *
+   * <p>El sello y el momento viajan tal como se guardaron: son lo que impide contarlo dos
+   * veces y lo que lo deja en el día en que la plata salió del cajón.</p>
+   */
+  async enviarEncolado(item) {
     const { data } = await apiClient.post('/gym/caja/movimientos-de-caja', {
-      tipo, categoria, detalle, monto, metodo, hechoPor,
+      tipo: item.movimientoTipo || 'EGRESO',
+      categoria: item.categoria,
+      detalle: item.detalle,
+      monto: item.monto,
+      metodo: item.metodo,
+      hechoPor: item.hechoPor,
+      clientRef: item.clientRef,
+      ocurridoEn: item.ocurridoEn,
     });
     return data;
   }
@@ -70,10 +121,30 @@ class CajaService {
    *
    * A diferencia de los cobros, esto lo ve cualquiera: quien cuenta ya sabe cuánto sacó del
    * cajón —lo sacó ella— y necesita verlo para no cargar dos veces el mismo gasto.
+   *
+   * ⭐ Y LOS QUE TODAVÍA NO SUBIERON VAN EN LA MISMA LISTA. No es un adorno: esa última
+   * frase —"para no cargar dos veces el mismo gasto"— es exactamente la que dejaba de
+   * cumplirse sin conexión, porque la lista aparecía vacía. Quien anotó que le pagó $15.000
+   * a la limpieza no lo veía, lo cargaba de nuevo, y el arqueo terminaba con un faltante de
+   * $15.000 que nadie se llevó.
+   *
+   * Los pendientes van marcados (`sinSubir`) y primero: son los más recientes.
    */
   async movimientosDeCaja() {
-    const { data } = await apiClient.get('/gym/caja/movimientos-de-caja');
-    return data;
+    const enCola = await movimientosPendientes();
+
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (sinRed) return enCola;
+
+    try {
+      const { data } = await apiClient.get('/gym/caja/movimientos-de-caja');
+      return [...enCola, ...(data || [])];
+    } catch (error) {
+      // Con la copia de la cola en la mano, un servidor que no contesta no tiene por qué
+      // dejar la pantalla sin nada. Un rechazo del servidor sí se muestra.
+      if (error?.response || enCola.length === 0) throw error;
+      return enCola;
+    }
   }
 
   /** Anula un movimiento. No lo borra: borrarlo sería poder borrar la prueba. */

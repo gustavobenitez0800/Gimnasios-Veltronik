@@ -288,6 +288,48 @@ export async function altasPendientes(tenantId = orgActual()) {
   }
 }
 
+/**
+ * ⭐ LOS MOVIMIENTOS DE CAJA QUE TODAVÍA NO SUBIERON.
+ *
+ * <p><b>Por qué la pantalla de Caja los necesita a la vista.</b> La lista de movimientos la
+ * arma el servidor, así que sin internet aparece vacía — y ese vacío es peligroso de una forma
+ * concreta: quien atendió anota que le pagó $15.000 a la limpieza, mira la lista, no lo ve, y
+ * <b>lo carga de nuevo</b>. Ahora el arqueo espera $15.000 que sí salieron pero contados dos
+ * veces, y el cierre acusa un faltante inventado. Es exactamente el error que el módulo de
+ * movimientos existe para evitar, entrando por la puerta de al lado.</p>
+ *
+ * <p>Se devuelven con la misma forma que los del servidor, más una marca: la pantalla los
+ * dibuja igual, aclarando que están esperando para subir.</p>
+ */
+export async function movimientosPendientes(tenantId = orgActual()) {
+  if (!disponible()) return [];
+  try {
+    const lista = await pendientes(tenantId);
+    return lista
+      .filter((i) => i.tipo === 'EGRESO')
+      .map((i) => ({
+        // El sello ES el id que va a tener del otro lado: el backend lo guarda como
+        // `client_ref` y de él sale la fila. Usarlo acá evita que la fila salte de identidad
+        // cuando sube.
+        id: i.clientRef,
+        // ⚠️ `tipo` está tomado por el tipo de la COLA. El del movimiento (INGRESO/EGRESO)
+        // viaja aparte para no pisarlo.
+        tipo: i.movimientoTipo || 'EGRESO',
+        categoria: i.categoria,
+        detalle: i.detalle,
+        monto: Number(i.monto) || 0,
+        metodo: i.metodo || 'CASH',
+        fecha: i.ocurridoEn,
+        hechoPorNombre: i.hechoPor || null,
+        anuladoAt: null,
+        // La marca que hace honesta a la pantalla: esto todavía no está en el servidor.
+        sinSubir: true,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 /** Cuántos esperan. Para que la pantalla lo pueda decir. */
 export async function cuantosPendientes(tenantId = orgActual()) {
   const c = nucleo();

@@ -20,6 +20,7 @@ import { useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { accessService, paymentService, memberService } from '../services';
+import { cajaService } from '../services/CajaService';
 import { vaciar, disponible } from '../lib/colaAccesos';
 
 /** Cada cuánto se reintenta si quedó algo. Cinco minutos: nadie está esperando esto. */
@@ -47,8 +48,9 @@ export default function VaciadorDeCola() {
     if (!orgId) return;
 
     try {
-      // Un enviador por tipo. Hoy la cola solo guarda accesos; los cobros, altas y egresos
-      // se van sumando acá a medida que se construyen (ver docs/FASE3-CAMINOS.md).
+      // Un enviador por tipo. Falta el CIERRE, que es el último paso (ver
+      // docs/FASE3-CAMINOS.md) y el que más depende de que todo lo anterior lleve su
+      // momento real.
       //
       // ⚠️ Lo que NO tiene enviador se queda en la cola y corta la tanda, no se descarta:
       // durante una actualización un terminal viejo puede encontrarse un tipo que su código
@@ -59,6 +61,9 @@ export default function VaciadorDeCola() {
         // ⚠️ El ALTA va en la MISMA cola y por eso sube antes que el cobro a ese socio: si
         // fueran colas separadas, el servidor recibiría un cobro de alguien que no existe.
         ALTA: (item) => memberService.enviarEncolado(item),
+        // ⚠️ El egreso sube con SU momento, no con el de llegada: un gasto de anoche que sube
+        // esta mañana tiene que quedar en el arqueo de anoche, o descuadra los dos días.
+        EGRESO: (item) => cajaService.enviarEncolado(item),
       });
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor

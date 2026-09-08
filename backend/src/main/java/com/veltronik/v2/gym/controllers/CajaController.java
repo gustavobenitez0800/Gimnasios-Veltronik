@@ -182,7 +182,8 @@ public class CajaController {
             @RequestBody MovimientoInput input) {
         return ResponseEntity.ok(cajaService.registrar(
                 input.getTipo(), input.getCategoria(), input.getDetalle(),
-                input.getMonto(), input.getMetodo(), input.getHechoPor()));
+                input.getMonto(), input.getMetodo(), input.getHechoPor(),
+                input.getClientRef(), input.getOcurridoEn()));
     }
 
     /**
@@ -219,6 +220,24 @@ public class CajaController {
         /** Quién lo hizo, para congelar el nombre. */
         private String hechoPor;
 
+        /**
+         * El sello del terminal, cuando el movimiento estuvo encolado sin internet.
+         *
+         * <p>Nulo en lo que se anota con conexión, y así se queda: los movimientos históricos
+         * no lo tienen y no tienen por qué empezar a tenerlo. Con sello, un reintento devuelve
+         * el que ya está en vez de anotar el gasto dos veces.</p>
+         */
+        private java.util.UUID clientRef;
+
+        /**
+         * Cuándo salió la plata del cajón, si no fue ahora.
+         *
+         * <p>⚠️ Es lo que decide en qué arqueo cae. Un gasto de las 22:00 que sube a las 09:00
+         * del día siguiente, sin esto, deja el cierre de anoche con un faltante que nunca
+         * existió y el de hoy con un sobrante.</p>
+         */
+        private java.time.LocalDateTime ocurridoEn;
+
         public String getTipo() { return tipo; }
         public void setTipo(String v) { this.tipo = v; }
         public String getCategoria() { return categoria; }
@@ -231,6 +250,10 @@ public class CajaController {
         public void setMetodo(String v) { this.metodo = v; }
         public String getHechoPor() { return hechoPor; }
         public void setHechoPor(String v) { this.hechoPor = v; }
+        public java.util.UUID getClientRef() { return clientRef; }
+        public void setClientRef(java.util.UUID v) { this.clientRef = v; }
+        public java.time.LocalDateTime getOcurridoEn() { return ocurridoEn; }
+        public void setOcurridoEn(java.time.LocalDateTime v) { this.ocurridoEn = v; }
     }
 
     /**

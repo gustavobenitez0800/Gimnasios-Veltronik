@@ -81,11 +81,34 @@ public class CajaService {
      * <p>⚠️ <b>El detalle es obligatorio en los egresos.</b> No prueba nada por sí solo, pero
      * un renglón que dice "Proveedor — agua, factura 4412" se puede verificar y uno que dice
      * "Proveedor" no. Es lo único que convierte la lista en algo revisable.</p>
+     *
+     * <p><b>⭐ Y ahora también se puede anotar SIN INTERNET.</b> El terminal lo guarda en su
+     * cola y lo manda cuando vuelve la conexión, con dos cosas que no son opcionales:</p>
+     *
+     * <ul>
+     *   <li><b>{@code clientRef}</b> — el sello del terminal. El vaciado de la cola reintenta,
+     *       y un gasto de $15.000 anotado dos veces deja un faltante de $15.000 que nunca
+     *       existió, con la culpa puesta en quien atendió. La guarda va <b>antes de tocar
+     *       nada</b>, y la garantía real es el índice único parcial de la V63.</li>
+     *   <li><b>{@code ocurridoEn}</b> — cuándo salió la plata. Sin esto, un gasto de las 22:00
+     *       que sube a las 09:00 del día siguiente cae en el arqueo equivocado y descuadra
+     *       <b>los dos días</b>. No se le cree al reloj del terminal: se acota
+     *       ({@link MomentoDeclarado}).</li>
+     * </ul>
      */
     @Transactional
     public com.veltronik.v2.gym.entities.CajaMovimiento registrar(
             String tipo, String categoria, String detalle, BigDecimal monto,
-            String metodo, String hechoPor) {
+            String metodo, String hechoPor, java.util.UUID clientRef, LocalDateTime ocurridoEn) {
+
+        // ⚠️ ANTES DE VALIDAR Y ANTES DE ESCRIBIR. Un reintento de algo ya guardado devuelve lo
+        // que hay y no vuelve a pasar por nada: ni por las validaciones, ni por el save. Es el
+        // mismo orden que ya usa `AccessLogService.registerScan`.
+        if (clientRef != null) {
+            var yaEstaba = movimientoRepository.findByTenantIdAndClientRef(
+                    TenantContextHolder.getTenantId(), clientRef);
+            if (yaEstaba.isPresent()) return yaEstaba.get();
+        }
 
         String t = nullSafe(tipo).toUpperCase();
         if (!com.veltronik.v2.gym.entities.CajaMovimiento.INGRESO.equals(t)
@@ -117,14 +140,37 @@ public class CajaService {
         m.setMetodo(nullSafe(metodo).isBlank()
                 ? com.veltronik.v2.gym.entities.CajaMovimiento.EFECTIVO : metodo.toUpperCase());
         // La hora la escribe la app en zona argentina: la base responde en la suya y el
-        // movimiento caería fuera del período.
-        m.setFecha(LocalDateTime.now(BUSINESS_ZONE));
+        // movimiento caería fuera del período. Con conexión es ahora; encolado, el momento en
+        // que la plata salió del cajón — acotado, porque el reloj del mostrador puede estar
+        // mal por meses y nadie lo mira.
+        LocalDateTime cuando = MomentoDeclarado.acotar(ocurridoEn);
+        m.setFecha(cuando);
+        m.setClientRef(clientRef);
         m.setHechoPorNombre(hechoPor);
         // Se ata a la caja abierta si la hay. Si no hay, se anota igual: se puede gastar plata
         // del cajón con la caja sin abrir, y esa plata falta lo mismo.
-        sesionAbierta().ifPresent(s -> m.setSesionId(s.getId()));
+        //
+        // ⚠️ Solo si el movimiento CAE DENTRO de esa caja. Uno que ocurrió anoche y sube hoy
+        // pertenece al período de anoche: atarlo a la sesión abierta esta mañana diría que
+        // pasó en un turno en el que no pasó. El arqueo cuenta por fecha, así que la fecha ya
+        // lo pone donde va; esto es para que la firma del turno tampoco mienta.
+        sesionAbierta()
+                .filter(s -> s.getAbiertaAt() == null || !cuando.isBefore(s.getAbiertaAt()))
+                .ifPresent(s -> m.setSesionId(s.getId()));
 
         return movimientoRepository.save(m);
+    }
+
+    /**
+     * La firma vieja, para lo que anota con conexión.
+     *
+     * <p>Sin sello y sin momento: los pone el servidor, que es lo que ya hacía.</p>
+     */
+    @Transactional
+    public com.veltronik.v2.gym.entities.CajaMovimiento registrar(
+            String tipo, String categoria, String detalle, BigDecimal monto,
+            String metodo, String hechoPor) {
+        return registrar(tipo, categoria, detalle, monto, metodo, hechoPor, null, null);
     }
 
     /**

@@ -117,9 +117,16 @@ Se dejan escritos porque son reales, no porque estén resueltos.
 
 ## Orden de construcción propuesto
 
-1. **La migración**: `client_ref` + índice único en `gym_payments` y movimientos de caja. Nada funciona sin esto.
-2. **La cola general** (una tabla, con tipo) y la migración de la de accesos.
-3. **Cobro offline**, que es el camino más usado y el que valida el diseño entero.
-4. **Alta + cobro en el mismo acto** (la decisión 1, el caso del orden cruzado).
-5. **Egresos.**
-6. **Cierre de caja**, último: depende de que todo lo anterior tenga su momento real.
+1. ✅ **La migración**: `client_ref` + índice único en `gym_payments` y movimientos de caja. Nada funciona sin esto.
+2. ✅ **La cola general** (una tabla, con tipo) y la migración de la de accesos.
+3. ✅ **Cobro offline**, que es el camino más usado y el que valida el diseño entero.
+4. ✅ **Alta + cobro en el mismo acto** (la decisión 1, el caso del orden cruzado).
+5. ✅ **Egresos.**
+6. ⬜ **Cierre de caja**, último: depende de que todo lo anterior tenga su momento real.
+
+### Lo que dejó el paso 5, y le sirve al 6
+
+- **`MomentoDeclarado`** — la regla de *"el reloj del terminal se acota, no se cree"* (futuro → ahora; más de 36 h de atraso → el límite) salió de adentro de `AccessLogService`, donde era privada, y ahora es de los dos. El cierre va a necesitar exactamente la misma, y era la cuarta cuenta de fechas a punto de duplicarse en este proyecto.
+- **⛔ Pero NO sirve para una fecha que elige una persona.** El portal deja cargar un pago hecho la semana pasada; acotarlo a 36 horas lo convertiría en uno de anteayer sin avisarle a nadie. Por eso `paymentDate` **no** pasa por ahí, y queda anotado que ese camino sigue sin acotar.
+- **Un agujero que no estaba en el plan**: la lista de movimientos existe, según su propio endpoint, *"para no cargar dos veces el mismo gasto"* — y sin conexión aparecía **vacía**. Anotar un gasto y no verlo lleva derecho a cargarlo de nuevo, y ahí el faltante lo inventa el sistema. Los pendientes ahora van en la misma lista, marcados, y **sin botón de anular** (decisión 2: no se anula lo que del otro lado todavía no existe).
+- **`registrar` tiene dos firmas.** La vieja —sin sello ni momento— sigue siendo la del camino con internet, donde los pone el servidor. Lo encolado usa la nueva.

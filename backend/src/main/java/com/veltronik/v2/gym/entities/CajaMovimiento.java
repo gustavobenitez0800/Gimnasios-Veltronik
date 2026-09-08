@@ -80,9 +80,29 @@ public class CajaMovimiento extends TenantAwareEntity {
     @Column(nullable = false, length = 20)
     private String metodo = EFECTIVO;
 
-    /** Cuándo pasó, en hora argentina y escrita por la app: la base responde en la suya. */
+    /**
+     * Cuándo pasó, en hora argentina y escrita por la app: la base responde en la suya.
+     *
+     * <p>⚠️ <b>Es el momento en que salió la plata, no el momento en que llegó el pedido.</b>
+     * Un gasto anotado a las 22:00 sin internet que sube a las 09:00 del día siguiente tiene
+     * que quedar en el día que fue. Puesto en el día de llegada, el arqueo de anoche dice
+     * FALTANTE —esa plata salió del cajón y no figura— y el de hoy dice sobrante: dos días
+     * descuadrados, y la culpa se la lleva quien atendió. Ver {@code MomentoDeclarado}.</p>
+     */
     @Column(nullable = false)
     private LocalDateTime fecha;
+
+    /**
+     * El identificador que generó el terminal antes de mandar el movimiento. NULL cuando se
+     * anotó con conexión.
+     *
+     * <p><b>Es lo único que impide contar un egreso dos veces.</b> El vaciado de la cola
+     * reintenta, y un gasto de $15.000 anotado dos veces deja un faltante de $15.000 que
+     * nunca existió. La garantía de verdad es el índice único parcial por gimnasio de la V63;
+     * este campo es su mitad visible.</p>
+     */
+    @Column(name = "client_ref")
+    private UUID clientRef;
 
     /** Congelado: si esa persona se da de baja, el registro sigue diciendo quién sacó la plata. */
     @Column(name = "hecho_por_nombre", length = 160)

@@ -44,14 +44,6 @@ public class AccessLogService {
     private static final int VENTANA_INGRESOS_MIN = 5;
 
     /**
-     * Hasta cuántas horas atrás se le cree al reloj del terminal.
-     *
-     * <p>36 horas cubre el caso real —el internet se cayó ayer y volvió hoy— sin abrir la
-     * puerta a que un reloj desconfigurado escriba visitas en meses ya cerrados.</p>
-     */
-    private static final int ATRASO_MAXIMO_HORAS = 36;
-
-    /**
      * Los días de gracia que aplica este servidor.
      *
      * <p><b>Se publica para que el TERMINAL pueda contar solo.</b> Sin internet, los días que
@@ -296,27 +288,13 @@ public class AccessLogService {
     /**
      * Cuándo pasó este acceso, con el reloj del terminal puesto en su lugar.
      *
-     * <p><b>El reloj del cliente no se cree, se acota.</b> La máquina de un mostrador puede
-     * tener la hora mal por meses —nadie la mira— y con ella se decide si un socio entró o
-     * salió, y en qué día contó su visita. Se aceptan solo momentos verosímiles:</p>
-     *
-     * <ul>
-     *   <li><b>En el futuro</b> → se usa ahora. Un acceso no puede haber pasado todavía, y
-     *       aceptarlo dejaría al socio "adentro" hasta que el reloj del servidor lo alcance.</li>
-     *   <li><b>Más viejo que el límite</b> → se usa el límite. Un corte de internet de un día
-     *       es creíble; uno de tres meses es un reloj roto, y meter esa visita en marzo
-     *       ensuciaría un mes ya cerrado.</li>
-     * </ul>
-     *
-     * <p>Se acota en vez de rechazar a propósito: el acceso PASÓ, alguien entró al gimnasio.
-     * Perderlo por no confiar en un reloj sería peor que guardarlo con la hora corrida.</p>
+     * <p>La regla vive en {@link MomentoDeclarado} porque los egresos de caja necesitan
+     * exactamente la misma y copiarla habría sido la cuarta cuenta de fechas duplicada de este
+     * proyecto. Acá queda solo el nombre del dominio: para un acceso, ese momento decide si el
+     * socio entró o salió, y en qué día contó su visita.</p>
      */
     private LocalDateTime momentoDelHecho(LocalDateTime ocurridoEn) {
-        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
-        if (ocurridoEn == null) return ahora;
-        if (ocurridoEn.isAfter(ahora)) return ahora;
-        LocalDateTime masViejoAceptable = ahora.minusHours(ATRASO_MAXIMO_HORAS);
-        return ocurridoEn.isBefore(masViejoAceptable) ? masViejoAceptable : ocurridoEn;
+        return MomentoDeclarado.acotar(ocurridoEn);
     }
 
     /**
