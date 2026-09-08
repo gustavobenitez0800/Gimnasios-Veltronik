@@ -1,15 +1,21 @@
--- V64__Molinete_Facial.sql
+-- V66__Molinete_Facial.sql
 --
--- ⚠️ ESTA MIGRACIÓN ERA LA V62 Y SE RENUMERÓ A V64 (2026-09-07). No es un capricho: la V63
--- (cobros sin internet) salió antes que esta rama, y `spring.flyway.out-of-order` está en
--- `false`. Con el número viejo, esta migración YA NO PODÍA APLICARSE sobre una base que ya
--- tuviera la V63 — Flyway se planta y el backend no arranca.
+-- ⚠️ ESTA MIGRACIÓN SE RENUMERÓ DOS VECES: V62 → V64 (2026-09-07) → V66 (2026-09-08).
 --
--- Renumerarla fue seguro porque NUNCA SE APLICÓ EN NINGUNA BASE: esta rama jamás se deployó
--- (el historial de deploys tiene solo `main` y `feat/nucleo-local`). La regla que costó un
--- outage en este proyecto es la otra, y sigue en pie: **nunca renumerar una migración YA
--- APLICADA**. Si esta rama tarda más y aparecen V64/V65 en `main`, hay que volver a correrla
--- al número que siga libre, por el mismo motivo y con la misma comprobación.
+-- El motivo es siempre el mismo y `spring.flyway.out-of-order` está en `false`: mientras esta
+-- rama esperaba, `main` fue publicando migraciones (la V63 de los cobros sin internet, la V65
+-- de la cobertura en meses). Con un número ya ocupado —o menor que el último aplicado— Flyway
+-- se planta y **el backend no arranca**.
+--
+-- Renumerarla fue seguro las dos veces por UNA razón que hay que volver a comprobar antes de
+-- hacerlo de nuevo: **esta migración nunca se aplicó en ninguna base**. La rama jamás se
+-- deployó (el historial de deploys tiene solo `main` y `feat/nucleo-local`). La regla que
+-- costó un outage en este proyecto es la contraria, y sigue en pie: **nunca renumerar una
+-- migración YA APLICADA.**
+--
+-- ⭐ Y LA LECCIÓN DE FONDO, porque pasó tres veces: una rama larga con una migración adentro
+-- se pelea con `main` cada vez que `main` publica una. Lo que lo termina no es renumerar mejor
+-- — es mergear, o poner `out-of-order` en true.
 --
 -- LA ENTRADA POR MOLINETE.
 --

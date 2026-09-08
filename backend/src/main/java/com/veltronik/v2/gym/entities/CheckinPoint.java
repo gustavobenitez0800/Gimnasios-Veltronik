@@ -45,7 +45,7 @@ public class CheckinPoint extends TenantAwareEntity {
     private boolean active = true;
 
     /**
-     * Número de serie del molinete que atiende esta puerta (V64). Null en los carteles de QR,
+     * Número de serie del molinete que atiende esta puerta (V66). Null en los carteles de QR,
      * que son la enorme mayoría.
      *
      * <p><b>Es el segundo factor, no el primero.</b> No es un secreto —cualquiera en la red del
