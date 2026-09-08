@@ -83,6 +83,15 @@ function toApi(member) {
     notes: member.notes || '',
     // El backend solo distingue alta/baja: cualquier estado que no sea 'active'
     // (inactivo, vencido, suspendido) viaja como baja.
+    //
+    // ⚠️⚠️ POR ESTA LÍNEA NO SE INVENTAN ESTADOS NUEVOS EN `status`.
+    //
+    // Guardar manda el socio ENTERO, así que un estado que esta línea no reconozca sale de acá
+    // como `active: false` y le da de baja al socio EN SILENCIO — al editarle el teléfono, sin
+    // que nadie toque el estado. El caso concreto: "sin cuota" (el socio que todavía no pagó,
+    // ADR-013) parecía pedir un `status` propio, y lo que corresponde es una lectura derivada
+    // —`esSinCuota` en MembersPage— que no viaja en el formulario. Hay un test que fija esto:
+    // editar a un socio sin cuota lo tiene que dejar activo.
     active: (member.status || 'active').toLowerCase() === 'active',
 
     // ⭐ EL ARANCEL. Sin estas dos líneas el arancel del socio NO SE GUARDA NUNCA: se puede
