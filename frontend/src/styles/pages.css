@@ -1112,7 +1112,18 @@
   font-size: 0.78rem;
   color: var(--text-muted);
 }
+/* Tres bandas, y el peso visual sube con la edad de la copia. Ninguna frena nada: lo único
+   que cambia es cuánto insiste el cartel (ver EstadoCopiaLocal). */
 .copia-local.is-vieja { color: var(--warning-500, #f59e0b); }
+
+.copia-local.is-muy-vieja {
+  color: var(--warning-500, #f59e0b);
+  font-weight: 600;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--warning-500, #f59e0b) 45%, transparent);
+  background: color-mix(in srgb, var(--warning-500, #f59e0b) 12%, transparent);
+}
 
 /* ============================================
    BORRADO DE CUENTA
@@ -1310,6 +1321,14 @@
    botón de al lado, así que tiene que verse antes de apretarlo. */
 .member-access-status.is-inside {
   color: var(--primary-400, #60a5fa);
+}
+
+/* "Pagó recién · el vencimiento se actualiza al volver internet".
+   El número de días de al lado lo corre el SERVIDOR cuando el cobro sube, así que sin internet
+   sigue diciendo lo de antes. Este renglón no lo corrige: lo explica. Ámbar porque le habla a
+   quien atiende —es un estado de la casa, no del socio—, igual que el cartel de la puerta. */
+.member-access-status.is-pagado-sin-subir {
+  color: var(--warning-500, #f59e0b);
 }
 
 /* ============================================

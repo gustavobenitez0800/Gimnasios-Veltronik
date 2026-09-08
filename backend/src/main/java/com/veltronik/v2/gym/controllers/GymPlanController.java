@@ -81,6 +81,10 @@ public class GymPlanController {
         if (in.getName() != null) p.setName(in.getName().trim());
         if (in.getPrice() != null) p.setPrice(in.getPrice());
         if (in.getDurationDays() != null) p.setDurationDays(in.getDurationDays());
+        // La cobertura de verdad (ADR-013). `durationDays` queda solo para poder auditar qué
+        // vendía cada arancel antes de la migración; nadie decide un vencimiento con eso.
+        if (in.getCoberturaCantidad() != null) p.setCoberturaCantidad(in.getCoberturaCantidad());
+        if (in.getCoberturaUnidad() != null) p.setCoberturaUnidad(in.getCoberturaUnidad());
         // `classes` se asigna siempre, incluso null: es la forma de pasar un arancel de
         // "cuenta visitas" a "no cuenta visitas".
         p.setClasses(in.getClasses());
@@ -93,6 +97,8 @@ public class GymPlanController {
         d.setName(p.getName());
         d.setPrice(p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO);
         d.setDurationDays(p.getDurationDays());
+        d.setCoberturaCantidad(p.getCoberturaCantidad());
+        d.setCoberturaUnidad(p.getCoberturaUnidad());
         d.setClasses(p.getClasses());
         d.setActive(p.isActive());
         return d;

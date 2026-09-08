@@ -31,6 +31,15 @@ files:
 # Incluir dependencias de producción automáticamente
 asar: true
 
+# El binario nativo de SQLite (el núcleo local) NO puede viajar adentro del asar: los .node
+# se cargan con dlopen, que necesita un archivo de verdad en el disco, y el asar es un solo
+# archivo empaquetado. electron-builder desempaqueta los módulos nativos por su cuenta, pero
+# queda escrito a propósito: el día que deje de hacerlo, el síntoma no es un error visible
+# —la app arranca bien— sino que la copia local no se guarda, y eso solo se descubre cuando
+# a un gimnasio se le corta internet.
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+
 # Archivos extra a copiar
 extraResources:
   - from: "assets/"

@@ -65,9 +65,43 @@ public class GymMemberController {
         return ResponseEntity.ok(memberMapper.toDto(memberService.findByIdAndVerifyOwnership(id), accessPolicy));
     }
 
+    /**
+     * Da de alta un socio. El terminal puede traer el id, para poder hacerlo sin internet.
+     *
+     * <p><b>⭐ POR QUÉ EL ID PUEDE VENIR DE AFUERA.</b> En el mostrador se da de alta y se cobra
+     * en el mismo acto. Sin conexión las dos cosas van a la cola, y el cobro tiene que poder
+     * nombrar al socio: si el id lo inventara el servidor, el cobro encolado apuntaría a alguien
+     * que todavía no existe. Con el id generado en el terminal, el alta y su cobro viajan
+     * atados desde el principio.</p>
+     *
+     * <p><b>⚠️ Y POR ESO MISMO HAY QUE CUIDARLO.</b> Un id que viene del cliente es un id que
+     * el cliente eligió. Sin la guarda de abajo, mandar el UUID de un socio de OTRO gimnasio
+     * sobrescribiría su ficha y se la llevaría puesta a este tenant — el `save` de JPA con id
+     * no nulo hace merge, no falla. La verificación no es opcional: es lo que separa "puedo
+     * elegir mi id" de "puedo elegir el de cualquiera".</p>
+     *
+     * <p>Reintentar el alta devuelve el socio que ya está, sin pisarle nada: un alta que se
+     * encoló y se mandó dos veces no puede volver a la ficha vieja lo que alguien editó
+     * después.</p>
+     */
     @PostMapping
     public ResponseEntity<GymMemberDTO> createMember(@RequestBody GymMemberInputDTO input) {
+        if (input.getId() != null) {
+            GymMember yaEstaba = memberService.buscarEnCualquierTenant(input.getId()).orElse(null);
+            if (yaEstaba != null) {
+                UUID mio = com.veltronik.v2.core.security.TenantContextHolder.getTenantId();
+                if (yaEstaba.getTenant() == null || !mio.equals(yaEstaba.getTenant().getId())) {
+                    throw new org.springframework.web.server.ResponseStatusException(
+                            org.springframework.http.HttpStatus.CONFLICT,
+                            "Ese identificador ya está en uso.");
+                }
+                // Es de este gimnasio: el alta ya entró. Se devuelve tal cual está.
+                return ResponseEntity.ok(memberMapper.toDto(yaEstaba, accessPolicy));
+            }
+        }
+
         GymMember member = new GymMember();
+        if (input.getId() != null) member.setId(input.getId());
         applyEditableFields(member, input);
         return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(member), accessPolicy));
     }

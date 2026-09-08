@@ -13,6 +13,9 @@ import { clearQueryCache } from '../hooks/useQueryCache';
 // La copia local de socios se borra al cerrar sesión: la lista de un gimnasio no puede
 // quedar en la máquina para que la vea quien entre después.
 import { olvidarSocios } from '../lib/localMembers';
+import { sesionGuardada } from '../lib/boveda';
+import { supabase, CLAVE_DE_SESION } from '../lib/supabase';
+import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
@@ -203,6 +206,79 @@ function cronometro() {
   };
 }
 
+/**
+ * El usuario de Supabase, traducido a lo que espera la app.
+ *
+ * <p>El nombre real vive en `user_metadata.full_name` (el signup manda un único "fullName");
+ * `first_name`/`last_name` casi siempre vienen vacíos. Por eso se prioriza `full_name` y
+ * recién después el split o el prefijo del email.</p>
+ *
+ * <p>Está acá afuera porque lo usan los DOS arranques —el normal y el de sin conexión— y una
+ * segunda copia de esta traducción terminaría mostrando un nombre distinto según cómo abrió
+ * la app, que es de esos bugs que nadie reporta y todos notan.</p>
+ */
+function identidadDe(u) {
+  const meta = u.user_metadata || {};
+  const emailPrefix = u.email ? u.email.split('@')[0] : '';
+  const fullName = (
+    meta.full_name ||
+    meta.name ||
+    `${meta.first_name || ''} ${meta.last_name || ''}`.trim() ||
+    emailPrefix
+  ).trim();
+  return {
+    user: {
+      id: u.id,
+      email: u.email,
+      firstName: meta.first_name || '',
+      lastName: meta.last_name || '',
+      fullName,
+    },
+    profile: { fullName, email: u.email },
+  };
+}
+
+/**
+ * ⭐ ¿Se puede abrir el mostrador con la sesión guardada, aunque la nube no conteste?
+ *
+ * <p><b>El caso que resuelve</b> es el más probable de todos: se corta la luz, el terminal
+ * reinicia, el token de una hora ya venció y todavía no volvió internet. Hasta acá eso
+ * terminaba en la pantalla de login —con la contraseña en manos de alguien que no está— y
+ * el gimnasio sin sistema hasta que volviera la línea.</p>
+ *
+ * <p><b>Por qué hace falta mirar el dato crudo.</b> `getSession()` devuelve `null` tanto
+ * cuando no hay sesión como cuando la hay pero no se pudo renovar. Son cosas distintas: en
+ * el segundo caso la sesión SIGUE GUARDADA (Supabase solo la borra si el refresh token fue
+ * rechazado de verdad, no ante un error de red). Esto las distingue.</p>
+ *
+ * <p><b>Dos guardas antes de aceptarla</b>, y las dos importan:</p>
+ * <ol>
+ *   <li>Solo en el ESCRITORIO. El portal web no promete funcionar sin internet, y ahí la
+ *       pantalla de login es la respuesta correcta.</li>
+ *   <li>Solo si de verdad no se llega al servidor. Si el backend contesta y aun así no hay
+ *       sesión, entonces la sesión está muerta en serio y corresponde el login.</li>
+ * </ol>
+ *
+ * <p>⚠️ <b>Esto es confianza en el EQUIPO, no una verificación de identidad</b>, y está
+ * asumido: la sucursal ya la decide la máquina (`terminal_org_id`) y no la persona. El
+ * alcance de lo que habilita es exactamente el espejo local — todo pedido al backend va a
+ * fallar igual, porque el token está vencido. Es la misma decisión que ya se tomó para la
+ * copia de socios: la prioridad es que la caja no pare nunca.</p>
+ */
+async function sesionSinConexion() {
+  // El portal web no juega este partido.
+  if (typeof window === 'undefined' || !window.electronAPI) return null;
+
+  const guardada = await sesionGuardada(CLAVE_DE_SESION);
+  if (!guardada?.user) return null;
+
+  // ¿Es de verdad un problema de red? Si el backend contesta, la sesión está muerta en serio.
+  const estado = await diagnoseConnectivity().catch(() => CONNECTIVITY.OFFLINE);
+  if (estado === CONNECTIVITY.ONLINE) return null;
+
+  return identidadDe(guardada.user);
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -211,8 +287,33 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isTrialActive, setIsTrialActive] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  // ¿La app se abrió sin poder confirmar la sesión contra la nube? Lo leen las pantallas
+  // para decir la verdad en vez de aparentar que todo está normal.
+  const [modoSinConexion, setModoSinConexion] = useState(false);
   const [orgRole, setOrgRole] = useState(localStorage.getItem('current_org_role') || 'owner');
   const [orgName, setOrgName] = useState(localStorage.getItem('current_org_name') || '');
+
+  /**
+   * ⭐ EN QUÉ SUCURSAL ESTAMOS, COMO ESTADO Y NO COMO LECTURA SUELTA.
+   *
+   * <p><b>Por qué hace falta.</b> El escritorio arranca BORRANDO `current_org_id`
+   * (`main.desktop.jsx`), a propósito: cada arranque tiene que re-verificar a qué sucursal
+   * pertenece el equipo, porque eso lo manda el enrolamiento y no la memoria del navegador.
+   * O sea que hay una ventana —corta, pero real— en la que la app no sabe en qué gimnasio
+   * está.</p>
+   *
+   * <p>Todo pedido que sale en esa ventana viaja sin `X-Tenant-ID`, y el backend lo corta con
+   * <b>401 "Falta contexto de negocio"</b> (KillSwitchFilter). Había una guarda para eso, pero
+   * llegaba tarde: <b>en React los efectos de los hijos corren antes que los del padre</b>, así
+   * que la pantalla ya había pedido sus datos cuando el padre se enteraba de redirigir.</p>
+   *
+   * <p>Como estado, quien necesita sucursal puede <b>esperarla</b> en vez de pedir y fallar. Se
+   * sincroniza en la navegación porque los dos caminos que la fijan —el DeviceGate con red y
+   * sin red— navegan justo después de fijarla.</p>
+   */
+  const [orgId, setOrgId] = useState(() => {
+    try { return localStorage.getItem('current_org_id'); } catch { return null; }
+  });
   // Track if initial auth has completed to prevent premature redirects
   const initCompleteRef = useRef(false);
   // Guard reentrante del logout: el evento 'auth-unauthorized' y el botón Salir pueden
@@ -310,6 +411,9 @@ export function AuthProvider({ children }) {
     // (o contra ninguna). Se escribía en un solo lugar de toda la app —el click normal de
     // una card del Lobby—, así que entrar andaba y pagar no.
     localStorage.setItem('current_org_id', orgId);
+    // Y el estado, en el mismo acto: es lo que hace que AppLayout deje de esperar. Sin esto
+    // la pantalla se destrabaría recién en la próxima navegación.
+    setOrgId(orgId);
 
     // Limpiar la caché SOLO al cambiar de negocio (previene fugas cross-org). Antes se
     // limpiaba siempre: al re-entrar al MISMO negocio tiraba los datos recién cargados
@@ -350,6 +454,25 @@ export function AuthProvider({ children }) {
   }, [user, loadOrgById, checkTrialStatus, getTrialDays, loadSubscriptionForOrg, loadRoleForOrg]);
 
   // Initialize auth state from Supabase
+  /**
+   * Abre el mostrador con la sesión que hay en el disco, sin nube.
+   *
+   * <p>Además de poblar al usuario, <b>apaga el reintento de renovación de Supabase</b>.
+   * Sin eso, su ticker vuelve cada 30 segundos a pelearse con una red que no está: no rompe
+   * nada, pero llena la consola de errores y hace trabajar de más a un equipo que, después
+   * de un apagón, puede estar colgado de un UPS. Se vuelve a prender solo cuando el
+   * navegador avisa que hay red (ver el efecto de reconexión, más abajo).</p>
+   */
+  const entrarEnModoLocal = useCallback((local) => {
+    console.warn('[auth] sin conexión: se abre en modo local, con la sesión guardada');
+    setUser(local.user);
+    setProfile(local.profile);
+    setModoSinConexion(true);
+    try { supabase.auth.stopAutoRefresh(); } catch { /* si no se puede, solo queda el ruido */ }
+    setLoading(false);
+    initCompleteRef.current = true;
+  }, []);
+
   const doInitAuth = async () => {
     const reloj = cronometro();
     /**
@@ -370,14 +493,67 @@ export function AuthProvider({ children }) {
      */
     let enSegundoPlano = null;
     try {
+      // ⭐ PRIMERO SE MIRA SI HAY RED, Y RECIÉN DESPUÉS SE LE PREGUNTA A LA NUBE.
+      //
+      // El orden no es un detalle: es la diferencia entre abrir en el acto y dejar el logo
+      // girando un minuto. Con el cable desenchufado, `getSession()` intenta renovar el
+      // token y Supabase REINTENTA CON BACKOFF durante 30 segundos (su
+      // AUTO_REFRESH_TICK_DURATION_MS), bajo un candado que además hace esperar a la
+      // recuperación de sesión del arranque. Y el ticker vuelve a empezar cada 30 s.
+      //
+      // No hay nada que esperar: si el sistema operativo dice que no hay red, la respuesta
+      // ya está en el disco. Es el caso del apagón —el terminal reinicia antes de que
+      // vuelva la línea— y tiene que ser instantáneo.
+      //
+      // Ojo: esto es un ATAJO, no la única puerta. `navigator.onLine` da true cuando se
+      // está conectado a un router sin internet, y ahí se sigue por el camino de siempre —
+      // que tarda, pero no confunde una conexión lenta con una conexión ausente. Confundir
+      // eso mandaría al login a alguien con la sesión perfectamente viva, que es
+      // exactamente el bug que todo esto vino a cerrar.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const local = await sesionSinConexion();
+        if (local) {
+          entrarEnModoLocal(local);
+          reloj.informe('modo local (sin red)');
+          return;
+        }
+      }
+
       const session = await authService.getSession().catch(() => null);
       reloj.marca('sesion');
       if (!session) {
+        // ⭐ "NO HAY SESIÓN" Y "NO PUDE CONFIRMARLA" SE VEN IGUAL DESDE ACÁ, Y NO SON LO MISMO.
+        //
+        // Verificado en el código de @supabase/auth-js: si el token venció, `getSession()`
+        // intenta renovarlo y, ante CUALQUIER error de esa renovación —incluida la falta de
+        // internet—, devuelve `null`. Pero la sesión sigue guardada: la biblioteca solo la
+        // borra cuando el error NO es de red, o sea cuando el refresh token fue rechazado
+        // de verdad.
+        //
+        // Sin esto, el caso más probable de todos —se corta la luz, el terminal reinicia,
+        // el token venció y todavía no volvió internet— termina en la pantalla de login,
+        // con el mostrador muerto y la contraseña en manos de alguien que no está.
+        // ⚠️ Lo que el modo local NO carga: `gym` y `subscription`, que salen del backend.
+        // El mostrador no los necesita —la sucursal la lee de `current_org_id`, que
+        // sobrevive al reinicio, y el muro de cobro lo decide el 402 del backend, que sin
+        // conexión no llega— pero la marca del gimnasio (color y logo) queda en los valores
+        // por defecto hasta que vuelva internet. Es cosmético y está asumido; espejar el
+        // negocio es trabajo de otra pasada.
+        const local = await sesionSinConexion();
+        if (local) {
+          entrarEnModoLocal(local);
+          reloj.informe('modo local (la nube no contestó)');
+          return;
+        }
+
         reloj.informe('sin sesión guardada → login');
         setLoading(false);
         initCompleteRef.current = true;
         return;
       }
+
+      // Volvió la conexión (o nunca se fue): se sale del modo local si estaba puesto.
+      setModoSinConexion(false);
 
       // ⭐ EL USUARIO YA VIENE ADENTRO DE LA SESIÓN — NO SE LO VUELVE A PEDIR.
       //
@@ -395,28 +571,11 @@ export function AuthProvider({ children }) {
       // El fallback queda por si la sesión llegara sin el usuario adentro.
       const currentUser = session.user || await authService.getCurrentUser().catch(() => null);
       if (currentUser) {
-        // Map Supabase user to our expected format.
-        // El nombre real vive en user_metadata.full_name (el signup manda un único
-        // "fullName"); first_name/last_name casi siempre vienen vacíos. Por eso
-        // priorizamos full_name y recién después el split o el prefijo del email.
-        const meta = currentUser.user_metadata || {};
-        const emailPrefix = currentUser.email ? currentUser.email.split('@')[0] : '';
-        const fullName = (
-          meta.full_name ||
-          meta.name ||
-          `${meta.first_name || ''} ${meta.last_name || ''}`.trim() ||
-          emailPrefix
-        ).trim();
-        setUser({
-          id: currentUser.id,
-          email: currentUser.email,
-          firstName: meta.first_name || '',
-          lastName: meta.last_name || '',
-          fullName,
-        });
+        const { user: usuario, profile: perfil } = identidadDe(currentUser);
+        setUser(usuario);
         // Sidebar / Settings / Lobby leen `profile?.fullName`; sin poblar `profile`
         // queda siempre en "Usuario" aunque el nombre exista en la sesión.
-        setProfile({ fullName, email: currentUser.email });
+        setProfile(perfil);
       }
 
       // Intentar cargar el contexto de la org seleccionada
@@ -493,6 +652,31 @@ export function AuthProvider({ children }) {
     return initAuthPromiseRef.current;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkTrialStatus, getTrialDays, loadOrgById, loadSubscriptionForOrg]);
+
+  /**
+   * Cuando vuelve la red, el terminal sale solo del modo local.
+   *
+   * <p>Sin esto, un mostrador que abrió sin internet se quedaría trabajando contra la copia
+   * hasta que a alguien se le ocurriera reiniciar la app — y como el modo local no molesta,
+   * podrían pasar días sin que nadie lo note. Peor: mientras tanto, el reintento de
+   * renovación quedó apagado a propósito, así que la sesión tampoco se renovaría sola.</p>
+   *
+   * <p>El evento `online` del navegador es la señal más barata que hay para esto: lo emite
+   * el sistema operativo cuando aparece una interfaz de red. Puede mentir hacia el lado
+   * optimista —un router sin internet también lo dispara— y no importa: en ese caso
+   * `initAuth` no va a poder confirmar la sesión y volverá a entrar en modo local, que es
+   * donde ya estaba.</p>
+   */
+  useEffect(() => {
+    if (!modoSinConexion) return undefined;
+    const alVolverLaRed = () => {
+      console.warn('[auth] volvió la red: se reintenta la sesión');
+      try { supabase.auth.startAutoRefresh(); } catch { /* no siempre está disponible */ }
+      initAuth();
+    };
+    window.addEventListener('online', alVolverLaRed);
+    return () => window.removeEventListener('online', alVolverLaRed);
+  }, [modoSinConexion, initAuth]);
 
   // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
   // listener captura una referencia todavía no inicializada del primer render.
@@ -621,13 +805,16 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    // La sucursal vigente, al día. Los dos caminos que la fijan —el DeviceGate con red y sin
+    // red— navegan apenas la fijan, así que este efecto vuelve a correr y la levanta. Es lo
+    // que le permite a AppLayout ESPERARLA en vez de dibujar y pedir sin ella.
+    const sucursalActual = localStorage.getItem('current_org_id');
+    if (sucursalActual !== orgId) setOrgId(sucursalActual);
+
     // Logged in, needs org context but none selected
-    if (user && needsOrg) {
-      const orgId = localStorage.getItem('current_org_id');
-      if (!orgId) {
-        navigate(CONFIG.ROUTES.LOBBY, { replace: true });
-        return;
-      }
+    if (user && needsOrg && !sucursalActual) {
+      navigate(CONFIG.ROUTES.LOBBY, { replace: true });
+      return;
     }
 
     // CRITICAL: Billing is now centralized in the Java Backend (KillSwitchFilter)
@@ -643,7 +830,7 @@ export function AuthProvider({ children }) {
         : `Tu período de prueba vence en ${trialDaysRemaining} días. Suscribite para no perder acceso.`;
       showToast(msg, 'warning', 10000);
     }
-  }, [user, loading, location.pathname, gym, subscription, isTrialActive, trialDaysRemaining, hasValidAccess, navigate, showToast]);
+  }, [user, loading, location.pathname, gym, subscription, isTrialActive, trialDaysRemaining, hasValidAccess, orgId, navigate, showToast]);
 
   // Auth actions
   const login = async (email, password) => {
@@ -694,9 +881,11 @@ export function AuthProvider({ children }) {
     loading,
     isTrialActive,
     trialDaysRemaining,
+    modoSinConexion,
     hasValidAccess,
     orgRole,
     orgName,
+    orgId,
     login,
     register,
     loginWithGoogle,

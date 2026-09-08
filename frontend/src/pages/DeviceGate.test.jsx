@@ -145,3 +145,140 @@ describe('la puerta de entrada del terminal no se traba', () => {
     }
   });
 });
+
+// ============================================
+// EL TERMINAL SE ACUERDA DE SU SUCURSAL
+// ============================================
+// ⚠️ ESCRITO DESPUÉS DE VERLO ROMPER EN UNA MÁQUINA DE VERDAD. Con el núcleo local, la app
+// ya arrancaba sin internet… y chocaba acá: esta pantalla le pregunta al servidor a qué
+// sucursal pertenece el equipo, y sin servidor mostraba "No pudimos identificar este
+// equipo".
+//
+// Y el daño era peor que el cartel: `identificar` arranca BORRANDO `current_org_id`, así
+// que un arranque sin red dejaba al mostrador sin saber de qué gimnasio es la copia de
+// socios que tiene en el disco. La pantalla que existe para identificar el equipo lo
+// dejaba más perdido que antes de entrar.
+//
+// La regla: la sucursal la decide el EQUIPO, y un equipo no se muda solo. Si ya se
+// identificó alguna vez, esa respuesta sigue valiendo cuando no hay a quién preguntarle.
+describe('sin conexión, el equipo se acuerda de su sucursal', () => {
+  /** Deja anotada una identificación anterior, como la de la última vez que hubo internet. */
+  function yaSeIdentificoAntes() {
+    localStorage.setItem('terminal_org_id', 'org1');
+    localStorage.setItem('terminal_org_name', 'HaA Fitness');
+    localStorage.setItem('terminal_org_role', 'owner');
+  }
+
+  /** Pone (o saca) la máquina en modo "sin red". */
+  function sinRed(hay) {
+    Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+  }
+
+  // ⚠️ `clearAllMocks` borra las LLAMADAS pero NO las implementaciones, así que lo que
+  // devolvió un test se filtra al siguiente. Acá eso es especialmente traicionero: un test
+  // del camino sin red podía pasar por el camino CON red, usando el `mockResolvedValue`
+  // que dejó otro — y quedar verde probando lo contrario de lo que dice su nombre.
+  beforeEach(() => {
+    deviceService.me.mockReset();
+    gymService.getUserGyms.mockReset();
+    gymService.getUserGyms.mockResolvedValue([]);
+    deviceService.me.mockRejectedValue(new Error('Network Error'));
+  });
+
+  afterEach(() => sinRed(true));
+
+  it('una identificación exitosa deja la copia durable', async () => {
+    deviceService.me.mockResolvedValue({ enrolledTenantId: 'org1', enrolledTenantName: 'HaA Fitness' });
+    gymService.getUserGyms.mockResolvedValue([{ id: 'org1', name: 'HaA Fitness', role: 'owner' }]);
+
+    await pintar();
+
+    // Sin esto no hay nada de lo que acordarse después, y es la única parte del flujo que
+    // sale con una sucursal CONFIRMADA por el servidor.
+    expect(localStorage.getItem('terminal_org_id')).toBe('org1');
+    expect(localStorage.getItem('terminal_org_role')).toBe('owner');
+  });
+
+  it('sin red entra con la recordada, sin preguntarle nada al servidor', async () => {
+    yaSeIdentificoAntes();
+    sinRed(false);
+
+    await pintar();
+
+    expect(deviceService.me).not.toHaveBeenCalled();
+    expect(localStorage.getItem('current_org_id')).toBe('org1');
+  });
+
+  it('sin red entra por ACCESO, no por el Dashboard, aunque sea el dueño', async () => {
+    // El Dashboard es, sin internet, la pantalla que menos sirve: todo lo que muestra viene
+    // del servidor. El mostrador funciona entero contra la copia local. Sin conexión se
+    // entra por la puerta que anda, no por la que corresponde al rol.
+    yaSeIdentificoAntes(); // rol 'owner', que con red iría al Dashboard
+    sinRed(false);
+
+    await pintar();
+
+    expect(navegado).toEqual(['/access']);
+  });
+
+  it('sin red NO pide el contexto de la sucursal', async () => {
+    // Serían tres pedidos condenados a fallar (sucursal, suscripción, rol), cada uno con
+    // sus reintentos, en el arranque de un terminal que ya sabe todo lo que necesita saber.
+    yaSeIdentificoAntes();
+    sinRed(false);
+
+    await pintar();
+
+    expect(auth.refreshOrgContext).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ sin red NO se queda sin sucursal: el mostrador necesita saber de qué gimnasio es su copia', async () => {
+    yaSeIdentificoAntes();
+    localStorage.setItem('current_org_id', 'org1');
+    sinRed(false);
+
+    await pintar();
+
+    // El bug era justamente este: `identificar` borra `current_org_id` para poder preguntar
+    // limpio, y sin servidor no lo volvía a escribir nunca.
+    expect(localStorage.getItem('current_org_id')).toBe('org1');
+  });
+
+  it('con la red caída pero el sistema diciendo que hay, también entra', async () => {
+    // `navigator.onLine` da true cuando se está colgado de un router sin internet. El
+    // error de transporte —sin respuesta HTTP— es la segunda señal, y lleva a lo mismo.
+    yaSeIdentificoAntes();
+    deviceService.me.mockRejectedValue(new Error('Network Error')); // sin `response`
+    gymService.getUserGyms.mockResolvedValue([]);
+
+    await pintar();
+
+    expect(navegado).toEqual(['/access']);
+    expect(localStorage.getItem('current_org_id')).toBe('org1');
+  });
+
+  it('un rechazo DEL SERVIDOR no se tapa con la sucursal recordada', async () => {
+    // Un 403 sí dice algo sobre este equipo: que no puede abrir esa sucursal. Entrar igual
+    // con la recordada sería esconder una respuesta legítima detrás de un dato viejo.
+    yaSeIdentificoAntes();
+    const rechazo = new Error('Este equipo pertenece a otra sucursal');
+    rechazo.response = { status: 403 };
+    deviceService.me.mockRejectedValue(rechazo);
+    gymService.getUserGyms.mockResolvedValue([]);
+
+    await pintar();
+
+    expect(navegado).toEqual([]);
+    expect(container.textContent).toContain('No pudimos identificar este equipo');
+  });
+
+  it('un terminal nuevo sin red sí muestra el error: no hay nada que recordar', async () => {
+    sinRed(false);
+    deviceService.me.mockRejectedValue(new Error('Network Error'));
+    gymService.getUserGyms.mockResolvedValue([]);
+
+    await pintar();
+
+    expect(container.textContent).toContain('No pudimos identificar este equipo');
+  });
+});

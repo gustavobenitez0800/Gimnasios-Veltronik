@@ -47,10 +47,33 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'active', label: 'Activos' },
   { value: 'inactive', label: 'Inactivos' },
   { value: 'expired', label: 'Vencidos' },
+  // ⭐ Los que nunca pagaron. Desde que el alta dejó de regalar un mes (ADR-013) este es el
+  // estado de todo socio recién cargado, y sin filtro la única forma de encontrarlos es
+  // recorrer la lista a ojo. Es, literalmente, la lista de a quién falta cobrarle.
+  { value: 'sin_cuota', label: 'Sin cuota' },
   // El dueño acaba de cargar sus aranceles y tiene cientos de socios sin ninguno. Este
   // filtro es la diferencia entre "asignarlos" y "recorrer la lista entera a ojo".
   { value: 'sin_arancel', label: 'Sin arancel' },
 ];
+
+/**
+ * ⭐ EL SOCIO QUE NO TIENE NINGUNA COBERTURA — ni vigente ni vencida.
+ *
+ * <p>Una sola lectura para las CUATRO cosas que lo muestran: el chip de estado, la columna de
+ * días, el filtro y el CSV exportado. Escrita cuatro veces serían cuatro formas de discrepar,
+ * que es el patrón que este proyecto ya pagó tres de tres veces con las cuentas de fechas.</p>
+ *
+ * <p><b>No es un estado nuevo: es una lectura del que ya hay, y eso es a propósito.</b>
+ * `toApi` traduce el estado del socio a un booleano —cualquier cosa que no sea 'active' viaja
+ * como BAJA—, así que un `status: 'sin_cuota'` haría que editarle el teléfono a un socio
+ * recién dado de alta LO DIERA DE BAJA en silencio, sin que nadie toque ese campo. Es el mismo
+ * mapeo que ya se comió el arancel una vez. Queda fijado por un test en el controller.</p>
+ *
+ * <p>Se exige `status === 'active'` porque al dado de baja le corresponde decir "baja", no
+ * "sin cuota": el que ya no es socio no debe nada.</p>
+ */
+const esSinCuota = (member) => member?.status === 'active'
+  && (!member.situacion || member.situacion === 'SIN_DATOS');
 
 export default function MembersPage() {
   const { showToast } = useToast();
@@ -153,6 +176,10 @@ export default function MembersPage() {
       // aranceles y tiene 383 socios sin ninguno. Sin una forma de encontrarlos, la única
       // opción es recorrer la lista entera a ojo.
       if (statusFilter === 'sin_arancel') return !m.planId;
+      if (statusFilter === 'sin_cuota') return esSinCuota(m);
+      // ⚠️ "Activos" SIGUE INCLUYENDO a los que no tienen cuota, y no es un descuido: activo
+      // acá significa "no está dado de baja", que es lo único que el servidor guarda. Sacarlos
+      // haría que un socio no apareciera en ningún filtro hasta que se le cobre.
       return m.status === statusFilter;
     });
   }, [controllerMembers, statusFilter]);
@@ -315,13 +342,21 @@ export default function MembersPage() {
    * que ya costó los días de vencimiento en cinco lugares.</p>
    */
   const cobrarCuota = async ({ planId, monto, metodo }) => {
-    await paymentService.createPayment({
+    const r = await paymentService.createPayment({
       member_id: cobrando.id,
       plan_id: planId,
       amount: monto,
       paymentMethod: (metodo || 'cash').toUpperCase(),
       status: 'PAID',
     });
+
+    // ⚠️ SIN CONEXIÓN NO SE PROMETE UN VENCIMIENTO NUEVO. La cobertura la corre el SERVIDOR,
+    // y hasta que el cobro no suba no se movió nada: decir "ahora vence el 7 de octubre"
+    // —o incluso "el vencimiento se actualizó"— sería afirmar algo que todavía no pasó.
+    // Calcularlo acá para poder mostrarlo sería una segunda cuenta de la misma cobertura,
+    // que es el error que este proyecto ya cometió con las fechas.
+    if (r?.encolado) return { encolado: true };
+
     refresh();
     // Se devuelve el socio ya actualizado para poder mostrar el vencimiento REAL. Si no se
     // puede releer, se devuelve vacío: el modal prefiere no decir nada antes que inventar
@@ -349,13 +384,21 @@ export default function MembersPage() {
         data.id = modal.editingId;
       }
       
-      await saveMember(data);
+      const guardado = await saveMember(data);
       // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador.
       // `refresh` pide de nuevo la MISMA vista que se está mirando; guardar ya marcó viejas
       // las demás páginas, que también dejaron de ser ciertas.
       refresh();
       
-      showToast(`${memberLabel} guardado exitosamente`, 'success');
+      // ⚠️ SIN CONEXIÓN NO SE DICE "GUARDADO EXITOSAMENTE". Está guardado acá, no en el
+      // servidor: quien atiende tiene que saber que todavía falta que suba, igual que en el
+      // cobro y en la entrada. Es la misma regla en la tercera pantalla.
+      showToast(
+        guardado?.encolado
+          ? `${memberLabel} guardado sin conexión · se manda al volver internet`
+          : `${memberLabel} guardado exitosamente`,
+        guardado?.encolado ? 'warning' : 'success',
+      );
       modal.close();
     } catch (error) {
       showToast(error.message || errorService.getMessage(error), 'error');
@@ -412,7 +455,10 @@ export default function MembersPage() {
       const days = Array.isArray(m.attendanceDays) ? m.attendanceDays.map(d => DAY_NAMES[d]).join(', ') : '';
       return [
         m.fullName, m.dni || '', m.phone || '', m.email || '',
-        m.status === 'active' ? 'Activo' : m.status === 'inactive' ? 'Inactivo' : m.status === 'expired' ? 'Vencido' : 'Suspendido',
+        // El CSV dice lo mismo que la pantalla. Un export que contradice la tabla que se está
+        // mirando es peor que no exportar nada.
+        esSinCuota(m) ? 'Sin cuota'
+          : m.status === 'active' ? 'Activo' : m.status === 'inactive' ? 'Inactivo' : m.status === 'expired' ? 'Vencido' : 'Suspendido',
         m.membershipStart || '', m.membershipEnd || '', days,
       ];
     });
@@ -449,8 +495,24 @@ export default function MembersPage() {
   // distintas de días según qué pantalla se mire.
   const getDaysInfo = (member) => {
     const { situacion, diasVencido, diasRestantes } = member || {};
-    if (!situacion || situacion === 'SIN_DATOS') return { text: '-', className: 'days-none' };
-    if (situacion === 'INACTIVO') return { text: 'baja', className: 'days-none' };
+    // ⭐ "SIN CUOTA" Y NO UN GUION.
+    //
+    // Un guion se lee como "falta el dato", y acá el dato está: ese socio NO TIENE cobertura.
+    // Desde que el alta dejó de regalar un mes (ADR-013), este estado es el de todo socio
+    // recién dado de alta hasta que se le cobra — y decirle "-" al lado de un estado que dice
+    // ACTIVO hace que se vea igual que uno al día.
+    //
+    // No dice "sin pagar" a propósito: la política del servidor distingue "sin fecha cargada"
+    // de "debe" (un socio migrado sin fecha tampoco pagó por acá, y afirmar que no pagó sería
+    // inventar). "Sin cuota" es cierto en los dos casos.
+    //
+    // La baja se pregunta PRIMERO: al que ya no es socio le corresponde decir "baja", no
+    // "sin cuota". Y por `status` además de por `situacion`, porque la copia local puede
+    // mandar el socio sin situación calculada.
+    if (situacion === 'INACTIVO' || member?.status === 'inactive') {
+      return { text: 'baja', className: 'days-none' };
+    }
+    if (esSinCuota(member)) return { text: 'sin cuota', className: 'days-none' };
 
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
       return { text: `${diasVencido}d vencido`, className: 'days-expired' };
@@ -596,6 +658,7 @@ export default function MembersPage() {
               ) : (
                 pagedMembers.map((member) => {
                   const daysInfo = getDaysInfo(member);
+                  const sinCuota = esSinCuota(member);
                   return (
                     <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                       {puedeAsignarMasivo && (
@@ -611,7 +674,14 @@ export default function MembersPage() {
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Teléfono">{member.phone || '-'}</td>
-                      <td data-label="Estado"><Badge status={member.status} /></td>
+                      {/* ⭐ El chip decía ACTIVO para alguien que nunca pagó, y el estado es lo
+                          primero que se mira: un socio recién cargado se veía idéntico a uno al
+                          día. Ámbar y no rojo — no debe nada, todavía no se le cobró. */}
+                      <td data-label="Estado">
+                        {sinCuota
+                          ? <Badge status="active" label="Sin cuota" className="badge-warning" />
+                          : <Badge status={member.status} />}
+                      </td>
                       {hayAranceles && (
                         /* ⭐ El arancel se elige acá mismo, sin abrir la ficha. Con 383
                            socios, abrir un modal por cada uno no es una opción: son dos

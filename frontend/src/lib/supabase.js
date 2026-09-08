@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createResilientFetch } from './resilientFetch';
+import { almacenDeSesion } from './boveda';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -100,6 +101,16 @@ function fetchDeSupabase(input, init) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: { fetch: fetchDeSupabase },
   auth: {
+    // ⭐ DÓNDE SE GUARDA EL TOKEN.
+    //
+    // En el ESCRITORIO, la bóveda: cifrado por el sistema operativo (DPAPI en Windows), en
+    // vez del `localStorage` de Chromium, que es un archivo del perfil del usuario en texto
+    // plano. La mudanza de lo que ya está guardado la hace el propio almacén en su primera
+    // lectura — sin eso, la actualización desloguearía a todos los clientes de golpe.
+    //
+    // En la WEB devuelve `undefined` y Supabase usa el suyo, que es el que corresponde ahí.
+    // Ver lib/boveda.js.
+    storage: almacenDeSesion(),
     // PKCE: el link de recuperación y el OAuth vuelven con "?code=..." (query param)
     // en vez de tokens en el fragmento "#...". Clave con HashRouter: el flujo implícito
     // metía los tokens en el mismo "#" que usa el router y la sesión de recuperación
@@ -110,3 +121,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
   },
 });
+
+/**
+ * Con qué clave guarda Supabase la sesión (`sb-<ref>-auth-token`).
+ *
+ * <p>Se LEE del cliente en vez de rearmarla acá. La regla es `sb-` + el primer pedazo del
+ * host + `-auth-token`, y escribirla de nuevo sería una segunda copia de algo que ya está
+ * decidido en otro lado: el día que Supabase la cambie, la copia queda muda y el arranque
+ * sin conexión deja de encontrar la sesión sin que nada avise.</p>
+ *
+ * La necesita `lib/boveda.js` para poder mirar el dato crudo cuando `getSession()` dice que
+ * no hay sesión porque no pudo renovarla.
+ */
+export const CLAVE_DE_SESION = supabase.auth.storageKey;

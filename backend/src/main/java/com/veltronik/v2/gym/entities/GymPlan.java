@@ -36,9 +36,37 @@ public class GymPlan extends TenantAwareEntity {
     @Column(nullable = false)
     private BigDecimal price = BigDecimal.ZERO;
 
-    /** Días de cobertura que otorga. 0 = no mueve la fecha (pack de clases sueltas). */
+    /**
+     * @deprecated Desde la V65 la cobertura la dicen {@link #coberturaCantidad} y
+     * {@link #coberturaUnidad}. Se conserva para poder auditar qué vendía cada arancel antes
+     * de la migración. <b>No la lea nadie para decidir un vencimiento.</b>
+     */
+    @Deprecated
     @Column(name = "duration_days", nullable = false)
     private int durationDays = 0;
+
+    /**
+     * ⭐ CUÁNTO TIEMPO CUBRE, junto con {@link #coberturaUnidad}. <b>0 = no cubre tiempo</b>
+     * (la clase suelta: cobra plata pero no corre la fecha).
+     *
+     * <p>Por defecto <b>1 mes</b>, y eso es el corazón de la decisión (ADR-013). Antes esto
+     * eran días y arrancaba en 0 — o sea que el valor por defecto era el que rompía: un arancel
+     * creado sin pensar hacía que los cobros no movieran el vencimiento, <b>en silencio</b>,
+     * hasta que a un socio no lo dejaban entrar jurando que había pagado.</p>
+     */
+    @Column(name = "cobertura_cantidad", nullable = false)
+    private int coberturaCantidad = 1;
+
+    /**
+     * {@code DIA} o {@code MES}.
+     *
+     * <p><b>La unidad existe porque un mes NO son 30 días.</b> El 7 de marzo más 30 días es el
+     * 6 de abril, y el 7 de febrero más 30 es el 9 de marzo. La regla del negocio es "el mismo
+     * día del mes que viene", y para poder decir eso hay que guardar la unidad, no solo el
+     * número. Si el día no existe —pagó un 31— vence el último que exista.</p>
+     */
+    @Column(name = "cobertura_unidad", nullable = false, length = 10)
+    private String coberturaUnidad = "MES";
 
     /**
      * Visitas que otorga.

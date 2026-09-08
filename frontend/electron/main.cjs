@@ -16,6 +16,10 @@ const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
 const molinete = require('./molinete.cjs');
+const nucleoDb = require('./nucleo/db.cjs');
+const espejo = require('./nucleo/espejo.cjs');
+const boveda = require('./nucleo/boveda.cjs');
+const cola = require('./nucleo/cola.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
@@ -435,5 +439,55 @@ ipcMain.handle('show-error-dialog', async (event, { title, message }) => {
 ipcMain.handle('restart-for-update', () => {
     const { quitAndInstall } = require('./updater.cjs');
     quitAndInstall();
+});
+
+// ============================================
+// NÚCLEO LOCAL (fase 1: el espejo)
+// ============================================
+// La copia de los socios vive en el proceso principal, no en la pantalla: tiene que
+// sobrevivir a que el renderer se recargue, se cuelgue o se vuelva a abrir. Y en un archivo
+// de SQLite y no en la base del navegador, porque el requisito es un corte de luz.
+//
+// Ninguno de estos handlers puede tirar: si la base local no está disponible en esta
+// máquina, devuelven vacío y la app vuelve a trabajar contra la nube como venía haciendo.
+
+ipcMain.handle('nucleo:disponible', () => ({
+    disponible: nucleoDb.disponible(),
+    ruta: nucleoDb.disponible() ? nucleoDb.ruta() : null,
+    motivo: nucleoDb.porQueNo(),
+}));
+
+ipcMain.handle('nucleo:espejo-leer', (_event, tenantId) => espejo.leer(tenantId));
+
+ipcMain.handle('nucleo:espejo-guardar', (_event, { tenantId, socios }) =>
+    espejo.guardar(tenantId, socios));
+
+ipcMain.handle('nucleo:espejo-estado', (_event, tenantId) => espejo.estado(tenantId));
+
+ipcMain.handle('nucleo:espejo-olvidar', (_event, tenantId) => espejo.olvidar(tenantId));
+
+// La bóveda: los tokens de sesión, cifrados por el sistema operativo. Hasta acá vivían en
+// el localStorage de Chromium, en claro, en un archivo del perfil del usuario.
+ipcMain.handle('nucleo:boveda-disponible', () => boveda.disponible());
+ipcMain.handle('nucleo:boveda-leer', (_event, clave) => boveda.leer(clave));
+ipcMain.handle('nucleo:boveda-escribir', (_event, { clave, valor }) => boveda.escribir(clave, valor));
+ipcMain.handle('nucleo:boveda-borrar', (_event, clave) => boveda.borrar(clave));
+
+// La cola: lo que pasó en la puerta y el servidor todavía no sabe. A diferencia del espejo,
+// esto NO es una copia de nada: si se pierde, el gimnasio perdió una visita.
+ipcMain.handle('nucleo:cola-encolar', (_event, item) => cola.encolar(item));
+ipcMain.handle('nucleo:cola-pendientes', (_event, tenantId) => cola.pendientes(tenantId));
+ipcMain.handle('nucleo:cola-contar', (_event, tenantId) => cola.contar(tenantId));
+ipcMain.handle('nucleo:cola-resumen', (_event, tenantId) => cola.resumen(tenantId));
+ipcMain.handle('nucleo:cola-sacar', (_event, clientRef) => cola.sacar(clientRef));
+ipcMain.handle('nucleo:cola-anotar-fallo', (_event, { clientRef, mensaje }) =>
+    cola.anotarFallo(clientRef, mensaje));
+ipcMain.handle('nucleo:cola-olvidar', () => cola.olvidar());
+
+// Cerrar la base al salir integra el WAL al archivo principal. Sin esto queda un checkpoint
+// pendiente que el próximo arranque tiene que rehacer — no se pierde nada, pero el arranque
+// después de un cierre limpio no tiene por qué pagar ese trabajo.
+app.on('will-quit', () => {
+    nucleoDb.cerrar();
 });
 

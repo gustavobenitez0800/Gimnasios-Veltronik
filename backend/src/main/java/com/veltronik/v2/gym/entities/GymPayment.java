@@ -78,6 +78,24 @@ public class GymPayment extends TenantAwareEntity {
     private LocalDateTime periodEnd;
 
     /**
+     * ⭐ EL SELLO DEL TERMINAL: lo que impide que un reintento cobre dos veces.
+     *
+     * <p>Lo genera el mostrador ANTES de intentar mandar el cobro, y viaja igual haya o no
+     * conexión. Si el pedido salió, el servidor lo guardó y la respuesta se perdió en el
+     * camino de vuelta, el reintento llega con el mismo sello y se reconoce.</p>
+     *
+     * <p><b>Y acá el daño de no tenerlo no es una fila de más.</b>
+     * {@code aplicarPeriodoDelPlan} arranca el período <i>donde termina la cobertura vigente
+     * del socio</i>, así que la segunda copia arrancaría donde terminó la primera: el socio se
+     * lleva 30 días GRATIS y el ingreso del día queda contado dos veces en el arqueo.</p>
+     *
+     * <p>Null en todo lo cobrado con conexión antes de esto, y en lo que se carga desde el
+     * portal web. El índice único de la V63 es <b>parcial</b> justamente por eso.</p>
+     */
+    @Column(name = "client_ref")
+    private java.util.UUID clientRef;
+
+    /**
      * Acepta {@code member_id} (snake_case) que envía el frontend al crear un pago.
      * Sin esto, Jackson no encontraba dónde mapearlo y el pago se guardaba SIN socio
      * (la columna es nullable → quedaba huérfano en silencio). Crea una referencia mínima;

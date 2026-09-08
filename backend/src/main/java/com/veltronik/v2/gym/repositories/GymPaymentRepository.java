@@ -14,6 +14,16 @@ import java.util.UUID;
 
 @Repository
 public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
+
+    /**
+     * El cobro que ya se guardó con ese sello, si existe.
+     *
+     * <p>Es la mitad barata de la idempotencia: se consulta ANTES de tocar nada, para no
+     * ejecutar el efecto lateral —extender la cobertura del socio— por segunda vez. La otra
+     * mitad, la que de verdad garantiza, es el índice único parcial de la V63: entre este
+     * SELECT y el INSERT hay una ventana, y dos vaciados en paralelo pasan por ella.</p>
+     */
+    java.util.Optional<GymPayment> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
     @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantId(@Param("tenantId") UUID tenantId);
 

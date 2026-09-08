@@ -1,7 +1,7 @@
 // ============================================
 // VELTRONIK - ESTADO DE LA COPIA LOCAL
 // ============================================
-// Un renglón discreto que le dice al mostrador de cuándo son los datos que está viendo.
+// Un renglón que le dice al mostrador de cuándo son los datos que está viendo.
 //
 // POR QUÉ HACE FALTA
 // La copia local hace que buscar sea instantáneo, pero a cambio los datos pueden estar un
@@ -10,12 +10,14 @@
 // sistema que muestra datos viejos sin decirlo es un sistema en el que se deja de confiar
 // la primera vez que alguien lo descubre.
 //
-// Se muestra al lado del buscador, chiquito, sin alarmar: la mayoría del tiempo dice "hace
-// unos segundos" y nadie lo mira. Cuando el internet se cae, empieza a envejecer a la vista,
-// y ahí la recepcionista entiende sola por qué el socio que acaba de pagar sigue en rojo.
+// ⭐ EL PLAZO NO ES UN INTERRUPTOR, ES CUÁNDO CAMBIA EL CARTEL
+// Decisión del dueño (2026-09-06): la copia vale 30 días, y NADA se apaga al cumplirse.
+// La regla de las tres bandas vive en `lib/frescura.js`, con el porqué completo; acá se
+// usa nomás. Este archivo decide cómo SE VE cada banda, no cuándo empieza.
 
 import { useState, useEffect } from 'react';
-import { estadoSocios, REFRESCO_MS } from '../lib/localMembers';
+import { estadoSocios } from '../lib/localMembers';
+import { bandaDeFrescura } from '../lib/frescura';
 import Icon from './Icon';
 
 function haceCuanto(ms, ahora) {
@@ -26,7 +28,17 @@ function haceCuanto(ms, ahora) {
   if (min < 60) return `hace ${min} min`;
   const hs = Math.round(min / 60);
   if (hs < 24) return `hace ${hs} h`;
-  return `hace ${Math.round(hs / 24)} días`;
+  const dias = Math.round(hs / 24);
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
+/** El día en que se actualizó, para cuando "hace 12 días" ya no le sirve a nadie. */
+function elDia(ms) {
+  try {
+    return new Date(ms).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+  } catch {
+    return null;
+  }
 }
 
 export default function EstadoCopiaLocal() {
@@ -44,17 +56,26 @@ export default function EstadoCopiaLocal() {
   const { cantidad, actualizado, vacia } = estadoSocios();
   if (vacia) return null;
 
-  // Se marca como vieja recién al doblar el intervalo de refresco: un ciclo perdido puede
-  // ser una conexión con hipo, dos ya es un problema que vale la pena mostrar.
-  const vieja = actualizado && ahora - actualizado > REFRESCO_MS * 2;
+  const banda = bandaDeFrescura(actualizado, ahora);
+  const dia = actualizado ? elDia(actualizado) : null;
+
+  // El texto cambia con la banda porque la pregunta del mostrador cambia. A los cinco
+  // minutos importa "¿está fresco?"; a los doce días la única pregunta útil es "¿de qué día
+  // son estos datos?", y "hace 12 días" obliga a hacer la cuenta mentalmente.
+  let texto;
+  if (banda === 'fresca') {
+    const cuantos = `${cantidad} ${cantidad === 1 ? 'socio' : 'socios'}`;
+    texto = `${cuantos} en esta computadora${actualizado ? ` · actualizado ${haceCuanto(actualizado, ahora)}` : ''}`;
+  } else if (banda === 'vieja') {
+    texto = `Sin conexión${dia ? ` desde el ${dia}` : ''} · se atiende con la copia de esta computadora`;
+  } else {
+    texto = `Los datos son del ${dia} · el mostrador sigue funcionando, pero un socio puede haber pagado después`;
+  }
 
   return (
-    <p className={`copia-local ${vieja ? 'is-vieja' : ''}`}>
-      <Icon name={vieja ? 'wifiOff' : 'check'} size="0.9em" />
-      <span>
-        {cantidad} socios en esta computadora
-        {actualizado ? ` · actualizado ${haceCuanto(actualizado, ahora)}` : ''}
-      </span>
+    <p className={`copia-local is-${banda}`} role={banda === 'muy-vieja' ? 'status' : undefined}>
+      <Icon name={banda === 'fresca' ? 'check' : 'wifiOff'} size="0.9em" />
+      <span>{texto}</span>
     </p>
   );
 }

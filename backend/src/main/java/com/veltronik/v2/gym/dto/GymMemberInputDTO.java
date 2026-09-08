@@ -15,6 +15,19 @@ import java.time.LocalDateTime;
  */
 @Data
 public class GymMemberInputDTO {
+    /**
+     * ⭐ EL ID QUE GENERA EL TERMINAL, para poder dar de alta sin internet.
+     *
+     * <p>Sin esto, el alta no se puede encolar: el mostrador da de alta a un socio y le cobra
+     * en el mismo acto, y el cobro tiene que poder nombrarlo. Si el id lo inventara el servidor,
+     * el cobro encolado apuntaría a alguien que todavía no existe.</p>
+     *
+     * <p>Null en todo lo que se crea con conexión, que es el camino de siempre: ahí el id lo
+     * sigue generando el servidor. Ver {@code AssignableUuidGenerator}, que existe desde la
+     * Fase 0 justamente para esto.</p>
+     */
+    private java.util.UUID id;
+
     private String firstName;
     private String lastName;
     private String email;

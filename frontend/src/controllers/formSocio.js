@@ -16,7 +16,7 @@
 // vuelta completa (servidor → formulario). Antes de sumar un campo editable a la ficha,
 // agregalo también a esa lista.
 
-import { toLocalDateString, addOneMonth } from '../lib/utils';
+import { toLocalDateString } from '../lib/utils';
 
 /** Los campos del formulario. Es la lista que el test vigila. */
 export const CAMPOS_DEL_SOCIO = [
@@ -24,7 +24,7 @@ export const CAMPOS_DEL_SOCIO = [
   'membershipStart', 'membershipEnd', 'status', 'notes', 'attendanceDays',
 ];
 
-/** Un socio nuevo: hoy, con la membresía sugerida a un mes. */
+/** Un socio nuevo: empieza hoy y SIN cobertura — la crea el cobro, no el alta. */
 export function getInitialMemberForm() {
   const hoy = toLocalDateString(new Date());
   return {
@@ -35,7 +35,25 @@ export function getInitialMemberForm() {
     email: '',
     birthDate: '',
     membershipStart: hoy,
-    membershipEnd: addOneMonth(hoy),
+
+    // ⭐⭐ EL ALTA NO REGALA UN MES. VACÍO A PROPÓSITO (ADR-013).
+    //
+    // Acá decía `addOneMonth(hoy)`, y eso significaba que **dar de alta a un socio le daba un
+    // mes de cobertura sin que hubiera pagado nada**. En producción, cada alta nueva regalaba
+    // un mes, en silencio.
+    //
+    // Y contradecía de frente la regla del negocio: "lo que hace que el alumno venza es el mes
+    // que paga". Si el alta ya le da un mes, la cobertura no la está creando el pago.
+    //
+    // Así se descubrió: se dio de alta a un socio y se le cobró UNA vez, y quedó con 62 días.
+    // El dueño lo leyó como "le cobró dos veces". Eran 31 regalados por el alta más 31
+    // pagados — el cobro estaba bien, el alta no.
+    //
+    // El socio nuevo queda SIN FECHA hasta que se le cobre, que en el mostrador son diez
+    // segundos: se lo da de alta y se le cobra en el mismo acto. El campo sigue estando en
+    // "Más datos" para cargar una fecha a mano cuando haga falta —un socio que ya venía
+    // pagado, una corrección—, pero deja de venir con un mes puesto.
+    membershipEnd: '',
     status: 'active',
     notes: '',
     attendanceDays: [],

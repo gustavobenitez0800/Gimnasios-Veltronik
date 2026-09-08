@@ -62,6 +62,24 @@ vi.mock('./ToastContext', () => ({ useToast: () => toast }));
 vi.mock('../hooks/useQueryCache', () => ({ clearQueryCache: vi.fn() }));
 vi.mock('../lib/localMembers', () => ({ olvidarSocios: vi.fn() }));
 vi.mock('../lib/access', () => ({ hasAccess: () => true }));
+
+/** La sesión que quedó guardada en el disco de este terminal. */
+const boveda = { sesionGuardada: vi.fn() };
+vi.mock('../lib/boveda', () => ({ sesionGuardada: (...a) => boveda.sesionGuardada(...a) }));
+vi.mock('../lib/supabase', () => ({
+  CLAVE_DE_SESION: 'sb-de-mentira-auth-token',
+  supabase: { auth: { stopAutoRefresh: vi.fn(), startAutoRefresh: vi.fn() } },
+}));
+const conectividad = { diagnoseConnectivity: vi.fn() };
+vi.mock('../lib/connectivity', () => ({
+  CONNECTIVITY: { ONLINE: 'ONLINE', OFFLINE: 'OFFLINE' },
+  diagnoseConnectivity: (...a) => conectividad.diagnoseConnectivity(...a),
+}));
+
+/** Pone (o saca) la máquina en modo "sin red", como el terminal después de un apagón. */
+function sinRed(hay) {
+  Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+}
 vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
 
 const { AuthProvider } = await import('./AuthContext');
@@ -99,6 +117,10 @@ beforeEach(() => {
   localStorage.clear();
   authService.getSession.mockResolvedValue(SESION);
   authService.getCurrentUser.mockResolvedValue(SESION.user);
+  boveda.sesionGuardada.mockResolvedValue(null);
+  conectividad.diagnoseConnectivity.mockResolvedValue('OFFLINE');
+  sinRed(true);
+  delete window.electronAPI;
 });
 
 afterEach(() => {
@@ -204,5 +226,92 @@ describe('el arranque de la app', () => {
 
     expect(hayLogoGirando()).toBe(false);
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================
+// EL ARRANQUE DESPUÉS DE UN APAGÓN
+// ============================================
+// Se corta la luz, el terminal reinicia, el token de una hora ya venció y la línea todavía
+// no volvió. Es el caso MÁS PROBABLE de todos y el que justifica el núcleo local entero.
+//
+// ⚠️ ESTO SE ESCRIBIÓ DESPUÉS DE ROMPERLO EN UNA MÁQUINA DE VERDAD. La primera versión le
+// preguntaba a la nube ANTES de fijarse si había red, y ahí `getSession()` se toma hasta 30
+// segundos: Supabase reintenta la renovación con backoff hasta agotar su
+// AUTO_REFRESH_TICK_DURATION_MS, bajo un candado que además hace esperar a la recuperación
+// de sesión del arranque — y su ticker vuelve a empezar cada 30 s, para siempre. El
+// mostrador se quedaba mirando el logo girar con la consola llena de ERR_INTERNET_DISCONNECTED.
+//
+// La regla que fijan estos tests: SI NO HAY RED, NO SE LE PREGUNTA A LA NUBE. La respuesta
+// ya está en el disco.
+describe('el arranque sin red', () => {
+  /** Deja el terminal como queda después del apagón: escritorio, sin red, con sesión guardada. */
+  function terminalDespuesDelApagon() {
+    window.electronAPI = {};
+    sinRed(false);
+    boveda.sesionGuardada.mockResolvedValue({
+      refresh_token: 'rt-guardado',
+      user: SESION.user,
+    });
+  }
+
+  it('abre el mostrador SIN preguntarle nada a la nube', async () => {
+    terminalDespuesDelApagon();
+    localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
+
+    await pintarEn('#/acceso');
+
+    // Lo que importa: ni siquiera se intentó. Esperar la respuesta era el bug — hasta 30
+    // segundos de logo girando en el peor momento posible para un gimnasio.
+    expect(authService.getSession).not.toHaveBeenCalled();
+    expect(hayLogoGirando()).toBe(false);
+    expect(container.textContent).toContain('ya se ve la app');
+  });
+
+  it('no sale a la red por la sucursal: no hay red', async () => {
+    terminalDespuesDelApagon();
+    localStorage.setItem('current_org_id', '22222222-2222-2222-2222-222222222222');
+
+    await pintarEn('#/acceso');
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it('sin sesión guardada NO inventa una: va al login', async () => {
+    // Un terminal recién instalado, sin red. No hay nada que sostener, y abrir el mostrador
+    // con un usuario vacío sería peor que pedir la contraseña.
+    window.electronAPI = {};
+    sinRed(false);
+    boveda.sesionGuardada.mockResolvedValue(null);
+    authService.getSession.mockRejectedValue(new Error('No session found'));
+
+    await pintarEn('#/');
+
+    expect(hayLogoGirando()).toBe(false);
+  });
+
+  it('en el PORTAL WEB no aplica: ahí el login es la respuesta correcta', async () => {
+    // La web no promete funcionar sin internet. `window.electronAPI` ausente = navegador.
+    sinRed(false);
+    boveda.sesionGuardada.mockResolvedValue({ refresh_token: 'rt', user: SESION.user });
+    authService.getSession.mockRejectedValue(new Error('No session found'));
+
+    await pintarEn('#/');
+
+    // Se le preguntó a la nube igual, que es lo que corresponde en el navegador.
+    expect(authService.getSession).toHaveBeenCalled();
+  });
+
+  it('con red, el atajo NO se toma aunque haya sesión guardada', async () => {
+    // El atajo es para la ausencia de red, no para ahorrarse el arranque normal. Si se
+    // tomara con red, el terminal se quedaría en modo local sin motivo — con `gym` sin
+    // cargar y la marca del gimnasio en los valores por defecto.
+    window.electronAPI = {};
+    sinRed(true);
+    boveda.sesionGuardada.mockResolvedValue({ refresh_token: 'rt', user: SESION.user });
+
+    await pintarEn('#/lobby');
+
+    expect(authService.getSession).toHaveBeenCalled();
   });
 });

@@ -22,5 +22,7 @@ Un ADR es **una página que explica una decisión de arquitectura**: qué se dec
 | [ADR-009](ADR-009-runtime-local-embebido.md) | Runtime local: Postgres embebido + JRE jlink + proceso hijo de Electron | ✅ Aceptada |
 | [ADR-010](ADR-010-sync-engine-v1.md) | Sync engine v1: triggers de captura + protocolo genérico a nivel fila + credencial de equipo | ✅ Aceptada |
 | [ADR-011](ADR-011-jre-de-fabricante-firmada.md) | JRE de fabricante firmada (Microsoft OpenJDK) en lugar de jlink — distribuir sin certificado | ✅ Aceptada |
+| [ADR-012](ADR-012-firma-declarada-sin-conexion.md) | Sin conexión la firma es declarada, y el registro dice de qué tipo es — nunca credenciales en el terminal | ✅ Aceptada |
+| [ADR-013](ADR-013-el-mes-corre-solo.md) | La cuota corre un mes por defecto; el arancel dice qué entrenó, no cuánto dura | ✅ Aceptada |
 
 **Criterio rector de todas las decisiones de la V3:** minimizar variantes hoy sin cerrar puertas mañana — Veltronik lo mantiene un equipo de una persona, y cada variante (binarios, superficies, hardware) multiplica el costo de soporte a escala.

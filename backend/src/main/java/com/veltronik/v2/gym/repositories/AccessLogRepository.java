@@ -41,6 +41,61 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId, UUID memberId);
 
     /**
+     * La visita que estaba abierta EN UN MOMENTO DADO, y no simplemente la última abierta.
+     *
+     * <p><b>Por qué hace falta, y el bug que cierra.</b> Un acceso que se registró sin internet
+     * llega tarde y trae consigo el momento en que pasó. La consulta de arriba toma la última
+     * visita abierta <i>sea de cuando sea</i>, así que un acceso de las 16:00 que llega a las
+     * 16:45 podía cerrarle la salida a una visita que había empezado a las 16:35 — es decir,
+     * <b>después de él</b>. El resultado es una visita con la salida ANTES que la entrada, y
+     * un tiempo promedio negativo en el resumen del día. Se vio así, en una máquina real.</p>
+     *
+     * <p>La causa de fondo era que el registro viajaba en el tiempo a medias: usaba el momento
+     * del acceso para el sello y para la duración, pero preguntaba por el estado de AHORA. Con
+     * esta consulta, "¿estaba adentro?" se responde en el momento correcto.</p>
+     *
+     * <p>Para un acceso normal —donde el momento ES ahora— devuelve exactamente lo mismo que
+     * la de arriba: toda visita ya abierta empezó antes que ahora.</p>
+     */
+    /**
+     * <p><b>Y también las que cerró el SISTEMA y contienen ese momento.</b> Una visita
+     * {@code autoClosed} tiene una salida <i>estimada</i>, no marcada por nadie. Si después
+     * llega un acceso que cae adentro de ese rango, ese acceso es mejor información que la
+     * estimación: es la salida de verdad. Sin esta mitad, el mismo día contado en distinto
+     * orden de llegada da distinta cantidad de visitas — y "¿vino este socio este mes?" pasa a
+     * depender de cómo estuvo el wifi.</p>
+     *
+     * <p>Una salida marcada de verdad ({@code autoClosed = false}) NO entra: eso ya es un hecho
+     * registrado y un acceso tardío no puede pisarlo.</p>
+     */
+    @Query("""
+            SELECT a FROM AccessLog a
+            WHERE a.tenant.id = :tenantId AND a.member.id = :memberId
+              AND a.checkInAt <= :momento
+              AND (a.checkOutAt IS NULL OR (a.autoClosed = true AND a.checkOutAt > :momento))
+            ORDER BY a.checkInAt DESC
+            LIMIT 1
+            """)
+    Optional<AccessLog> visitaAbiertaEn(@Param("tenantId") UUID tenantId,
+                                        @Param("memberId") UUID memberId,
+                                        @Param("momento") LocalDateTime momento);
+
+    /**
+     * La primera visita abierta que empezó DESPUÉS de un momento dado.
+     *
+     * <p><b>El caso que cubre: nadie está adentro dos veces.</b> Un acceso atrasado que no
+     * encuentra visita abierta en su momento abriría una nueva — pero si el socio ya tiene otra
+     * visita abierta más tarde, quedan DOS a la vez y aparece dos veces en "quién está adentro".
+     * Además de verse mal, infla las visitas del mes, que es el número con el que el dueño
+     * decide a quién llamar.</p>
+     *
+     * <p>Se ordena <b>ascendente</b> a propósito: la que interesa es la que sigue inmediatamente,
+     * porque es ahí donde termina la visita que el acceso atrasado viene a abrir.</p>
+     */
+    Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtGreaterThanOrderByCheckInAtAsc(
+            UUID tenantId, UUID memberId, LocalDateTime momento);
+
+    /**
      * Visitas que quedaron abiertas con la entrada anterior a {@code limite} — las que el socio
      * nunca cerró. Las busca el cierre nocturno.
      *

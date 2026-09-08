@@ -70,6 +70,28 @@ public class GymPaymentService {
     }
     
     public GymPayment saveForCurrentTenant(GymPayment payment) {
+        // ⭐⭐ ANTES DE TOCAR NADA: ¿ESTE COBRO YA SE GUARDÓ?
+        //
+        // El mostrador puede cobrar sin internet y mandar cuando vuelve. Si el pedido salió,
+        // el servidor lo guardó y la respuesta se perdió en el camino de vuelta, el reintento
+        // llega con el mismo sello — y hay que devolver el que ya está, sin ejecutar nada.
+        //
+        // ⚠️ Y el "sin ejecutar nada" es lo importante, no el registro duplicado.
+        // `aplicarPeriodoDelPlan` arranca el período DONDE TERMINA la cobertura vigente del
+        // socio, así que procesarlo de nuevo arrancaría donde terminó la primera vez: el socio
+        // se lleva 30 días GRATIS y el ingreso queda contado dos veces en el arqueo. Es el
+        // mismo patrón que `AccessLogService.registerScan`, y por el mismo motivo: en esta
+        // clase de operación el daño no es la fila de más, es el efecto lateral.
+        //
+        // Esta consulta es la mitad BARATA de la garantía. La que de verdad garantiza es el
+        // índice único parcial de la V63: entre este SELECT y el INSERT hay una ventana, y dos
+        // vaciados en paralelo pasan por ella.
+        if (payment.getClientRef() != null && payment.getId() == null) {
+            java.util.Optional<GymPayment> yaEstaba = repository.findByTenantIdAndClientRef(
+                    TenantContextHolder.getTenantId(), payment.getClientRef());
+            if (yaEstaba.isPresent()) return yaEstaba.get();
+        }
+
         Tenant tenant = new Tenant();
         tenant.setId(TenantContextHolder.getTenantId());
         payment.setTenant(tenant);
@@ -97,12 +119,28 @@ public class GymPaymentService {
         // Se resuelve ANTES de guardar para que el pago quede grabado con el período que
         // realmente se le va a aplicar al socio: si el pago dijera una cosa y la cobertura
         // otra, tendríamos otra vez dos verdades para el mismo hecho.
+        // ⭐⭐ EL MES CORRE SOLO, HAYA ARANCEL O NO (ADR-013).
+        //
+        // Antes la cobertura salía EXCLUSIVAMENTE del arancel: un cobro sin arancel —"monto a
+        // mano", que es lo que el mostrador usa todo el tiempo— no movía el vencimiento ni un
+        // día. La plata entraba a la caja y el socio seguía vencido, sin que nadie se enterara
+        // hasta que no lo dejaban entrar.
+        //
+        // Lo dijo el dueño: "lo que hace que el alumno venza es EL MES, simple. Los aranceles
+        // son para saber qué tipo de entrenamiento eligió". Así que el arancel es una etiqueta
+        // que PUEDE decir otra cosa —dos meses, una semana, no cubre tiempo—, y cuando no dice
+        // nada, la cuota corre un mes.
+        //
+        // ⚠️ Solo cuando el cobro entra de verdad. Un pago pendiente o anulado no corre nada:
+        // esa comprobación vive en `extenderCobertura`, que es el único lugar que la hace.
         if (payment.getPlan() != null && payment.getPlan().getId() != null) {
             GymPlan plan = planService.findByIdAndVerifyOwnership(payment.getPlan().getId());
             payment.setPlan(plan);
             aplicarPeriodoDelPlan(payment, plan, member);
-        } else {
-            aplicarPeriodoPorDefecto(payment, member);
+        } else if (payment.getPeriodEnd() == null) {
+            // Sin arancel: un mes. Se respeta el período si quien carga el pago lo trajo
+            // escrito —el portal deja hacerlo— porque ahí alguien ya decidió a mano.
+            aplicarPeriodoDelPlan(payment, null, member);
         }
 
         GymPayment saved = repository.save(payment);
@@ -121,54 +159,29 @@ public class GymPaymentService {
      * visitas. Por eso el período queda en null y {@code aplicarCobertura} no mueve la fecha.</p>
      */
     private void aplicarPeriodoDelPlan(GymPayment payment, GymPlan plan, GymMember member) {
-        if (plan.getDurationDays() <= 0) return;
+        int cantidad = (plan == null) ? 1 : plan.getCoberturaCantidad();
+        String unidad = (plan == null) ? "MES" : plan.getCoberturaUnidad();
 
-        payment.setPeriodStart(desdeCuandoCubre(member));
-        payment.setPeriodEnd(desdeCuandoCubre(member).plusDays(plan.getDurationDays()));
-    }
+        // 0 = no cubre tiempo. Es la clase suelta o el pase diario: cobra plata y no corre la
+        // fecha. Va explícito en el arancel, no escondido en un cero como estaba antes.
+        if (cantidad <= 0) return;
 
-    /**
-     * El período de un cobro SIN arancel: <b>un mes</b>.
-     *
-     * <p><b>Por qué existe.</b> Antes, cobrar sin elegir arancel guardaba el pago y no tocaba
-     * la fecha del socio: el período quedaba en null y la cobertura no se movía. Eso convivía
-     * con el criterio humano —la recepcionista veía rojo, se acordaba de que Juan había pagado
-     * y lo dejaba entrar— pero <b>con el molinete ese criterio desaparece</b>: el socio paga,
-     * el pago queda registrado, y la puerta le sigue diciendo que no en la cara.</p>
-     *
-     * <p>La regla del negocio es "pagó el mes, entra": la cobertura la decide la fecha y nada
-     * más. Así que un cobro sin arancel cubre un mes, y el arancel —cuando existe— sigue
-     * mandando, porque puede vender trimestres o packs con otra duración.</p>
-     *
-     * <p>Se usa <b>mes calendario</b> y no 30 días: el que paga el 31 de enero queda cubierto
-     * hasta el 28 de febrero, que es lo que cualquiera entiende por "pagué el mes".</p>
-     *
-     * <p>⚠️ Consecuencia a tener presente: <b>todo</b> cobro sin arancel corre la cuota un mes.
-     * Si un gimnasio usa el cobro para algo que no es la cuota, eso también extiende. La forma
-     * de que no pase es cargar los aranceles, que además es lo que hace que el sistema sepa qué
-     * vendió.</p>
-     */
-    private void aplicarPeriodoPorDefecto(GymPayment payment, GymMember member) {
-        // Solo LLENA el hueco: si quien cobra ya dijo hasta cuándo cubre, esa es la verdad y
-        // no se pisa. Pisarla convertiría cualquier cobro de un trimestre cargado a mano en
-        // un mes, que es justo el error que este método viene a evitar.
-        if (payment.getPeriodEnd() != null) return;
-
-        LocalDateTime desde = desdeCuandoCubre(member);
-        payment.setPeriodStart(desde);
-        payment.setPeriodEnd(desde.plusMonths(1));
-    }
-
-    /**
-     * Desde cuándo cubre un cobro: donde termina la cobertura vigente, no "hoy".
-     *
-     * <p>El que paga el 25 teniendo cuota hasta el 30 no pierde esos cinco días, se le suman.
-     * Si está vencido o es nuevo, arranca hoy.</p>
-     */
-    private LocalDateTime desdeCuandoCubre(GymMember member) {
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime vigente = (member != null) ? member.getMembershipEnd() : null;
-        return (vigente != null && vigente.isAfter(ahora)) ? vigente : ahora;
+        LocalDateTime desde = (vigente != null && vigente.isAfter(ahora)) ? vigente : ahora;
+
+        // ⭐ SUMAR MESES, NO DÍAS, Y LA DIFERENCIA NO ES COSMÉTICA.
+        //
+        // La regla del negocio es "el mismo día del mes que viene": paga el 7 de marzo, vence
+        // el 7 de abril. Con días eso era el 6, y el 7 de febrero más 30 caía el 9 de marzo. En
+        // un año son 360 días en vez de 365 — el socio paga doce veces y le faltan cinco.
+        //
+        // `plusMonths` recorta solo al último día que existe: quien paga un 31 de enero vence
+        // el 28 (o 29) de febrero, que es lo que la gente espera y lo que hace todo el mundo.
+        payment.setPeriodStart(desde);
+        payment.setPeriodEnd("MES".equals(unidad)
+                ? desde.plusMonths(cantidad)
+                : desde.plusDays(cantidad));
     }
 
     /**

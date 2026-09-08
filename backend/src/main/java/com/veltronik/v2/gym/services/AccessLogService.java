@@ -51,6 +51,23 @@ public class AccessLogService {
      */
     private static final int ATRASO_MAXIMO_HORAS = 36;
 
+    /**
+     * Los días de gracia que aplica este servidor.
+     *
+     * <p><b>Se publica para que el TERMINAL pueda contar solo.</b> Sin internet, los días que
+     * le quedan a un socio y su situación quedarían congelados en el último refresco: alguien
+     * con 10 días restantes seguiría mostrando 10 al mes siguiente, cuando hace 20 que está
+     * vencido. Eso no es un dato viejo, es un dato con confianza y equivocado.</p>
+     *
+     * <p>Para contar en el escritorio hacen falta tres cosas: el vencimiento del socio y si
+     * está activo —las dos ya viajan en su ficha— y este número. Mandarlo evita que quede
+     * escrito a mano del otro lado, que es exactamente la clase de valor que alguien cambia
+     * de un lado y no del otro.</p>
+     */
+    public int getGraceDays() {
+        return accessPolicy.getGraceDays();
+    }
+
     public List<AccessLog> getTodayAccesses() {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime startOfDay = today.atStartOfDay();
@@ -201,12 +218,35 @@ public class AccessLogService {
         GymMember member = memberService.findByIdAndVerifyOwnership(memberId);
         LocalDateTime now = momentoDelHecho(ocurridoEn);
 
+        // ⚠️ LA VISITA ABIERTA SE BUSCA EN EL MOMENTO DEL ACCESO, NO EN "AHORA".
+        //
+        // Antes acá se tomaba la última visita abierta fuera de cuando fuera, y eso hacía que
+        // el registro viajara en el tiempo A MEDIAS: usaba `ocurridoEn` para el sello y para
+        // la duración, pero preguntaba por el estado del presente. Un acceso de las 16:00 que
+        // llegaba 16:45 le cerraba la salida a una visita empezada a las 16:35 —después de
+        // él— y quedaba una visita con la salida ANTES que la entrada, con su tiempo promedio
+        // negativo en el resumen del día. Se encontró así, en una máquina real.
+        //
+        // Para un acceso normal no cambia nada: toda visita ya abierta empezó antes que ahora.
         Optional<AccessLog> abierta = accessLogRepository
-                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(
-                        TenantContextHolder.getTenantId(), memberId);
+                .visitaAbiertaEn(TenantContextHolder.getTenantId(), memberId, now);
 
         if (abierta.isPresent()) {
             AccessLog log = abierta.get();
+
+            // ⚠️ LA VISITA QUE CERRÓ EL SISTEMA Y ESTE ACCESO CAE ADENTRO.
+            //
+            // Su salida es una ESTIMACIÓN, no la marcó nadie. Este acceso ocurrió dentro de ese
+            // rango, así que es mejor información: es la salida de verdad, y deja de ser
+            // estimada. Sin esto, el mismo día contado en distinto orden de llegada daba
+            // distinta cantidad de visitas — entró 09:00, salió 10:00 y volvió 11:00 son DOS
+            // visitas, pero si el 11:00 llegaba primero quedaban TRES.
+            if (log.getCheckOutAt() != null) {
+                log.setCheckOutAt(now);
+                log.setAutoClosed(false);
+                if (clientRef != null) log.setClientRef(clientRef);
+                return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
+            }
             java.time.Duration desdeEntrada = java.time.Duration.between(log.getCheckInAt(), now);
 
             // (1) Rebote: el mismo gesto contado dos veces.
@@ -239,7 +279,34 @@ public class AccessLogService {
             return new ScanResult(accessLogRepository.save(log), Direction.SALIDA, false);
         }
 
-        return new ScanResult(abrirVisita(member, method, checkinPointId, scannerId, now, clientRef), Direction.ENTRADA, false);
+        // ⚠️ NADIE ESTÁ ADENTRO DOS VECES.
+        //
+        // No había visita abierta en este momento, así que corresponde abrir una. Pero el socio
+        // puede tener otra visita abierta MÁS TARDE: pasa cuando un acceso atrasado llega
+        // después de que ya se registró uno nuevo. Abrir la segunda sin más lo deja con dos
+        // visitas abiertas a la vez — aparece dos veces en "quién está adentro", y sus visitas
+        // del mes quedan infladas.
+        //
+        // La visita que este acceso abre termina donde empieza la siguiente. Es lo que habría
+        // pasado si los accesos hubieran llegado en orden: el de las 10:01 habría sido la
+        // salida del de las 09:17. Va marcada como autoClosed porque la salida la dedujo el
+        // sistema y no la marcó nadie, que es exactamente lo que esa marca significa.
+        Optional<AccessLog> posterior = accessLogRepository
+                .findTopByTenantIdAndMemberIdAndCheckOutAtIsNullAndCheckInAtGreaterThanOrderByCheckInAtAsc(
+                        TenantContextHolder.getTenantId(), memberId, now);
+
+        AccessLog abierta2 = abrirVisita(member, method, checkinPointId, scannerId, now, clientRef);
+        if (posterior.isPresent()) {
+            // Acotado por el cierre estimado para no cruzar la medianoche: si la visita de más
+            // adelante es de otro día, cerrar contra ella grabaría una visita de 25 horas.
+            abierta2.setCheckOutAt(cierreEstimado(now, posterior.get().getCheckInAt()));
+            abierta2.setAutoClosed(true);
+            abierta2 = accessLogRepository.save(abierta2);
+        }
+
+        // `recuperado` queda en false a propósito: el mostrador lo traduce a "la vez anterior se
+        // fue sin marcar salida", y acá no pasó eso.
+        return new ScanResult(abierta2, Direction.ENTRADA, false);
     }
 
     /**
@@ -344,7 +411,13 @@ public class AccessLogService {
      * lo peor que puede pasar es una duración inflada, no una imposible.</p>
      */
     private LocalDateTime cierreEstimado(LocalDateTime entrada, LocalDateTime now) {
-        LocalDateTime finDelDia = entrada.toLocalDate().atTime(LocalTime.MAX);
+        // ⚠️ 23:59:59 Y NO LocalTime.MAX. LocalTime.MAX es 23:59:59.999999999 —nanosegundos—,
+        // y la columna de Postgres guarda MICROsegundos: al escribirla redondea para arriba y
+        // el instante cae en 00:00:00 DEL DÍA SIGUIENTE. O sea que "no cruza la medianoche" la
+        // cruzaba igual, por un pelo, en todas las visitas que cierra el sistema. En Java las
+        // dos fechas son del mismo día, así que esto solo se ve escribiendo en la base de
+        // verdad: lo encontró la regla 4 contra Postgres, no un test de unidad.
+        LocalDateTime finDelDia = entrada.toLocalDate().atTime(23, 59, 59);
         return finDelDia.isBefore(now) ? finDelDia : now;
     }
 

@@ -61,8 +61,12 @@ const mostrador = vi.hoisted(() => ({
 // test del latido, y mockearlo lo dejaría verificando nada.
 vi.mock('../hooks', async () => {
   const { useRefrescoAutomatico } = await vi.importActual('../hooks/useRefrescoAutomatico');
+  // ⚠️ Este va REAL, igual que el latido: el test de "sin red no se insiste" prueba
+  // justamente que los dos se hablen. Con un mock verificaría nada.
+  const { useEstaEnLinea } = await vi.importActual('../hooks/useEstaEnLinea');
   return {
     useRefrescoAutomatico,
+    useEstaEnLinea,
     useQueryCache: () => ({
       data: mostrador.datos,
       loading: false,
@@ -79,6 +83,14 @@ vi.mock('../components/AvisosMostrador', () => ({ default: () => null }));
 vi.mock('../components/CheckinQrPanel', () => ({ default: () => null }));
 vi.mock('../components/Layout', () => ({ PageHeader: () => null }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
+
+// La cola: por defecto vacía, que es lo que ve el 99% de los días. Los tests del aviso la
+// cambian para simular un gimnasio que hace días no puede subir nada.
+const colaFalsa = { cuantos: 0, dias: 0, sociosConCobro: [] };
+vi.mock('../lib/colaAccesos', () => ({
+  resumenDeCola: async () => ({ cuantos: colaFalsa.cuantos, dias: colaFalsa.dias }),
+  sociosConCobroPendiente: async () => [...colaFalsa.sociosConCobro],
+}));
 
 const { default: AccessPage } = await import('./AccessPage');
 
@@ -145,6 +157,9 @@ beforeEach(() => {
   // vería un cartel que no disparó él.
   mostrador.datos = { adentro: [], hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null };
   mostrador.refrescos = 0;
+  colaFalsa.cuantos = 0;
+  colaFalsa.dias = 0;
+  colaFalsa.sociosConCobro = [];
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
@@ -212,7 +227,9 @@ describe('Enter registra y deja lugar al siguiente', () => {
 
     await apretar('Enter');
 
-    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'manual');
+    // El nombre viaja para que la cola pueda mostrar de quién es el acceso que espera, sin
+    // depender de que el socio siga en el espejo cuando se vacíe.
+    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'manual', expect.any(String));
     expect(campo().value, 'el campo queda vacío para el que sigue').toBe('');
     expect(document.activeElement, 'y con el foco puesto: nadie agarra el mouse').toBe(campo());
   });
@@ -233,6 +250,41 @@ describe('Enter registra y deja lugar al siguiente', () => {
     expect(memberService.searchForAccess).toHaveBeenCalledWith('Lurdes');
     expect(container.querySelectorAll('.search-result-item').length, 'muestra la lista para elegir')
       .toBe(2);
+  });
+
+  // ⚠️ ESCRITO DESPUÉS DE VERLO EN UNA MÁQUINA DE VERDAD, con el Wi-Fi apagado. Buscar al
+  // socio ya funciona sin internet (sale de la copia local), pero registrar el paso todavía
+  // no: la cola de accesos es la fase que viene. Lo que se veía mientras tanto era el
+  // "Network Error" crudo de axios, en inglés — que no le dice nada a una recepcionista, y
+  // sobre todo no le dice lo único que importa: que esa entrada se perdió.
+  //
+  // La regla de esta pantalla es que el cartel no miente. Si no se registró, se dice.
+  it('sin conexión avisa que la entrada NO se registró, y en castellano', async () => {
+    const sinRed = new Error('Network Error'); // un error de transporte no trae `response`
+    accessService.checkIn.mockRejectedValue(sinRed);
+    await pintar();
+    await tipear('24732531');
+
+    await apretar('Enter');
+
+    const mensaje = toastEstable.showToast.mock.calls.at(-1)?.[0] || '';
+    expect(mensaje).toContain('Sin conexión');
+    expect(mensaje, 'tiene que decir que NO quedó registrada, no solo que falló').toMatch(/no se registró/i);
+    expect(mensaje, 'nadie en un mostrador sabe qué es un "Network Error"').not.toContain('Network Error');
+  });
+
+  it('un rechazo DEL SERVIDOR se muestra tal cual: dice algo real del socio', async () => {
+    const rechazo = new Error('Este socio está dado de baja');
+    rechazo.response = { status: 409 };
+    accessService.checkIn.mockRejectedValue(rechazo);
+    await pintar();
+    await tipear('24732531');
+
+    await apretar('Enter');
+
+    const mensaje = toastEstable.showToast.mock.calls.at(-1)?.[0] || '';
+    expect(mensaje).toContain('dado de baja');
+    expect(mensaje, 'no es un problema de conexión y no hay que fingir que lo es').not.toContain('Sin conexión');
   });
 
   it('cuando no encuentra a nadie lo DICE', async () => {
@@ -460,7 +512,43 @@ describe('quién está adentro, sin salir del mostrador', () => {
       salida.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(accessService.checkOut).toHaveBeenCalledWith('a1');
+    // ⚠️ Y CON EL ID DEL SOCIO. Sin él, sin conexión no hay a quién encolarle la salida y el
+    // botón vuelve a no hacer nada — que es justo lo que reportó el dueño: "si me doy salida
+    // no responde y tira network error".
+    expect(accessService.checkOut).toHaveBeenCalledWith('a1', 'm-a1', 'Matias Benitez');
+  });
+
+  it('sin conexión la salida se guarda, y el cartel no dice "salió"', async () => {
+    // "Salió" lo confirma el servidor. Sin conexión lo único cierto es que quedó guardado.
+    accessService.checkOut.mockResolvedValue({ encolado: true, clientRef: 'x' });
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    await act(async () => {
+      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
+    expect(mensaje).toContain('guardada sin conexión');
+    expect(mensaje).not.toContain('salió');
+    expect(tipo).toBe('warning');
+  });
+
+  it('y si falla de verdad, el error se entiende: nada de "Network Error"', async () => {
+    const corte = new Error('Network Error'); // sin `response`: no contestó el servidor
+    accessService.checkOut.mockRejectedValue(corte);
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+    await pintar();
+
+    await act(async () => {
+      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
+    expect(mensaje).toContain('Sin conexión');
+    expect(mensaje, 'y dice qué hacer').toContain('Anotala a mano');
+    expect(mensaje).not.toContain('Network Error');
+    expect(tipo).toBe('error');
   });
 
   it('sin nadie adentro lo dice, en vez de dejar un hueco', async () => {
@@ -506,5 +594,318 @@ describe('quién está adentro, sin salir del mostrador', () => {
     expect(cuerpo, 'el contenedor de las dos columnas').toBeTruthy();
     expect(cuerpo.querySelector('.checkin-section'), 'el molinete').toBeTruthy();
     expect(cuerpo.querySelector('.access-adentro'), 'quién está adentro').toBeTruthy();
+  });
+});
+
+describe('⚠️ el aviso de la cola escala con los días', () => {
+  // EL RIESGO QUE ESTO CUBRE: un terminal, 30 días de tolerancia, y la cola en UN SOLO DISCO.
+  // Lo que hay ahí son visitas que el gimnasio todavía no tiene en ningún otro lado. Si nadie
+  // avisa, esos 30 días pasan en silencio hasta el día que la máquina no arranca.
+
+  const aviso = () => container.querySelector('.copia-local.is-vieja, .copia-local.is-muy-vieja');
+
+  it('con la cola vacía no hay cartel: uno siempre prendido deja de avisar', async () => {
+    await pintar();
+    expect(aviso()).toBeNull();
+  });
+
+  it('recién guardado dice que se manda solo, porque es verdad', async () => {
+    colaFalsa.cuantos = 2;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    expect(aviso().textContent).toContain('se mandan al volver internet');
+    expect(container.querySelector('.copia-local.is-muy-vieja'),
+      'a los cero días no hay nada que alarmar').toBeNull();
+  });
+
+  it('⭐ a los 3 días DEJA de prometer que se arregla solo y pide que revisen', async () => {
+    // Hasta ahí "se manda al volver internet" tranquiliza bien. Después de tres días ya no
+    // volvió, y seguir diciendo lo mismo es exactamente lo que hace que nadie llame al
+    // proveedor de internet.
+    colaFalsa.cuantos = 47;
+    colaFalsa.dias = 5;
+
+    await pintar();
+
+    const texto = aviso().textContent;
+    expect(container.querySelector('.copia-local.is-muy-vieja'), 'y cambia de tono').toBeTruthy();
+    expect(texto).toContain('5 días');
+    expect(texto, 'que estén en una sola máquina es EL dato').toContain('solo en esta computadora');
+    expect(texto, 'prometer que se arregla solo es lo que hay que dejar de decir')
+      .not.toContain('se mandan al volver internet');
+  });
+
+  it('entre medio dice desde cuándo, sin alarmar todavía', async () => {
+    colaFalsa.cuantos = 3;
+    colaFalsa.dias = 1;
+
+    await pintar();
+
+    expect(aviso().textContent).toContain('desde ayer');
+    expect(container.querySelector('.copia-local.is-muy-vieja')).toBeNull();
+  });
+});
+
+describe('⭐ sin conexión el cartel MUESTRA los días', () => {
+  // ERA AL REVÉS DE LO QUE HACE FALTA, y lo vio el dueño en la pantalla: el cartel de
+  // "guardado sin conexión" salía sin el número.
+  //
+  // Sin internet el servidor no puede avisar nada, así que el único que puede decirle a quien
+  // atiende "este socio está vencido" es el conteo local. Es justo el caso para el que se
+  // construyó, y era el único lugar donde no se usaba.
+
+  it('un socio al día: se ve cuántos le quedan, aunque quede encolado', async () => {
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'AL_DIA', diasRestantes: 29 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.textContent).toContain('Guardado sin conexión');
+    expect(aviso.textContent, 'el número es lo que la persona del mostrador necesita')
+      .toContain('29');
+  });
+
+  it('⚠️ un socio VENCIDO se ve en rojo, aunque no haya conexión', async () => {
+    // Es el dato que cambia lo que hace quien atiende. Que no haya internet no lo vuelve
+    // menos urgente: lo vuelve MÁS, porque no hay nadie más que se lo pueda decir.
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'VENCIDO', diasVencido: 8, diasRestantes: 0 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.textContent).toContain('8');
+    expect(aviso.className, 'rojo, no ámbar').toMatch(/error/);
+  });
+
+  it('⭐ y el socio al día NO se pinta de amarillo: el número lo mira ÉL', async () => {
+    // DECISIÓN DEL DUEÑO, y tiene razón. La primera versión pintaba el cartel entero de
+    // amarillo para marcar "esto no llegó al servidor". Pero el número grande lo mira el
+    // SOCIO, no la recepcionista: si a alguien al día se le pinta de amarillo porque el
+    // terminal no tiene wifi, lee que hay un problema CON ÉL —y pregunta, o se va
+    // preocupado— cuando el problema es del internet del gimnasio y no le incumbe.
+    //
+    // El color queda como con internet. Que quedó guardado sin conexión es un dato de la
+    // CASA: va en el renglón de abajo, en amarillo, donde lo lee quien atiende.
+    memberService.searchForAccess.mockResolvedValue([
+      { ...SOCIO, situacion: 'AL_DIA', diasRestantes: 29 },
+    ]);
+    accessService.checkIn.mockResolvedValue({ encolado: true, clientRef: 'x' });
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const aviso = container.querySelector('.acceso-aviso');
+    expect(aviso.className, 'el mismo color que con internet').toMatch(/success/);
+    expect(aviso.className, 'nada de amarillo en el cartel').not.toMatch(/warning/);
+    expect(aviso.querySelector('.acceso-aviso-accion.sin-conexion'),
+      'el amarillo va SOLO en el renglón que le habla a quien atiende').toBeTruthy();
+  });
+});
+
+describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para siempre', () => {
+  // LO REPORTÓ EL DUEÑO: apagó el wifi con la app ya cargada y la lista quedó en "Cargando…"
+  // hasta que volvió a prenderlo.
+  //
+  // Y no era el cartel: el latido seguía disparando un pedido cada quince segundos, cada uno
+  // con su plazo de espera y sus reintentos con espera creciente. Pedidos condenados a fallar,
+  // apilados, que además tapan el problema — cuanto más se insiste, más tarda en aparecer la
+  // respuesta honesta.
+  //
+  // Quién está adentro es lo ÚNICO de esta pantalla que el terminal no puede saber por su
+  // cuenta: la dirección la decide el servidor. Sin él no hay respuesta, y prometerla con un
+  // spinner deja a quien atiende esperando en vez de resolver por otro lado.
+
+  function sinRed(hay) {
+    Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+  }
+
+  afterEach(() => sinRed(true));
+
+  it('lo dice, en vez de dejar el spinner girando', async () => {
+    sinRed(false);
+    accessService.getMostrador.mockImplementation(() => new Promise(() => {})); // nunca contesta
+
+    await pintar();
+
+    const lista = container.querySelector('.checked-in-list');
+    expect(lista.textContent).toContain('Sin conexión');
+    expect(lista.querySelector('.spinner'), 'un spinner promete algo que no va a llegar').toBeNull();
+  });
+
+  it('y deja de insistir: no apila pedidos condenados a fallar', async () => {
+    // ⚠️ SE MIDE EL LATIDO, NO EL SERVICIO. La caché está mockeada y nunca llama al servicio
+    // de verdad, así que contar `getMostrador` daba cero siempre — el test pasaba con y sin
+    // el arreglo. Lo que hay que mirar es cuántas veces el latido pidió refrescar.
+    sinRed(false);
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    // `visibilitychange` fuerza un pedido salteándose el ritmo: es el camino más directo
+    // para provocar lo que en la máquina pasa cada quince segundos.
+    for (let i = 0; i < 5; i += 1) {
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        await Promise.resolve();
+      });
+    }
+
+    expect(mostrador.refrescos, 'sin red no hay nada que preguntar').toBe(alPrincipio);
+  });
+
+  it('y con red sí insiste, que es lo que hace que el QR aparezca solo', async () => {
+    // La otra mitad: frenar de más apagaría el latido que hace que un check-in por QR
+    // aparezca en el mostrador sin que nadie toque nada.
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await Promise.resolve();
+    });
+
+    expect(mostrador.refrescos).toBeGreaterThan(alPrincipio);
+  });
+
+  it('con red vuelve a mostrar la lista normal', async () => {
+    mostrador.datos = {
+      adentro: [{ id: 'a1', member: { fullName: 'Lurdes Rollet' }, checkInAt: new Date().toISOString() }],
+      hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null,
+    };
+
+    await pintar();
+
+    const lista = container.querySelector('.checked-in-list');
+    expect(lista.textContent).toContain('Lurdes Rollet');
+    expect(lista.textContent).not.toContain('Sin conexión');
+  });
+});
+
+describe('⭐ al volver la red, la lista se pone al día sola', () => {
+  // REPORTADO POR EL DUEÑO: marcó una salida sin conexión, prendió el wifi, y el socio siguió
+  // figurando adentro hasta que se fue a Retención y volvió.
+  //
+  // Mientras no hay red la lista queda congelada en el último dato bueno, y ese dato ya es
+  // falso en el momento en que la cola sube lo que estaba esperando. Volver a tener red es,
+  // por definición, el momento en que lo que se muestra dejó de ser lo mejor que se sabe.
+
+  function red(hay) {
+    Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
+    window.dispatchEvent(new Event(hay ? 'online' : 'offline'));
+  }
+
+  afterEach(() => {
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+  });
+
+  it('vuelve la red y refresca sin esperar el próximo latido', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => { red(true); await Promise.resolve(); });
+
+    expect(mostrador.refrescos, 'lo que se está mostrando ya no es lo mejor que se sabe')
+      .toBeGreaterThan(alPrincipio);
+  });
+
+  it('y no refresca de gusto si la red nunca se cortó', async () => {
+    // Si cada render pidiera de nuevo, volvería el problema que ya costó caro: el mostrador
+    // pidiendo sin parar mientras alguien teclea.
+    await pintar();
+    const alPrincipio = mostrador.refrescos;
+
+    await act(async () => { window.dispatchEvent(new Event('online')); await Promise.resolve(); });
+
+    expect(mostrador.refrescos).toBe(alPrincipio);
+  });
+});
+
+describe('el contador de la cola tampoco afirma la dirección', () => {
+  it('dice "acceso guardado", no "entrada guardada"', async () => {
+    // Mismo motivo que el aviso del vaciado: ahí adentro puede haber salidas, y la dirección
+    // no la sabe nadie hasta que el servidor la decide contra el momento en que ocurrió.
+    colaFalsa.cuantos = 1;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    const cartel = container.querySelector('.copia-local.is-vieja').textContent;
+    expect(cartel).toContain('acceso guardado');
+    expect(cartel).not.toMatch(/entrada/i);
+  });
+
+  it('y en plural también', async () => {
+    colaFalsa.cuantos = 4;
+    colaFalsa.dias = 0;
+
+    await pintar();
+
+    const cartel = container.querySelector('.copia-local.is-vieja').textContent;
+    expect(cartel).toContain('4 accesos guardados');
+  });
+});
+
+describe('⭐ el socio que pagó sin conexión no queda como moroso a secas', () => {
+  // EL CASO REAL: el socio paga en efectivo con el internet caído, camina hasta la puerta, y
+  // la pantalla lo trata de vencido delante de todos.
+  //
+  // Cobrar corre el vencimiento, pero eso lo hace el SERVIDOR: hasta que el cobro no sube, la
+  // copia local sigue diciendo lo que decía antes.
+  //
+  // ⚠️ Y NO SE ARREGLA CORRIÉNDOLE LA FECHA EN EL ESPEJO. Eso sería una segunda cuenta de la
+  // misma cobertura — el error que este proyecto ya cometió con las fechas y que costó tres
+  // bugs. El número no se toca: se explica al lado por qué está viejo.
+
+  const VENCIDO = { ...SOCIO, situacion: 'VENCIDO', diasVencido: 8, diasRestantes: 0 };
+
+  it('en la búsqueda dice que pagó recién, sin tocar el número', async () => {
+    // DOS resultados a propósito: con uno solo, Enter registra y limpia la lista antes de que
+    // se pueda mirar. Con dos, la pantalla no elige por nadie y la lista queda a la vista.
+    memberService.searchForAccess.mockResolvedValue([VENCIDO, OTRO]);
+    colaFalsa.sociosConCobro = ['m1'];
+
+    await pintar();
+    await tipear('Lurdes');
+    await apretar('Enter');
+
+    const fila = container.querySelector('.search-result-item');
+    expect(fila.textContent).toContain('Pagó recién');
+    expect(fila.textContent, 'el veredicto del servidor NO se corrige: se explica')
+      .toContain('8d vencido');
+  });
+
+  it('y el cartel de la puerta también lo dice', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO]);
+    colaFalsa.sociosConCobro = ['m1'];
+
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(container.querySelector('.acceso-aviso').textContent)
+      .toContain('se actualiza al volver internet');
+  });
+
+  it('sin cobro esperando, nada de esto aparece', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO, OTRO]);
+
+    await pintar();
+    await tipear('Lurdes');
+    await apretar('Enter');
+
+    expect(container.querySelector('.search-result-item').textContent).not.toContain('Pagó recién');
   });
 });

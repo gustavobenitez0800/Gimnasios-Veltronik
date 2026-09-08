@@ -28,7 +28,10 @@ import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { useQueryCache, useRefrescoAutomatico } from '../hooks';
+import { resumenDeCola, sociosConCobroPendiente } from '../lib/colaAccesos';
+import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
+import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
+import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import { GYM } from '../lib/gym';
@@ -96,6 +99,26 @@ export default function AccessPage() {
 
   const loadData = invalidate;
 
+  // ─── Los días de gracia, guardados para cuando NO haya servidor ───
+  //
+  // Es el único dato de la regla que el terminal no puede deducir de la ficha del socio. Se
+  // guarda cada vez que el servidor lo dice, así el conteo local usa el número de verdad y no
+  // uno escrito a mano de este lado — que es justo la clase de valor que alguien cambia en un
+  // lugar y olvida en el otro.
+  useEffect(() => {
+    if (typeof data?.graceDays === 'number') recordarGraceDays(data.graceDays);
+  }, [data]);
+
+  // ─── La red de seguridad contra la deriva ───
+  //
+  // Con internet llegan las DOS respuestas: la del servidor y la que calculamos acá. Tienen
+  // que coincidir. Si algún día no coinciden es que una de las dos copias de la regla cambió
+  // sin la otra, y sin este chequeo eso vive meses escondido: son dos números que nunca se
+  // muestran juntos. No corrige nada — solo hace ruido en la consola.
+  useEffect(() => {
+    (data?.adentro || []).forEach((a) => a?.member && compararConElServidor(a.member));
+  }, [data]);
+
   // ── El mostrador se entera solo de lo que pasa en la puerta ──
   //
   // Antes esta pantalla cargaba UNA vez, al abrirla, y nunca más. Con el mostrador manual
@@ -105,7 +128,34 @@ export default function AccessPage() {
   // El latido vive en `useRefrescoAutomatico` y no acá: lo comparte con "En el gimnasio", y
   // la forma de escribirlo mal —depender de la identidad de `invalidate`— es el bug que
   // hacía que el cartel del QR tardara. Está explicado en el hook, en un solo lugar.
-  useRefrescoAutomatico(loadData, isFetching);
+  // ⚠️ Y SIN RED NO SE LATE. Apagar el wifi con la app abierta dejaba "En el gimnasio" en
+  // "Cargando…" hasta que volvía la conexión, y no por un cartel mal puesto: el latido seguía
+  // disparando un pedido cada quince segundos, cada uno con su plazo de espera y sus
+  // reintentos con espera creciente. Pedidos condenados a fallar, apilados, que además tapan
+  // el problema — cuanto más se insiste, más tarda en aparecer la respuesta honesta.
+  //
+  // Pasarlo como "en vuelo" es lo que frena el latido sin tocar el hook: mientras no hay red
+  // no hay nada que preguntar. Al volver, el `online` actualiza esto y el latido sigue solo.
+  const enLinea = useEstaEnLinea();
+  useRefrescoAutomatico(loadData, isFetching || !enLinea);
+
+  // ⭐ Y AL VOLVER LA RED SE REFRESCA EN EL ACTO, sin esperar el próximo latido.
+  //
+  // Reportado por el dueño: marcó una salida sin conexión, prendió el wifi, y el socio siguió
+  // figurando adentro hasta que se fue a otro módulo y volvió. Mientras estuvo sin red esta
+  // lista quedó congelada en el último dato bueno, y ese dato ya es falso en el momento en que
+  // la cola sube lo que estaba esperando.
+  //
+  // El vaciado avisa por su evento cuando sube algo, y eso ya refresca. Esto es la otra mitad,
+  // y cubre lo que aquel no puede: que la red haya vuelto sin que hubiera nada encolado, o que
+  // el servidor haya cambiado por otro lado mientras este terminal estaba a ciegas. Volver a
+  // tener red es, por definición, el momento en que lo que se está mostrando dejó de ser lo
+  // mejor que se sabe.
+  const habiaRed = useRef(enLinea);
+  useEffect(() => {
+    if (enLinea && !habiaRed.current) loadData();
+    habiaRed.current = enLinea;
+  }, [enLinea, loadData]);
 
   // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
   // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
@@ -117,6 +167,68 @@ export default function AccessPage() {
     const t = setInterval(() => { refrescarSocios(tenantId).catch(() => {}); }, REFRESCO_MS);
     return () => clearInterval(t);
   }, []);
+
+  // ─── LA COLA: lo que se registró sin internet y todavía no subió ───
+  //
+  // Cuántos esperan. Es lo único de la cola que la pantalla muestra, y tiene que estar: una
+  // cola invisible es una cola que nadie vacía, y lo que hay adentro son visitas que el
+  // gimnasio todavía no tiene en ningún otro lado.
+  //
+  // ⚠️ Y DESDE CUÁNDO ESPERAN, que importa tanto como cuántos son. "3 pendientes" pueden ser
+  // de hace dos minutos —el vaciado está por correr— o de hace tres semanas, y eso segundo
+  // significa que el gimnasio viene guardando visitas en UN SOLO DISCO desde hace tres
+  // semanas. El diseño permite acumular 30 días; sin la antigüedad, esos 30 días pasan en
+  // silencio hasta el día que la máquina no arranca.
+  const [cola, setCola] = useState({ cuantos: 0, dias: 0 });
+  const pendientesCola = cola.cuantos;
+
+  // ⭐ QUIÉNES PAGARON SIN QUE EL SERVIDOR SE HAYA ENTERADO.
+  //
+  // Cobrar corre el vencimiento, pero eso lo hace el SERVIDOR: sin internet el cobro queda en
+  // la cola y la copia local sigue diciendo lo que decía antes. Sin esto, el socio paga en
+  // efectivo, camina hasta la puerta, y la pantalla lo trata de vencido delante de todos.
+  //
+  // ⚠️ Y NO SE ARREGLA CORRIÉNDOLE LA FECHA EN EL ESPEJO. Eso sería una segunda cuenta de la
+  // misma cobertura, que es el error que este proyecto ya cometió con las fechas y que costó
+  // tres bugs. Acá no se recalcula nada: el veredicto sigue siendo el del servidor —viejo,
+  // pero de una sola fuente— y al lado se aclara por qué está viejo.
+  const [conCobroSinSubir, setConCobroSinSubir] = useState([]);
+  const tieneCobroSinSubir = useCallback(
+    (id) => !!id && conCobroSinSubir.includes(String(id)),
+    [conCobroSinSubir],
+  );
+
+  const contarPendientes = useCallback(async () => {
+    const socios = await sociosConCobroPendiente();
+    // Se compara por valor: un array nuevo en cada refresco redibuja siempre, y con un
+    // temporizador atrás la pantalla del mostrador no para nunca. Ya pasó una vez.
+    setConCobroSinSubir((previo) => (
+      previo.length === socios.length && previo.every((v, i) => v === socios[i]) ? previo : socios
+    ));
+
+    const nuevo = await resumenDeCola();
+    // ⚠️ SE COMPARA POR VALOR, y no es prolijidad. Antes esto era un número, y React descarta
+    // solo un `setState` con el mismo número. Un objeto nuevo en cada refresco nunca es igual
+    // al anterior, así que redibujaba siempre — con un temporizador atrás, la pantalla del
+    // mostrador no paraba nunca. Lo atrapó la suite entera de Acceso, en timeout.
+    setCola((previo) => (
+      previo.cuantos === nuevo.cuantos && previo.dias === nuevo.dias ? previo : nuevo
+    ));
+  }, []);
+
+  // El VACIADO no vive acá: vive en `<VaciadorDeCola />`, montado a nivel de la app, porque
+  // las visitas tienen que subir esté abierta la pantalla que esté. Esta pantalla solo
+  // MUESTRA cuántas esperan, y se entera de los cambios por su evento.
+  useEffect(() => {
+    contarPendientes();
+    const alCambiarLaCola = () => {
+      contarPendientes();
+      // Si algo subió, "En el Gimnasio" quedó viejo: recién ahora el servidor sabe quién entró.
+      loadData();
+    };
+    window.addEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
+    return () => window.removeEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
+  }, [contarPendientes, loadData]);
 
   // ─── EL TECLADO NO SE APAGA NUNCA ───
   //
@@ -214,6 +326,13 @@ export default function AccessPage() {
   // enorme en el cartel de la puerta, y `unidad` es la aclaración chiquita de abajo.
   // Partirlo acá y no en el cartel es lo que evita que alguien lo recomponga con una
   // expresión regular sobre el texto ya armado.
+  // ⭐ ACÁ NO SE RECALCULA NADA, Y ES A PROPÓSITO.
+  //
+  // La puesta al día del conteo vive en el ESPEJO (`lib/localMembers.js`), que es el único
+  // dato que se pone viejo. Lo que llega del servidor —los avisos del QR, los que están
+  // adentro— ya es fresco por definición: existe porque el servidor lo acaba de procesar. Y
+  // además esos avisos NO traen el vencimiento, así que recalcularlos los convertiría en
+  // "sin fecha cargada" — un socio al día pasaría a mostrar un guion.
   const getDaysInfo = useCallback((member) => {
     const { situacion, diasVencido, diasRestantes } = member || {};
     if (!situacion || situacion === 'SIN_DATOS') {
@@ -314,20 +433,76 @@ export default function AccessPage() {
   // socio se va y avisa, la recepcionista tiene que poder marcarlo SIN cambiar de pantalla.
   // Es el mismo endpoint y el mismo dato: las dos pantallas comparten la clave de caché, así
   // que marcar la salida acá también actualiza la otra.
-  const handleCheckOut = async (logId, memberName) => {
+  const handleCheckOut = async (logId, memberName, memberId) => {
     try {
-      await accessService.checkOut(logId);
-      showToast(`${memberName} salió`, 'success');
+      const r = await accessService.checkOut(logId, memberId, memberName);
+      // Sin conexión no se anuncia "salió": eso lo confirma el servidor. Lo único cierto
+      // acá es que quedó guardado, igual que con las entradas.
+      showToast(
+        r?.encolado ? `Salida de ${memberName} guardada sin conexión` : `${memberName} salió`,
+        r?.encolado ? 'warning' : 'success',
+      );
+      contarPendientes();
       loadData();
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      // ⚠️ "Network Error" en inglés era lo que veía la recepcionista, y no dice ni qué pasó
+      // ni qué hacer. Sin respuesta del servidor es un problema de conexión; con respuesta,
+      // es un rechazo real y se muestra tal cual.
+      showToast(
+        error?.response
+          ? errorService.getMessage(error)
+          : 'Sin conexión: la salida NO se registró. Anotala a mano.',
+        'error',
+      );
     }
   };
 
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
     try {
-      const r = await accessService.checkIn(member.id, 'manual');
+      const r = await accessService.checkIn(member.id, 'manual', member.fullName);
+
+      // ⚠️ SIN CONEXIÓN EL CARTEL NO DICE "ENTRADA REGISTRADA", Y NO ES UN DETALLE.
+      //
+      // La dirección —entrada o salida— la decide el SERVIDOR mirando el estado del socio.
+      // Acá todavía no se sabe cuál de las dos es, así que anunciar "Entrada registrada"
+      // sería inventar la mitad del dato. Se dice lo único que es cierto: quedó guardado.
+      if (r?.encolado) {
+        // ⭐ Y LOS DÍAS VAN IGUAL. Este cartel salía sin el número, que era exactamente al
+        // revés de lo que hace falta: sin internet el servidor no puede avisar nada, así que
+        // el único que puede decirle a quien atiende "este socio está vencido" es el conteo
+        // local. Justo el caso para el que se construyó, y el único donde no se usaba.
+        //
+        // El número sale de la copia local, que se recalcula contra el reloj — no es el
+        // veredicto congelado del último refresco.
+        const info = getDaysInfo(member);
+        mostrarAviso({
+          name: member.fullName,
+          // ⚠️ EL COLOR ES EL DE SIEMPRE, el mismo que con internet. Lo pidió el dueño y
+          // tiene razón: EL NÚMERO LO MIRA EL SOCIO, no la recepcionista. Si a alguien al día
+          // se le pinta el cartel de amarillo porque el terminal no tiene wifi, lee que hay
+          // un problema CON ÉL —y pregunta, o se va preocupado— cuando el problema es del
+          // internet del gimnasio y no le incumbe.
+          //
+          // Que quedó guardado sin conexión es un dato de la CASA, no del socio: se dice en
+          // el renglón de abajo, en amarillo, donde lo lee quien atiende.
+          type: info.type === 'expired' ? 'error'
+            : info.type === 'danger' ? 'warning' : 'success',
+          sinConexion: true,
+          accion: 'Guardado sin conexión',
+          valor: info.valor,
+          unidad: info.unidad,
+          daysLabel: info.label,
+          detalle: 'Se manda solo cuando vuelva internet',
+          initials: getInitials(member.fullName),
+        });
+        setSearchQuery('');
+        setSearchResults([]);
+        contarPendientes();
+        buscadorRef.current?.focus();
+        return;
+      }
+
       const daysInfo = getDaysInfo(member);
       const salio = r?.direccion === 'SALIDA';
       const rebote = r?.direccion === 'REBOTE';
@@ -349,8 +524,12 @@ export default function AccessPage() {
         // salía AL MISMO TIEMPO que el cartelón: dos mensajes distintos, del mismo hecho,
         // en dos lugares de la pantalla. El que avisa que alguien se fue sin marcar salida
         // es el único que aporta algo que el resto del aviso no dice.
-        detalle: r?.recuperado && !salio && !rebote
-          ? 'La vez anterior se fue sin marcar salida' : '',
+        // ⭐ Y si pagó y el cobro todavía no subió, eso gana: es lo que explica por qué el
+        // número grande dice lo que dice. Sin esto, alguien que acaba de pagar en efectivo ve
+        // "8 días vencido" en la puerta y el cartel no da ninguna pista de por qué.
+        detalle: tieneCobroSinSubir(member.id)
+          ? 'Pagó recién · se actualiza al volver internet'
+          : (r?.recuperado && !salio && !rebote ? 'La vez anterior se fue sin marcar salida' : ''),
         initials: getInitials(member.fullName),
       });
 
@@ -362,7 +541,23 @@ export default function AccessPage() {
       // el mouse entre un socio y el siguiente.
       buscadorRef.current?.focus();
     } catch (error) {
-      showToast(errorService.getMessage(error), 'error');
+      // ⚠️ SIN CONEXIÓN, LA ENTRADA NO QUEDA REGISTRADA — Y HAY QUE DECIRLO ASÍ.
+      //
+      // Buscar al socio sí funciona sin internet (sale de la copia local), pero registrar
+      // el paso todavía no: la cola de accesos es la fase que viene. Mientras tanto esto
+      // mostraba el "Network Error" crudo de axios, en inglés, que a una recepcionista no
+      // le dice nada — y sobre todo no le dice lo único que importa: que esa entrada se
+      // perdió y hay que anotarla a mano.
+      //
+      // Un error de transporte no trae `response`; un rechazo del servidor sí, y ese se
+      // muestra tal cual porque dice algo real sobre este socio.
+      const sinRed = !error?.response;
+      showToast(
+        sinRed
+          ? 'Sin conexión: la entrada NO se registró. Anotala a mano.'
+          : errorService.getMessage(error), // sin el ternario este test no distingue nada
+        'error',
+      );
     }
   };
 
@@ -445,6 +640,36 @@ export default function AccessPage() {
               onKeyDown={alTeclear} />
           </div>
           <EstadoCopiaLocal />
+          {/* Lo que se registró sin internet y todavía no subió. Se muestra SOLO cuando hay
+              algo: un cartel que está siempre prendido deja de avisar. Y se muestra siempre
+              que haya algo, con o sin conexión — mientras quede una visita sin subir, el
+              gimnasio no la tiene. */}
+          {pendientesCola > 0 && (
+            <p className={`copia-local ${cola.dias >= 3 ? 'is-muy-vieja' : 'is-vieja'}`}>
+              <Icon name={cola.dias >= 3 ? 'alertTriangle' : 'wifiOff'} size="0.9em" />
+              <span>
+                {/* "Acceso" y no "entrada", por lo mismo que el aviso del vaciado: acá adentro
+                    puede haber salidas, y la dirección no la sabe nadie hasta que el servidor
+                    la decide contra el momento en que ocurrió. */}
+                {pendientesCola} {pendientesCola === 1 ? 'acceso guardado' : 'accesos guardados'} sin
+                conexión
+                {/* ⚠️ A partir del tercer día el cartel cambia de tono y DEJA DE PROMETER que
+                    se arregla solo. Hasta ahí decir "se manda al volver internet" es cierto y
+                    tranquiliza bien; después de tres días ya no volvió, y seguir diciendo lo
+                    mismo es lo que hace que nadie llame al proveedor. Acá lo único honesto es
+                    decir cuánto hace y que eso está en una sola máquina. */}
+                {cola.dias >= 3 ? (
+                  <> · hace <strong>{cola.dias} días</strong> que no suben. Están solo en esta
+                  computadora: avisá que revisen el internet</>
+                ) : cola.dias >= 1 ? (
+                  <> {cola.dias === 1 ? 'desde ayer' : `hace ${cola.dias} días`} · se{' '}
+                  {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet</>
+                ) : (
+                  <> · se {pendientesCola === 1 ? 'manda' : 'mandan'} al volver internet</>
+                )}
+              </span>
+            </p>
+          )}
           {searching && <div className="text-center text-muted mb-1"><span className="spinner" /> Buscando...</div>}
           {searchResults.length > 0 && (
             <div className="search-results">
@@ -467,6 +692,16 @@ export default function AccessPage() {
                       {adentro && (
                         <span className="member-access-status is-inside">
                           Adentro desde {new Date(visita.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {/* ⭐ PAGÓ, PERO EL SERVIDOR NO SE ENTERÓ TODAVÍA.
+                          El vencimiento de arriba lo corre el servidor cuando el cobro sube, así
+                          que sin internet sigue diciendo lo que decía antes. Sin este renglón, el
+                          socio paga en efectivo, camina hasta la puerta y la pantalla lo trata de
+                          vencido delante de todos. No se corrige el número: se explica. */}
+                      {tieneCobroSinSubir(member.id) && (
+                        <span className="member-access-status is-pagado-sin-subir">
+                          Pagó recién · el vencimiento se actualiza al volver internet
                         </span>
                       )}
                     </div>
@@ -507,7 +742,16 @@ export default function AccessPage() {
             <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
           </div>
           <div className="checked-in-list">
-            {loading ? (
+            {/* ⚠️ SIN RED NO SE GIRA EL SPINNER, SE DICE LA VERDAD.
+                Quién está adentro es lo ÚNICO de esta pantalla que el terminal no puede
+                saber por su cuenta: la dirección la decide el servidor, y sin él no hay
+                respuesta posible. Un spinner ahí promete algo que no va a llegar, y quien
+                atiende se queda esperando en vez de resolver por otro lado. */}
+            {!enLinea && checkedIn.length === 0 ? (
+              <div className="text-center text-muted" style={{ padding: '2rem' }}>
+                Sin conexión · no se puede saber quién está adentro
+              </div>
+            ) : loading ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
             ) : checkedIn.length === 0 ? (
               <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
@@ -521,7 +765,9 @@ export default function AccessPage() {
                     <div className="member-name">{memberName}</div>
                     <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
                   </div>
-                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
+                  {/* El id del socio va sí o sí: sin él, sin conexión no hay a quién encolarle
+                      la salida y el botón vuelve a no hacer nada. */}
+                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName, member?.id)}>
                     <Icon name="handWave" size="1em" /> Salida
                   </button>
                 </div>
@@ -567,7 +813,9 @@ export default function AccessPage() {
               <div className="acceso-aviso-pie">
                 {/* QUÉ se registró, no solo a quién: el servidor decide la dirección, así que
                     sin esto se puede apretar "entrada", grabarse una SALIDA y no enterarse. */}
-                <div className="acceso-aviso-accion">{aviso.accion}</div>
+                <div className={`acceso-aviso-accion${aviso.sinConexion ? ' sin-conexion' : ''}`}>
+                  {aviso.accion}
+                </div>
                 {aviso.detalle && <div className="acceso-aviso-detalle">{aviso.detalle}</div>}
               </div>
             </div>

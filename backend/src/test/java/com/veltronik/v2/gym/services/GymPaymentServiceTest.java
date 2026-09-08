@@ -75,16 +75,6 @@ class GymPaymentServiceTest {
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    /** Un cobro como sale del mostrador cuando el gimnasio no tiene aranceles cargados. */
-    private GymPayment pagoSinPeriodo() {
-        GymPayment p = new GymPayment();
-        p.setMemberId(SOCIO);
-        p.setAmount(new BigDecimal("60000"));
-        p.setPaymentDate(LocalDateTime.now());
-        p.setStatus("paid");
-        return p;
-    }
-
     private GymPayment pago(String status, LocalDateTime cubreHasta) {
         GymPayment p = new GymPayment();
         p.setMemberId(SOCIO);
@@ -122,50 +112,6 @@ class GymPaymentServiceTest {
             service.saveForCurrentTenant(pago("paid", nuevo));
 
             assertCoberturaHasta(nuevo);
-        }
-
-        /**
-         * La regla del negocio es "pagó el mes, entra". Antes, cobrar sin elegir arancel
-         * guardaba el pago y NO tocaba la fecha: el socio pagaba y seguía figurando vencido.
-         * Con el mostrador eso lo tapaba el criterio humano; con el molinete no hay criterio
-         * que valga — la puerta le dice que no en la cara.
-         */
-        @Test
-        @DisplayName("Cobrar sin arancel cubre un mes: el socio pagó y entra")
-        void cobrarSinArancelCubreUnMes() {
-            socio.setMembershipEnd(LocalDateTime.now().minusDays(40));
-
-            service.saveForCurrentTenant(pagoSinPeriodo());
-
-            // Estaba vencido, así que el mes arranca hoy.
-            assertThat(socio.getMembershipEnd()).isAfter(LocalDateTime.now().plusDays(27));
-            assertThat(socio.getMembershipEnd()).isBefore(LocalDateTime.now().plusDays(32));
-        }
-
-        @Test
-        @DisplayName("Sin arancel, el que paga antes de vencer no pierde los días que le quedan")
-        void sinArancelSeSumaALoQueYaTenia() {
-            LocalDateTime vigenteHasta = LocalDateTime.now().plusDays(5);
-            socio.setMembershipEnd(vigenteHasta);
-
-            service.saveForCurrentTenant(pagoSinPeriodo());
-
-            assertThat(socio.getMembershipEnd()).isEqualTo(vigenteHasta.plusMonths(1));
-        }
-
-        /**
-         * El default llena el hueco, no manda. Si quien cobra ya dijo hasta cuándo cubre —un
-         * trimestre cargado a mano— pisarlo lo convertiría en un mes.
-         */
-        @Test
-        @DisplayName("Un período explícito le gana al mes por defecto")
-        void elPeriodoExplicitoNoSePisa() {
-            LocalDateTime trimestre = LocalDateTime.now().plusMonths(3).withNano(0);
-            socio.setMembershipEnd(null);
-
-            service.saveForCurrentTenant(pago("paid", trimestre));
-
-            assertCoberturaHasta(trimestre);
         }
 
         @Test
@@ -377,21 +323,44 @@ class GymPaymentServiceTest {
             assertNoSeTocoAlSocio(vigente);
         }
 
-        /**
-         * Antes, un cobro sin período no movía la fecha: no se sabía hasta cuándo cubría. Esa
-         * regla cambió —hoy un cobro sin arancel cubre un mes, ver {@code PlataQueEntro}— pero
-         * lo que NO cambió es que la plata tiene que haber entrado. Un pago pendiente no
-         * habilita a nadie, tenga período o no.
-         */
         @Test
-        @DisplayName("Un pago pendiente sin período tampoco habilita nada")
-        void sinPeriodoYPendienteNoExtiende() {
-            LocalDateTime vigente = LocalDateTime.of(2026, 8, 10, 23, 59);
+        @DisplayName("⭐ Sin período NI arancel, la cuota corre UN MES igual (ADR-013)")
+        void sinPeriodoCorreUnMes() {
+            // ⚠️ ESTE TEST DECÍA LO CONTRARIO, y decirlo era el bug.
+            //
+            // La regla vieja era "sin período no se sabe hasta cuándo: no se toca". Sonaba
+            // prudente, pero significaba que un cobro con "monto a mano" —lo que el mostrador
+            // usa todo el tiempo— no movía el vencimiento ni un día: la plata entraba a la caja
+            // y el socio seguía vencido, sin que nadie se enterara hasta que no lo dejaban
+            // entrar jurando que había pagado.
+            //
+            // Lo corrigió el dueño: "lo que hace que el alumno venza es EL MES, simple. Los
+            // aranceles son para saber qué tipo de entrenamiento eligió". Ahora sí se sabe
+            // hasta cuándo: un mes.
+            // La cobertura vigente va en el FUTURO a propósito: si estuviera vencida, el mes
+            // arrancaría desde hoy —no se le regalan los meses que estuvo sin pagar— y el
+            // resultado dependería de la fecha en que corre el test.
+            LocalDateTime vigente = LocalDateTime.now().plusDays(5).withNano(0);
             socio.setMembershipEnd(vigente);
 
-            service.saveForCurrentTenant(pago("pending", null));
+            service.saveForCurrentTenant(pago("paid", null));
 
-            assertNoSeTocoAlSocio(vigente);
+            assertCoberturaHasta(vigente.plusMonths(1));
+        }
+
+        @Test
+        @DisplayName("⭐ Pero un período ESCRITO A MANO le gana al mes por defecto")
+        void elPeriodoExplicitoNoSePisa() {
+            // El contrapeso del test de arriba, y viene de la rama del molinete: sin él, "la
+            // cuota corre un mes" se podría implementar pisando SIEMPRE el período — y el
+            // gimnasio que carga un trimestre a mano desde el portal lo vería convertido en un
+            // mes. La guarda es el `periodEnd == null` del servicio; esto es lo que la sostiene.
+            LocalDateTime trimestre = LocalDateTime.now().plusMonths(3).withNano(0);
+            socio.setMembershipEnd(null);
+
+            service.saveForCurrentTenant(pago("paid", trimestre));
+
+            assertCoberturaHasta(trimestre);
         }
 
         @Test

@@ -22,6 +22,17 @@ public class GymPlanDTO {
     private Integer durationDays;
 
     /** Visitas que otorga. NULL = este arancel no cuenta visitas. */
+    /**
+     * Cuánto tiempo cubre, junto con {@link #coberturaUnidad}. 0 = no cubre tiempo.
+     *
+     * <p>Reemplaza a {@link #durationDays} desde el ADR-013: un mes no son 30 días, así que
+     * hace falta la unidad para poder decir "el mismo día del mes que viene".</p>
+     */
+    private Integer coberturaCantidad;
+
+    /** {@code DIA} o {@code MES}. */
+    private String coberturaUnidad;
+
     private Integer classes;
 
     private Boolean active;
