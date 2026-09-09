@@ -129,7 +129,22 @@ public class AccessLogService {
      * el dedo tembló, o el teléfono leyó el QR dos veces. Sin esto, el socio que escanea con
      * ganas entra y sale en el mismo segundo.
      */
-    private static final long REBOTE_SEGUNDOS = 15;
+    private static final long REBOTE_QR_SEGUNDOS = 15;
+
+    /**
+     * Lo mismo para el molinete, pero mucho más ancho, porque el gesto es otro.
+     *
+     * <p><b>El equipo facial avisa por reconocimiento, no por persona.</b> Mientras haya una
+     * cara frente a la cámara manda un aviso cada pocos segundos: en la prueba con el equipo
+     * real fueron <b>6 avisos en 15 segundos</b> de alguien parado ahí. Con la ventana del QR,
+     * el socio que se queda charlando en la puerta un minuto entra y sale varias veces.</p>
+     *
+     * <p>Tres minutos es holgado a propósito. El costo de pasarse es perder la salida de
+     * alguien que entró y salió en menos de tres minutos —que no es una visita al gimnasio,
+     * es alguien que se olvidó algo—; el costo de quedarse corto es inventar visitas que nunca
+     * pasaron. De los dos errores, este es el que no ensucia los números.</p>
+     */
+    private static final long REBOTE_FACIAL_SEGUNDOS = 180;
 
     /**
      * Pasadas estas horas, una visita abierta ya no es alguien adentro: es alguien que se fue
@@ -233,7 +248,8 @@ public class AccessLogService {
             // botón es SIEMPRE deliberada: si el socio escanea al entrar y ella marca algo
             // diez segundos después, son dos acciones distintas, no un temblor. Tragarse la
             // segunda dejaba al mostrador sin poder corregir nada durante quince segundos.
-            if (esPorQr(method) && desdeEntrada.getSeconds() < REBOTE_SEGUNDOS) {
+            long ventana = ventanaDeRebote(method);
+            if (ventana > 0 && desdeEntrada.getSeconds() < ventana) {
                 return new ScanResult(log, Direction.REBOTE, false);
             }
 
@@ -337,10 +353,25 @@ public class AccessLogService {
      * <p>La cláusula del día tampoco agregaba nada: el caso que decía cubrir —entró 23:00,
      * vuelve 7:00— son ocho horas, y el umbral de tiempo ya lo atrapa solo.</p>
      */
-    /** ¿La marca viene del cartel de la puerta, o de una persona en el mostrador? */
-    private static boolean esPorQr(String method) {
-        return "QR".equalsIgnoreCase(method == null ? "" : method.trim());
+    /**
+     * Cuánto dura "el mismo gesto" según de dónde venga la marca. Cero = sin freno.
+     *
+     * <p>El freno existe para los aparatos, no para las personas. Un teléfono lee el QR dos
+     * veces y una cámara dispara mientras haya una cara enfrente: eso es UN gesto contado
+     * muchas veces. <b>Una recepcionista apretando un botón es siempre deliberada</b>: si el
+     * socio escanea al entrar y ella marca algo diez segundos después, son dos acciones
+     * distintas, no un temblor. Tragarse la segunda dejaba al mostrador sin poder corregir
+     * nada durante quince segundos.</p>
+     */
+    private static long ventanaDeRebote(String method) {
+        String m = method == null ? "" : method.trim();
+        if ("QR".equalsIgnoreCase(m)) return REBOTE_QR_SEGUNDOS;
+        if (METODO_FACIAL.equalsIgnoreCase(m)) return REBOTE_FACIAL_SEGUNDOS;
+        return 0;
     }
+
+    /** Cómo se llama en {@code access_log} lo que entra por el molinete. */
+    public static final String METODO_FACIAL = "FACIAL";
 
     private boolean esAbandonada(LocalDateTime entrada, LocalDateTime now) {
         return java.time.Duration.between(entrada, now).toHours() >= visitaMaximaHoras;

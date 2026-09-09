@@ -43,4 +43,22 @@ public class CheckinPoint extends TenantAwareEntity {
      */
     @Column(nullable = false)
     private boolean active = true;
+
+    /**
+     * Número de serie del molinete que atiende esta puerta (V66). Null en los carteles de QR,
+     * que son la enorme mayoría.
+     *
+     * <p><b>Es el segundo factor, no el primero.</b> No es un secreto —cualquiera en la red del
+     * gimnasio se lo puede preguntar al equipo sin contraseña— así que no autoriza nada por sí
+     * mismo. Lo que hace es anclar el token a un equipo: filtrado el token, todavía hay que
+     * decir el serial correcto para inventar una entrada desde afuera.</p>
+     *
+     * <p>Se aparea solo la primera vez que el equipo avisa. Confiar en el primero que llega es
+     * deliberado: la alternativa era que el dueño copiara un serial a mano en una pantalla de
+     * configuración, y un paso manual que casi nadie entiende se hace mal o no se hace. La
+     * ventana de riesgo dura desde que se crea la puerta hasta el primer aviso, y el token ya
+     * es secreto durante toda esa ventana.</p>
+     */
+    @Column(name = "device_serial", length = 64)
+    private String deviceSerial;
 }

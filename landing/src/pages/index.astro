@@ -1,0 +1,279 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { appRoute, SITE_URL, CONTACTO } from '../lib/site.js';
+import { getPlanes, formatoPrecio } from '../lib/plans.js';
+
+// El precio lo trae el backend en build time. Ver src/lib/plans.js para el porqué.
+const planes = await getPlanes();
+const plan = planes[0];
+
+const funciones = [
+  {
+    icon: 'socios',
+    titulo: 'Socios y cuotas',
+    texto: 'La ficha de cada socio, su arancel y hasta cuándo tiene paga la cuota. Sin límite de socios: pagás lo mismo con 40 que con 400.',
+  },
+  {
+    icon: 'caja',
+    titulo: 'Caja y cobros',
+    texto: 'Cobrás en dos clicks y el vencimiento se corre solo. Al cierre del día ves cuánto entró por efectivo, transferencia y Mercado Pago, cuánto se retira y cuánto queda de fondo para mañana.',
+  },
+  {
+    icon: 'puerta',
+    titulo: 'Mostrador de entrada',
+    texto: 'El socio dice su nombre, aparece en pantalla y queda registrado. Si está vencido, el cartel lo muestra antes de que pase — sin que nadie tenga que acordarse.',
+  },
+  {
+    icon: 'qr',
+    titulo: 'Check-in por QR',
+    texto: 'Un cartel en la puerta con un QR: el socio escanea con SU celular y marca la entrada. Cero hardware, cero fila en el mostrador.',
+  },
+  {
+    icon: 'monitor',
+    titulo: 'Quién está adentro',
+    texto: 'La lista de los que están en el gimnasio ahora mismo, el resumen del día y el registro de entradas. Útil para saber tus horas pico de verdad.',
+  },
+  {
+    icon: 'clases',
+    titulo: 'Clases y horarios',
+    texto: 'La grilla de clases con su profesor y su horario, para que el mostrador sepa qué se está dictando sin preguntar.',
+  },
+  {
+    icon: 'grafico',
+    titulo: 'Dashboard y reportes',
+    texto: 'Cuánto facturaste, cuántos socios activos tenés y cómo viene el mes. Los números del negocio sin abrir una planilla.',
+  },
+  {
+    icon: 'reloj',
+    titulo: 'Retención',
+    texto: 'Quiénes dejaron de venir y quiénes están por vencer. La plata más barata de ganar es la del socio que ya te conoce.',
+  },
+  {
+    icon: 'equipo',
+    titulo: 'Tu equipo, con nombre',
+    texto: 'Cada persona del mostrador entra con su PIN. Cada cobro y cada acceso queda firmado por quien lo hizo.',
+  },
+];
+
+const faq = [
+  {
+    q: '¿Cuánto cuesta Veltronik?',
+    a: `El plan Veltronik cuesta $${formatoPrecio(plan.price)} por mes, por sucursal, con socios ilimitados. Arrancás con 14 días gratis y no te pedimos tarjeta para probarlo.`,
+  },
+  {
+    q: '¿Sirve si mi gimnasio es chico?',
+    a: 'Sí. El precio es el mismo con 40 socios que con 400, así que cuanto más chico el gimnasio, más barato le sale por socio. Y no hay nada que instalar para empezar: se usa desde el navegador.',
+  },
+  {
+    q: '¿Necesito comprar algún aparato?',
+    a: 'No. Veltronik funciona con la computadora que ya tenés, y el check-in por QR usa el celular del socio. Los molinetes y el reconocimiento facial son opcionales, para el gimnasio que quiere que la puerta se abra sola.',
+  },
+  {
+    q: '¿Puedo pasar los datos de mi sistema actual?',
+    a: 'Sí. Si tu sistema exporta a Excel, importamos la lista de socios y sus vencimientos. Ya lo hicimos con gimnasios que venían de otro software y migraron cientos de socios sin cargar uno por uno.',
+  },
+  {
+    q: '¿Y si tengo más de una sucursal?',
+    a: 'Cada sucursal es independiente: su caja, sus socios y su equipo. Como dueño tenés una pantalla de resumen que te muestra todas juntas. Se paga por sucursal.',
+  },
+  {
+    q: '¿Funciona sin internet?',
+    a: 'No: Veltronik necesita conexión. Es un sistema en la nube, y eso es lo que hace que puedas ver la caja de tu gimnasio desde el celular, en tu casa, sin que nadie te mande una planilla. Si tu local tiene la conexión inestable, avisanos antes de contratar y lo charlamos.',
+  },
+  {
+    q: '¿Cómo cobro las cuotas de mis socios?',
+    a: 'Como quieras: efectivo, transferencia o Mercado Pago. Vos registrás el cobro en Veltronik y el sistema corre el vencimiento del socio automáticamente. Veltronik no se queda con una comisión de lo que cobrás.',
+  },
+];
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Veltronik',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web, Windows',
+      description: 'Software de gestión y control de acceso para gimnasios: socios, cuotas, caja, clases y molinete con reconocimiento facial.',
+      url: SITE_URL,
+      inLanguage: 'es-AR',
+      offers: {
+        '@type': 'Offer',
+        price: String(plan.price),
+        priceCurrency: 'ARS',
+        category: 'Suscripción mensual por sucursal',
+        url: `${SITE_URL}/#precios`,
+      },
+    },
+    {
+      '@type': 'Organization',
+      name: 'Veltronik',
+      url: SITE_URL,
+      logo: `${SITE_URL}/logo.png`,
+      email: CONTACTO.email,
+      areaServed: 'AR',
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faq.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ],
+};
+---
+
+<Base
+  title="Software para gimnasios en Argentina | Veltronik"
+  description="Sistema de gestión para gimnasios: socios, cuotas, caja, clases y control de acceso. Con molinete y reconocimiento facial opcional. 14 días gratis, sin tarjeta."
+  schema={schema}
+>
+  <section class="hero">
+    <div class="wrap center">
+      <h1>El software para gimnasios que también te abre la puerta</h1>
+      <p class="lead">
+        Socios, cuotas, caja y clases en un solo lugar. Y si querés, el molinete que
+        reconoce la cara del socio y no deja pasar al que debe.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Probar 14 días gratis</a>
+        <a class="btn btn-ghost btn-lg" href="/molinete-facial">Ver el molinete facial</a>
+      </div>
+      <p class="hero-note">Sin tarjeta de crédito. Socios ilimitados desde el primer día.</p>
+
+      <div class="chips">
+        <span class="chip">Socios</span>
+        <span class="chip">Cuotas y aranceles</span>
+        <span class="chip">Caja diaria</span>
+        <span class="chip">Clases</span>
+        <span class="chip">Control de acceso</span>
+        <span class="chip">Check-in por QR</span>
+        <span class="chip">Retención</span>
+        <span class="chip">Reportes</span>
+        <span class="chip">Multi-sucursal</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="funciones">
+    <div class="wrap">
+      <div class="center" style="margin-bottom:3rem">
+        <p class="eyebrow">Funciones</p>
+        <h2>Todo lo que hace tu gimnasio, en una pantalla</h2>
+        <p class="lead">
+          No es un módulo suelto: es el día del gimnasio de punta a punta, desde que el
+          socio entra hasta que cerrás la caja.
+        </p>
+      </div>
+
+      <div class="grid grid-3">
+        {funciones.map((f) => (
+          <article class="card">
+            <div class="ficon"><Icon name={f.icon} /></div>
+            <h3>{f.titulo}</h3>
+            <p>{f.texto}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Control de acceso</p>
+        <h2>La puerta que cobra sola</h2>
+        <p class="lead" style="margin-bottom:1.8rem">
+          El socio se para frente al molinete, el equipo le reconoce la cara y pasa. Si
+          está vencido, el molinete no abre y en el mostrador aparece su nombre para
+          cobrarle ahí mismo. Le cobrás, y la puerta se destraba sola en segundos.
+        </p>
+        <a class="btn btn-primary" href="/molinete-facial">Cómo funciona el molinete</a>
+      </div>
+
+      <ol class="steps">
+        <li><strong>Se para frente al molinete</strong>No saca el celular, no busca la tarjeta, no dice el nombre.</li>
+        <li><strong>El equipo lo reconoce</strong>Y consulta si tiene la cuota al día.</li>
+        <li><strong>Al día: pasa</strong>Y su entrada queda registrada sin que nadie anote nada.</li>
+        <li><strong>Vencido: no pasa</strong>Aparece en el mostrador con su nombre y lo que debe. Le cobrás y la puerta se abre.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="precios">
+    <div class="wrap">
+      <div class="center" style="margin-bottom:2.8rem">
+        <p class="eyebrow">Precios</p>
+        <h2>Un precio, todos los socios</h2>
+        <p class="lead">
+          Sin comisión por cobro, sin costo por socio y sin permanencia. Si te querés ir,
+          te vas.
+        </p>
+      </div>
+
+      <div class="card precio-card">
+        <h3 style="font-size:1.3rem;margin-bottom:.25rem">{plan.name}</h3>
+        <p style="color:var(--text-muted);margin:0;font-size:.95rem">{plan.tagline}</p>
+
+        <div class="precio-monto">
+          <span class="signo">$</span>
+          <span class="n">{formatoPrecio(plan.price)}</span>
+          <span class="per">/ mes</span>
+        </div>
+        <p class="precio-sub">Por sucursal, en pesos argentinos. IVA incluido.</p>
+
+        <ul class="lista">
+          {plan.features.map((f) => <li>{f}</li>)}
+        </ul>
+
+        <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Empezar los 14 días gratis</a>
+        <p style="text-align:center;margin:.9rem 0 0;font-size:.85rem;color:var(--text-muted)">
+          No pedimos tarjeta para la prueba.
+        </p>
+      </div>
+
+      <div class="aviso" style="max-width:460px;margin:1.5rem auto 0">
+        <Icon name="escudo" size={19} />
+        <div>
+          <strong>¿Querés el molinete con reconocimiento facial?</strong>
+          Se cotiza aparte, según la puerta y el equipo que tenga tu gimnasio.
+          <a href={`mailto:${CONTACTO.email}?subject=Consulta%20por%20molinete%20facial`}>Escribinos</a>
+          y lo vemos.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap faq">
+      <div class="center" style="margin-bottom:2.2rem">
+        <p class="eyebrow">Preguntas</p>
+        <h2>Lo que nos preguntan siempre</h2>
+      </div>
+
+      {faq.map((f) => (
+        <details>
+          <summary>{f.q}</summary>
+          <p>{f.a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <section class="cierre">
+    <div class="wrap">
+      <h2>Probalo con los socios que ya tenés</h2>
+      <p class="lead center" style="margin-bottom:2rem">
+        Creás la cuenta, cargás tu gimnasio y en la misma tarde estás cobrando desde
+        Veltronik. Catorce días para decidir sin poner un peso.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Crear mi cuenta</a>
+        <a class="btn btn-ghost btn-lg" href="/descargar">Descargar para Windows</a>
+      </div>
+    </div>
+  </section>
+</Base>

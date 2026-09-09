@@ -13,7 +13,7 @@ import { memberService } from '../services/MemberService';
 import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
-import { useModal, useConfirmDialog, usePagination, useDebouncedSearch } from '../hooks';
+import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete } from '../hooks';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -112,6 +112,29 @@ export default function MembersPage() {
       .catch(() => setAranceles([]));
   }, []);
   const hayAranceles = aranceles.length > 0;
+
+  // ─── El molinete ───
+  //
+  // Solo aparece en la computadora del local que tiene el equipo configurado: es la única
+  // que le llega, porque vive en la red del gimnasio. En la web y en las demás máquinas el
+  // botón no se dibuja — uno muerto se aprieta tres veces y termina en un llamado.
+  const molinete = useMolinete();
+
+  /**
+   * Pone el molinete en modo captura para este socio.
+   *
+   * <p>La foto la saca el EQUIPO y se queda adentro de él: no pasa por Veltronik ni por esta
+   * computadora. Nosotros solo guardamos que el socio X es la persona X en el molinete, que
+   * es lo que nos deja fuera del problema del dato biométrico.</p>
+   */
+  const tomarFoto = async (member) => {
+    const r = await molinete.sacarFoto(member.id);
+    if (r?.ok) {
+      showToast(`El molinete está esperando a ${member.fullName}: que se pare enfrente.`, 'success');
+    } else {
+      showToast(r?.error || 'El molinete no contestó.', 'error');
+    }
+  };
 
   // A quién le estamos cobrando. null = el modal está cerrado.
   const [cobrando, setCobrando] = useState(null);
@@ -716,6 +739,13 @@ export default function MembersPage() {
                             onClick={() => openPaymentsHistory(member)}
                             title="Historial de pagos"
                           ><Icon name="creditCard" size="1em" /></button>
+                          {molinete.disponible && (
+                            <button
+                              className="action-btn-quick action-btn-history"
+                              onClick={() => tomarFoto(member)}
+                              title="Tomar la foto en el molinete"
+                            ><Icon name="camera" size="1em" /></button>
+                          )}
                           <button
                             className="action-btn-quick action-btn-payment"
                             onClick={() => modal.open(member, MEMBER_MAP_FN)}

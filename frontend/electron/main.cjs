@@ -15,6 +15,7 @@ const { isAllowedUrl } = require('./portal.cjs');
 const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
+const molinete = require('./molinete.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
 const espejo = require('./nucleo/espejo.cjs');
 const boveda = require('./nucleo/boveda.cjs');
@@ -379,6 +380,36 @@ ipcMain.handle('terminal-settings:set', (_event, changes) => {
 
     return { ok: true };
 });
+
+// ─── Molinete facial (LAN) ───
+// El equipo está detrás del router del gimnasio, así que solo se le llega desde acá. Y el
+// fabricante avisa que un solo programa puede manejarlo: ese programa es este proceso.
+//
+// La pantalla NO le habla al equipo. Baja el padrón —que es donde vive el veredicto de cada
+// socio— y se lo pasa por acá; el proceso principal solo traduce eso a pedidos LAN.
+
+ipcMain.handle('molinete:config-get', () => molinete.config());
+
+ipcMain.handle('molinete:config-set', (_event, cambios) => {
+    if (!cambios || typeof cambios !== 'object') return { ok: false };
+    return { ok: true, config: molinete.guardarConfig(cambios) };
+});
+
+ipcMain.handle('molinete:probar', () => molinete.probar());
+
+ipcMain.handle('molinete:sincronizar', async (event, padron) => {
+    return molinete.sincronizar(padron, (hecho, total) => {
+        // La sincronización de un gimnasio grande son cientos de pedidos a un aparato de red
+        // local: sin esto la pantalla se queda muda un minuto y parece colgada.
+        if (!event.sender.isDestroyed()) {
+            event.sender.send('molinete:progreso', { hecho, total });
+        }
+    });
+});
+
+ipcMain.handle('molinete:foto', (_event, socioId) => molinete.sacarFoto(socioId));
+
+ipcMain.handle('molinete:avisar-a', (_event, url) => molinete.configurarAviso(url));
 
 ipcMain.handle('open-external', async (_event, url) => {
     if (!isAllowedUrl(url)) {

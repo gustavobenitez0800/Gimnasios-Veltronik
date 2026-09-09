@@ -1,0 +1,209 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { appRoute, SITE_URL, CONTACTO } from '../lib/site.js';
+
+// Esta página existe por SEO tanto como por venta.
+//
+// "software gimnasios" es una búsqueda peleadísima y un dominio nuevo no la gana en
+// meses. "molinete con reconocimiento facial para gimnasio", en cambio, casi no tiene
+// competencia en español — y el que la busca ya sabe lo que quiere. Es la puerta de
+// entrada más barata que tenemos al buscador.
+//
+// OJO con lo que promete: el plan que incluye el molinete todavía NO está a la venta
+// (PlanCatalog lo tiene con available=false). Por eso acá la llamada a la acción es
+// "consultá", nunca "comprá".
+
+const asunto = 'Consulta%20por%20molinete%20con%20reconocimiento%20facial';
+
+const faq = [
+  {
+    q: '¿Qué es un molinete con reconocimiento facial?',
+    a: 'Es un molinete que, en vez de pedir una tarjeta o una ficha, tiene una cámara que identifica la cara del socio. Si el socio tiene la cuota al día, el molinete gira y pasa. Si no, no gira.',
+  },
+  {
+    q: '¿El socio tiene que hacer algo para registrarse?',
+    a: 'Una sola vez: se le toma una foto desde el mostrador y queda cargado. Desde ahí en adelante solo tiene que pararse frente al equipo.',
+  },
+  {
+    q: '¿Qué pasa si el socio está vencido?',
+    a: 'El molinete no lo deja pasar y en el mostrador aparece su nombre con lo que debe. Le cobrás desde Veltronik y la puerta se le destraba sola en segundos, sin que nadie toque el equipo.',
+  },
+  {
+    q: '¿Sirve con el molinete que ya tengo?',
+    a: 'Depende del equipo. Trabajamos con lectores faciales que se conectan por red al molinete. Contanos qué tenés instalado y te decimos si sirve o qué haría falta.',
+  },
+  {
+    q: '¿Puedo usar tarjeta o QR en vez de la cara?',
+    a: 'Sí. El mismo equipo acepta reconocimiento facial, tarjeta y QR. Muchos gimnasios arrancan con QR desde el celular del socio, que no necesita ningún aparato, y suman el molinete después.',
+  },
+  {
+    q: '¿Cuánto sale?',
+    a: 'Depende de cuántas puertas querés controlar y del equipo que haya que instalar, así que se cotiza caso por caso. Escribinos contando cómo es la entrada de tu gimnasio y te pasamos el número.',
+  },
+];
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Service',
+      name: 'Control de acceso con reconocimiento facial para gimnasios',
+      serviceType: 'Instalación de control de acceso biométrico',
+      provider: { '@type': 'Organization', name: 'Veltronik', url: SITE_URL },
+      areaServed: { '@type': 'Country', name: 'Argentina' },
+      description: 'Molinete con reconocimiento facial integrado al sistema de socios: el que tiene la cuota vencida no pasa, y al cobrarle la puerta se destraba sola.',
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faq.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ],
+};
+---
+
+<Base
+  title="Molinete con reconocimiento facial para gimnasios | Veltronik"
+  description="Control de acceso biométrico para gimnasios: el molinete reconoce la cara del socio y no deja pasar al que tiene la cuota vencida. Le cobrás y la puerta se abre sola."
+  schema={schema}
+>
+  <section class="hero">
+    <div class="wrap center">
+      <p class="eyebrow">Control de acceso</p>
+      <h1>El molinete que sabe quién pagó</h1>
+      <p class="lead">
+        Tu socio se para frente al equipo, la cámara lo reconoce y pasa. El que tiene la
+        cuota vencida no pasa — y no hay que discutirlo en el mostrador.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href={`mailto:${CONTACTO.email}?subject=${asunto}`}>
+          Pedir una cotización
+        </a>
+        <a class="btn btn-ghost btn-lg" href="/#funciones">Ver el sistema completo</a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow">Cómo funciona</p>
+        <h2>Nadie tiene que hacer de policía</h2>
+        <p class="lead">
+          El problema del gimnasio no es que la gente no pague: es que el que atiende
+          tenga que mirarlo a los ojos y decirle que debe dos meses. El molinete se lo
+          saca de encima. La regla la aplica la puerta, y el mostrador solo cobra.
+        </p>
+      </div>
+
+      <ol class="steps">
+        <li><strong>Se carga una vez</strong>Le sacás una foto al socio desde el mostrador y queda registrado en el equipo.</li>
+        <li><strong>Entra sin hacer nada</strong>Se para frente al lector. Ni celular, ni tarjeta, ni decir el nombre.</li>
+        <li><strong>La cuota decide</strong>Al día, gira el molinete y la visita queda registrada sola.</li>
+        <li><strong>Si debe, no pasa</strong>Su nombre salta en el mostrador con lo que adeuda.</li>
+        <li><strong>Cobrás y se abre</strong>Registrás el pago en Veltronik y el molinete lo habilita en segundos. Nadie toca el equipo.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <div class="center" style="margin-bottom:3rem">
+        <p class="eyebrow">Por qué conviene</p>
+        <h2>Lo que cambia el día que lo instalás</h2>
+      </div>
+
+      <div class="grid grid-3">
+        <article class="card">
+          <div class="ficon"><Icon name="caja" /></div>
+          <h3>Se cobra lo que se debe</h3>
+          <p>
+            El socio vencido que "después arreglo" deja de entrar gratis. La puerta no se
+            olvida ni tiene un mal día.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="ficon"><Icon name="cara" /></div>
+          <h3>No se presta ni se pierde</h3>
+          <p>
+            La tarjeta se presta al amigo y la ficha se pierde. La cara no. Cada entrada
+            registrada es la persona que realmente entró.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="ficon"><Icon name="reloj" /></div>
+          <h3>Entrada sin fila</h3>
+          <p>
+            En la hora pico nadie espera a que lo atiendan para pasar. El mostrador queda
+            libre para vender y para atender al que tiene una consulta.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="ficon"><Icon name="grafico" /></div>
+          <h3>Sabés tu hora pico de verdad</h3>
+          <p>
+            Cada paso queda registrado con su hora. Con eso decidís cuándo poner más
+            profesores y cuándo no hace falta nadie.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="ficon"><Icon name="qr" /></div>
+          <h3>Cara, tarjeta o QR</h3>
+          <p>
+            El mismo equipo acepta las tres. Y si todavía no querés invertir en hardware,
+            el check-in por QR funciona con el celular del socio.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="ficon"><Icon name="equipo" /></div>
+          <h3>Un solo sistema</h3>
+          <p>
+            El molinete no es un programa aparte: lee los mismos socios y las mismas
+            cuotas que ya cargás en Veltronik. No hay dos listas que sincronizar.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap faq">
+      <div class="center" style="margin-bottom:2.2rem">
+        <p class="eyebrow">Preguntas</p>
+        <h2>Lo que hay que saber antes de instalarlo</h2>
+      </div>
+
+      {faq.map((f) => (
+        <details>
+          <summary>{f.q}</summary>
+          <p>{f.a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <section class="cierre">
+    <div class="wrap">
+      <h2>Contanos cómo es tu entrada</h2>
+      <p class="lead center" style="margin-bottom:2rem">
+        Cada gimnasio tiene su puerta: molinete viejo, molinete nuevo, o una recepción sin
+        nada. Escribinos con una foto de la entrada y te decimos qué hace falta y cuánto sale.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href={`mailto:${CONTACTO.email}?subject=${asunto}`}>
+          Pedir una cotización
+        </a>
+        <a class="btn btn-ghost btn-lg" href={appRoute('/register')}>Probar el sistema gratis</a>
+      </div>
+    </div>
+  </section>
+</Base>

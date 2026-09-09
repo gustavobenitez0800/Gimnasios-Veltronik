@@ -28,10 +28,13 @@ public class GymAccessController {
 
     private final AccessLogService accessService;
     private final AccessLogMapper accessMapper;
+    private final com.veltronik.v2.gym.services.MolineteService molineteService;
 
-    public GymAccessController(AccessLogService accessService, AccessLogMapper accessMapper) {
+    public GymAccessController(AccessLogService accessService, AccessLogMapper accessMapper,
+                               com.veltronik.v2.gym.services.MolineteService molineteService) {
         this.accessService = accessService;
         this.accessMapper = accessMapper;
+        this.molineteService = molineteService;
     }
 
     @GetMapping("/today")
@@ -105,6 +108,15 @@ public class GymAccessController {
             log.error("Los avisos del mostrador fallaron. La pantalla sigue funcionando sin ellos.", e);
             body.put("avisos", java.util.List.of());
         }
+        // Los rechazados del molinete: a quién frenó la puerta hoy y nadie atendió todavía.
+        // Mismo cuidado que los avisos: es la parte accesoria y la más cara (recalcula el
+        // veredicto de cada uno), así que si falla no puede llevarse puesta la pantalla entera.
+        try {
+            body.put("rechazos", molineteService.rechazosPendientes());
+        } catch (Exception e) {
+            log.error("Los rechazos del molinete fallaron. La pantalla sigue funcionando sin ellos.", e);
+            body.put("rechazos", java.util.List.of());
+        }
         // Los pasos por QR de los últimos 5 minutos. La pantalla los convierte en el MISMO
         // cartel que aparece al registrar una entrada a mano, así el socio que escaneó ve en
         // el mostrador cuántos días le quedan.
@@ -140,6 +152,13 @@ public class GymAccessController {
     @PostMapping("/avisos/{id}/visto")
     public ResponseEntity<Void> marcarAvisoVisto(@PathVariable java.util.UUID id) {
         accessService.marcarAvisoVisto(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Lo mismo para un rechazado del molinete: se saca de la lista en todas las terminales. */
+    @PostMapping("/rechazos/{id}/visto")
+    public ResponseEntity<Void> marcarRechazoVisto(@PathVariable java.util.UUID id) {
+        molineteService.marcarRechazoVisto(id);
         return ResponseEntity.noContent().build();
     }
 

@@ -81,10 +81,11 @@ export default function PlansPage() {
   // es una ruta que no exige contexto de gimnasio.)
   const sucursalElegida = gym?.id || localStorage.getItem('current_org_id');
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (planCode) => {
     setSubscribing(true);
     try {
-      const response = await apiClient.post('/core/subscriptions/checkout');
+      // Viaja el CÓDIGO del plan, nunca el precio: el monto lo pone el catálogo del backend.
+      const response = await apiClient.post('/core/subscriptions/checkout', { plan: planCode });
       const { ok, init_point, error } = response.data;
 
       if (!ok || !init_point) {
@@ -176,10 +177,10 @@ export default function PlansPage() {
             {sucursalElegida ? (
               <>
                 {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
-                <CardCheckout amount={Number(plan.price)} onSuccess={handleSuccess} />
+                <CardCheckout amount={Number(plan.price)} plan={plan.code} onSuccess={handleSuccess} />
 
                 {/* Respaldo: link clásico de Mercado Pago */}
-                <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={handleSubscribe} style={{ marginTop: '0.75rem' }}>
+                <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={() => handleSubscribe(plan.code)} style={{ marginTop: '0.75rem' }}>
                   {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
                 </button>
 

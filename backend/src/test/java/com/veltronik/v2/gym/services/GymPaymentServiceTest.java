@@ -349,6 +349,21 @@ class GymPaymentServiceTest {
         }
 
         @Test
+        @DisplayName("⭐ Pero un período ESCRITO A MANO le gana al mes por defecto")
+        void elPeriodoExplicitoNoSePisa() {
+            // El contrapeso del test de arriba, y viene de la rama del molinete: sin él, "la
+            // cuota corre un mes" se podría implementar pisando SIEMPRE el período — y el
+            // gimnasio que carga un trimestre a mano desde el portal lo vería convertido en un
+            // mes. La guarda es el `periodEnd == null` del servicio; esto es lo que la sostiene.
+            LocalDateTime trimestre = LocalDateTime.now().plusMonths(3).withNano(0);
+            socio.setMembershipEnd(null);
+
+            service.saveForCurrentTenant(pago("paid", trimestre));
+
+            assertCoberturaHasta(trimestre);
+        }
+
+        @Test
         @DisplayName("Volver a guardar el mismo pago no cambia nada (idempotente)")
         void guardarDosVecesEsInofensivo() {
             // Importa porque 'marcar como pagado' entra por el mismo camino que el alta:

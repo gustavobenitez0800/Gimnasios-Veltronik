@@ -172,6 +172,11 @@ class AccessService {
   async marcarAvisoVisto(accesoId) {
     await apiClient.post(`/gym/access/avisos/${accesoId}/visto`);
   }
+
+  /** Lo mismo para un rechazado del molinete. */
+  async marcarRechazoVisto(rechazoId) {
+    await apiClient.post(`/gym/access/rechazos/${rechazoId}/visto`);
+  }
 }
 
 export const accessService = new AccessService();

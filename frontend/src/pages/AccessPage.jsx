@@ -94,6 +94,7 @@ export default function AccessPage() {
 
   const checkedIn = useMemo(() => data?.adentro || [], [data]);
   const avisos = useMemo(() => data?.avisos || [], [data]);
+  const rechazos = useMemo(() => data?.rechazos || [], [data]);
   const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
 
   const loadData = invalidate;
@@ -617,6 +618,9 @@ export default function AccessPage() {
 
       {/* Los avisos van ARRIBA del buscador y no cambió: si un socio entró vencido, eso
           tiene que verse antes que lo que la recepcionista esté por hacer ahora. */}
+      {/* Los frenados por el molinete van primero: a ese socio la puerta ya le dijo que no
+          en la cara, así que es el más urgente de atender. */}
+      <AvisosMostrador avisos={rechazos} onAtendido={loadData} variante="rechazo" />
       <AvisosMostrador avisos={avisos} onAtendido={loadData} />
 
       {/* ─── EL CUERPO: DOS COLUMNAS QUE ENTRAN EN UNA PANTALLA ───

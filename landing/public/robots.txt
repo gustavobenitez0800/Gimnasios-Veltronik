@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# El endpoint de descarga es un redirect, no una pagina: no hay nada que indexar.
+Disallow: /api/
+
+Sitemap: https://veltronik.com.ar/sitemap-index.xml

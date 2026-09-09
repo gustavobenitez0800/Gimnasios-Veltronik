@@ -1,0 +1,114 @@
+---
+// El <head> de todas las páginas, en un solo lugar.
+//
+// Cada página está OBLIGADA a pasar su propio title y description: dos páginas con el
+// mismo título compiten entre sí en Google y ninguna gana. Por eso no hay valores por
+// defecto para esos dos — si falta uno, se ve en el build.
+import { SITE_URL, appRoute, NAV, CONTACTO } from '../lib/site.js';
+import '../styles/global.css';
+
+const { title, description, image = '/logo.png', noindex = false, schema } = Astro.props;
+
+// Canónica absoluta y sin barra final. Google trata /descargar y /descargar/ como dos
+// URLs distintas; declarar cuál es la buena evita que se repartan la fuerza.
+const canonical = new URL(Astro.url.pathname.replace(/\/$/, '') || '/', SITE_URL).href;
+const ogImage = new URL(image, SITE_URL).href;
+const year = new Date().getFullYear();
+---
+
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex
+      ? <meta name="robots" content="noindex, follow" />
+      : <meta name="robots" content="index, follow, max-image-preview:large" />}
+
+    <meta name="theme-color" content="#0b0e14" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Veltronik" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
+  </head>
+
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a href="/" class="nav-logo">
+          <img src="/logo.png" alt="" width="28" height="28" />
+          Veltronik
+        </a>
+        <nav class="nav-links">
+          {NAV.map((i) => <a href={i.href}>{i.label}</a>)}
+        </nav>
+        <div class="nav-cta">
+          <a class="btn btn-ghost" href={appRoute('/')}>Ingresar</a>
+          <a class="btn btn-primary" href={appRoute('/register')}>Probar gratis</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <div class="foot-grid">
+          <div>
+            <a href="/" class="nav-logo" style="margin-bottom:.7rem">
+              <img src="/logo.png" alt="" width="28" height="28" />
+              Veltronik
+            </a>
+            <p style="color:var(--text-muted);max-width:30ch;margin:0">
+              Software de gestión y control de acceso para gimnasios. Hecho en Argentina.
+            </p>
+          </div>
+
+          <div>
+            <h4>Producto</h4>
+            <ul>
+              <li><a href="/#funciones">Funciones</a></li>
+              <li><a href="/molinete-facial">Molinete facial</a></li>
+              <li><a href="/#precios">Precios</a></li>
+              <li><a href="/descargar">Descargar</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>Empezar</h4>
+            <ul>
+              <li><a href={appRoute('/register')}>Crear cuenta</a></li>
+              <li><a href={appRoute('/')}>Ingresar al sistema</a></li>
+              <li><a href={`mailto:${CONTACTO.email}`}>Contacto</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="foot-legal">
+          © {year} Veltronik. Todos los derechos reservados.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
