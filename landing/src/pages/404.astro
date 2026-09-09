@@ -1,0 +1,28 @@
+---
+import Base from '../layouts/Base.astro';
+import { appRoute } from '../lib/site.js';
+
+// noindex: una 404 en el índice de Google no le sirve a nadie. `follow` sí, para que el
+// buscador siga los links de acá y vuelva a las páginas que sí valen.
+---
+
+<Base
+  title="Página no encontrada | Veltronik"
+  description="La página que buscabas no existe o cambió de dirección."
+  noindex={true}
+>
+  <section class="hero">
+    <div class="wrap center">
+      <p class="eyebrow">Error 404</p>
+      <h1>Esta página no existe</h1>
+      <p class="lead">
+        Puede que el link esté viejo o que la dirección tenga un error de tipeo. Desde
+        acá volvés a lo importante.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="/">Ir al inicio</a>
+        <a class="btn btn-ghost btn-lg" href={appRoute('/')}>Entrar al sistema</a>
+      </div>
+    </div>
+  </section>
+</Base>
