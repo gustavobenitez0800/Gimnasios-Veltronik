@@ -28,3 +28,9 @@ Thumbs.db
 
 # Tooling local (preview server, etc.)
 .claude/
+
+# El arranque del entorno de prueba local: levanta el Postgres 16 embebido (zonky) en el
+# puerto 5544 y se queda colgado para que los datos vivan mientras dure la sesión. Es un
+# andamio de la máquina de quien prueba, no del proyecto — y ya se coló en tres commits
+# porque figuraba como archivo sin trackear. Cómo se rehace: la nota del entorno local.
+backend/src/test/java/com/veltronik/v2/support/LocalStackDb.java
