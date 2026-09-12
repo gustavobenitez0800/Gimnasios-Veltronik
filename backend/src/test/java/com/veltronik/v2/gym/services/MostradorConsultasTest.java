@@ -58,7 +58,7 @@ class MostradorConsultasTest extends EmbeddedPostgresTest {
         for (int i = 0; i < CUANTOS_SOCIOS; i++) {
             UUID socio = UUID.randomUUID();
             em.createNativeQuery("""
-                    INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                    INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                              is_active, membership_end, created_at, updated_at)
                     VALUES (:id, :tenant, :nombre, 'Prueba', :email, :doc, true, :vence, now(), now())
                     """)

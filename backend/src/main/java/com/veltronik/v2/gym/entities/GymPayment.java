@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "gym_payments")
+@Table(name = "gym_payment")
 @Getter
 @Setter
 public class GymPayment extends TenantAwareEntity {
@@ -24,7 +24,7 @@ public class GymPayment extends TenantAwareEntity {
      *
      * <p><b>Por qué importa el {@code optional = true}:</b> antes esto declaraba
      * {@code @JoinColumn(nullable = false)}. De ahí Hibernate deduce que la relación siempre
-     * existe y resuelve {@code findById} con un <b>INNER JOIN</b> contra {@code gym_members};
+     * existe y resuelve {@code findById} con un <b>INNER JOIN</b> contra {@code gym_member};
      * un pago huérfano no matcheaba y respondía <b>404</b>. Aparecía en los listados (esas
      * consultas usan {@code LEFT JOIN FETCH} explícito) y sumaba en los totales, pero no se
      * podía abrir ni borrar. Hay test: {@code GymPaymentHuerfanoTest}.</p>

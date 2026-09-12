@@ -94,26 +94,40 @@ class EsquemaInvariantesTest extends EmbeddedPostgresTest {
     class TablasMuertas {
 
         /**
-         * Las tres del modelo original (V1/V2) que la V67 sacó, más las de los verticales
-         * dados de baja. Si alguna reaparece es que una migración vieja se volvió a aplicar
-         * sobre una base que ya no la esperaba.
+         * Las del modelo original (V1/V2), las de los verticales dados de baja, y los
+         * nombres en PLURAL que la V75 dejó atrás. Si alguno reaparece es que una migración
+         * vieja se volvió a aplicar sobre una base que ya no la esperaba.
          *
-         * <p><b>{@code gym_member} NO está en esta lista, a propósito.</b> Es la cuarta del
-         * modelo original y la V67 iba a borrarla, pero su guarda descubrió que guarda 114
-         * socios —con DNI, email y teléfono— que no están en {@code gym_members}, todos de
-         * negocios que siguen existiendo. La tabla se conserva hasta que se decida si esos
-         * socios se recuperan al padrón o se dan de baja de verdad. Si alguien la agrega
-         * acá para "terminar la limpieza", está borrando esos 114.</p>
+         * <p>⚠️ <b>CUIDADO CON {@code gym_member}: el mismo nombre significa dos cosas
+         * distintas según la fecha.</b></p>
+         *
+         * <ul>
+         *   <li><b>Hasta la V74</b> era la tabla del modelo original, sin uso en el código.
+         *       La V67 no pudo borrarla porque su guarda encontró 114 socios que solo vivían
+         *       ahí; se puso el caso sobre la mesa y se decidió borrarlos. La V74 la sacó.</li>
+         *   <li><b>Desde la V75</b> {@code gym_member} es EL PADRÓN VIVO: es
+         *       {@code gym_members} renombrado en singular, que recién pudo tomar el nombre
+         *       cuando la V74 lo liberó.</li>
+         * </ul>
+         *
+         * <p>Por eso lo que va en esta lista es {@code gym_members} (plural, el nombre
+         * viejo) y NO {@code gym_member}. Agregar {@code gym_member} acá haría fallar el
+         * build contra la tabla más importante del sistema.</p>
          */
         @Test
-        @DisplayName("ninguna tabla dada de baja sigue en la base")
+        @DisplayName("ninguna tabla dada de baja ni ningún nombre viejo sigue en la base")
         void lasTablasDadasDeBajaNoEstan() {
             List<String> revividas = consultar("""
                 SELECT tablename FROM pg_tables
                 WHERE schemaname = 'public'
                   AND tablename IN (
-                      'member_payment', 'member_subscription', 'membership_plan',
+                      -- Modelo original (V67, V74)
+                      'gym_member_legacy', 'member_payment', 'member_subscription', 'membership_plan',
+                      -- El modelo unificado intermedio (V10)
                       'members', 'payments',
+                      -- Nombres en plural que reemplazó la V75
+                      'gym_members', 'gym_payments', 'gym_plans', 'subscriptions',
+                      -- Verticales dados de baja (V40-V43)
                       'court', 'court_booking', 'court_settings',
                       'kiosk_sale', 'kiosk_product', 'kiosk_settings',
                       'fiscal_config', 'fiscal_voucher',
@@ -123,8 +137,43 @@ class EsquemaInvariantesTest extends EmbeddedPostgresTest {
                 """);
 
             assertTrue(revividas.isEmpty(),
-                    "Estas tablas se dieron de baja y volvieron a aparecer: " + revividas
-                    + ". Ver V67 (modelo original), V40-V43 (verticales dados de baja).");
+                    "Estas tablas se dieron de baja o se renombraron y volvieron a aparecer: "
+                    + revividas + ". Ver V67 y V74 (modelo original), V75 (plural → singular), "
+                    + "V40-V43 (verticales dados de baja).");
+        }
+    }
+
+    @Nested
+    @DisplayName("convención de nombres")
+    class Nombres {
+
+        /**
+         * La regla de la V75: una tabla define qué ES UNA FILA, así que va en singular.
+         * Hasta esa migración convivían dieciocho en singular y cuatro en plural, y el
+         * reparto era puro accidente histórico — lo que obligaba a ACORDARSE de cuál forma
+         * le tocó a cada tabla al escribir una query.
+         *
+         * <p>El criterio es "termina en -s pero no en -ss", que deja pasar
+         * {@code gym_class} (y cualquier otra palabra que termine naturalmente en doble
+         * ese) y agarra {@code gym_members}, {@code subscriptions} y compañía.</p>
+         */
+        @Test
+        @DisplayName("ninguna tabla en plural")
+        void lasTablasVanEnSingular() {
+            List<String> enPlural = consultar("""
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                  AND tablename <> 'flyway_schema_history'
+                  AND tablename LIKE '%s'
+                  AND tablename NOT LIKE '%ss'
+                ORDER BY tablename
+                """);
+
+            assertTrue(enPlural.isEmpty(),
+                    "Estas tablas están en plural: " + enPlural
+                    + ". En esta base una tabla dice qué es UNA fila, así que va en singular "
+                    + "— ver V75. Si la palabra termina en -s de verdad y no es plural, "
+                    + "ajustá el criterio de este test explicando por qué.");
         }
     }
 

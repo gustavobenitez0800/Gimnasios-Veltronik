@@ -78,7 +78,7 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
     @Query(value = """
             SELECT date_trunc('month', p.payment_date) AS mes,
                    COALESCE(SUM(p.amount), 0)          AS total
-            FROM gym_payments p
+            FROM gym_payment p
             WHERE p.tenant_id = :tenantId
               AND LOWER(p.status) = 'paid'
               AND p.payment_date IS NOT NULL

@@ -77,7 +77,7 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearArancel(UUID tenant) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_plans (id, tenant_id, name, price, duration_days, is_active,
+                INSERT INTO gym_plan (id, tenant_id, name, price, duration_days, is_active,
                                        created_at, updated_at)
                 VALUES (:id, :t, 'Mensual', :p, 30, true, now(), now())
                 """)
@@ -91,7 +91,7 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearSocio(UUID tenant, String nombre, UUID plan) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, plan_id, created_at, updated_at)
                 VALUES (:id, :t, :n, 'Prueba', :mail, :doc, true, now() + interval '20 days',
                         :plan, now(), now())
@@ -106,7 +106,7 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
 
     private void crearPago(UUID tenant, UUID socio, UUID plan) {
         em.createNativeQuery("""
-                INSERT INTO gym_payments (id, tenant_id, member_id, plan_id, amount, payment_method,
+                INSERT INTO gym_payment (id, tenant_id, member_id, plan_id, amount, payment_method,
                                           status, payment_date, created_at, updated_at)
                 VALUES (:id, :t, :m, :plan, 25000, 'CASH', 'PAID', now(), now(), now())
                 """)
@@ -140,9 +140,9 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
     @AfterEach
     void limpiar() {
         tx.executeWithoutResult(st -> {
-            em.createNativeQuery("DELETE FROM gym_payments WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
-            em.createNativeQuery("DELETE FROM gym_members WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
-            em.createNativeQuery("DELETE FROM gym_plans WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
+            em.createNativeQuery("DELETE FROM gym_payment WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
+            em.createNativeQuery("DELETE FROM gym_member WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
+            em.createNativeQuery("DELETE FROM gym_plan WHERE tenant_id = :t").setParameter("t", gym).executeUpdate();
             em.createNativeQuery("DELETE FROM tenant WHERE id = :t").setParameter("t", gym).executeUpdate();
         });
         TenantContextHolder.clear();

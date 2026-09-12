@@ -251,7 +251,7 @@ class OwnerInsightsIntegrationTest extends EmbeddedPostgresTest {
 
     private void pago(UUID tenantId, BigDecimal monto, LocalDateTime fecha, String status, LocalDateTime periodEnd) {
         UUID socioId = socio(tenantId, fecha, null);
-        jdbc.update("INSERT INTO gym_payments (id, created_at, updated_at, tenant_id, member_id, amount, "
+        jdbc.update("INSERT INTO gym_payment (id, created_at, updated_at, tenant_id, member_id, amount, "
                         + "payment_date, status, period_end) VALUES (?,?,?,?,?,?,?,?,?)",
                 UUID.randomUUID(), fecha, fecha, tenantId, socioId, monto, fecha, status, periodEnd);
     }
@@ -259,7 +259,7 @@ class OwnerInsightsIntegrationTest extends EmbeddedPostgresTest {
     /** @return el id del socio creado. `altaEn` va a created_at: es lo que cuenta como alta. */
     private UUID socio(UUID tenantId, LocalDateTime altaEn, LocalDateTime venceEn) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO gym_members (id, created_at, updated_at, tenant_id, first_name, last_name, "
+        jdbc.update("INSERT INTO gym_member (id, created_at, updated_at, tenant_id, first_name, last_name, "
                         + "email, is_active, membership_end) VALUES (?,?,?,?,?,?,?,?,?)",
                 id, altaEn, altaEn, tenantId, "Socio", id.toString().substring(0, 8),
                 id + "@test.com", true, venceEn);

@@ -53,7 +53,7 @@ class CobrosOfflineMigracionIntegrationTest extends EmbeddedPostgresTest {
     private void cobro(UUID tenant, UUID clientRef) throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                     "INSERT INTO gym_payments (id, tenant_id, amount, payment_date, status, client_ref)"
+                     "INSERT INTO gym_payment (id, tenant_id, amount, payment_date, status, client_ref)"
                              + " VALUES (?, ?, 45000, ?, 'PAID', ?)")) {
             ps.setObject(1, UUID.randomUUID());
             ps.setObject(2, tenant);

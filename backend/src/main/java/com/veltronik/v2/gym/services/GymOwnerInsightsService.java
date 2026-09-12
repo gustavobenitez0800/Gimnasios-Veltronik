@@ -133,7 +133,7 @@ public class GymOwnerInsightsService {
     private Map<String, BigDecimal> sumarPlata(List<UUID> ids, LocalDateTime desde) {
         List<?> filas = entityManager.createNativeQuery(
                         "SELECT tenant_id, to_char(date_trunc('month', payment_date), 'YYYY-MM'), COALESCE(SUM(amount), 0) "
-                                + "FROM gym_payments "
+                                + "FROM gym_payment "
                                 + "WHERE tenant_id IN (:ids) AND UPPER(status) = 'PAID' AND payment_date >= :desde "
                                 + "GROUP BY 1, 2")
                 .setParameter("ids", ids)
@@ -152,7 +152,7 @@ public class GymOwnerInsightsService {
     private Map<String, Long> contarAltas(List<UUID> ids, LocalDateTime desde) {
         return contar(entityManager.createNativeQuery(
                         "SELECT tenant_id, to_char(date_trunc('month', created_at), 'YYYY-MM'), COUNT(*) "
-                                + "FROM gym_members "
+                                + "FROM gym_member "
                                 + "WHERE tenant_id IN (:ids) AND created_at >= :desde "
                                 + "GROUP BY 1, 2")
                 .setParameter("ids", ids)
@@ -170,7 +170,7 @@ public class GymOwnerInsightsService {
     private Map<String, Long> contarBajas(List<UUID> ids, LocalDateTime desde, LocalDateTime corte) {
         return contar(entityManager.createNativeQuery(
                         "SELECT tenant_id, to_char(date_trunc('month', membership_end), 'YYYY-MM'), COUNT(*) "
-                                + "FROM gym_members "
+                                + "FROM gym_member "
                                 + "WHERE tenant_id IN (:ids) AND membership_end IS NOT NULL "
                                 + "AND membership_end >= :desde AND membership_end < :corte "
                                 + "GROUP BY 1, 2")

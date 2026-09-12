@@ -67,7 +67,7 @@ class AltaConIdDelTerminalIntegrationTest extends EmbeddedPostgresTest {
 
     private void socioDeOtroGimnasio(UUID id, String nombre) {
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, created_at, updated_at)
                 VALUES (:id, :gym, :nombre, 'Ajeno', :email, :doc, true, now(), now())
                 """)
@@ -106,7 +106,7 @@ class AltaConIdDelTerminalIntegrationTest extends EmbeddedPostgresTest {
         controller.createMember(alta(id, "Nuevo"));
 
         // Alguien le corrigió el nombre después de que el alta subiera.
-        em.createNativeQuery("UPDATE gym_members SET first_name = 'Corregido' WHERE id = :id")
+        em.createNativeQuery("UPDATE gym_member SET first_name = 'Corregido' WHERE id = :id")
                 .setParameter("id", id).executeUpdate();
         em.flush();
         em.clear();
@@ -134,7 +134,7 @@ class AltaConIdDelTerminalIntegrationTest extends EmbeddedPostgresTest {
         // Y sobre todo: el socio ajeno quedó intacto y en su gimnasio.
         em.clear();
         Object[] fila = (Object[]) em.createNativeQuery(
-                        "SELECT first_name, tenant_id FROM gym_members WHERE id = :id")
+                        "SELECT first_name, tenant_id FROM gym_member WHERE id = :id")
                 .setParameter("id", ajeno).getSingleResult();
         assertEquals("Victima", fila[0]);
         assertEquals(otroGym, fila[1]);

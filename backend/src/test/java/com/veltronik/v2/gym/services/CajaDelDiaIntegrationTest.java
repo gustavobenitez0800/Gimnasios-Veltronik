@@ -52,7 +52,7 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
 
         socio = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :t, 'Lurdes', 'Rollet', :mail, :doc, true, now(), now(), now())
                 """)
@@ -72,7 +72,7 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
 
     private void cobrar(String monto, String metodo) {
         em.createNativeQuery("""
-                INSERT INTO gym_payments (id, tenant_id, member_id, amount, payment_method, status,
+                INSERT INTO gym_payment (id, tenant_id, member_id, amount, payment_method, status,
                                           payment_date, created_at, updated_at)
                 VALUES (:id, :t, :m, :monto, :metodo, 'paid', :cuando, now(), now())
                 """)
@@ -211,7 +211,7 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
     void elPendienteNoCuenta() {
         cobrar("40000", "CASH");
         em.createNativeQuery("""
-                INSERT INTO gym_payments (id, tenant_id, member_id, amount, payment_method, status,
+                INSERT INTO gym_payment (id, tenant_id, member_id, amount, payment_method, status,
                                           payment_date, created_at, updated_at)
                 VALUES (:id, :t, :m, 99999, 'CASH', 'pending', :cuando, now(), now())
                 """)

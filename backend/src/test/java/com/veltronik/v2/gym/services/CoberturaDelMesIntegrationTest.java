@@ -62,7 +62,7 @@ class CoberturaDelMesIntegrationTest extends EmbeddedPostgresTest {
     private void crearSocio(LocalDateTime vence) {
         socio = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :gym, 'Socio', 'Del Mes', :email, :doc, true, :vence, now(), now())
                 """)
@@ -76,7 +76,7 @@ class CoberturaDelMesIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearArancel(String nombre, int cantidad, String unidad) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_plans (id, tenant_id, name, price, duration_days,
+                INSERT INTO gym_plan (id, tenant_id, name, price, duration_days,
                                        cobertura_cantidad, cobertura_unidad, is_active,
                                        created_at, updated_at)
                 VALUES (:id, :gym, :nombre, 45000, 0, :cant, :uni, true, now(), now())

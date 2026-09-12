@@ -60,7 +60,7 @@ class CobroReintentadoIntegrationTest extends EmbeddedPostgresTest {
 
         socio = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :gym, 'Socio', 'Del Cobro', :email, :doc, true, NULL, now(), now())
                 """)
@@ -72,7 +72,7 @@ class CobroReintentadoIntegrationTest extends EmbeddedPostgresTest {
 
         arancel = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_plans (id, tenant_id, name, price, duration_days, is_active,
+                INSERT INTO gym_plan (id, tenant_id, name, price, duration_days, is_active,
                                        created_at, updated_at)
                 VALUES (:id, :gym, 'Mensual', 45000, 30, true, now(), now())
                 """)
@@ -111,7 +111,7 @@ class CobroReintentadoIntegrationTest extends EmbeddedPostgresTest {
     private long cuantosCobros() {
         em.flush();
         Object n = em.createNativeQuery(
-                        "SELECT COUNT(*) FROM gym_payments WHERE tenant_id = :gym AND member_id = :socio")
+                        "SELECT COUNT(*) FROM gym_payment WHERE tenant_id = :gym AND member_id = :socio")
                 .setParameter("gym", gym).setParameter("socio", socio).getSingleResult();
         return ((Number) n).longValue();
     }
@@ -181,7 +181,7 @@ class CobroReintentadoIntegrationTest extends EmbeddedPostgresTest {
                 """).setParameter("id", otroGym).executeUpdate();
         UUID otroSocio = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, created_at, updated_at)
                 VALUES (:id, :gym, 'Otro', 'Socio', :email, :doc, true, now(), now())
                 """)

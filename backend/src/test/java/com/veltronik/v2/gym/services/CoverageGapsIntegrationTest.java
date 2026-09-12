@@ -56,7 +56,7 @@ class CoverageGapsIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearSocio(String nombre, LocalDateTime cubiertoHasta) {
         UUID id = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
-        jdbc.update("INSERT INTO gym_members (id, created_at, updated_at, tenant_id, first_name, last_name, "
+        jdbc.update("INSERT INTO gym_member (id, created_at, updated_at, tenant_id, first_name, last_name, "
                         + "email, is_active, membership_end) VALUES (?,?,?,?,?,?,?,?,?)",
                 id, now, now, tenantId, nombre, "Apellido", nombre.toLowerCase() + "@test.com", true, cubiertoHasta);
         return id;
@@ -64,7 +64,7 @@ class CoverageGapsIntegrationTest extends EmbeddedPostgresTest {
 
     private void crearPago(UUID socioId, String status, LocalDateTime cubreHasta) {
         LocalDateTime now = LocalDateTime.now();
-        jdbc.update("INSERT INTO gym_payments (id, created_at, updated_at, tenant_id, member_id, amount, "
+        jdbc.update("INSERT INTO gym_payment (id, created_at, updated_at, tenant_id, member_id, amount, "
                         + "payment_date, status, period_end) VALUES (?,?,?,?,?,?,?,?,?)",
                 UUID.randomUUID(), now, now, tenantId, socioId, new BigDecimal("30000"), now, status, cubreHasta);
     }

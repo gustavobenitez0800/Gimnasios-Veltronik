@@ -57,7 +57,7 @@ class ArancelMasivoIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearArancel(UUID tenant, String nombre) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_plans (id, tenant_id, name, price, duration_days, is_active,
+                INSERT INTO gym_plan (id, tenant_id, name, price, duration_days, is_active,
                                        created_at, updated_at)
                 VALUES (:id, :t, :n, :p, 30, true, now(), now())
                 """)
@@ -70,7 +70,7 @@ class ArancelMasivoIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearSocio(UUID tenant, String nombre) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :t, :n, 'Prueba', :mail, :doc, true, now(), now(), now())
                 """)
@@ -85,7 +85,7 @@ class ArancelMasivoIntegrationTest extends EmbeddedPostgresTest {
     private Object arancelDe(UUID socio) {
         em.flush();
         em.clear();
-        return em.createNativeQuery("SELECT plan_id FROM gym_members WHERE id = :id")
+        return em.createNativeQuery("SELECT plan_id FROM gym_member WHERE id = :id")
                 .setParameter("id", socio).getSingleResult();
     }
 
@@ -206,7 +206,7 @@ class ArancelMasivoIntegrationTest extends EmbeddedPostgresTest {
         em.clear();
 
         Object[] fila = (Object[]) em.createNativeQuery(
-                        "SELECT first_name, document, is_active FROM gym_members WHERE id = :id")
+                        "SELECT first_name, document, is_active FROM gym_member WHERE id = :id")
                 .setParameter("id", a).getSingleResult();
         assertEquals("Ana", fila[0]);
         assertEquals(Boolean.TRUE, fila[2]);

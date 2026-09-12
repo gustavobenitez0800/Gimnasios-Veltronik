@@ -17,11 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Un pago SIN socio tiene que poder abrirse y borrarse.
  *
- * <p><b>El bug:</b> {@code gym_payments.member_id} es nullable a propósito y la FK es
+ * <p><b>El bug:</b> {@code gym_payment.member_id} es nullable a propósito y la FK es
  * {@code ON DELETE SET NULL} — borrar un socio deja sus pagos como huérfanos para que la
  * contabilidad no se evapore. Pero la entidad los mapeaba con
  * {@code @JoinColumn(nullable = false)}, y de ahí Hibernate deduce {@code optional = false}
- * y arma un <b>INNER JOIN</b> contra {@code gym_members} al hacer {@code findById}. Con
+ * y arma un <b>INNER JOIN</b> contra {@code gym_member} al hacer {@code findById}. Con
  * {@code member_id} en NULL el join no devuelve fila y el pago responde <b>404</b>.</p>
  *
  * <p>El síntoma era desconcertante: el pago aparecía en el listado (esa consulta usa
@@ -48,7 +48,7 @@ class GymPaymentHuerfanoTest extends EmbeddedPostgresTest {
 
         jdbc.update("INSERT INTO tenant (id, created_at, updated_at, name, business_type) VALUES (?,?,?,?,?)",
                 tenantId, ahora, ahora, "Gimnasio del test", "GYM");
-        jdbc.update("INSERT INTO gym_payments (id, tenant_id, member_id, amount, payment_date, status, created_at, updated_at) "
+        jdbc.update("INSERT INTO gym_payment (id, tenant_id, member_id, amount, payment_date, status, created_at, updated_at) "
                         + "VALUES (?,?,NULL,?,?,?,?,?)",
                 pagoId, tenantId, new BigDecimal("45000.00"), ahora, "paid", ahora, ahora);
 

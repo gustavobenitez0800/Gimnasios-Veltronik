@@ -59,7 +59,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
 
     private void crearSocio(UUID tenant, String nombre) {
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, is_active, created_at, updated_at)
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, is_active, created_at, updated_at)
                 VALUES (:i, :t, :n, 'X', :e, true, now(), now())
                 """)
                 .setParameter("i", UUID.randomUUID()).setParameter("t", tenant)
@@ -106,7 +106,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
             // Cerrado, pero TODO sigue ahí.
             assertNotNull(em.createNativeQuery("SELECT deletion_scheduled_at FROM tenant WHERE id = :id")
                     .setParameter("id", gym).getSingleResult(), "el gimnasio queda marcado");
-            assertEquals(1, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym),
+            assertEquals(1, contar("SELECT COUNT(*) FROM gym_member WHERE tenant_id = :id", gym),
                     "durante la gracia no se borra un solo dato");
         }
 
@@ -127,7 +127,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
             assertTrue(!estado.pendiente());
             assertNull(em.createNativeQuery("SELECT deletion_scheduled_at FROM tenant WHERE id = :id")
                     .setParameter("id", gym).getSingleResult(), "el gimnasio vuelve a estar abierto");
-            assertEquals(1, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym));
+            assertEquals(1, contar("SELECT COUNT(*) FROM gym_member WHERE tenant_id = :id", gym));
         }
 
         @Test
@@ -172,7 +172,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
             assertNotNull(cuando);
             assertEquals(1, contar("SELECT COUNT(*) FROM tenant WHERE id = :id", gym),
                     "el gimnasio sigue existiendo durante la gracia");
-            assertEquals(1, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym),
+            assertEquals(1, contar("SELECT COUNT(*) FROM gym_member WHERE tenant_id = :id", gym),
                     "y sus socios también");
         }
 
@@ -242,7 +242,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
             em.flush();
 
             assertEquals(0, contar("SELECT COUNT(*) FROM tenant WHERE id = :id", gym));
-            assertEquals(0, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym));
+            assertEquals(0, contar("SELECT COUNT(*) FROM gym_member WHERE tenant_id = :id", gym));
 
             long archivados = ((Number) em.createNativeQuery(
                     "SELECT COUNT(*) FROM saas_revenue WHERE amount = 45000").getSingleResult()).longValue();
@@ -288,7 +288,7 @@ class AccountDeletionIntegrationTest extends EmbeddedPostgresTest {
 
             assertEquals(0, contar("SELECT COUNT(*) FROM tenant WHERE id = :id", gym),
                     "el gimnasio se borra");
-            assertEquals(0, contar("SELECT COUNT(*) FROM gym_members WHERE tenant_id = :id", gym),
+            assertEquals(0, contar("SELECT COUNT(*) FROM gym_member WHERE tenant_id = :id", gym),
                     "y arrastra a sus socios en cascada");
             assertEquals(0, contar("SELECT COUNT(*) FROM tenant_membership WHERE user_id = :id", user),
                     "y las membresías");

@@ -83,7 +83,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * @param documentoNormalizado el documento YA limpio (solo letras y números, en mayúsculas)
      */
     @Query(value = """
-            SELECT * FROM gym_members m
+            SELECT * FROM gym_member m
              WHERE m.tenant_id = :tenantId
                AND m.document IS NOT NULL
                AND UPPER(regexp_replace(m.document, '[^0-9A-Za-z]', '', 'g')) = :documentoNormalizado
@@ -117,17 +117,24 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     /**
      * Los que cumplen años HOY. La comparación es por día y mes; el año no importa.
      *
-     * <p>⚠️ {@code birth_date} se guarda como TEXTO en formato ISO (2005-02-07), no como
-     * fecha: por eso se compara el tramo "MM-DD" con SUBSTRING y no con EXTRACT, que sobre
-     * texto ni siquiera existe. Un valor con otro formato simplemente no coincide, que es
-     * mejor que hacer explotar la consulta entera.</p>
+     * <p>Desde la V78 {@code birth_date} es una columna {@code date} de verdad. Antes era
+     * TEXTO, y esta consulta tenía que recortar el string por posición
+     * ({@code SUBSTRING(birth_date FROM 6 FOR 5)}) confiando en que todos los valores
+     * estuvieran en ISO — un socio con la fecha cargada de otra forma no cumplía años
+     * nunca, y nadie se enteraba.</p>
+     *
+     * <p>Se usa {@code to_char(..., 'MM-DD')} y no EXTRACT para no cambiarle la firma a
+     * este método ni a su llamador. No hay índice sobre esa expresión —Postgres no lo
+     * permite, porque {@code to_char} es STABLE y no IMMUTABLE— y no hace falta: la
+     * consulta entra por {@code ix_gym_member_tenant}, así que solo evalúa la expresión
+     * sobre los socios de UN gimnasio. Ver V78.</p>
      *
      * <p>Traer el padrón entero para mirar diez fechas de nacimiento era el peor de los
      * cálculos que hacía el Dashboard.</p>
      */
-    @Query(value = "SELECT * FROM gym_members m WHERE m.tenant_id = :tenantId "
+    @Query(value = "SELECT * FROM gym_member m WHERE m.tenant_id = :tenantId "
                  + "AND m.birth_date IS NOT NULL AND m.is_active = true "
-                 + "AND SUBSTRING(m.birth_date FROM 6 FOR 5) = :mesYDia", nativeQuery = true)
+                 + "AND to_char(m.birth_date, 'MM-DD') = :mesYDia", nativeQuery = true)
     List<GymMember> cumplenHoy(@Param("tenantId") UUID tenantId, @Param("mesYDia") String mesYDia);
 
     // Para "At Risk" (vencidos en el pasado pero siguen marcados como activos)

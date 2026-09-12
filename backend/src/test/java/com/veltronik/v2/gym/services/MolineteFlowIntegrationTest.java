@@ -189,7 +189,7 @@ class MolineteFlowIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearSocio(UUID tenant, String nombre, LocalDateTime vence) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :tenant, :nombre, 'Molinete', :email, :doc, true, :vence, now(), now())
                 """)

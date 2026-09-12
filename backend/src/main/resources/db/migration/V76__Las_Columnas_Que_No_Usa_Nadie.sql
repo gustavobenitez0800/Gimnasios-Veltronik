@@ -1,0 +1,41 @@
+-- ============================================================================
+-- V76 — Las dos columnas que no usa nadie salen del padrón
+-- ============================================================================
+-- La V71 las dejó marcadas con un COMMENT en vez de borrarlas, para que la
+-- próxima limpieza no tuviera que volver a investigar si servían. Esta es esa
+-- limpieza.
+--
+-- ── gym_member.user_id ─────────────────────────────────────────────────────
+-- La agregó la V29 reconciliando deriva, para un "socio con cuenta propia" que
+-- nunca se construyó. Desde entonces: ningún `setUserId`, ningún `getUserId`,
+-- ninguna consulta. Nace nula y muere nula.
+--
+-- ── gym_member.classes_remaining ───────────────────────────────────────────
+-- El cupo de clases se dio de baja el 2026-09-02: la cobertura la decide SOLO
+-- la fecha (ADR-013). El arancel quedó como etiqueta de qué entrenamiento
+-- eligió el socio, no como un contador de visitas.
+--
+-- En ese momento la columna se dejó a propósito, con los valores viejos
+-- adentro, porque borrar es irreversible y no había apuro. Pasaron diez días,
+-- el comportamiento nuevo está en producción y en manos de los clientes, y
+-- `MemberAccessPolicyTest` probó que ese dato viejo no cambia NINGUNA decisión
+-- del sistema. Ya cumplió su período de gracia.
+--
+-- ⭐ Y borrarla es mejor que dejarla: mientras la columna exista, alguien puede
+-- volver a colgarle lógica sin saber que el cupo se dio de baja por decisión
+-- del dueño. Sin columna, esa vuelta atrás no puede pasar por descuido.
+--
+-- Se van también los tests que probaban que el cupo viejo no molestaba: sin
+-- columna ni campo, no hay nada que pueda molestar.
+--
+-- ── LO QUE NO SE BORRA, Y POR QUÉ ──────────────────────────────────────────
+-- `gym_plan.duration_days` también está reemplazada (por `cobertura_cantidad` +
+-- `cobertura_unidad`, V65/ADR-013) y NO se borra acá: sigue viva en el
+-- contrato con el cliente. `GymPlanDTO.durationDays` viaja en el JSON y
+-- `PaymentsPage.jsx` la lee para escribir "1 mes" o "15 días" en la pantalla de
+-- cobro. Borrarla ahora deja sin ese texto a los clientes 2.6.31 instalados.
+-- Sale cuando salga la versión del cliente que ya no la mire.
+-- ============================================================================
+
+ALTER TABLE gym_member DROP COLUMN IF EXISTS user_id;
+ALTER TABLE gym_member DROP COLUMN IF EXISTS classes_remaining;

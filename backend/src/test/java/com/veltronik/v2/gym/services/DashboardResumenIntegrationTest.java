@@ -57,7 +57,7 @@ class DashboardResumenIntegrationTest extends EmbeddedPostgresTest {
     private UUID socio(String nombre, Integer venceEnDias, boolean activo, LocalDateTime nacimiento) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, birth_date, created_at, updated_at)
                 VALUES (:id, :t, :n, 'Prueba', :mail, :doc, :activo, :vence, :nac, now(), now())
                 """)
@@ -73,7 +73,7 @@ class DashboardResumenIntegrationTest extends EmbeddedPostgresTest {
 
     private void pago(UUID socio, String monto, LocalDateTime cuando, String estado) {
         em.createNativeQuery("""
-                INSERT INTO gym_payments (id, tenant_id, member_id, amount, payment_method, status,
+                INSERT INTO gym_payment (id, tenant_id, member_id, amount, payment_method, status,
                                           payment_date, created_at, updated_at)
                 VALUES (:id, :t, :m, :monto, 'CASH', :estado, :cuando, now(), now())
                 """)
@@ -210,7 +210,7 @@ class DashboardResumenIntegrationTest extends EmbeddedPostgresTest {
         UUID otro = crearGimnasio();
         UUID ajeno = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :t, 'Ajeno', 'DeOtroGym', :mail, :doc, true, now() - interval '5 days', now(), now())
                 """)

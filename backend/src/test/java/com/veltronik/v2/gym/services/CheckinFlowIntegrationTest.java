@@ -51,7 +51,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
     private UUID crearSocio(UUID tenant, String nombre, String documento, LocalDateTime vence) {
         UUID id = UUID.randomUUID();
         em.createNativeQuery("""
-                INSERT INTO gym_members (id, tenant_id, first_name, last_name, email, document,
+                INSERT INTO gym_member (id, tenant_id, first_name, last_name, email, document,
                                          is_active, membership_end, created_at, updated_at)
                 VALUES (:id, :tenant, :nombre, 'Prueba', :email, :doc, true, :vence, now(), now())
                 """)
@@ -296,7 +296,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
             assertEquals(1, accessLogService.avisosPendientes().size(), "entró vencido");
 
             // Paga en el mostrador: se le corre el vencimiento.
-            em.createNativeQuery("UPDATE gym_members SET membership_end = :f WHERE id = :id")
+            em.createNativeQuery("UPDATE gym_member SET membership_end = :f WHERE id = :id")
                     .setParameter("f", LocalDateTime.now().plusDays(30))
                     .setParameter("id", socio).executeUpdate();
             em.flush();

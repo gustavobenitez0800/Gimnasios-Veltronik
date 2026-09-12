@@ -25,7 +25,7 @@ import java.math.BigDecimal;
  * atiende.</p>
  */
 @Entity
-@Table(name = "gym_plans")
+@Table(name = "gym_plan")
 @Getter
 @Setter
 public class GymPlan extends TenantAwareEntity {

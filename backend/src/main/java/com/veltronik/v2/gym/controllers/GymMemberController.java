@@ -136,7 +136,7 @@ public class GymMemberController {
         if (in.getMembershipEnd() != null) m.setMembershipEnd(in.getMembershipEnd());
         if (in.getAttendanceDays() != null) m.setAttendanceDays(in.getAttendanceDays());
         if (in.getNotes() != null) m.setNotes(in.getNotes());
-        if (in.getBirthDate() != null) m.setBirthDate(in.getBirthDate());
+        if (in.getBirthDate() != null) m.setBirthDate(parsearFechaNacimiento(in.getBirthDate()));
         if (in.getAddress() != null) m.setAddress(in.getAddress());
         if (in.getEmergencyContact() != null) m.setEmergencyContact(in.getEmergencyContact());
         if (in.getEmergencyPhone() != null) m.setEmergencyPhone(in.getEmergencyPhone());
@@ -177,6 +177,28 @@ public class GymMemberController {
         // hecho que se aplicaron todos.
         body.put("pedidos", input.getMemberIds() == null ? 0 : input.getMemberIds().size());
         return ResponseEntity.ok(body);
+    }
+
+    /**
+     * Convierte la fecha de nacimiento que manda el cliente, sin romperle el alta.
+     *
+     * <p>Desde la V78 la columna es {@code date} y no {@code text}. El DTO sigue siendo
+     * String —eso es contrato con los clientes 2.6.31 instalados— así que la conversión
+     * pasa por acá, que es el único lugar donde se escribe el campo.</p>
+     *
+     * <p><b>Tolerante a propósito.</b> Un texto vacío o ilegible queda en NULL en vez de
+     * tirar un 400: del otro lado hay un mostrador con alguien esperando, y perder el alta
+     * entera de un socio por una fecha de nacimiento mal tipeada sería el peor cambio
+     * posible. Lo que sí queda garantizado es que a la base no entra basura, que era el
+     * problema real de guardarla como texto.</p>
+     */
+    private static java.time.LocalDate parsearFechaNacimiento(String valor) {
+        if (valor == null || valor.isBlank()) return null;
+        try {
+            return java.time.LocalDate.parse(valor.trim());
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
     }
 
     /** Lo que hace falta para la asignación masiva. */
