@@ -267,7 +267,7 @@ public class GymTeamService {
             items.add(activityItem("payment", memberName(p.getMember()), "registró un pago", "Pago", p.getPaymentDate()))
         );
         // Altas de socios
-        for (GymMember m : memberRepository.findTop25ByTenantIdOrderByCreatedAtDesc(tenantId)) {
+        for (GymMember m : memberRepository.findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId)) {
             items.add(activityItem("member", memberName(m), "se registró como socio", "Socio", m.getCreatedAt()));
         }
 

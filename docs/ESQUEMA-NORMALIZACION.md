@@ -397,6 +397,71 @@ ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
 
 ---
 
+## V80 — Borrar un socio deja de ser irreversible
+
+No es normalización: es lo que la normalización destapó.
+
+Al investigar de dónde salían los 114 socios de la tabla vieja, apareció que
+`GymMemberService.deleteAndVerifyOwnership` hacía `repository.delete(member)` — un DELETE de
+verdad. Y como `access_log` y `access_denied` tienen la FK al socio con **`ON DELETE
+CASCADE`**, borrarlo se llevaba puesta **toda su historia de visitas**; sus cobros quedaban
+huérfanos (`gym_payment.member_id` es `ON DELETE SET NULL`): la plata figuraba, pero ya no se
+sabía de quién era.
+
+Sin papelera, sin deshacer. Un click.
+
+**La incoherencia:** dar de baja una CUENTA entera —que hace el dueño, una vez, con tiempo—
+tiene 30 días de gracia (V50). Borrar un SOCIO —que hace quien atiende, cualquier martes,
+apurada, con alguien esperando del otro lado del mostrador— no tenía nada. El cuidado estaba
+puesto al revés de quién ejecuta la acción y de cuántas veces por semana ocurre.
+
+Y no es teórico: la explicación más probable de los 114 es exactamente esta.
+
+### Cómo quedó
+
+Una columna `deleted_at`. Con fecha, el socio no existe para nadie —no está en el padrón, ni
+en el buscador, ni en los conteos, ni abre la puerta— y la fila con toda su historia queda
+entera.
+
+⚠️ **`deleted_at` no es `is_active`.** `is_active` es un estado de negocio de un socio que SÍ
+existe (dejó de venir, congeló la cuota): se ve y se reactiva. `deleted_at` es "esto no
+tendría que estar".
+
+**El filtro es explícito, no automático**, y esa fue la decisión de diseño. Hibernate tiene
+`@SQLRestriction`, que lo haría solo, y se descartó por dos razones:
+
+1. También escondería al socio de **su propia historia**. `AccessLog.member` es un
+   `@ManyToOne` EAGER: con la restricción puesta, listar los accesos del día podría devolver
+   un socio nulo donde la columna es NOT NULL — un 500 en la pantalla del mostrador. Conservar
+   la historia era el punto de todo esto.
+2. Un filtro implícito que alguien se olvida de considerar **no avisa nunca**. Renombrando los
+   métodos del repositorio a `...AndDeletedAtIsNull`, el **compilador encuentra cada
+   llamador**. Lo que se escapa, no compila. (Encontró 4 archivos y 17 llamadas.)
+
+### Recuperar un socio borrado
+
+Esto es lo que antes no existía:
+
+```sql
+-- Quiénes están en la papelera
+SELECT id, first_name, last_name, document, deleted_at
+  FROM gym_member
+ WHERE tenant_id = '<id del gimnasio>' AND deleted_at IS NOT NULL
+ ORDER BY deleted_at DESC;
+
+-- Devolver a uno al padrón, con su historia intacta
+UPDATE gym_member SET deleted_at = NULL WHERE id = '<id del socio>';
+```
+
+`PapeleraDeSociosIntegrationTest` prueba las dos mitades, y hacen falta las dos: que el socio
+**desaparezca** de todo lo que mira una pantalla (incluida la puerta), y que su visita y su
+cobro **sigan enteros y sigan siendo suyos**.
+
+> **Pendiente, y es de frontend:** hoy la papelera se ve y se vacía con SQL. Una pantalla de
+> "socios borrados" con un botón de recuperar es lo que falta para cerrarlo de punta a punta.
+
+---
+
 ## ⚠️ Una trampa que dejó este trabajo: `gym_member` significa dos cosas
 
 Es lo único de toda la tanda que puede confundir a alguien que lea esto más adelante, así

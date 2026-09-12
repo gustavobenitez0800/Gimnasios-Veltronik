@@ -349,7 +349,7 @@ class MolineteServiceTest {
     @Test
     @DisplayName("al día y en gracia pasan; vencido y dado de baja, no")
     void elVeredictoDelPadron() {
-        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+        when(memberRepository.findByTenantIdAndDeletedAtIsNull(TENANT)).thenReturn(java.util.List.of(
                 socio("Al", "Dia", true, LocalDateTime.now().plusDays(10)),
                 socio("En", "Gracia", true, LocalDateTime.now().minusDays(2)),
                 socio("Muy", "Vencido", true, LocalDateTime.now().minusDays(40)),
@@ -372,7 +372,7 @@ class MolineteServiceTest {
     @Test
     @DisplayName("al socio sin fecha cargada se lo deja pasar, no se lo acusa")
     void elSocioSinFechaPasa() {
-        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+        when(memberRepository.findByTenantIdAndDeletedAtIsNull(TENANT)).thenReturn(java.util.List.of(
                 socio("Sin", "Datos", true, null)));
 
         assertEquals(true, service.padron(TENANT).get(0).permitido());
@@ -381,7 +381,7 @@ class MolineteServiceTest {
     @Test
     @DisplayName("el nombre se recorta a lo que entra en la pantalla del equipo")
     void elNombreSeRecorta() {
-        when(memberRepository.findByTenantId(TENANT)).thenReturn(java.util.List.of(
+        when(memberRepository.findByTenantIdAndDeletedAtIsNull(TENANT)).thenReturn(java.util.List.of(
                 socio("Maria Esperanza de los Angeles", "Fernandez Gutierrez", true,
                         LocalDateTime.now().plusDays(10))));
 

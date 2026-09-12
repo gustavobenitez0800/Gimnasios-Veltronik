@@ -101,7 +101,7 @@ public class MolineteService {
         List<SocioDelPadron> padron = new ArrayList<>();
         // Se traen las fichas enteras y no una proyección: la regla de arriba necesita el socio
         // completo, y esto corre cada varios minutos, no cada quince segundos como el mostrador.
-        for (GymMember m : memberRepository.findByTenantId(tenantId)) {
+        for (GymMember m : memberRepository.findByTenantIdAndDeletedAtIsNull(tenantId)) {
             MemberAccessPolicy.Status estado = accessPolicy.evaluate(m, ahora).status();
             padron.add(new SocioDelPadron(m.getId(), nombreDe(m), puedePasar(estado)));
         }

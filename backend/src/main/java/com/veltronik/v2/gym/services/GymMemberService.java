@@ -32,7 +32,7 @@ public class GymMemberService {
     }
 
     public List<GymMember> findAllForCurrentTenant() {
-        return repository.findByTenantId(TenantContextHolder.getTenantId());
+        return repository.findByTenantIdAndDeletedAtIsNull(TenantContextHolder.getTenantId());
     }
 
     /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email). */
@@ -43,7 +43,7 @@ public class GymMemberService {
         if (search != null && !search.isBlank()) {
             return repository.searchByTenantId(tenantId, search.trim(), pageable);
         }
-        return repository.findByTenantId(tenantId, pageable);
+        return repository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable);
     }
     
     /**
@@ -92,12 +92,36 @@ public class GymMemberService {
         if (!member.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado a este miembro");
         }
+
+        // Un socio en la papelera (V80) no existe para nadie. Esta verificación va acá y no en
+        // la consulta porque `findWithPlanById` busca POR ID, y Hibernate no le aplica ningún
+        // filtro a una búsqueda por clave primaria. Por acá pasan la ficha, la edición, el
+        // cobro y el acceso: es el portón por donde hay que frenarlo.
+        if (member.estaBorrado()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro de gym no encontrado");
+        }
         return member;
     }
-    
+
+    /**
+     * Manda el socio a la papelera. <b>No borra la fila.</b>
+     *
+     * <p>Antes esto era {@code repository.delete(member)}, un DELETE de verdad — y no se
+     * llevaba solo al socio: las FK de {@code access_log} y {@code access_denied} son ON
+     * DELETE CASCADE, así que desaparecía también toda su historia de visitas, y sus cobros
+     * quedaban huérfanos. Un click, sin deshacer.</p>
+     *
+     * <p>Eso era incoherente con el resto del producto: dar de baja una CUENTA entera tiene 30
+     * días de gracia (V50), y borrar un SOCIO —que lo hace quien atiende, cualquier martes, con
+     * alguien esperando del otro lado del mostrador— no tenía nada.</p>
+     *
+     * <p>Ahora el socio desaparece de todas las pantallas y la fila queda entera. Se recupera
+     * poniendo {@code deleted_at} en NULL; la consulta está en el comentario de la V80.</p>
+     */
     public void deleteAndVerifyOwnership(UUID id) {
         GymMember member = findByIdAndVerifyOwnership(id);
-        repository.delete(member);
+        member.setDeletedAt(java.time.LocalDateTime.now());
+        repository.save(member);
     }
 
     /**

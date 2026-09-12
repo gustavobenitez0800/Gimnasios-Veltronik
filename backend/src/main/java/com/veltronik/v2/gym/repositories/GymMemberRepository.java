@@ -29,7 +29,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * <p>De paso evita el N+1: sin esto serían 400 consultas para pintar 400 filas.</p>
      */
     @EntityGraph(attributePaths = "plan")
-    List<GymMember> findByTenantId(UUID tenantId);
+    List<GymMember> findByTenantIdAndDeletedAtIsNull(UUID tenantId);
 
     /**
      * El socio con su arancel ya resuelto. Mismo motivo que los listados: el DTO se arma
@@ -40,17 +40,17 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      */
     @EntityGraph(attributePaths = "plan")
     java.util.Optional<GymMember> findWithPlanById(UUID id);
-    long countByTenantId(UUID tenantId);
+    long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
 
     /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */
-    List<GymMember> findTop25ByTenantIdOrderByCreatedAtDesc(UUID tenantId);
-    long countByTenantIdAndIsActiveTrue(UUID tenantId);
+    List<GymMember> findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID tenantId);
+    long countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(UUID tenantId);
 
     // ── Paginación server-side ──
     @EntityGraph(attributePaths = "plan")
-    Page<GymMember> findByTenantId(UUID tenantId, Pageable pageable);
+    Page<GymMember> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
-    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND (" +
+    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND (" +
            "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(COALESCE(m.document, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
@@ -85,6 +85,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     @Query(value = """
             SELECT * FROM gym_member m
              WHERE m.tenant_id = :tenantId
+               AND m.deleted_at IS NULL
                AND m.document IS NOT NULL
                AND UPPER(regexp_replace(m.document, '[^0-9A-Za-z]', '', 'g')) = :documentoNormalizado
             """, nativeQuery = true)
@@ -92,7 +93,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
                                                @Param("documentoNormalizado") String documentoNormalizado);
 
     // Para "Expiring Soon" (vencen en los próximos días)
-    List<GymMember> findByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
+    List<GymMember> findByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
 
     /**
      * Los socios que necesitan atención: vencidos o por vencer, del más urgente al menos.
@@ -101,7 +102,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * cientos vencidos, y el Dashboard los traía TODOS para pintar una lista que nadie lee
      * entera. Se muestran los primeros y se dice cuántos más hay.</p>
      */
-    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.isActive = true "
+    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.isActive = true "
          + "AND m.membershipEnd IS NOT NULL AND m.membershipEnd <= :hasta "
          + "ORDER BY m.membershipEnd ASC")
     List<GymMember> vencidosOPorVencer(@Param("tenantId") UUID tenantId,
@@ -109,7 +110,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
                                        Pageable pageable);
 
     /** Cuántos son en total, para poder decir "y N más" sin traerlos. */
-    @Query("SELECT COUNT(m) FROM GymMember m WHERE m.tenant.id = :tenantId AND m.isActive = true "
+    @Query("SELECT COUNT(m) FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.isActive = true "
          + "AND m.membershipEnd IS NOT NULL AND m.membershipEnd <= :hasta")
     long contarVencidosOPorVencer(@Param("tenantId") UUID tenantId,
                                   @Param("hasta") java.time.LocalDateTime hasta);
@@ -133,16 +134,16 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * cálculos que hacía el Dashboard.</p>
      */
     @Query(value = "SELECT * FROM gym_member m WHERE m.tenant_id = :tenantId "
-                 + "AND m.birth_date IS NOT NULL AND m.is_active = true "
+                 + "AND m.deleted_at IS NULL AND m.birth_date IS NOT NULL AND m.is_active = true "
                  + "AND to_char(m.birth_date, 'MM-DD') = :mesYDia", nativeQuery = true)
     List<GymMember> cumplenHoy(@Param("tenantId") UUID tenantId, @Param("mesYDia") String mesYDia);
 
     // Para "At Risk" (vencidos en el pasado pero siguen marcados como activos)
-    List<GymMember> findByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
+    List<GymMember> findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 
     // Versiones COUNT (el dashboard solo necesita el número; cargar las entidades para .size() no escala)
-    long countByTenantIdAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
-    long countByTenantIdAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
+    long countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
+    long countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 
     /**
      * Le pone (o le saca) el arancel a muchos socios de una sola vez.
@@ -162,7 +163,7 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * @return cuántas filas cambiaron de verdad
      */
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE GymMember m SET m.plan = :plan WHERE m.tenant.id = :tenantId AND m.id IN :ids")
+    @Query("UPDATE GymMember m SET m.plan = :plan WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.id IN :ids")
     int asignarArancel(@Param("tenantId") UUID tenantId,
                        @Param("ids") java.util.Collection<UUID> ids,
                        @Param("plan") com.veltronik.v2.gym.entities.GymPlan plan);

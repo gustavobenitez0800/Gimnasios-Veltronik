@@ -91,6 +91,28 @@ public class GymMember extends TenantAwareEntity {
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 
+    /**
+     * Papelera (V80). Con fecha, el socio no existe para ninguna pantalla — pero la fila y
+     * toda su historia de visitas y cobros quedan enteras, y se recupera poniendo esto en
+     * NULL.
+     *
+     * <p><b>No confundir con {@link #isActive}.</b> {@code isActive} es un estado de negocio
+     * de un socio que SÍ existe (dejó de venir, congeló la cuota): se ve en el padrón y se
+     * puede reactivar. {@code deletedAt} es "esto no tendría que estar": se cargó por error,
+     * se duplicó, o pidió que lo borren.</p>
+     *
+     * <p>El filtro NO es automático: los métodos del repositorio dicen
+     * {@code ...AndDeletedAtIsNull} en el nombre, para que el compilador encuentre a
+     * cualquiera que se olvide. Ver el comentario largo de la V80.</p>
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    /** Un socio en la papelera no se muestra, no suma y no entra por la puerta. */
+    public boolean estaBorrado() {
+        return deletedAt != null;
+    }
+
     // Helpers de display. Antes tenían @JsonGetter (cuando la entidad se serializaba cruda como
     // member anidado en AccessLog/GymPayment). Ahora esos endpoints usan DTOs, así que ya no se
     // serializa esta entidad; se conservan los métodos por si algún servicio los usa.

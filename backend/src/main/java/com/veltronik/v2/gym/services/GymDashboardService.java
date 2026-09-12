@@ -44,8 +44,8 @@ public class GymDashboardService {
     public Map<String, Object> getDashboardStats() {
         UUID tenantId = TenantContextHolder.getTenantId();
         
-        long totalMembers = memberRepository.countByTenantId(tenantId);
-        long activeMembers = memberRepository.countByTenantIdAndIsActiveTrue(tenantId);
+        long totalMembers = memberRepository.countByTenantIdAndDeletedAtIsNull(tenantId);
+        long activeMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(tenantId);
 
         // "Mes actual" y "ahora" en hora de Argentina (no la del servidor UTC).
         LocalDateTime startOfMonth = YearMonth.now(BUSINESS_ZONE).atDay(1).atStartOfDay();
@@ -54,8 +54,8 @@ public class GymDashboardService {
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime in7Days = now.plusDays(7);
         // COUNT en BD: el dashboard solo necesita el número, no las entidades.
-        long expiringMembers = memberRepository.countByTenantIdAndMembershipEndBetween(tenantId, now, in7Days);
-        long expiredMembers = memberRepository.countByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
+        long expiringMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, now, in7Days);
+        long expiredMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalMembers", totalMembers);
@@ -87,9 +87,9 @@ public class GymDashboardService {
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
 
         // ── El padrón, contado por estado ──
-        long total = memberRepository.countByTenantId(tenantId);
-        long activosSegunAlta = memberRepository.countByTenantIdAndIsActiveTrue(tenantId);
-        long vencidos = memberRepository.countByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, ahora);
+        long total = memberRepository.countByTenantIdAndDeletedAtIsNull(tenantId);
+        long activosSegunAlta = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(tenantId);
+        long vencidos = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, ahora);
         DashboardResumenDTO.Socios socios = new DashboardResumenDTO.Socios(
                 total,
                 activosSegunAlta - vencidos,   // activo Y con la cuota al día
@@ -112,7 +112,7 @@ public class GymDashboardService {
 
         // ── Quiénes necesitan atención: vencidos y los que vencen en 7 días ──
         LocalDateTime en7Dias = ahora.plusDays(7);
-        long estaSemana = memberRepository.countByTenantIdAndMembershipEndBetween(tenantId, ahora, en7Dias);
+        long estaSemana = memberRepository.countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, ahora, en7Dias);
         long cuantosNecesitanAtencion = memberRepository.contarVencidosOPorVencer(tenantId, en7Dias);
         List<DashboardResumenDTO.Alerta> alertas = memberRepository
                 .vencidosOPorVencer(tenantId, en7Dias, org.springframework.data.domain.PageRequest.of(0, MAXIMO_ALERTAS))
@@ -133,7 +133,7 @@ public class GymDashboardService {
                 .toList();
 
         List<GymMemberDTO> ultimos = memberMapper.toDtoList(
-                memberRepository.findTop25ByTenantIdOrderByCreatedAtDesc(tenantId).stream().limit(5).toList(),
+                memberRepository.findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId).stream().limit(5).toList(),
                 accessPolicy);
 
         return new DashboardResumenDTO(socios, ingresos,
@@ -161,8 +161,8 @@ public class GymDashboardService {
     public Map<String, Object> getRetentionAnalytics() {
         UUID tenantId = TenantContextHolder.getTenantId();
         
-        long totalMembers = memberRepository.countByTenantId(tenantId);
-        long activeMembers = memberRepository.countByTenantIdAndIsActiveTrue(tenantId);
+        long totalMembers = memberRepository.countByTenantIdAndDeletedAtIsNull(tenantId);
+        long activeMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(tenantId);
         long inactiveMembers = totalMembers - activeMembers;
         
         double retentionRate = totalMembers > 0 ? ((double) activeMembers / totalMembers) * 100.0 : 0.0;
@@ -171,10 +171,10 @@ public class GymDashboardService {
         LocalDateTime in7Days = now.plusDays(7);
         
         // Expiring soon: Memberships ending between now and next 7 days
-        var expiringSoon = memberRepository.findByTenantIdAndMembershipEndBetween(tenantId, now, in7Days);
+        var expiringSoon = memberRepository.findByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, now, in7Days);
         
         // At risk: Members who are marked active but their membership has already expired
-        var atRisk = memberRepository.findByTenantIdAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
+        var atRisk = memberRepository.findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
         
         Map<String, Object> analytics = new HashMap<>();
         analytics.put("total_members", totalMembers);
