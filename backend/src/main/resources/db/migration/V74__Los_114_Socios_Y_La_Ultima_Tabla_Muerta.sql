@@ -1,0 +1,43 @@
+-- ============================================================================
+-- V74 — `gym_member` sale, con sus 114 socios
+-- ============================================================================
+-- QUÉ SE DECIDIÓ, Y QUIÉN.
+-- La V67 iba a borrar esta tabla y su guarda lo frenó: encontró 114 socios
+-- —nombre, apellido, DNI, email, teléfono— que están acá y no en `gym_members`,
+-- todos de negocios que siguen existiendo, dados de alta entre el 2026-01-23 y
+-- el 2026-05-27.
+--
+-- Se puso el caso sobre la mesa con el detalle completo y la decisión del dueño
+-- fue explícita: **esos socios se borran**. La base tiene que quedar normalizada
+-- y sin restos, y ese dato no vale lo que cuesta arrastrarlo.
+--
+-- Esta migración ejecuta esa decisión. Se deja escrita acá, y no en un chat,
+-- porque dentro de un año la pregunta va a ser "¿y esto quién lo decidió?".
+--
+-- ── POR QUÉ ADEMÁS ES DEFENDIBLE ───────────────────────────────────────────
+-- No es solo que se haya decidido: hay razones para que sea lo correcto.
+--
+--   · La causa más probable de los 114 NO es una pérdida, es un borrado. El
+--     borrado de socio es DURO (`GymMemberService.deleteAndVerifyOwnership` →
+--     `repository.delete(member)`), y esta tabla es una foto congelada en el
+--     momento del cutover: todo lo que se borró de `gym_members` DESPUÉS sigue
+--     acá. Que 113 de 114 no tengan el DNI en el padrón actual encaja con eso.
+--     Si fueron borrados a propósito, restaurarlos sería el error, no borrarlos.
+--
+--   · Si alguno de esos 114 fue borrado A PEDIDO DE LA PERSONA, conservar la
+--     copia es un pasivo, no un activo. Borrar es lo que cumple.
+--
+--   · Una tabla que nadie lee, con datos personales y sin política de
+--     retención, es riesgo sin contrapartida.
+--
+-- ── LO QUE SE VA CON ELLA ──────────────────────────────────────────────────
+-- Solo la tabla y sus 114 filas. No cuelga nada más: `member_payment` y
+-- `member_subscription` —las únicas que la referenciaban— ya se fueron en la
+-- V67. El padrón vivo (`gym_members`), los cobros y las visitas no la nombran
+-- en ningún lado.
+--
+-- ⚠️ IRREVERSIBLE. Después de esto, el nombre `gym_member` queda libre — y la
+-- V75 lo usa para renombrar el padrón de verdad.
+-- ============================================================================
+
+DROP TABLE IF EXISTS gym_member CASCADE;
