@@ -67,26 +67,47 @@ la V10 seguía enchufado, contradiciendo a la aplicación que escribe `"paid"`.
 **Cerrado en V72**: el dato queda con una sola ortografía y el default deja de contradecir
 a la aplicación.
 
-### 🟡 3. Cuatro tablas muertas con datos personales adentro
+### 🔴 3. Cuatro tablas muertas — y 114 socios que solo viven en una de ellas
 
 `gym_member`, `member_payment`, `member_subscription` y `membership_plan` son del modelo
 original (V1/V2). El modelo se reemplazó en dos pasos y desde entonces **nadie las nombra**:
 cero referencias en backend, cero en frontend, cero entidades JPA.
 
-Pero `gym_member` guarda nombre, apellido, DNI, email y teléfono de socios reales: datos
-personales sin dueño, sin uso y sin política de retención. La peor combinación — el riesgo
-de tenerlos sin el beneficio de usarlos. Y ocupaban el nombre bueno: `gym_member`
-(singular, que es hacia donde hay que ir) estaba tomado por un cadáver.
+La V67 iba a borrar las cuatro, verificando antes que el dato estuviera en otro lado. **En
+producción esa verificación falló, y por eso existe este apartado:**
 
-**Cerrado en V67.** La migración **se niega a borrar lo que no puede probar que está en
-otro lado**: verifica fila por fila que cada id viejo exista hoy en `gym_members` /
-`gym_payments`, exige que las dos sin destino estén vacías, y si algo no cierra **aborta sin
-borrar nada** y dice qué encontró.
+```
+ERROR: V67 ABORTADA: hay datos que solo viven en las tablas viejas.
+Detail: socios sin equivalente en gym_members: 114 | pagos sin equivalente: 0
+        | filas en membership_plan: 0 | filas en member_subscription: 0
+Hint:   No se borró nada.
+```
+
+Se los revisó, y no son fantasmas:
+
+| | |
+|---|---|
+| De negocios que ya no existen | **0** |
+| De negocios **que siguen vivos** | **114** |
+| Con el mismo DNI ya en el padrón actual | **1** (o sea: 113 no están) |
+| Rango de alta | 2026-01-23 → 2026-05-27 |
+
+Son **114 personas de clientes activos**, con nombre, DNI, email y teléfono, dadas de alta
+mientras `gym_member` era la tabla viva, que se perdieron en algún punto del camino V6 →
+V10. Sin la guarda, este deploy las borraba en silencio: el padrón seguía andando igual y
+nadie se enteraba hasta que alguien preguntara por una de ellas.
+
+**Resuelto así:** la V67 borra las **tres** que sí están probadas (`member_payment` con 0
+huérfanos, las otras dos vacías) y **`gym_member` se conserva**, con el motivo escrito en un
+`COMMENT ON TABLE` y con RLS puesto por la V68 como cualquier otra tabla con datos
+personales. Qué hacer con los 114 —recuperarlos al padrón o darlos de baja de verdad— es una
+decisión del negocio, no de una migración de limpieza.
 
 > **Se descartó archivarlas en un esquema `legacy`.** La purga de cuenta (V50) mira solo
 > `public`: con las tablas afuera, sus FK a `tenant` seguirían vivas pero fuera de su
 > alcance, y borrar un negocio pasaría a fallar. Además, borrar la cuenta es una promesa al
-> cliente — guardarle el padrón en un esquema escondido es incumplirla en silencio.
+> cliente — guardarle el padrón en un esquema escondido es incumplirla en silencio. Que
+> `gym_member` se quede en `public` es justamente lo que la mantiene alcanzada por la purga.
 
 ### 🟡 4. El modelo mentía sobre `created_at` / `updated_at`
 
@@ -262,13 +283,63 @@ todas las entidades y toda la lógica de fechas. Merece su propio ADR y su propi
 
 | | |
 |---|---|
-| `V67__Sacar_Las_Tablas_Muertas.sql` | Las 4 tablas del modelo original, con guardas que abortan si no puede probar que los datos están en otro lado |
+| `V67__Sacar_Las_Tablas_Muertas.sql` | 3 de las 4 tablas del modelo original, con guardas que abortan si no puede probar que los datos están en otro lado. **`gym_member` se conserva**: guarda 114 socios de clientes activos |
 | `V68__Rls_En_Las_Migraciones.sql` | RLS en las 22 tablas + revocar `anon`/`authenticated` (no-op en prod, donde ya está) |
 | `V69__La_Plata_Habla_Un_Solo_Idioma.sql` | Todo importe a `NUMERIC(14,2)` |
 | `V70__Las_Marcas_De_Tiempo_Dejan_De_Mentir.sql` | `created_at`/`updated_at` NOT NULL, rellenadas con la fecha de negocio de cada fila |
 | `V71__Las_Referencias_Sueltas.sql` | 2 FK nuevas, 7 índices, y por escrito las 7 referencias que **no** hay que atar |
-| `V72__Los_Estados_Dejan_De_Tener_Dos_Ortografias.sql` | Una ortografía por estado + CHECK donde el escritor es un enum de Java |
+| `V72__Los_Estados_Dejan_De_Tener_Dos_Ortografias.sql` | Una ortografía por estado + CHECK `NOT VALID` donde el escritor es un enum de Java, con reporte de filas viejas en el log |
 | `V73__Un_Solo_Nombre_Para_La_Baja_Logica.sql` | `checkin_point.active` → `is_active` |
+
+---
+
+## Lo que pasó en el primer deploy (2026-09-12) — y qué dejó como lección
+
+El primer push a `main` **falló el deploy**, y conviene dejar escrito cómo, porque salió
+mejor de lo que suena.
+
+**Qué pasó.** Flyway arrancó, llegó a la V67 y su guarda abortó con los 114 socios. Spring
+Boot no levantó, el contenedor nunca escuchó en el puerto y Cloud Run **nunca enrutó tráfico
+a la revisión nueva**: siguió sirviendo la anterior. Los clientes no se enteraron.
+
+**El estado en el que quedó la base: intacto.** El log lo dice —`Current version of schema
+"public": 66`— y la razón es que PostgreSQL tiene DDL transaccional: Flyway corre cada
+migración en una transacción y el `RAISE` de la guarda hizo rollback de todo, incluida la
+fila del historial. Ni una tabla borrada, ni una columna tocada, sin estado a medias.
+
+**Las tres lecciones:**
+
+1. **La guarda pagó su costo el primer día.** Una migración que verifica antes de borrar
+   convirtió una pérdida silenciosa de 114 registros en un deploy caído con un mensaje que
+   decía exactamente qué pasaba. Un deploy caído se arregla.
+2. **Un deploy fallido bloquea todos los siguientes.** Mientras `main` tuvo la V67 rota,
+   *cualquier* cambio del backend fallaba igual. Una migración que no puede pasar no es solo
+   su propio problema: es un freno de mano en el pipeline.
+3. **"El escritor es un enum, así que el dato está limpio" es un razonamiento falso**, y casi
+   causa el segundo deploy caído. Ver abajo.
+
+### El CHECK que iba a voltear el siguiente deploy
+
+La primera versión de la V72 agregaba los `CHECK` a secas, razonando que el único escritor
+posible es un enum de Java y por lo tanto no puede haber un valor inesperado. **Está mal: el
+enum restringe lo que se escribe de ahora en más, no lo que ya está guardado.**
+
+El caso que lo delata es `tenant.business_type`. Hoy `BusinessType` tiene un solo valor,
+`GYM`. Pero el proyecto tuvo cuatro verticales —SALON, KIOSCO, COURTS— y las V40-V42
+borraron sus **tablas**, no sus filas de `tenant`. Un negocio viejo con
+`business_type = 'KIOSCO'` es invisible para la aplicación (Hibernate ni siquiera puede
+leerlo) pero está en la tabla, y un CHECK a secas lo encuentra y voltea el arranque.
+
+Corregido: las seis restricciones van **`NOT VALID`**, que aplica la regla a toda fila nueva
+o modificada y no revisa las viejas. Y la migración **cuenta** las filas que no cumplen y
+deja el número en el log del deploy, para que "no frenar nada" no se convierta en no
+enterarse nunca. Si todas dan 0, se promueven cuando se quiera:
+
+```sql
+ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
+```
+
+---
 
 ## Antes de aplicar en producción
 
@@ -277,6 +348,37 @@ todas las entidades y toda la lógica de fechas. Merece su propio ADR y su propi
 2. **Mirar el resultado de las guardas de la V67.** Si aborta, no borró nada: el mensaje
    dice exactamente cuántas filas quedaron sin equivalente. Eso es información, no un
    fracaso — quiere decir que hay datos que solo viven ahí y hay que decidirlos a mano.
-3. **Confirmar que RLS ya está prendido en prod** (debería: se cerró el 6/9). Si por algún
+3. **Leer el `NOTICE`/`WARNING` de la V72** en el log del deploy: dice si el pasado está
+   limpio o cuántas filas viejas no cumplen cada restricción nueva.
+4. **Confirmar que RLS ya está prendido en prod** (debería: se cerró el 6/9). Si por algún
    motivo no lo estuviera, la V68 lo prende — y ahí sí conviene verificar a mano que el rol
    con el que entra el backend es dueño de las tablas.
+
+> Si alguna vez un deploy deja una migración a medias y Flyway se queja de un estado fallido
+> (no pasó acá, gracias al DDL transaccional de PostgreSQL), el destrabe es
+> `flyway repair` — **nunca** renumerar ni editar una migración ya aplicada.
+
+---
+
+## Pendiente de decisión: los 114 socios de `gym_member`
+
+Es lo único que quedó abierto, y es una decisión de negocio. Para verlos:
+
+```sql
+SELECT v.tenant_id, t.name AS negocio, v.first_name, v.last_name, v.dni,
+       v.email, v.status, v.membership_end, v.created_at::date
+FROM gym_member v
+JOIN tenant t ON t.id = v.tenant_id
+WHERE NOT EXISTS (SELECT 1 FROM gym_members m WHERE m.id = v.id)
+ORDER BY t.name, v.last_name;
+```
+
+Los dos caminos:
+
+- **Se recuperan al padrón** → un `INSERT ... SELECT` de `gym_member` a `gym_members`, como
+  migración con su propia guarda contra duplicados por DNI.
+- **Se dan de baja de verdad** → recién ahí `gym_member` puede borrarse, en una migración
+  que diga por escrito que la decisión se tomó y quién la tomó.
+
+Mientras no se decida, la tabla se queda: tiene RLS, la alcanza la purga de cuenta, y no
+molesta a nadie.

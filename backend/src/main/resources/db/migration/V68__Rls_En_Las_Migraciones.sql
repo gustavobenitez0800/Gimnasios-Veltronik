@@ -65,6 +65,12 @@ ALTER TABLE update_rollout     ENABLE ROW LEVEL SECURITY;
 
 -- ── Gimnasio: padrón, cobros, aranceles y clases ───────────────────────────
 ALTER TABLE gym_members        ENABLE ROW LEVEL SECURITY;
+
+-- `gym_member` (singular) es la tabla del modelo original, sin uso en el código
+-- pero CON DATOS: 114 socios con DNI, email y teléfono que la V67 decidió no
+-- borrar. Que no la lea nadie no la hace menos sensible — al contrario, es la
+-- que menos ojos tiene encima. Entra al cierre como cualquier otra.
+ALTER TABLE gym_member         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gym_payments       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gym_payment_ajuste ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gym_plans          ENABLE ROW LEVEL SECURITY;

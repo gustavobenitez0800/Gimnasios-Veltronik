@@ -1,85 +1,83 @@
 -- ============================================================================
--- V67 — Las cuatro tablas muertas salen de la base
+-- V67 — Las tablas muertas salen de la base (tres de las cuatro)
 -- ============================================================================
 -- POR QUÉ.
--- `gym_member`, `member_payment`, `member_subscription` y `membership_plan` son
--- las tablas del modelo original (V1/V2, 2025). Ese modelo se reemplazó en dos
--- pasos —V6 unificó en `members`/`payments`, V10 separó en `gym_members`/
--- `gym_payments`— y desde entonces NADIE las nombra: cero referencias en el
--- backend, cero en el frontend, cero entidades JPA. Se quedaron porque nunca
--- hubo una migración que las sacara, no porque se decidiera conservarlas.
---
--- Mientras tanto pesan de verdad:
---
---   1. GUARDAN DATOS PERSONALES SIN DUEÑO. `gym_member` tiene nombre, apellido,
---      DNI, email y teléfono de socios reales. Nadie los lee, nadie los
---      actualiza, y no los alcanza ninguna política de retención. Es la peor
---      combinación posible: el riesgo de tenerlos sin el beneficio de usarlos.
---
---   2. ENSUCIAN EL BORRADO DE CUENTA. La purga de un negocio (V50) recorre
---      TODAS las tablas de `public` que tengan `tenant_id`, y estas cuatro
---      entran en esa vuelta aunque no signifiquen nada. Peor: sus FK a `tenant`
---      no tienen ON DELETE CASCADE, así que dependen de que la purga insista
---      diez pasadas para poder salir.
---
---   3. OCUPAN EL NOMBRE BUENO. `gym_member` —singular, que es la convención a
---      la que hay que ir— está tomado por un cadáver. Sacarlo libera el nombre
---      para el día que `gym_members` se renombre.
+-- `member_subscription`, `member_payment` y `membership_plan` son del modelo
+-- original (V1/V2). Ese modelo se reemplazó en dos pasos —V6 unificó en
+-- `members`/`payments`, V10 separó en `gym_members`/`gym_payments`— y desde
+-- entonces NADIE las nombra: cero referencias en el backend, cero en el
+-- frontend, cero entidades JPA. Se quedaron porque nunca hubo una migración que
+-- las sacara, no porque se decidiera conservarlas.
 --
 -- Es el mismo movimiento que ya se hizo con canchas (V40), kiosco (V41), fiscal
 -- (V42) y el circuito offline viejo (V43): cuando un módulo se da de baja, sus
--- tablas se van. Estas cuatro simplemente se habían salteado el turno.
+-- tablas se van.
 --
--- ── POR QUÉ SE BORRA Y NO SE ARCHIVA EN OTRO ESQUEMA ────────────────────────
--- La primera idea fue moverlas a un esquema `legacy` en vez de borrarlas. Es
--- peor por dos razones, y las dos importan:
+-- ============================================================================
+-- ⭐ POR QUÉ `gym_member` NO SE BORRA — Y CÓMO NOS ENTERAMOS
+-- ============================================================================
+-- La primera versión de esta migración borraba las CUATRO. Antes de borrar,
+-- exigía la prueba de que el dato estaba en otro lado. En producción, esa
+-- prueba FALLÓ:
 --
---   · La purga de cuenta mira SOLO `public`. Con las tablas en `legacy`, sus FK
---     a `tenant` seguirían vivas pero fuera del alcance de la purga: borrar un
---     negocio pasaría a fallar con un error de FK. Un archivo que rompe el
---     borrado no es un archivo, es una trampa.
+--     ERROR: V67 ABORTADA: hay datos que solo viven en las tablas viejas.
+--     Detail: socios sin equivalente en gym_members: 114 | pagos sin
+--             equivalente en gym_payments: 0 | filas en membership_plan: 0 |
+--             filas en member_subscription: 0
 --
---   · Borrar la cuenta es una PROMESA al cliente (V50, con 30 días de gracia).
---     Guardarle el padrón de socios en un esquema escondido es incumplirla en
---     silencio.
+-- Hay 114 socios —con nombre, apellido, DNI, email y teléfono— que están en
+-- `gym_member` y NO están en el padrón de hoy. Se los revisó:
 --
--- ── LA MIGRACIÓN SE NIEGA A BORRAR LO QUE NO PUEDE PROBAR ───────────────────
--- Borrar es irreversible, así que esto no borra "confiando" en que el linaje
--- está completo: lo VERIFICA fila por fila y aborta si no cierra.
+--     · 114 de 114 pertenecen a negocios QUE SIGUEN EXISTIENDO. Ninguno es de
+--       una cuenta dada de baja.
+--     · 113 de 114 no aparecen en `gym_members` con el mismo DNI, ni siquiera
+--       bajo otro id. No son duplicados.
+--     · Se crearon entre el 2026-01-23 y el 2026-05-27, o sea mientras
+--       `gym_member` era la tabla VIVA, antes del cutover al modelo unificado.
 --
---   · `gym_member` y `member_payment` tienen destino conocido (V6 → V10). Se
---     exige que cada id esté hoy en `gym_members` / `gym_payments`.
---   · `membership_plan` y `member_subscription` NUNCA se migraron a ningún
---     lado: el modelo unificado no tuvo aranceles hasta la V52, que creó
---     `gym_plans` de cero. Para esas dos la única prueba válida es que estén
---     vacías.
+-- No son datos muertos: son 114 personas de clientes activos que se perdieron
+-- en algún punto del camino V6 → V10. Qué hacer con ellas —recuperarlas al
+-- padrón o darlas por bajas de verdad— es una decisión del negocio, no de una
+-- migración de limpieza, y hasta que se tome **esta tabla no se toca**.
 --
--- Si algo no cierra, la migración FALLA con el detalle de qué encontró y no se
--- borra nada. Un deploy caído se arregla; un padrón borrado, no.
+-- Borrarla habría sido irreversible y silencioso: el padrón seguía andando
+-- igual y nadie se enteraba hasta que alguien preguntara por uno de esos 114.
+--
+-- ⚠️ NO RENUMERAR NI "DESTRABAR" ESTA MIGRACIÓN BORRANDO LA TABLA. Mientras
+-- `gym_member` exista, la lleva el RLS de la V68 como a cualquier otra tabla
+-- con datos personales, y el borrado de cuenta (V50) la purga junto con el
+-- resto porque está en `public` y tiene `tenant_id`. O sea: está protegida y
+-- respeta la baja de cuenta. No hay apuro.
+--
+-- ── LAS TRES QUE SÍ SALEN, Y CON QUÉ PRUEBA ────────────────────────────────
+-- La guarda se mantiene, porque es lo que hizo que esto se descubriera en vez
+-- de perderse. Para cada tabla exige lo que corresponde:
+--
+--     member_payment        cada id tiene que estar hoy en `gym_payments`
+--                           (en producción dio 0 sin equivalente)
+--     membership_plan       tiene que estar vacía  (dio 0 filas)
+--     member_subscription   tiene que estar vacía  (dio 0 filas)
+--
+-- Si algo no cierra, la migración FALLA con el detalle y no se borra nada. Un
+-- deploy caído se arregla; un dato borrado, no.
 -- ============================================================================
 
 DO $$
 DECLARE
-    faltan_socios   bigint := 0;
     faltan_pagos    bigint := 0;
     quedan_planes   bigint := 0;
     quedan_cuotas   bigint := 0;
 BEGIN
-    -- ── Prueba 1: cada socio viejo tiene que estar en el padrón de hoy ──────
-    IF to_regclass('public.gym_member') IS NOT NULL THEN
-        SELECT count(*) INTO faltan_socios
-        FROM gym_member vieja
-        WHERE NOT EXISTS (SELECT 1 FROM gym_members hoy WHERE hoy.id = vieja.id);
-    END IF;
-
-    -- ── Prueba 2: cada pago viejo tiene que estar en los cobros de hoy ──────
+    -- Cada pago viejo tiene que estar en los cobros de hoy.
     IF to_regclass('public.member_payment') IS NOT NULL THEN
         SELECT count(*) INTO faltan_pagos
         FROM member_payment vieja
         WHERE NOT EXISTS (SELECT 1 FROM gym_payments hoy WHERE hoy.id = vieja.id);
     END IF;
 
-    -- ── Prueba 3 y 4: las que no tienen destino, tienen que estar vacías ────
+    -- Las que no tienen destino en ninguna tabla nueva tienen que estar vacías:
+    -- el modelo unificado no tuvo aranceles hasta la V52, que creó `gym_plans`
+    -- de cero sin migrar nada desde acá.
     IF to_regclass('public.membership_plan') IS NOT NULL THEN
         SELECT count(*) INTO quedan_planes FROM membership_plan;
     END IF;
@@ -88,13 +86,13 @@ BEGIN
         SELECT count(*) INTO quedan_cuotas FROM member_subscription;
     END IF;
 
-    IF faltan_socios > 0 OR faltan_pagos > 0 OR quedan_planes > 0 OR quedan_cuotas > 0 THEN
+    IF faltan_pagos > 0 OR quedan_planes > 0 OR quedan_cuotas > 0 THEN
         RAISE EXCEPTION USING
             ERRCODE = 'data_exception',
             MESSAGE = 'V67 ABORTADA: hay datos que solo viven en las tablas viejas.',
             DETAIL  = format(
-                'socios sin equivalente en gym_members: %s | pagos sin equivalente en gym_payments: %s | filas en membership_plan: %s | filas en member_subscription: %s',
-                faltan_socios, faltan_pagos, quedan_planes, quedan_cuotas),
+                'pagos sin equivalente en gym_payments: %s | filas en membership_plan: %s | filas en member_subscription: %s',
+                faltan_pagos, quedan_planes, quedan_cuotas),
             HINT    = 'No se borró nada. Revisar esas filas y decidir a mano antes de volver a correr la migración.';
     END IF;
 END $$;
@@ -105,4 +103,12 @@ END $$;
 DROP TABLE IF EXISTS member_subscription CASCADE;
 DROP TABLE IF EXISTS member_payment      CASCADE;
 DROP TABLE IF EXISTS membership_plan     CASCADE;
-DROP TABLE IF EXISTS gym_member          CASCADE;
+
+-- ── La que se queda, con el motivo escrito donde vive ──────────────────────
+COMMENT ON TABLE gym_member IS
+    'TABLA DEL MODELO ORIGINAL (V1/V2), sin uso en el código desde el cutover al modelo '
+    'unificado (V6 → V10). NO SE BORRA: guarda 114 socios —con DNI, email y teléfono— que '
+    'no están en `gym_members`, todos de negocios que siguen existiendo y sin duplicado por '
+    'DNI en el padrón actual. Se crearon entre 2026-01-23 y 2026-05-27, mientras esta tabla '
+    'era la viva. Decidir si se recuperan al padrón o se dan de baja de verdad es una '
+    'decisión del negocio; hasta entonces la tabla queda como está. Ver V67.';

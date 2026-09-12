@@ -94,9 +94,16 @@ class EsquemaInvariantesTest extends EmbeddedPostgresTest {
     class TablasMuertas {
 
         /**
-         * Las cuatro del modelo original (V1/V2) que la V67 sacó, más las de los verticales
+         * Las tres del modelo original (V1/V2) que la V67 sacó, más las de los verticales
          * dados de baja. Si alguna reaparece es que una migración vieja se volvió a aplicar
          * sobre una base que ya no la esperaba.
+         *
+         * <p><b>{@code gym_member} NO está en esta lista, a propósito.</b> Es la cuarta del
+         * modelo original y la V67 iba a borrarla, pero su guarda descubrió que guarda 114
+         * socios —con DNI, email y teléfono— que no están en {@code gym_members}, todos de
+         * negocios que siguen existiendo. La tabla se conserva hasta que se decida si esos
+         * socios se recuperan al padrón o se dan de baja de verdad. Si alguien la agrega
+         * acá para "terminar la limpieza", está borrando esos 114.</p>
          */
         @Test
         @DisplayName("ninguna tabla dada de baja sigue en la base")
@@ -105,7 +112,7 @@ class EsquemaInvariantesTest extends EmbeddedPostgresTest {
                 SELECT tablename FROM pg_tables
                 WHERE schemaname = 'public'
                   AND tablename IN (
-                      'gym_member', 'member_payment', 'member_subscription', 'membership_plan',
+                      'member_payment', 'member_subscription', 'membership_plan',
                       'members', 'payments',
                       'court', 'court_booking', 'court_settings',
                       'kiosk_sale', 'kiosk_product', 'kiosk_settings',

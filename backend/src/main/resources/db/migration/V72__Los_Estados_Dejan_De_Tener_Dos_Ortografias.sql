@@ -98,39 +98,92 @@ ALTER TABLE gym_payments ALTER COLUMN status SET DEFAULT 'paid';
 -- PARTE 3 — Las que SÍ se pueden cerrar con un CHECK, y las que no
 -- ============================================================================
 -- Un CHECK sobre estas columnas es tentador y hay que medirlo: si una fila no
--- cumple, no falla una pantalla — FALLA EL COBRO EN EL MOSTRADOR. Y hay
--- clientes con la 2.6.31 instalada que no se pueden actualizar de prepo.
+-- cumple, no falla una pantalla — FALLA EL ARRANQUE DEL BACKEND, porque Flyway
+-- corre antes de que el servidor escuche.
 --
--- Así que se cierran SOLO las columnas cuyo único escritor posible es un enum
--- de Java (`@Enumerated(EnumType.STRING)`). Ahí el conjunto de valores no es
--- una convención que alguien puede violar: es el compilador. El CHECK no puede
--- descubrir un valor inesperado porque no existe forma de escribirlo.
+-- Se cierran SOLO las columnas cuyo único escritor posible es un enum de Java
+-- (`@Enumerated(EnumType.STRING)`).
+--
+-- ⚠️ PERO TODAS VAN `NOT VALID`, Y ESA PALABRA ES LO IMPORTANTE.
+--
+-- La versión anterior de esta migración las agregaba a secas, con este
+-- razonamiento: "el único escritor es un enum de Java, así que no puede haber
+-- un valor inesperado". El razonamiento está MAL, y conviene dejarlo escrito
+-- para no repetirlo: **el enum restringe lo que se escribe de ahora en más, no
+-- lo que ya está guardado**. Las filas viejas son de cuando el enum era otro.
+--
+-- El caso concreto que lo delata es `tenant.business_type`. Hoy `BusinessType`
+-- tiene un solo valor, GYM. Pero este proyecto tuvo cuatro verticales —SALON,
+-- KIOSCO, COURTS— y recién en 2026-07-27 se decidió quedarse solo con gimnasios
+-- (V40-V42 borraron sus tablas, no sus `tenant`). Un negocio viejo con
+-- `business_type = 'KIOSCO'` es invisible para la aplicación —Hibernate ni
+-- siquiera puede leerlo— pero está en la tabla, y un CHECK a secas lo encuentra
+-- y voltea el deploy.
+--
+-- `NOT VALID` hace exactamente lo que hace falta: Postgres **aplica la regla a
+-- toda fila nueva o modificada** y **no revisa las que ya están**. El futuro
+-- queda cerrado y el pasado no puede tirar el arranque. Es el mismo
+-- expand/contract que se usa para todo lo demás acá.
 ALTER TABLE tenant DROP CONSTRAINT IF EXISTS ck_tenant_business_type;
 ALTER TABLE tenant ADD CONSTRAINT ck_tenant_business_type
-    CHECK (business_type = 'GYM');
+    CHECK (business_type = 'GYM') NOT VALID;
 
 ALTER TABLE tenant_membership DROP CONSTRAINT IF EXISTS ck_tenant_membership_role;
 ALTER TABLE tenant_membership ADD CONSTRAINT ck_tenant_membership_role
-    CHECK (role IN ('OWNER', 'ADMIN', 'STAFF', 'RECEPTION'));
+    CHECK (role IN ('OWNER', 'ADMIN', 'STAFF', 'RECEPTION')) NOT VALID;
 
 ALTER TABLE device_registry DROP CONSTRAINT IF EXISTS ck_device_registry_role;
 ALTER TABLE device_registry ADD CONSTRAINT ck_device_registry_role
-    CHECK (role IS NULL OR role IN ('CAJA', 'ENCARGADO'));
+    CHECK (role IS NULL OR role IN ('CAJA', 'ENCARGADO')) NOT VALID;
 
 ALTER TABLE device_registry DROP CONSTRAINT IF EXISTS ck_device_registry_status;
 ALTER TABLE device_registry ADD CONSTRAINT ck_device_registry_status
-    CHECK (status IS NULL OR status IN ('ACTIVE', 'REVOKED'));
+    CHECK (status IS NULL OR status IN ('ACTIVE', 'REVOKED')) NOT VALID;
 
 -- `access_denied.reason` la escribe solo el backend, desde las constantes de
 -- AccessDenied.Reason. No pasa por el cliente.
 ALTER TABLE access_denied DROP CONSTRAINT IF EXISTS ck_access_denied_reason;
 ALTER TABLE access_denied ADD CONSTRAINT ck_access_denied_reason
-    CHECK (reason IN ('FUERA_DE_HORARIO', 'SIN_PERMISO'));
+    CHECK (reason IN ('FUERA_DE_HORARIO', 'SIN_PERMISO')) NOT VALID;
 
 -- `gym_payment_ajuste.tipo` igual: constantes EDICION / BORRADO del servicio.
 ALTER TABLE gym_payment_ajuste DROP CONSTRAINT IF EXISTS ck_gym_payment_ajuste_tipo;
 ALTER TABLE gym_payment_ajuste ADD CONSTRAINT ck_gym_payment_ajuste_tipo
-    CHECK (tipo IN ('EDICION', 'BORRADO'));
+    CHECK (tipo IN ('EDICION', 'BORRADO')) NOT VALID;
+
+
+-- ── Y que el log del deploy diga si el pasado estaba limpio ────────────────
+-- `NOT VALID` evita que una fila vieja voltee el arranque, pero no queremos que
+-- eso se convierta en no enterarse nunca. Esto NO cambia nada: solo cuenta y
+-- deja el número en el log del deploy.
+--
+-- Si todas dan 0, las seis se pueden promover a validadas cuando se quiera:
+--     ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
+-- Si alguna da distinto de 0, ahí está la fila vieja que hay que mirar — y nos
+-- enteramos por el log, no por un deploy caído.
+DO $$
+DECLARE
+    n_business  bigint;
+    n_rol       bigint;
+    n_dev_rol   bigint;
+    n_dev_est   bigint;
+    n_reason    bigint;
+    n_ajuste    bigint;
+BEGIN
+    SELECT count(*) INTO n_business FROM tenant             WHERE business_type <> 'GYM';
+    SELECT count(*) INTO n_rol      FROM tenant_membership  WHERE role NOT IN ('OWNER','ADMIN','STAFF','RECEPTION');
+    SELECT count(*) INTO n_dev_rol  FROM device_registry    WHERE role   IS NOT NULL AND role   NOT IN ('CAJA','ENCARGADO');
+    SELECT count(*) INTO n_dev_est  FROM device_registry    WHERE status IS NOT NULL AND status NOT IN ('ACTIVE','REVOKED');
+    SELECT count(*) INTO n_reason   FROM access_denied      WHERE reason NOT IN ('FUERA_DE_HORARIO','SIN_PERMISO');
+    SELECT count(*) INTO n_ajuste   FROM gym_payment_ajuste WHERE tipo   NOT IN ('EDICION','BORRADO');
+
+    IF n_business + n_rol + n_dev_rol + n_dev_est + n_reason + n_ajuste = 0 THEN
+        RAISE NOTICE 'V72: el pasado esta limpio — las 6 restricciones se pueden promover con VALIDATE CONSTRAINT.';
+    ELSE
+        RAISE WARNING 'V72: filas viejas que la restriccion nueva NO acepta (no frenan nada, quedan NOT VALID): tenant.business_type=% | tenant_membership.role=% | device_registry.role=% | device_registry.status=% | access_denied.reason=% | gym_payment_ajuste.tipo=%',
+            n_business, n_rol, n_dev_rol, n_dev_est, n_reason, n_ajuste;
+    END IF;
+END $$;
 
 -- ── Las que quedan abiertas, y qué falta para poder cerrarlas ──────────────
 -- `gym_payments.status`, `gym_payments.payment_method` y `caja_movimiento.metodo`
