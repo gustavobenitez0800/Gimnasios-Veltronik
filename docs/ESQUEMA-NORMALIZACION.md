@@ -1,8 +1,12 @@
 # Normalización del esquema — auditoría y plan
 
-> Estado: **primera tanda ejecutada** (migraciones V67→V73 + `EsquemaInvariantesTest`).
+> Estado: **normalización completa** (migraciones V67→V79 + `EsquemaInvariantesTest`).
 > Fecha: 2026-09-12. Base auditada: las 62 migraciones V1→V66 aplicadas sobre una
-> PostgreSQL 16 virgen.
+> PostgreSQL 16 virgen. Suite: 420 tests en verde.
+>
+> **Resultado: 22 tablas, todas en singular, todas con RLS, todo importe en `NUMERIC(14,2)`,
+> cada índice y constraint bajo una sola convención, y seis invariantes que lo sostienen
+> desde el build.**
 
 ---
 
@@ -97,11 +101,28 @@ mientras `gym_member` era la tabla viva, que se perdieron en algún punto del ca
 V10. Sin la guarda, este deploy las borraba en silencio: el padrón seguía andando igual y
 nadie se enteraba hasta que alguien preguntara por una de ellas.
 
-**Resuelto así:** la V67 borra las **tres** que sí están probadas (`member_payment` con 0
-huérfanos, las otras dos vacías) y **`gym_member` se conserva**, con el motivo escrito en un
-`COMMENT ON TABLE` y con RLS puesto por la V68 como cualquier otra tabla con datos
-personales. Qué hacer con los 114 —recuperarlos al padrón o darlos de baja de verdad— es una
-decisión del negocio, no de una migración de limpieza.
+**Cómo se resolvió, en dos pasos y con una decisión de por medio:**
+
+1. La **V67** borró las tres que sí estaban probadas (`member_payment` con 0 huérfanos, las
+   otras dos vacías) y dejó `gym_member` intacta, porque una migración de limpieza no puede
+   decidir sola sobre 114 personas.
+2. Se puso el caso completo sobre la mesa —con los números de arriba y las dos salidas
+   posibles, recuperarlos al padrón o darlos de baja— y **la decisión del dueño fue
+   explícita: se borran.** La **V74** la ejecuta.
+
+Vale dejar escrito lo que se sabe sobre qué son esos 114, porque respalda la decisión: el
+borrado de socio es **duro** (`GymMemberService` → `repository.delete(member)`) y
+`gym_member` es una foto congelada en el momento del cutover, así que **todo lo que se borró
+de `gym_members` después sigue ahí**. Que 113 de 114 no tengan el DNI en el padrón actual
+encaja con "los borraron a propósito" mucho mejor que con "se perdieron". Y si alguno fue
+borrado a pedido de la persona, conservar la copia era un pasivo, no un activo.
+
+> **Se descartó archivarlas en un esquema `legacy`.** La purga de cuenta (V50) mira solo
+> `public`: con las tablas afuera, sus FK a `tenant` seguirían vivas pero fuera de su
+> alcance, y borrar un negocio pasaría a fallar.
+
+Efecto secundario que importa: al irse la vieja `gym_member`, **quedó libre el nombre bueno**
+—singular— y la V75 lo pudo usar para el padrón de verdad.
 
 > **Se descartó archivarlas en un esquema `legacy`.** La purga de cuenta (V50) mira solo
 > `public`: con las tablas afuera, sus FK a `tenant` seguirían vivas pero fuera de su
@@ -195,15 +216,25 @@ cliente (Jackson serializa por el nombre de la propiedad Java), `checkin_point` 
 devuelve como entidad cruda, y la única consulta SQL que la nombra se actualizó en el mismo
 commit.
 
-### 🟢 9. Columnas sin uso, ahora marcadas
+### 🟢 9. Columnas sin uso
 
-`gym_members.user_id` la agregó la V29 para un "socio con cuenta propia" que nunca se
-construyó: **ningún código la escribe ni la lee**. Queda marcada con `COMMENT` como
-candidata a borrarse, para que la próxima limpieza no tenga que volver a investigarlo.
+`gym_member.user_id` la agregó la V29 para un "socio con cuenta propia" que nunca se
+construyó: **ningún código la escribe ni la lee**. Y `classes_remaining` quedó del cupo de
+clases, dado de baja el 2026-09-02 (ADR-013).
 
-Marcadas también, para distinguir "esto sobró" de "esto se dejó a propósito":
-`gym_members.classes_remaining` y `gym_plans.duration_days`, las dos congeladas por decisión
-explícita (ADR-013).
+La V71 las marcó con `COMMENT` en vez de borrarlas —para que la próxima limpieza no tuviera
+que volver a investigarlas— y la **V76** las borró. Diez días de gracia alcanzaron: el
+comportamiento nuevo ya estaba en manos de los clientes y `MemberAccessPolicyTest` había
+probado que el dato viejo no cambiaba ninguna decisión.
+
+Borrar `classes_remaining` además **cierra la puerta**: mientras la columna existiera,
+alguien podía volver a colgarle lógica sin saber que el cupo se dio de baja por decisión del
+dueño.
+
+**`gym_plan.duration_days` NO se borró**, y la diferencia es la regla de toda esta tanda:
+sigue viva en el contrato con el cliente —`PaymentsPage.jsx` la lee para escribir "1 mes" o
+"15 días" en la pantalla de cobro— así que sale con la versión del escritorio que deje de
+mirarla.
 
 ---
 
@@ -230,67 +261,68 @@ Cada falla nombra la tabla, la columna y la migración que estableció la regla.
 
 ---
 
-## Lo que NO se hizo, y por qué
+## La línea que decidió qué se podía tocar
 
-Hay una restricción que manda sobre todo lo que queda: **hay clientes con la 2.6.31
-instalada en su mostrador, y no se los puede actualizar de prepo.** El backend deploya solo
-al pushear `main`; el escritorio se actualiza cuando electron-updater lo alcanza. Entre los
-dos momentos hay una ventana en la que el backend nuevo atiende clientes viejos.
+Hay una restricción que mandó sobre todo: **hay clientes con la 2.6.31 instalada en su
+mostrador, y no se los puede actualizar de prepo.** El backend deploya solo al pushear
+`main`; el escritorio se actualiza cuando electron-updater lo alcanza. Entre los dos
+momentos hay una ventana en la que el backend nuevo atiende clientes viejos.
 
-Eso parte lo que queda en dos grupos, y la línea **no es "renombrar es peligroso"** sino
-**"¿cambia el JSON que ve el cliente?"**:
+La línea **no fue "renombrar es peligroso"** sino **"¿cambia el JSON que ve el cliente?"**:
 
 - El espejo local del escritorio guarda **DTOs en camelCase**, no columnas. Los nombres de
-  la base están aislados del cliente por la capa de mappers.
-- La única excepción es **`caja_cierre`**, que `CajaController` devuelve como entidad cruda
-  en tres endpoints. Sus nombres de columna **sí** son contrato con el cliente.
+  la base están aislados del cliente por la capa de mappers. Por eso se pudieron renombrar
+  cuatro tablas y ~110 índices y constraints sin tocar nada del contrato.
+- Jackson serializa por el nombre de la **propiedad Java**, no el de la columna: cambiar
+  `@Column(name = ...)` deja el JSON idéntico.
+- Los cambios de TIPO se hicieron dejando el **DTO en `String`** y convirtiendo en un solo
+  punto controlado. `birth_date` pasó a `date` y `attendance_days` a `jsonb` sin que el
+  JSON cambie un byte.
+- La única tabla cuyos nombres de columna **sí** son contrato es **`caja_cierre`**, que
+  `CajaController` devuelve como entidad cruda en tres endpoints. No se tocó.
 
-### Tanda 2 — no cambian el contrato JSON (se pueden hacer ya)
+### Lo que queda, y por qué
 
-| Qué | Por qué |
+| Qué | Por qué no se hizo |
 |---|---|
-| `gym_members` → `gym_member`, `gym_payments` → `gym_payment`, `gym_plans` → `gym_plan`, `subscriptions` → `subscription` | Tres convenciones de plural/singular conviven. La V67 liberó el nombre `gym_member`. |
-| Unificar prefijos de índice (`idx_`, `ix_`, `ux_`, `uq_` → dos) y nombres de constraint (hoy mitad explícitos, mitad default de Postgres) | |
-| Borrar `gym_members.user_id` | Ya está marcada. |
+| **`caja_cierre.esperado_*`: grupo repetitivo** (cinco columnas, una por medio de pago) | Es la única violación de 1NF que queda, y es real: agregar QR o débito hoy es `ALTER TABLE` + entidad + DTO + frontend, y `declarado_digital` junta cuatro medios así que el arqueo **no puede decir cuál de los digitales falló**. Pero `caja_cierre` es la única entidad que viaja cruda al cliente: partirla en una tabla hija cambia el JSON del cierre de caja. Va con una versión del escritorio. |
+| **`gym_class.start_time` / `end_time` son `varchar(10)`** | Nada impide `"25:99"`. Se puede arreglar con el mismo patrón que `birth_date` (DTO en String, conversión en el mapper), pero el módulo de clases es secundario y no justificaba sumar riesgo en la misma tanda. |
+| **`gym_plan.duration_days`** | Reemplazada por `cobertura_cantidad` + `cobertura_unidad` (V65, ADR-013), pero **sigue viva en el contrato**: `PaymentsPage.jsx` la lee para escribir "1 mes" o "15 días" en la pantalla de cobro. |
+| **CHECK validados en `status` / `payment_method` / `metodo`** | Están puestos pero `NOT VALID`: aplican a toda fila nueva y no revisan las viejas. Promover con `VALIDATE CONSTRAINT` cuando el log del deploy confirme que el pasado está limpio. |
 
-### Tanda 3 — cambian el contrato JSON (van con una versión del cliente)
-
-| Qué | Por qué importa |
-|---|---|
-| **`gym_members.birth_date` es `text`** | El modelo original la tenía `date` y la reescritura perdió el tipo. Hoy, para buscar cumpleaños, `GymMemberRepository` hace `SUBSTRING(m.birth_date FROM 6 FOR 5)`: string-slicing sobre una columna sin validar, que falla en silencio con cualquier formato raro. |
-| **`gym_members.attendance_days` es `text` con un JSON adentro** (`'[]'`) | Viola 1NF y ni siquiera es `jsonb`: no se puede consultar. |
-| **`gym_class.start_time` / `end_time` son `varchar(10)`** | Nada impide `"25:99"`. |
-| **`caja_cierre.esperado_*`: grupo repetitivo** | Cinco columnas, una por medio de pago, es la dimensión "medio de pago" aplanada. Agregar QR o débito = `ALTER TABLE` + entidad + DTO + frontend. Y `declarado_digital` vuelve a juntar cuatro, así que el arqueo **no puede decir cuál de los digitales falló**. Debería ser una tabla hija. |
-| **CHECK en `status` / `payment_method` / `metodo`** | El vocabulario ya quedó escrito en V72. El CHECK va con la versión que garantice que el cliente no manda otra cosa: cerrarlo antes cambia un número mal contado por **un cobro que no entra en el mostrador**. |
-
-### Tanda 4 — la grande: `timestamp` → `timestamptz`
+### La grande que queda: `timestamp` → `timestamptz`
 
 Las 22 tablas guardan **`timestamp without time zone`**, en un negocio que ya se quemó dos
 veces con esto (el bug server-UTC vs dominio-AR, y el test que fallaba solo entre 00:00 y
-00:59). Hoy la corrección depende de que la JVM esté fijada a hora argentina: es decir, **de
-una variable de entorno del deploy, no del dato**.
+00:59). Hoy la corrección depende de que la JVM esté fijada a hora argentina: **de una
+variable de entorno del deploy, no del dato**.
 
-Eso ya mordió en Cajita, en la misma máquina: un JRE 17.0.12 daba −04 y un 17.0.19 daba −03,
-porque la tzdata viaja adentro del JRE. Si la zona de la JVM alguna vez está mal, **todos los
-instantes guardados se corren en silencio**, sin un error.
+Eso ya mordió en Cajita, en la misma máquina: un JRE 17.0.12 daba −04 y un 17.0.19 daba
+−03, porque la tzdata viaja adentro del JRE. Si la zona de la JVM alguna vez está mal,
+**todos los instantes guardados se corren en silencio**, sin un error.
 
 Es la más valiosa de las que quedan y la de mayor radio de impacto: toca las 22 tablas,
 todas las entidades y toda la lógica de fechas. Merece su propio ADR y su propia rama.
 
 ---
 
-## Migraciones de esta tanda
+## Migraciones
 
 | | |
 |---|---|
-| `V67__Sacar_Las_Tablas_Muertas.sql` | 3 de las 4 tablas del modelo original, con guardas que abortan si no puede probar que los datos están en otro lado. **`gym_member` se conserva**: guarda 114 socios de clientes activos |
-| `V68__Rls_En_Las_Migraciones.sql` | RLS en las 22 tablas + revocar `anon`/`authenticated` (no-op en prod, donde ya está) |
+| `V67__Sacar_Las_Tablas_Muertas.sql` | 3 tablas del modelo original, con guardas que abortan si no puede probar que los datos están en otro lado |
+| `V68__Rls_En_Las_Migraciones.sql` | RLS en todas las tablas + revocar `anon`/`authenticated` (no-op en prod, donde ya está) |
 | `V69__La_Plata_Habla_Un_Solo_Idioma.sql` | Todo importe a `NUMERIC(14,2)` |
 | `V70__Las_Marcas_De_Tiempo_Dejan_De_Mentir.sql` | `created_at`/`updated_at` NOT NULL, rellenadas con la fecha de negocio de cada fila |
 | `V71__Las_Referencias_Sueltas.sql` | 2 FK nuevas, 7 índices, y por escrito las 7 referencias que **no** hay que atar |
-| `V72__Los_Estados_Dejan_De_Tener_Dos_Ortografias.sql` | Una ortografía por estado + CHECK `NOT VALID` donde el escritor es un enum de Java, con reporte de filas viejas en el log |
+| `V72__Los_Estados_Dejan_De_Tener_Dos_Ortografias.sql` | Una ortografía por estado + CHECK `NOT VALID` donde el escritor es un enum de Java |
 | `V73__Un_Solo_Nombre_Para_La_Baja_Logica.sql` | `checkin_point.active` → `is_active` |
-
+| `V74__Los_114_Socios_Y_La_Ultima_Tabla_Muerta.sql` | `gym_member` (la vieja) sale con sus 114 socios, por decisión explícita del dueño |
+| `V75__Una_Fila_Es_Una_Cosa_En_Singular.sql` | `gym_members`→`gym_member`, `gym_payments`→`gym_payment`, `gym_plans`→`gym_plan`, `subscriptions`→`subscription` |
+| `V76__Las_Columnas_Que_No_Usa_Nadie.sql` | Fuera `user_id` y `classes_remaining` |
+| `V77__Un_Solo_Criterio_Para_Los_Nombres.sql` | ~110 índices y constraints bajo `pk_`/`fk_`/`ux_`/`ix_`/`ck_`, y un índice duplicado que se pagaba en cada cobro |
+| `V78__La_Fecha_De_Nacimiento_Es_Una_Fecha.sql` | `birth_date` de `text` a `date` — se acabó buscar cumpleaños recortando un string |
+| `V79__Los_Dias_Que_Viene_El_Socio_Son_Una_Lista.sql` | `attendance_days` de `text` a `jsonb`, validado y consultable |
 ---
 
 ## Lo que pasó en el primer deploy (2026-09-12) — y qué dejó como lección
@@ -343,13 +375,18 @@ ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
 
 ## Antes de aplicar en producción
 
-1. **Backup / punto de restauración en Supabase.** La V67 borra tablas. Tiene guardas, pero
-   el backup es lo que hace que una sorpresa sea reversible.
+1. **Backup / punto de restauración en Supabase.** La V67 y la V74 borran tablas, y la V74
+   borra 114 filas con datos de socios **a propósito y sin vuelta atrás**. El backup es lo
+   que hace que una sorpresa siga siendo reversible.
 2. **Mirar el resultado de las guardas de la V67.** Si aborta, no borró nada: el mensaje
    dice exactamente cuántas filas quedaron sin equivalente. Eso es información, no un
    fracaso — quiere decir que hay datos que solo viven ahí y hay que decidirlos a mano.
-3. **Leer el `NOTICE`/`WARNING` de la V72** en el log del deploy: dice si el pasado está
-   limpio o cuántas filas viejas no cumplen cada restricción nueva.
+   (Es exactamente lo que pasó el 12/9 y lo que destapó los 114.)
+3. **Leer los `NOTICE`/`WARNING` del log del deploy**, que son el informe de esta tanda:
+   - **V72** — si el pasado está limpio o cuántas filas viejas no cumplen cada CHECK nuevo.
+     Si dice limpio, se pueden promover las seis con `VALIDATE CONSTRAINT`.
+   - **V78** — cuántas fechas de nacimiento no eran fechas y quedaron en NULL.
+   - **V79** — cuántos `attendance_days` no eran arrays JSON válidos.
 4. **Confirmar que RLS ya está prendido en prod** (debería: se cerró el 6/9). Si por algún
    motivo no lo estuviera, la V68 lo prende — y ahí sí conviene verificar a mano que el rol
    con el que entra el backend es dueño de las tablas.
@@ -360,25 +397,19 @@ ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
 
 ---
 
-## Pendiente de decisión: los 114 socios de `gym_member`
+## ⚠️ Una trampa que dejó este trabajo: `gym_member` significa dos cosas
 
-Es lo único que quedó abierto, y es una decisión de negocio. Para verlos:
+Es lo único de toda la tanda que puede confundir a alguien que lea esto más adelante, así
+que va por escrito:
 
-```sql
-SELECT v.tenant_id, t.name AS negocio, v.first_name, v.last_name, v.dni,
-       v.email, v.status, v.membership_end, v.created_at::date
-FROM gym_member v
-JOIN tenant t ON t.id = v.tenant_id
-WHERE NOT EXISTS (SELECT 1 FROM gym_members m WHERE m.id = v.id)
-ORDER BY t.name, v.last_name;
-```
+| Cuándo | Qué es `gym_member` |
+|---|---|
+| **Hasta la V74** | La tabla del modelo original (V1/V2), sin uso en el código, con los 114 socios adentro |
+| **Desde la V75** | **El padrón vivo** — es `gym_members` renombrado en singular, que recién pudo tomar el nombre cuando la V74 lo liberó |
 
-Los dos caminos:
+Por eso `EsquemaInvariantesTest` lista **`gym_members`** (plural, el nombre viejo) entre las
+tablas que no pueden volver, y **no** `gym_member`. Agregar `gym_member` a esa lista haría
+fallar el build contra la tabla más importante del sistema.
 
-- **Se recuperan al padrón** → un `INSERT ... SELECT` de `gym_member` a `gym_members`, como
-  migración con su propia guarda contra duplicados por DNI.
-- **Se dan de baja de verdad** → recién ahí `gym_member` puede borrarse, en una migración
-  que diga por escrito que la decisión se tomó y quién la tomó.
-
-Mientras no se decida, la tabla se queda: tiene RLS, la alcanza la purga de cuenta, y no
-molesta a nadie.
+Lo mismo vale al leer una migración vieja: en la V6 o la V10, `gym_member` es la tabla
+muerta; de la V75 en adelante, es el padrón.
