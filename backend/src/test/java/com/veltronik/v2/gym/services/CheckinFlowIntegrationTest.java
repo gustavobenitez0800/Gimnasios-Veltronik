@@ -68,7 +68,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
     private String crearCartel(UUID tenant) {
         String token = "tok-" + UUID.randomUUID().toString().replace("-", "");
         em.createNativeQuery("""
-                INSERT INTO checkin_point (id, created_at, updated_at, tenant_id, token, name, active)
+                INSERT INTO checkin_point (id, created_at, updated_at, tenant_id, token, name, is_active)
                 VALUES (:id, now(), now(), :tenant, :token, 'Puerta principal', true)
                 """)
                 .setParameter("id", UUID.randomUUID())
@@ -499,7 +499,7 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
         UUID gym = crearGimnasio("Gimnasio Rotado");
         crearSocio(gym, "Luis", "28777666", LocalDateTime.now().plusDays(5));
         String token = crearCartel(gym);
-        em.createNativeQuery("UPDATE checkin_point SET active = false WHERE token = :t")
+        em.createNativeQuery("UPDATE checkin_point SET is_active = false WHERE token = :t")
                 .setParameter("t", token).executeUpdate();
         em.flush();
 

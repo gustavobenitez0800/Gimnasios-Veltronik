@@ -41,7 +41,10 @@ public class CheckinPoint extends TenantAwareEntity {
      * Rotar es crear el nuevo y apagar este, nunca borrarlo: los accesos ya registrados apuntan
      * acá, y queremos poder decir por qué puerta entró alguien el mes pasado.
      */
-    @Column(nullable = false)
+    // La columna se llama `is_active`, igual que la bandera de baja lógica de todas las
+    // demás tablas (V73). La propiedad Java sigue siendo `active`, así que el JSON que ve
+    // el cliente no cambió.
+    @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
     /**

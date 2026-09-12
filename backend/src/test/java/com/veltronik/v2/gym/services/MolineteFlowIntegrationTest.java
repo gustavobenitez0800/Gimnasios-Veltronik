@@ -206,7 +206,7 @@ class MolineteFlowIntegrationTest extends EmbeddedPostgresTest {
     private String crearPuerta(UUID tenant) {
         String token = "tok-" + UUID.randomUUID().toString().replace("-", "");
         em.createNativeQuery("""
-                INSERT INTO checkin_point (id, created_at, updated_at, tenant_id, token, name, active)
+                INSERT INTO checkin_point (id, created_at, updated_at, tenant_id, token, name, is_active)
                 VALUES (:id, now(), now(), :tenant, :token, 'Molinete', true)
                 """)
                 .setParameter("id", UUID.randomUUID())

@@ -37,7 +37,7 @@ public interface CheckinPointRepository extends JpaRepository<CheckinPoint, UUID
               FROM checkin_point cp
               JOIN tenant t ON t.id = cp.tenant_id
              WHERE cp.token = :token
-               AND cp.active = true
+               AND cp.is_active = true
                AND t.is_active = true
             """, nativeQuery = true)
     Optional<PointLookup> findByToken(@Param("token") String token);
