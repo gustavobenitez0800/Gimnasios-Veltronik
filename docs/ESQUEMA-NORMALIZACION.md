@@ -323,6 +323,8 @@ todas las entidades y toda la lógica de fechas. Merece su propio ADR y su propi
 | `V77__Un_Solo_Criterio_Para_Los_Nombres.sql` | ~110 índices y constraints bajo `pk_`/`fk_`/`ux_`/`ix_`/`ck_`, y un índice duplicado que se pagaba en cada cobro |
 | `V78__La_Fecha_De_Nacimiento_Es_Una_Fecha.sql` | `birth_date` de `text` a `date` — se acabó buscar cumpleaños recortando un string |
 | `V79__Los_Dias_Que_Viene_El_Socio_Son_Una_Lista.sql` | `attendance_days` de `text` a `jsonb`, validado y consultable |
+| `V80__Borrar_Un_Socio_Deja_De_Ser_Irreversible.sql` | `deleted_at`: el borrado pasa a ser lógico y la historia de visitas deja de irse en cascada |
+| `V81__Los_Check_Que_Se_Pueden_Promover.sql` | Promueve a validados los CHECK de la V72 que el dato viejo permita, y avisa por el log de los que no |
 ---
 
 ## Lo que pasó en el primer deploy (2026-09-12) — y qué dejó como lección
@@ -371,10 +373,14 @@ enterarse nunca. Si todas dan 0, se promueven cuando se quiera:
 ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
 ```
 
-### Cómo cerrarlo, paso a paso
+### ✅ Cerrado por la V81 — ya no hay nada que hacer a mano
 
-El log del deploy lo dice, pero rota. Esta query responde lo mismo y se puede correr cuando
-sea, en el SQL Editor de Supabase (es solo lectura):
+La **V81** intenta promover las seis por separado: la que el dato viejo permita queda
+**validada**, y la que no, queda `NOT VALID` **con su nombre en el log**, sin tirar el deploy.
+El paso manual desapareció.
+
+Para ver cómo le fue, buscar `V81:` en el log del deploy. Y si alguna quedó pendiente, esta
+query dice cuáles son las filas viejas que la impiden (es solo lectura):
 
 ```sql
 SELECT
@@ -386,21 +392,10 @@ SELECT
   (SELECT count(*) FROM gym_payment_ajuste WHERE tipo NOT IN ('EDICION','BORRADO'))                      AS ajuste;
 ```
 
-**Si las seis columnas dan 0**, las restricciones se promueven a validadas. Va como migración
-(el esquema de prod tiene que estar 100% en las migraciones), no a mano en el panel:
-
-```sql
-ALTER TABLE tenant             VALIDATE CONSTRAINT ck_tenant_business_type;
-ALTER TABLE tenant_membership  VALIDATE CONSTRAINT ck_tenant_membership_role;
-ALTER TABLE device_registry    VALIDATE CONSTRAINT ck_device_registry_role;
-ALTER TABLE device_registry    VALIDATE CONSTRAINT ck_device_registry_status;
-ALTER TABLE access_denied      VALIDATE CONSTRAINT ck_access_denied_reason;
-ALTER TABLE gym_payment_ajuste VALIDATE CONSTRAINT ck_gym_payment_ajuste_tipo;
-```
-
-**Si alguna da distinto de 0**, ahí está la fila vieja que hay que mirar — y esa restricción se
-deja `NOT VALID`, que ya cumple su función sobre todo lo que se escriba de ahora en más.
-Promover no es obligatorio: es prolijidad, y el sistema está protegido igual.
+Si alguna columna da distinto de 0, ahí están las filas viejas que impiden promover esa
+restricción. Limpiarlas es opcional: la restricción `NOT VALID` **ya cumple su función sobre
+todo lo que se escriba de ahora en más**, y la V81 la vuelve a intentar cada vez que corre
+sobre una base nueva. Promover es prolijidad; el sistema está protegido igual.
 
 ---
 
@@ -488,8 +483,27 @@ UPDATE gym_member SET deleted_at = NULL WHERE id = '<id del socio>';
 **desaparezca** de todo lo que mira una pantalla (incluida la puerta), y que su visita y su
 cobro **sigan enteros y sigan siendo suyos**.
 
-> **Pendiente, y es de frontend:** hoy la papelera se ve y se vacía con SQL. Una pantalla de
-> "socios borrados" con un botón de recuperar es lo que falta para cerrarlo de punta a punta.
+### La pantalla (2.6.32)
+
+La V80 hizo que borrar no destruyera nada, pero **recuperar seguía siendo un `UPDATE` a mano
+en Supabase** — o sea que dependía del fundador. Ya no: un botón **Papelera** en Socios (mismo
+permiso que borrar) abre un modal con los eliminados, cuándo se eliminaron y un botón para
+recuperar.
+
+Modal y no pantalla aparte a propósito: se usa pocas veces al año y siempre por el mismo
+motivo ("borré a fulano sin querer"), así que tiene que estar donde uno lo busca —en Socios— y
+no ser un módulo más en el menú. Y es **aditivo**: no toca la lista, la paginación ni el estado
+de la pantalla más usada del sistema.
+
+`GET /api/gym/members/papelera` · `POST /api/gym/members/{id}/restaurar`
+
+⭐ **Y se corrigió un texto que quedó mintiendo.** El diálogo de borrado decía *"Esta acción no
+se puede deshacer"*, que desde la V80 es falso. Decirle a alguien que algo es irreversible
+cuando no lo es le hace evitar una limpieza que podría hacer tranquilo — y el día que aparezca
+un borrado que **sí** sea irreversible, ya no le va a creer.
+
+> ⚠️ **El backend ya está en producción; la pantalla viaja en la 2.6.32.** Hasta que esa
+> versión se publique, recuperar un socio se sigue haciendo con el `UPDATE` de arriba.
 
 ---
 
