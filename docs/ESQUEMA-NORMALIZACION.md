@@ -371,6 +371,37 @@ enterarse nunca. Si todas dan 0, se promueven cuando se quiera:
 ALTER TABLE <tabla> VALIDATE CONSTRAINT <constraint>;
 ```
 
+### Cómo cerrarlo, paso a paso
+
+El log del deploy lo dice, pero rota. Esta query responde lo mismo y se puede correr cuando
+sea, en el SQL Editor de Supabase (es solo lectura):
+
+```sql
+SELECT
+  (SELECT count(*) FROM tenant WHERE business_type <> 'GYM')                                             AS business_type,
+  (SELECT count(*) FROM tenant_membership WHERE role NOT IN ('OWNER','ADMIN','STAFF','RECEPTION'))       AS rol,
+  (SELECT count(*) FROM device_registry WHERE role IS NOT NULL AND role NOT IN ('CAJA','ENCARGADO'))     AS dev_rol,
+  (SELECT count(*) FROM device_registry WHERE status IS NOT NULL AND status NOT IN ('ACTIVE','REVOKED')) AS dev_estado,
+  (SELECT count(*) FROM access_denied WHERE reason NOT IN ('FUERA_DE_HORARIO','SIN_PERMISO'))            AS reason,
+  (SELECT count(*) FROM gym_payment_ajuste WHERE tipo NOT IN ('EDICION','BORRADO'))                      AS ajuste;
+```
+
+**Si las seis columnas dan 0**, las restricciones se promueven a validadas. Va como migración
+(el esquema de prod tiene que estar 100% en las migraciones), no a mano en el panel:
+
+```sql
+ALTER TABLE tenant             VALIDATE CONSTRAINT ck_tenant_business_type;
+ALTER TABLE tenant_membership  VALIDATE CONSTRAINT ck_tenant_membership_role;
+ALTER TABLE device_registry    VALIDATE CONSTRAINT ck_device_registry_role;
+ALTER TABLE device_registry    VALIDATE CONSTRAINT ck_device_registry_status;
+ALTER TABLE access_denied      VALIDATE CONSTRAINT ck_access_denied_reason;
+ALTER TABLE gym_payment_ajuste VALIDATE CONSTRAINT ck_gym_payment_ajuste_tipo;
+```
+
+**Si alguna da distinto de 0**, ahí está la fila vieja que hay que mirar — y esa restricción se
+deja `NOT VALID`, que ya cumple su función sobre todo lo que se escriba de ahora en más.
+Promover no es obligatorio: es prolijidad, y el sistema está protegido igual.
+
 ---
 
 ## Antes de aplicar en producción
