@@ -210,16 +210,14 @@ class PapeleraDeSociosIntegrationTest extends EmbeddedPostgresTest {
 
         /** El camino de vuelta, que es lo que antes no existía. */
         @Test
-        @DisplayName("se lo recupera poniendo deleted_at en NULL")
+        @DisplayName("se lo recupera y vuelve entero: al padrón, con su historia y abriendo la puerta")
         void seLoPuedeRecuperar() {
             darleHistoria();
             service.deleteAndVerifyOwnership(socioId);
             em.flush();
             em.clear();
 
-            em.createNativeQuery("UPDATE gym_member SET deleted_at = NULL WHERE id = :id")
-                    .setParameter("id", socioId)
-                    .executeUpdate();
+            service.restaurar(socioId);
             em.flush();
             em.clear();
 
@@ -228,6 +226,64 @@ class PapeleraDeSociosIntegrationTest extends EmbeddedPostgresTest {
             assertEquals(1, contar("access_log"), "Y con su historia.");
             assertEquals(1, repository.findByDocumentoNormalizado(gym, "30111222").size(),
                     "Y volviendo a abrir la puerta.");
+            assertNotNull(service.findByIdAndVerifyOwnership(socioId),
+                    "Y pudiéndose abrir de nuevo desde la ficha.");
+        }
+    }
+
+    @Nested
+    @DisplayName("la papelera se puede mirar")
+    class SePuedeMirar {
+
+        @Test
+        @DisplayName("lista los borrados, y solo los borrados")
+        void listaSoloLosBorrados() {
+            assertTrue(service.listarBorrados().isEmpty(),
+                    "Sin nada borrado, la papelera tiene que estar vacía.");
+
+            service.deleteAndVerifyOwnership(socioId);
+            em.flush();
+            em.clear();
+
+            var papelera = service.listarBorrados();
+            assertEquals(1, papelera.size());
+            assertEquals(socioId, papelera.get(0).getId());
+            assertNotNull(papelera.get(0).getDeletedAt(),
+                    "Sin la fecha de borrado, la pantalla no puede decir cuándo fue.");
+        }
+
+        /**
+         * La papelera es por gimnasio, como todo lo demás. Se prueba porque es la única
+         * consulta que mira del otro lado de {@code deleted_at}: si el aislamiento se
+         * escapara en algún lado, sería acá.
+         */
+        @Test
+        @DisplayName("no muestra los borrados de otro gimnasio")
+        void noSeMezclanLosGimnasios() {
+            service.deleteAndVerifyOwnership(socioId);
+            em.flush();
+
+            UUID otroGym = UUID.randomUUID();
+            em.createNativeQuery("""
+                    INSERT INTO tenant (id, created_at, updated_at, name, is_active)
+                    VALUES (:id, now(), now(), 'Otro gimnasio', true)
+                    """).setParameter("id", otroGym).executeUpdate();
+            em.flush();
+            em.clear();
+
+            TenantContextHolder.setTenantId(otroGym);
+            assertTrue(service.listarBorrados().isEmpty(),
+                    "La papelera de un gimnasio está mostrando los socios borrados de otro.");
+
+            ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                    () -> service.restaurar(socioId));
+
+            // 404 y no 403, y está mejor así: el filtro de tenant de Hibernate lo ataja una
+            // capa ANTES de la verificación explícita del servicio, así que el socio de otro
+            // gimnasio directamente no se encuentra. La respuesta ni siquiera confirma que
+            // ese id exista, que es lo que corresponde cuando no es tuyo.
+            assertEquals(404, e.getStatusCode().value(),
+                    "Un gimnasio pudo restaurar el socio borrado de otro.");
         }
     }
 }

@@ -50,6 +50,19 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     @EntityGraph(attributePaths = "plan")
     Page<GymMember> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    /**
+     * La papelera: los socios borrados de este gimnasio, del último borrado al primero.
+     *
+     * <p>Es el ÚNICO método que mira del otro lado de {@code deleted_at}. Todos los demás
+     * dicen {@code ...AndDeletedAtIsNull} justamente para que este quede solo y a la vista:
+     * si alguna vez aparece un segundo, hay que preguntarse por qué.</p>
+     *
+     * <p>Va con tope: la papelera es para encontrar "el que borré recién", no para pasear por
+     * años de historia. Lo entra {@code Pageable} desde el servicio.</p>
+     */
+    @EntityGraph(attributePaths = "plan")
+    List<GymMember> findByTenantIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(UUID tenantId, Pageable pageable);
+
     @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND (" +
            "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +

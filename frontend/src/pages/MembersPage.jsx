@@ -150,6 +150,14 @@ export default function MembersPage() {
   // Lo que se va a aplicar, esperando confirmación. null = no hay nada pendiente.
   const [confirmandoMasivo, setConfirmandoMasivo] = useState(null);
 
+  // ─── PAPELERA ───
+  // null = cerrada. Un array = abierta con lo que haya. Se pide al abrir y no al cargar la
+  // página: es una pantalla que se usa pocas veces al año, y no tiene por qué costarle un
+  // pedido más a la pantalla más abierta del sistema.
+  const [papelera, setPapelera] = useState(null);
+  const [cargandoPapelera, setCargandoPapelera] = useState(false);
+  const [restaurando, setRestaurando] = useState(null);
+
   // ⚠️ Solo dueño/admin. Cambiar de golpe lo que se le cobra a doscientas personas no es
   // una operación de mostrador — y el backend lo verifica igual, no alcanza con esconderlo.
   const puedeAsignarMasivo = hayAranceles && canDelete;
@@ -419,6 +427,38 @@ export default function MembersPage() {
     });
   };
 
+  // ─── PAPELERA ───
+  const abrirPapelera = async () => {
+    setCargandoPapelera(true);
+    setPapelera([]);
+    try {
+      setPapelera(await memberService.getPapelera());
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+      setPapelera(null);
+    } finally {
+      setCargandoPapelera(false);
+    }
+  };
+
+  const restaurarSocio = async (socio) => {
+    setRestaurando(socio.id);
+    try {
+      await memberService.restoreMember(socio.id);
+      // Se saca de la lista a mano en vez de volver a pedirla: el socio ya no está borrado,
+      // así que un segundo pedido devolvería lo mismo menos él. Evita el parpadeo.
+      setPapelera((actual) => actual.filter((m) => m.id !== socio.id));
+      showToast(`${socio.fullName || memberLabel} volvió al padrón`, 'success');
+      // El padrón que está atrás del modal ya no dice la verdad: le falta el que acaba de
+      // volver. Se refresca ahora y no al cerrar, así al cerrar el socio ya está ahí.
+      refresh();
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setRestaurando(null);
+    }
+  };
+
   // ─── PAYMENTS HISTORY ───
   const openPaymentsHistory = async (member) => {
     setPaymentsMember(member);
@@ -533,6 +573,13 @@ export default function MembersPage() {
         icon="users"
         actions={
           <div className="flex gap-1">
+            {/* Mismo permiso que borrar: quien no puede mandar a la papelera tampoco tiene
+                por qué sacar de ella. */}
+            {canDelete && (
+              <button className="btn btn-secondary" onClick={abrirPapelera} title="Socios eliminados">
+                <Icon name="trash" /> Papelera
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={exportCSV}>
               <Icon name="download" /> Exportar
             </button>
@@ -963,6 +1010,58 @@ export default function MembersPage() {
         );
       })()}
 
+      {/* ─── PAPELERA ───
+          Un modal y no una pantalla aparte a propósito: se usa pocas veces al año y siempre
+          por el mismo motivo ("borré a fulano sin querer"), así que tiene que estar donde
+          uno lo busca —en Socios— y no ser un módulo más en el menú. */}
+      <Modal
+        isOpen={papelera !== null}
+        onClose={() => setPapelera(null)}
+        title="Papelera"
+        size="large"
+      >
+        <p className="text-muted" style={{ marginTop: 0 }}>
+          {cargandoPapelera
+            ? 'Buscando…'
+            : papelera?.length
+              ? 'Estos socios están eliminados. Recuperarlos los devuelve al padrón con sus pagos y sus visitas.'
+              : 'No hay socios eliminados.'}
+        </p>
+
+        {!cargandoPapelera && papelera?.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{memberLabel}</th>
+                  <th>DNI</th>
+                  <th>Eliminado</th>
+                  <th style={{ textAlign: 'right' }}>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {papelera.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.fullName || `${m.firstName || ''} ${m.lastName || ''}`.trim()}</td>
+                    <td>{m.dni || '—'}</td>
+                    <td>{m.deletedAt ? formatDate(m.deletedAt) : '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={restaurando === m.id}
+                        onClick={() => restaurarSocio(m)}
+                      >
+                        {restaurando === m.id ? 'Recuperando…' : 'Recuperar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+
       {/* ─── COBRAR, SIN IRSE DE ACÁ ─── */}
       <CobroRapido
         socio={cobrando}
@@ -973,10 +1072,15 @@ export default function MembersPage() {
       />
 
       {/* ─── DELETE CONFIRMATION ─── */}
+      {/* El texto decía "esta acción no se puede deshacer", y desde la 2.6.32 es mentira: el
+          socio va a la papelera con toda su historia. Decirle a alguien que algo es
+          irreversible cuando no lo es le hace evitar una limpieza que podría hacer tranquilo
+          — y el día que aparezca un borrado que SÍ sea irreversible, ya no le va a creer. */}
       <ConfirmDialog
         open={deleteDialog.isOpen}
         title={`Eliminar ${memberLabel}`}
-        message={`¿Estás seguro de eliminar a "${deleteDialog.itemName}"? Esta acción no se puede deshacer.`}
+        message={`¿Eliminar a "${deleteDialog.itemName}"? Deja de aparecer en el sistema y no puede entrar al gimnasio.`}
+        extra="Se puede recuperar desde la papelera, con sus pagos y sus visitas."
         icon="trash"
         confirmText="Eliminar"
         confirmClass="btn-danger"

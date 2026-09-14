@@ -125,6 +125,49 @@ public class GymMemberService {
     }
 
     /**
+     * Cuántos socios borrados se muestran en la papelera.
+     *
+     * <p>La papelera sirve para encontrar <i>el que se borró recién</i>, no para pasear por
+     * años de historia. Con tope, la pantalla abre siempre rápido y la consulta no depende de
+     * cuánto haya acumulado el gimnasio.</p>
+     */
+    private static final int TOPE_PAPELERA = 100;
+
+    /** Los socios borrados de este gimnasio, del último al primero. */
+    @Transactional(readOnly = true)
+    public List<GymMember> listarBorrados() {
+        return repository.findByTenantIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(
+                TenantContextHolder.getTenantId(),
+                org.springframework.data.domain.PageRequest.of(0, TOPE_PAPELERA));
+    }
+
+    /**
+     * Devuelve un socio de la papelera al padrón, con su historia intacta.
+     *
+     * <p>No pasa por {@link #findByIdAndVerifyOwnership} a propósito: ese método responde 404
+     * justamente para los socios borrados, que son los únicos que acá interesan. La
+     * verificación de gimnasio se hace igual, a mano.</p>
+     *
+     * <p>Restaurar un socio que no estaba borrado no es un error que valga la pena gritar: el
+     * resultado buscado —que el socio esté en el padrón— ya se cumple. Se devuelve tal cual.</p>
+     */
+    @Transactional
+    public GymMember restaurar(UUID id) {
+        GymMember member = repository.findWithPlanById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Miembro de gym no encontrado"));
+
+        if (!member.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado a este miembro");
+        }
+
+        if (member.estaBorrado()) {
+            member.setDeletedAt(null);
+            repository.save(member);
+        }
+        return member;
+    }
+
+    /**
      * Cuántos socios se pueden tocar de una vez.
      *
      * <p>Existe para que un pedido armado a mano no pueda pedir una escritura sobre la tabla

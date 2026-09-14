@@ -40,6 +40,13 @@ public class GymMemberDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    /**
+     * Cuándo se mandó a la papelera (V80). Es null en TODO listado normal —los socios
+     * borrados no salen por ahí— y solo trae fecha en {@code GET /api/gym/members/papelera},
+     * que es la única consulta que mira del otro lado.
+     */
+    private LocalDateTime deletedAt;
+
     // ── Situación de la cuota, calculada por el BACKEND ──
     //
     // POR QUÉ VIENE CALCULADA Y NO SE DEDUCE EN LA PANTALLA

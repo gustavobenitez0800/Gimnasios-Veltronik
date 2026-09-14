@@ -113,10 +113,28 @@ public class GymMemberController {
         return ResponseEntity.ok(memberMapper.toDto(memberService.saveForCurrentTenant(existingMember), accessPolicy));
     }
 
+    /**
+     * Manda el socio a la papelera. <b>No borra la fila</b> desde la V80: el socio desaparece
+     * de todas las pantallas y su historia de visitas y cobros queda entera.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMember(@PathVariable UUID id) {
         memberService.deleteAndVerifyOwnership(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Los socios borrados de este gimnasio, del último al primero. */
+    @GetMapping("/papelera")
+    public ResponseEntity<List<GymMemberDTO>> papelera() {
+        return ResponseEntity.ok(memberService.listarBorrados().stream()
+                .map(m -> memberMapper.toDto(m, accessPolicy))
+                .toList());
+    }
+
+    /** Devuelve un socio de la papelera al padrón, con su historia intacta. */
+    @PostMapping("/{id}/restaurar")
+    public ResponseEntity<GymMemberDTO> restaurar(@PathVariable UUID id) {
+        return ResponseEntity.ok(memberMapper.toDto(memberService.restaurar(id), accessPolicy));
     }
 
     /**

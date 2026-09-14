@@ -195,10 +195,33 @@ class MemberService {
     return data;
   }
 
+  /**
+   * Manda el socio a la papelera.
+   *
+   * <p>⚠️ <b>Desde la 2.6.32 esto NO borra al socio de verdad.</b> Desaparece de todas las
+   * pantallas y su historia de visitas y cobros queda entera; se recupera desde
+   * {@link #getPapelera}. Antes era un DELETE que —por las claves foráneas en cascada— se
+   * llevaba puestas todas sus visitas.</p>
+   */
   async deleteMember(id) {
     await apiClient.delete(`/gym/members/${id}`);
     this.refrescarCopiaLocal();
     return true;
+  }
+
+  /** Los socios que se mandaron a la papelera, del último borrado al primero. */
+  async getPapelera() {
+    const { data } = await apiClient.get('/gym/members/papelera');
+    return data;
+  }
+
+  /** Devuelve un socio de la papelera al padrón, con su historia intacta. */
+  async restoreMember(id) {
+    const { data } = await apiClient.post(`/gym/members/${id}/restaurar`);
+    // Vuelve al padrón: la copia local del mostrador tiene que enterarse, o el socio
+    // recuperado sigue sin aparecer en el buscador de la puerta hasta el próximo refresco.
+    this.refrescarCopiaLocal();
+    return data;
   }
 
   /**
