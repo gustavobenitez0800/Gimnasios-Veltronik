@@ -23,7 +23,7 @@
 // vez de fingir que sabe todo. Es la regla 6 de la fase 3: ningún total se muestra como si
 // fuera completo cuando no lo es.
 
-import { pendientes, disponible, orgActual } from './colaAccesos';
+import { pendientes, disponible } from './colaAccesos';
 
 const KEY = 'veltronik_caja_espejo';
 
@@ -127,7 +127,7 @@ const num = (v) => {
  * @returns {Promise<object|null>} el resumen con la misma forma que el del servidor, más
  *          `incompleto`, `bajadoEn` y `enCola`. Null si nunca bajó nada.
  */
-export async function resumenSegunElTerminal(tenantId = orgActual()) {
+export async function resumenSegunElTerminal(tenantId) {
   const guardado = espejo();
   if (!guardado) return null;
 

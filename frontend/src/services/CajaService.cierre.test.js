@@ -35,7 +35,6 @@ vi.mock('../lib/colaAccesos', () => ({
   movimientosPendientes: (...a) => cola.movimientosPendientes(...a),
   pendientes: (...a) => cola.pendientes(...a),
   disponible: () => true,
-  orgActual: () => 'gimnasio-1',
   nuevoSello: () => '11111111-2222-3333-4444-555555555555',
   momentoLocal: () => '2026-09-15T22:00:00',
 }));

@@ -17,7 +17,6 @@ const nucleo = { pendientes: vi.fn(async () => []) };
 vi.mock('./colaAccesos', () => ({
   pendientes: (...a) => nucleo.pendientes(...a),
   disponible: () => true,
-  orgActual: () => 'gimnasio-1',
 }));
 
 const { guardarEspejo, espejo, olvidarEspejo, arrancarPeriodoLocal, resumenSegunElTerminal } =
