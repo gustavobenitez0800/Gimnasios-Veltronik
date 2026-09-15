@@ -155,20 +155,43 @@ export default function CajaPage() {
       setHayMovimientos(false);
     }
 
-    try {
-      // El período abierto y sus cobros: los dos los necesita quien cierra, sea el dueño o
-      // recepción. Antes los importes eran solo del dueño, por el conteo a ciegas.
-      const [a, c] = await Promise.all([cajaService.abierto(), cajaService.movimientos()]);
-      setAbierto(a);
-      setCobros(c || []);
+    // ⚠️⚠️ ACÁ NO VA UN Promise.all, Y COSTÓ UNA PRUEBA EN UNA MÁQUINA DESCUBRIRLO.
+    //
+    // `Promise.all` se cae ENTERO si una sola de sus promesas falla. Los totales ya sabían
+    // resolverse sin conexión —salen del espejo local— pero viajaban en el mismo Promise.all
+    // que la lista de cobros, que iba derecho al servidor. Sin internet la lista explotaba y
+    // se llevaba puestos los totales: la caja aparecía con TODO EN CERO, sin el cartel que
+    // avisa, y ofreciendo cerrar un día que no había podido leer.
+    //
+    // Y es la MISMA trampa que el bloque de arriba ya había resuelto para los movimientos,
+    // una llamada más allá. Por eso ahora las tres van separadas por lo que valen:
+    //
+    //   · los TOTALES mandan. Sin ellos no se puede cerrar, y no se debe ofrecer.
+    //   · la lista de cobros y el historial son complemento: si faltan, se cierra igual.
+    const [tot, lista] = await Promise.allSettled([
+      cajaService.abierto(),
+      cajaService.movimientos(),
+    ]);
 
-      if (esDueno) setHistorial(await cajaService.historial(60));
-    } catch (e) {
+    if (tot.status === 'fulfilled') {
+      setAbierto(tot.value);
+    } else {
       setFallo(true);
-      showToast(errorService.getMessage(e), 'error');
-    } finally {
-      setCargando(false);
+      showToast(errorService.getMessage(tot.reason), 'error');
     }
+
+    setCobros(lista.status === 'fulfilled' ? (lista.value || []) : []);
+
+    if (esDueno) {
+      try {
+        setHistorial(await cajaService.historial(60));
+      } catch {
+        // El historial es del dueño y no hace falta para cerrar el día. Que no ande sin
+        // conexión no puede trabar a quien está con el cajón adelante.
+      }
+    }
+
+    setCargando(false);
   }, [esDueno, showToast]);
 
   useEffect(() => { cargar(); }, [cargar]);

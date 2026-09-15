@@ -83,8 +83,11 @@ class PaymentService {
    * `intentos` ni `creadoEn`, y el momento ya viaja adentro como `paymentDate`.</p>
    */
   async enviarEncolado(item) {
+    // "memberName" viaja SOLO para la cola —la lista del cierre sin conexión lo necesita para
+    // no mostrar renglones sin nombre— y se saca acá: el backend no lo espera y mandarlo sería
+    // ensuciar el contrato con un campo que nadie lee.
     // eslint-disable-next-line no-unused-vars
-    const { tipo, ocurridoEn, intentos, ultimoError, creadoEn, tenantId, ...cuerpo } = item;
+    const { tipo, ocurridoEn, intentos, ultimoError, creadoEn, tenantId, memberName, ...cuerpo } = item;
     const response = await apiClient.post('/gym/payments', cuerpo);
     this.#refrescarEspejo();
     return response.data;

@@ -267,6 +267,40 @@ export async function sociosConCobroPendiente(tenantId = orgActual()) {
 }
 
 /**
+ * ⭐ LOS COBROS QUE TODAVÍA NO SUBIERON, con la forma de la lista del cierre.
+ *
+ * <p><b>Por qué la pantalla de Caja los necesita.</b> La lista de cobros del período la arma
+ * el servidor, así que sin internet llega vacía — y quien está por cerrar leería "0 cobros"
+ * el mismo día que cobró cinco cuotas en efectivo. Es el mismo agujero que ya se tapó con los
+ * movimientos de caja, entrando por la puerta de al lado.</p>
+ *
+ * <p>Van marcados (`sinSubir`): la pantalla los dibuja igual, aclarando que están esperando.</p>
+ */
+export async function cobrosPendientes(tenantId = orgActual()) {
+  if (!disponible()) return [];
+  try {
+    const lista = await pendientes(tenantId);
+    return lista
+      .filter((i) => i.tipo === 'COBRO')
+      .map((i) => ({
+        // El sello ES el id que va a tener del otro lado: el backend lo guarda como
+        // `client_ref` y de ahí sale la fila. Usarlo acá evita que salte de identidad al subir.
+        id: i.clientRef,
+        // Si el cobro se encoló desde una versión anterior no trae el nombre. Se dice, en vez
+        // de dejar el renglón sin nada: quien cierra tiene que poder contar los renglones.
+        socio: i.memberName || 'Cobro sin subir',
+        monto: Number(i.amount) || 0,
+        // El backend lo manda en minúsculas y la pantalla compara así.
+        metodo: String(i.paymentMethod || 'cash').toLowerCase(),
+        fecha: i.paymentDate || i.ocurridoEn,
+        sinSubir: true,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * ⭐ LAS ALTAS QUE TODAVÍA NO SUBIERON.
  *
  * <p><b>Por qué la copia local las necesita.</b> El espejo se reemplaza ENTERO en cada refresco

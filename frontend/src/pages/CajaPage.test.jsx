@@ -440,3 +440,54 @@ describe('⭐ sin conexión', () => {
     expect(enviado.cobrosSegunTerminal).toBe(3);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 EL BUG DEL 15/09/2026, ENCONTRADO EN UNA MÁQUINA CON EL WIFI APAGADO
+//
+// `abierto()` y `movimientos()` viajaban en el MISMO `Promise.all`, que se cae entero
+// si una sola falla. Los totales ya sabían resolverse sin conexión —salen del espejo
+// local— pero la lista de cobros iba derecho al servidor: explotaba, se llevaba puestos
+// los totales, y la caja aparecía con TODO EN CERO, sin el cartel que avisa, y
+// ofreciendo cerrar un día que no había podido leer.
+//
+// Los tests de las dos partes estaban en verde. Lo que faltaba era este.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('🔴 una llamada que falla NO puede llevarse puesta la pantalla', () => {
+
+  it('⭐⭐ si la lista de cobros falla, los totales se muestran igual', async () => {
+    cajaService.abierto.mockResolvedValue({
+      ...ABIERTO, incompleto: true, bajadoEn: '2026-09-15T18:04:00.000Z', enCola: 1,
+    });
+    cajaService.movimientos.mockRejectedValue(new Error('Network Error'));
+
+    const texto = await pintar();
+
+    expect(texto, 'el número que mira quien cierra').toContain('50.000');
+    expect(texto).toContain('Sin conexión');
+    expect(texto, 'y NO el cartel de que no se pudo traer nada')
+      .not.toContain('No pudimos traer los datos de la caja');
+    expect(boton('Cerrar caja diaria').disabled, 'se puede cerrar igual').toBe(false);
+  });
+
+  it('pero si fallan LOS TOTALES, no se ofrece cerrar', async () => {
+    // Al revés que el anterior, y es la mitad que importa: sin saber cuánto hay, cerrar es
+    // cerrar a ciegas. La lista puede faltar; el número no.
+    cajaService.abierto.mockRejectedValue(new Error('Network Error'));
+    cajaService.movimientos.mockResolvedValue(COBROS);
+
+    const texto = await pintar();
+
+    expect(texto).toContain('No pudimos traer los datos de la caja');
+    expect(boton('Cerrar caja diaria').disabled).toBe(true);
+  });
+
+  it('y el historial que no anda tampoco traba el cierre', async () => {
+    cajaService.historial.mockRejectedValue(new Error('Network Error'));
+
+    const texto = await pintar();
+
+    expect(texto).toContain('Cerrar caja diaria');
+    expect(boton('Cerrar caja diaria').disabled).toBe(false);
+  });
+});

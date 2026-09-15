@@ -1,6 +1,7 @@
 import apiClient from '../lib/apiClient';
 import {
   encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes,
+  cobrosPendientes,
   movimientosPendientes,
 } from '../lib/colaAccesos';
 import { guardarEspejo, arrancarPeriodoLocal, resumenSegunElTerminal } from '../lib/cajaLocal';
@@ -61,8 +62,27 @@ class CajaService {
 
   /** Los cobros del período: socio, monto, método, fecha. Es la lista del cierre. */
   async movimientos() {
-    const { data } = await apiClient.get('/gym/caja/movimientos');
-    return data;
+    // ⚠️ ESTO TAMBIÉN TIENE QUE ANDAR SIN CONEXIÓN, Y NO POR PROLIJIDAD.
+    //
+    // La pantalla de Caja pide esto y `abierto()` EN EL MISMO `Promise.all`, y un Promise.all
+    // se cae entero si UNA sola de sus promesas falla. Mientras esto tiraba el error de red,
+    // los totales —que sí sabían resolverse solos— se iban al catch con él: la caja aparecía
+    // con TODO EN CERO y ofreciendo cerrar un día que no pudo leer. Se vio en una máquina con
+    // el wifi apagado, con los tests de las dos partes en verde.
+    const enCola = await cobrosPendientes();
+
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (sinRed) return enCola;
+
+    try {
+      const { data } = await apiClient.get('/gym/caja/movimientos');
+      return [...enCola, ...(data || [])];
+    } catch (error) {
+      // Un rechazo del servidor sí se muestra. Un corte, no: con la copia de la cola en la
+      // mano, dejar la pantalla sin nada sería peor que mostrar lo que se sabe.
+      if (error?.response) throw error;
+      return enCola;
+    }
   }
 
   /** Desde cuándo y cuántos cobros, SIN importes. Para quien va a contar. */

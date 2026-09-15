@@ -352,6 +352,9 @@ export default function MembersPage() {
   const cobrarCuota = async ({ planId, monto, metodo }) => {
     const r = await paymentService.createPayment({
       member_id: cobrando.id,
+      // Solo para la cola: sin esto, la lista del cierre sin conexión muestra renglones sin
+      // nombre y quien cierra no puede reconocer lo que cobró. Lo saca .
+      memberName: cobrando.fullName || [cobrando.firstName, cobrando.lastName].filter(Boolean).join(' ').trim(),
       plan_id: planId,
       amount: monto,
       paymentMethod: (metodo || 'cash').toUpperCase(),
