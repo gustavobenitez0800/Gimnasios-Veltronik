@@ -1,5 +1,6 @@
 package com.veltronik.v2.core.services;
 
+import com.veltronik.v2.core.config.Escala;
 import com.veltronik.v2.core.entities.Cashier;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.exceptions.BusinessException;
@@ -40,8 +41,14 @@ public class CashierService {
             java.util.Set.of("0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999",
                     "1234", "4321", "1212", "2121");
 
-    /** Intentos fallidos seguidos antes de bloquear. */
-    private static final int MAX_INTENTOS = 5;
+    /**
+     * Intentos fallidos seguidos antes de bloquear, <b>por copia del backend</b>.
+     *
+     * <p>Ver el campo {@code intentos}: el contador vive en memoria, así que con
+     * {@link Escala#MAX_INSTANCIAS} copias a alguien que prueba PINs le pueden llegar a tocar
+     * cinco por copia en vez de cinco en total.</p>
+     */
+    private static final int MAX_INTENTOS_POR_INSTANCIA = 5;
 
     /** Cuánto dura el bloqueo. Corto a propósito: es un mostrador, no un banco. */
     private static final Duration BLOQUEO = Duration.ofMinutes(1);
@@ -49,14 +56,22 @@ public class CashierService {
     private final CashierRepository repository;
     private final CashierContextCache contextCache;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-
     /**
      * Intentos fallidos por cajero, en memoria.
      *
      * <p>Cuatro dígitos son 10.000 combinaciones: sin freno, un script las prueba todas en
      * minutos y el PIN no protege nada. Con cinco intentos y un minuto de espera, probarlas
-     * todas lleva más de un día — suficiente para un mostrador donde además hay gente
-     * mirando.</p>
+     * todas lleva unas 33 horas.</p>
+     *
+     * <p><b>Ese número no es el que aplica el sistema.</b> El contador es de esta copia del
+     * backend, y hay hasta {@link Escala#MAX_INSTANCIAS}: si los intentos se reparten entre
+     * las copias son 15 por minuto y no 5, con lo que las 33 horas bajan a unas 11.</p>
+     *
+     * <p><b>Se acepta, y conviene saber por qué.</b> Al PIN se llega estando ya adentro de la
+     * cuenta del gimnasio: la puerta de calle es Supabase Auth, no esto. El PIN es la firma de
+     * quién atendió — da responsabilidad, no seguridad. Once horas de tecleo automático contra
+     * un mostrador donde además hay gente mirando sigue sin ser un camino que nadie tome, y un
+     * contador compartido costaría un viaje a la base por cada tecla mal puesta.</p>
      *
      * <p>En memoria y no en la base a propósito: escribir un contador en cada tecleo mal
      * puesto es tráfico contra Supabase por algo que se puede perder sin consecuencias. Se
@@ -182,7 +197,7 @@ public class CashierService {
     private void registrarFallo(UUID cashierId) {
         intentos.compute(cashierId, (id, previo) -> {
             int fallidos = (previo == null ? 0 : previo.fallidos()) + 1;
-            Instant bloqueo = fallidos >= MAX_INTENTOS ? Instant.now().plus(BLOQUEO) : null;
+            Instant bloqueo = fallidos >= MAX_INTENTOS_POR_INSTANCIA ? Instant.now().plus(BLOQUEO) : null;
             if (bloqueo != null) {
                 log.info("Cajero {} bloqueado por {} intentos fallidos", cashierId, fallidos);
                 return new Intentos(0, bloqueo); // se reinicia el contador junto con el bloqueo

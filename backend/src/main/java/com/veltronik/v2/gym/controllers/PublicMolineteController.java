@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.controllers;
 
+import com.veltronik.v2.core.config.Escala;
 import com.veltronik.v2.gym.services.MolineteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,13 +45,19 @@ public class PublicMolineteController {
     private final MolineteService molineteService;
 
     /**
-     * Tope de avisos por minuto y por puerta.
+     * Tope de avisos por minuto <b>y por copia del backend</b>, no por puerta.
      *
      * <p>Alto a propósito: el equipo avisa por reconocimiento, no por persona, y manda varios
      * por segundo mientras haya una cara enfrente. 300 por minuto es muchísimo más de lo que
      * genera una puerta real en hora pico, y sigue siendo una pared para cualquier otra cosa.</p>
+     *
+     * <p><b>El número no es el que aplica la puerta.</b> El contador vive en memoria y cada
+     * copia del backend lleva el suyo, así que con {@link Escala#MAX_INSTANCIAS} copias el
+     * techo real está entre 300 y 900 avisos por minuto según cómo Cloud Run reparta. No se
+     * corrige con un contador compartido porque no vale la pena: contra un molinete que en
+     * hora pico genera unos pocos avisos por segundo, 300 y 900 son igual de holgados.</p>
      */
-    private static final int MAX_AVISOS_POR_MINUTO = 300;
+    private static final int MAX_AVISOS_POR_MINUTO_POR_INSTANCIA = 300;
 
     private final ConcurrentHashMap<String, Ventana> frenos = new ConcurrentHashMap<>();
 
@@ -64,7 +71,8 @@ public class PublicMolineteController {
                                    @RequestParam Map<String, String> query,
                                    @RequestBody(required = false) Map<String, Object> body) {
         if (frenado(token)) {
-            log.warn("Molinete frenado por exceso de avisos (token …{}).", cola(token));
+            log.warn("Molinete frenado: esta copia llegó a los {} avisos del minuto. El tope es POR COPIA y hay hasta {} (token …{}).",
+                    MAX_AVISOS_POR_MINUTO_POR_INSTANCIA, Escala.MAX_INSTANCIAS, cola(token));
             return ResponseEntity.status(429).body(Map.of("result", 0, "success", false));
         }
 
@@ -109,7 +117,7 @@ public class PublicMolineteController {
             frenos.remove(token);
             return false;
         }
-        return v.total.get() >= MAX_AVISOS_POR_MINUTO;
+        return v.total.get() >= MAX_AVISOS_POR_MINUTO_POR_INSTANCIA;
     }
 
     private void registrarAviso(String token) {

@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.controllers;
 
+import com.veltronik.v2.core.config.Escala;
 import com.veltronik.v2.gym.services.CheckinService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,22 @@ public class PublicCheckinController {
 
     private final CheckinService checkinService;
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // ⚠️ LOS DOS TOPES DE ACÁ SON POR INSTANCIA, NO POR PUERTA.
+    //
+    // El contador vive en memoria, así que cada copia del backend lleva el suyo y no
+    // sabe nada de las otras. Lo que una puerta puede hacer en un minuto no es el
+    // número escrito abajo: está entre ese número —si Cloud Run manda todo a una sola
+    // copia— y ese número por Escala.MAX_INSTANCIAS si lo reparte. Con las 3 copias de
+    // hoy, el tope real de escaneos está entre 40 y 120 por minuto.
+    //
+    // SE DEJA ASÍ A PROPÓSITO. Un contador compartido costaría Redis o un viaje a la
+    // base por cada escaneo, en el camino crítico de una puerta con gente esperando, y
+    // para lo que esto defiende da exactamente igual: un barrido de documentos es
+    // inviable contra 40 y contra 120. Bajar los números para que el peor caso diera 40
+    // sería PEOR, porque en el caso normal —que es una sola copia— empezaría a frenar
+    // socios de verdad.
+    // ─────────────────────────────────────────────────────────────────────────────
     /**
      * Freno anti-tanteo, en memoria.
      *
@@ -48,7 +65,7 @@ public class PublicCheckinController {
      * <p>En memoria y no en base a propósito: si el backend se reinicia se pierde el contador, y
      * está bien. Es un freno, no una auditoría, y no vale un viaje a la base por escaneo.</p>
      */
-    private static final int MAX_FALLOS_POR_MINUTO = 10;
+    private static final int MAX_FALLOS_POR_MINUTO_POR_INSTANCIA = 10;
 
     /**
      * Tope de escaneos TOTALES por minuto y por cartel, aciertos incluidos.
@@ -61,7 +78,7 @@ public class PublicCheckinController {
      * <p>40 por minuto es holgadísimo para una puerta real: en la hora pico de un gimnasio
      * grande entran unas pocas personas por minuto. Un socio nunca lo va a ver.</p>
      */
-    private static final int MAX_ESCANEOS_POR_MINUTO = 40;
+    private static final int MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA = 40;
 
     private final ConcurrentHashMap<String, Ventana> frenos = new ConcurrentHashMap<>();
 
@@ -84,7 +101,13 @@ public class PublicCheckinController {
         }
 
         if (frenado(token)) {
-            log.warn("Check-in frenado por exceso de intentos fallidos (token …{}).", cola(token));
+            // Se nombran los dos topes Y la cantidad de copias a propósito: el día que alguien
+            // lea esta línea preguntándose por qué se frenó un gimnasio, lo primero que tiene
+            // que saber es que el tope no es de la puerta, es de esta copia del backend.
+            log.warn("Check-in frenado: esta copia llegó al tope del minuto ({} fallos / {} escaneos). "
+                            + "El tope es POR COPIA y hay hasta {} (token …{}).",
+                    MAX_FALLOS_POR_MINUTO_POR_INSTANCIA, MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA,
+                    Escala.MAX_INSTANCIAS, cola(token));
             return ResponseEntity.status(429).body(Map.of(
                     "ok", false,
                     "titulo", "Probaste demasiadas veces",
@@ -136,8 +159,8 @@ public class PublicCheckinController {
             frenos.remove(token);
             return false;
         }
-        return v.fallos.get() >= MAX_FALLOS_POR_MINUTO
-                || v.total.get() >= MAX_ESCANEOS_POR_MINUTO;
+        return v.fallos.get() >= MAX_FALLOS_POR_MINUTO_POR_INSTANCIA
+                || v.total.get() >= MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA;
     }
 
     private void registrarIntento(String token, boolean ok) {
