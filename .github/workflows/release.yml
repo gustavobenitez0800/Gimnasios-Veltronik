@@ -102,3 +102,58 @@ jobs:
         # malformado y el run se pone rojo — nunca se cae hacia publicar sin querer.
         # La resuelve Actions antes de que la vea la shell: no depende de pwsh ni cmd.
         run: npx electron-builder --win --publish ${{ github.event_name == 'push' && 'always' || inputs.publish }}
+
+      - name: Sacar el Release de borrador
+        # ⭐ LA BARRERA. electron-builder crea el Release en BORRADOR, y publicarlo era
+        # un paso a mano que se salteó CUATRO DE CUATRO VECES. La 2.6.31 estuvo 16 horas
+        # sin que ningún cliente pudiera recibirla; la 2.6.32 apareció en borrador otra
+        # vez. Un instalador de 88 MB construido y verificado que nadie recibe es lo
+        # mismo que no haberlo hecho.
+        #
+        # Por qué acá y no en electron-builder: su opción `releaseType` fija el estado
+        # al CREAR el Release, y GitHub igual lo deja en borrador cuando el tag no
+        # existía antes. Corregirlo después es lo único que funciona siempre.
+        if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            # A mano: el tag es el que electron-builder derivó del package.json.
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+          echo "Publicando $TAG"
+          gh release edit "$TAG" --draft=false --latest
+          gh release view "$TAG" --json tagName,isDraft --jq '"tag: \(.tagName)  borrador: \(.isDraft)"'
+
+      - name: Verificar que el actualizador de los clientes lo vea
+        # ⭐ LA VERIFICACIÓN QUE DE VERDAD IMPORTA. Que el Release diga "Latest" en la
+        # web NO alcanza: electron-updater no mira la página, descarga el latest.yml de
+        # releases/latest/download/. Si ese archivo no expone la versión nueva, los
+        # clientes se quedan donde están aunque todo lo demás haya salido verde.
+        #
+        # Reintenta porque GitHub tarda unos segundos en mover el puntero de "latest".
+        # Si igual no aparece, ESTE PASO PONE EL RUN EN ROJO — que es el punto: enterarse
+        # en el pipeline y no dentro de tres semanas, cuando un cliente pregunte por qué
+        # no le llegó una función.
+        if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          URL="https://github.com/${{ github.repository }}/releases/latest/download/latest.yml"
+          echo "Buscando la version $VERSION en $URL"
+          for intento in 1 2 3 4 5 6; do
+            YML="$(curl -sL --max-time 30 "$URL" || true)"
+            if echo "$YML" | grep -q "^version: ${VERSION}$"; then
+              echo "OK — el actualizador ve la $VERSION. Los clientes la van a recibir."
+              exit 0
+            fi
+            echo "  intento $intento: todavia no. Espero 10s..."
+            sleep 10
+          done
+          echo "::error::El latest.yml NO expone la version $VERSION. Los clientes NO van a recibir esta release."
+          echo "--- lo que devolvio el latest.yml ---"
+          echo "$YML"
+          exit 1
