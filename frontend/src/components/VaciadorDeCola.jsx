@@ -57,6 +57,10 @@ export default function VaciadorDeCola() {
       // todavía no sabe mandar, y tirarlo sería tirar plata.
       const { enviados } = await vaciar({
         ACCESO: (item) => accessService.enviarEncolado(item),
+        // ⚠️ La SALIDA no es un ACCESO. El acceso pide que el servidor deduzca la dirección
+        // contra el momento; la salida le dice QUÉ visita cerrar. Se usa cuando el mostrador
+        // tenía la lista en pantalla —o sea, tenía el id— y el pedido murió en el transporte.
+        SALIDA: (item) => accessService.enviarSalidaEncolada(item),
         COBRO: (item) => paymentService.enviarEncolado(item),
         // ⚠️ El ALTA va en la MISMA cola y por eso sube antes que el cobro a ese socio: si
         // fueran colas separadas, el servidor recibiría un cobro de alguien que no existe.

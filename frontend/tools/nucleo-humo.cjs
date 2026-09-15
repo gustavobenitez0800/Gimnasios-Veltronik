@@ -206,6 +206,25 @@ app.whenReady().then(() => {
         clientRef: 'humo-raro', tipo: 'LO_QUE_SEA', tenantId: GIMNASIO, ocurridoEn: '2026-09-06T10:00:00',
     }).ok);
 
+    // ── LA SALIDA: es un tipo aparte del ACCESO, y exige la visita ──────────────────────
+    //
+    // El ACCESO le pide al servidor que deduzca la dirección contra el momento; la SALIDA le
+    // dice QUÉ visita cerrar. Sin ese id no hay nada que mandar, así que la fila se
+    // reintentaría para siempre — por eso se rechaza acá y no más adelante.
+    chequear('una SALIDA sin visita no entra', !cola.encolar({
+        clientRef: 'humo-salida-mala', tipo: 'SALIDA', tenantId: GIMNASIO,
+        ocurridoEn: '2026-09-06T20:00:00',
+    }).ok);
+
+    chequear('una SALIDA con su visita sí', cola.encolar({
+        clientRef: 'humo-salida', tipo: 'SALIDA', tenantId: GIMNASIO,
+        ocurridoEn: '2026-09-06T20:00:00', accessLogId: 'log-humo-1',
+    }).ok);
+
+    const laSalida = cola.pendientes(GIMNASIO).find((i) => i.tipo === 'SALIDA');
+    chequear('y su visita vuelve plana, como todo lo demás',
+        laSalida && laSalida.accessLogId === 'log-humo-1', laSalida && laSalida.accessLogId);
+
     cola.olvidar();
 
     // ── LA MIGRACIÓN DE LA COLA VIEJA ──────────────────────────────────────────────────

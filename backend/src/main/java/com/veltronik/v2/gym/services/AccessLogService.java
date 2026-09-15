@@ -556,19 +556,65 @@ public class AccessLogService {
         return abiertas.size();
     }
 
+    /** El camino con internet: el momento lo pone el servidor, que es el reloj confiable. */
     @Transactional
     public AccessLog checkOut(UUID accessLogId) {
+        return checkOut(accessLogId, null);
+    }
+
+    /**
+     * Marca la salida de una visita, con el momento en que de verdad pasó.
+     *
+     * <p><b>Por qué esto acepta un momento.</b> Sin internet, marcar la salida no se puede
+     * mandar: se encola. Una salida que se guardó a las 20:00 y sube a las 09:00 del día
+     * siguiente, sellada con el reloj del servidor, dejaría una visita de trece horas — y ese
+     * número es el que el dueño mira para saber cuánto se queda la gente. El momento viaja
+     * declarado por el terminal y se acota con {@link MomentoDeclarado}: el reloj de un
+     * mostrador puede estar mal por meses.</p>
+     *
+     * <p><b>Un reintento no puede correr una salida ya marcada.</b> Es lo que hace que esta
+     * operación se pueda encolar sin sello: si el pedido salió, el servidor lo guardó y la
+     * respuesta se perdió, el reintento encuentra la visita cerrada y la devuelve tal cual.
+     * Esa es la diferencia con encolar un <i>paso</i>: un paso sobre una visita ya cerrada el
+     * servidor lo leería como una ENTRADA, y el socio quedaría adentro justo después de
+     * haberse ido.</p>
+     *
+     * <p><b>⭐ Pero una salida REAL sí pisa una ESTIMACIÓN.</b> Si la visita la cerró el
+     * trabajo nocturno ({@code autoClosed}), lo que hay guardado es una estimación, y una
+     * salida marcada por una persona es mejor información. Es la misma regla que ya rige en
+     * {@code visitaAbiertaEn}, donde un acceso que cae dentro de una visita auto-cerrada
+     * gana, y una salida marcada de verdad no se toca. Solo se pisa con un momento declarado:
+     * sin él, "ahora" podría ser del día siguiente y sería peor que la estimación.</p>
+     *
+     * @param ocurridoEn el momento real, o {@code null} si lo pone el servidor.
+     */
+    @Transactional
+    public AccessLog checkOut(UUID accessLogId, LocalDateTime ocurridoEn) {
         AccessLog log = accessLogRepository.findById(accessLogId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registro de acceso no encontrado"));
-                
+
         if (!log.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado");
         }
-        
-        if (log.getCheckOutAt() == null) {
-            log.setCheckOutAt(LocalDateTime.now(BUSINESS_ZONE));
+
+        boolean yaCerrada = log.getCheckOutAt() != null;
+        boolean fueEstimada = log.isAutoClosed();
+        if (yaCerrada && !(fueEstimada && ocurridoEn != null)) {
+            return log;
         }
-        
+
+        LocalDateTime momento = MomentoDeclarado.acotar(ocurridoEn);
+
+        // Regla 1 de las visitas: nunca una salida antes que su entrada. El reloj del
+        // mostrador puede estar corrido, y una visita de duración negativa envenena el
+        // promedio del día — ya pasó en este proyecto y se vio como "tiempo promedio" en rojo.
+        if (momento.isBefore(log.getCheckInAt())) {
+            momento = log.getCheckInAt();
+        }
+
+        log.setCheckOutAt(momento);
+        log.setAutoClosed(false);
+
         return accessLogRepository.save(log);
     }
 }

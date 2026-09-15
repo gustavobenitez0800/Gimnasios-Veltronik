@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.controllers;
 
+import com.veltronik.v2.gym.dto.AccessCheckOutInputDTO;
 import com.veltronik.v2.gym.dto.AccessLogDTO;
 import com.veltronik.v2.gym.dto.AccessRegisterInputDTO;
 import com.veltronik.v2.gym.mappers.AccessLogMapper;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -188,8 +190,18 @@ public class GymAccessController {
         return ResponseEntity.ok(body);
     }
 
+    /**
+     * Marca la salida de una visita.
+     *
+     * <p>El cuerpo es opcional a propósito. Con internet no viaja nada y el servidor sella con
+     * su reloj; lo que llega de la cola de sin-conexión trae el momento en que la persona se
+     * fue de verdad. Que sea opcional es lo que deja al camino online exactamente como estaba
+     * —ni un campo nuevo que mandar— mientras el otro gana precisión.</p>
+     */
     @PutMapping("/{id}/checkout")
-    public ResponseEntity<AccessLogDTO> checkOut(@PathVariable UUID id) {
-        return ResponseEntity.ok(accessMapper.toDto(accessService.checkOut(id)));
+    public ResponseEntity<AccessLogDTO> checkOut(@PathVariable UUID id,
+                                                 @RequestBody(required = false) AccessCheckOutInputDTO input) {
+        LocalDateTime ocurridoEn = input == null ? null : input.getOcurridoEn();
+        return ResponseEntity.ok(accessMapper.toDto(accessService.checkOut(id, ocurridoEn)));
     }
 }

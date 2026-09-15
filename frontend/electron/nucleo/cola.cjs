@@ -33,7 +33,7 @@ const respaldo = require('./respaldo.cjs');
 const MAX_EN_COLA = 5000;
 
 /** Lo que la cola sabe mandar. Está acá para que un tipo mal escrito no entre en silencio. */
-const TIPOS = ['ACCESO', 'COBRO', 'ALTA', 'EGRESO', 'CIERRE'];
+const TIPOS = ['ACCESO', 'SALIDA', 'COBRO', 'ALTA', 'EGRESO', 'CIERRE'];
 
 /** Las columnas propias de la cola. Todo lo demás del ítem viaja adentro del payload. */
 const PROPIAS = ['clientRef', 'tipo', 'tenantId', 'ocurridoEn'];
@@ -92,6 +92,11 @@ function encolar(item, conexion) {
     // ⚠️ El ACCESO exige socio. Se valida acá y no en el que llama porque un acceso sin socio
     // es una fila que nunca va a poder subir y va a reintentarse para siempre.
     if (tipo === 'ACCESO' && !item.memberId) return { ok: false, motivo: 'acceso sin socio' };
+
+    // ⚠️ Y la SALIDA exige la visita. Es lo que la distingue del ACCESO: no se pide que el
+    // servidor deduzca la direccion, se le dice QUE visita cerrar. Sin ese id no hay nada
+    // que mandar, y la fila se reintentaria para siempre.
+    if (tipo === 'SALIDA' && !item.accessLogId) return { ok: false, motivo: 'salida sin visita' };
 
     const payload = {};
     for (const [clave, valor] of Object.entries(item)) {

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -268,5 +269,115 @@ class InvariantesDeVisitasIntegrationTest extends EmbeddedPostgresTest {
 
         reglas("se fue sin marcar");
         assertEquals(2, visitas(), "la de ayer se cierra sola y la de hoy es una visita nueva");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LA SALIDA QUE SE ENCOLA
+    //
+    // Sin conexión hay dos formas de marcar la salida, y son distintas a propósito:
+    //
+    //  - Sin red desde el arranque no se sabe quién está adentro (esa lista la responde el
+    //    servidor), así que no hay id de visita: se encola un PASO y el servidor deduce la
+    //    dirección contra el momento. Eso ya está probado arriba.
+    //  - Con la lista en pantalla y el pedido que falla en el transporte SÍ hay id, y se
+    //    encola la salida de ESA visita. Es lo que se prueba acá.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("⭐ la salida encolada se graba cuando la persona se fue, no cuando sube")
+    void laSalidaEncoladaGuardaSuMomento() {
+        LocalDateTime entrada = LocalDateTime.now().minusHours(3);
+        LocalDateTime cuandoSeFue = LocalDateTime.now().minusHours(2);
+
+        var visita = acceso(entrada);
+        accessLogService.checkOut(visita.log().getId(), cuandoSeFue);
+
+        var guardada = accessLogService.visitaAbiertaDe(socio);
+        assertTrue(guardada.isEmpty(), "la visita quedó cerrada");
+
+        em.flush();
+        em.clear();
+        LocalDateTime salida = accessLogService.getTodayAccesses().stream()
+                .filter(a -> a.getId().equals(visita.log().getId()))
+                .findFirst().orElseThrow().getCheckOutAt();
+
+        // Un minuto de tolerancia: lo que se defiende es que NO sea "ahora". Sellarla con el
+        // reloj del servidor dejaría una visita de tres horas donde hubo una de una.
+        assertTrue(Math.abs(java.time.Duration.between(cuandoSeFue, salida).toMinutes()) <= 1,
+                "la salida tiene que quedar en " + cuandoSeFue + " y quedó en " + salida);
+        reglas("salida encolada con su momento");
+    }
+
+    @Test
+    @DisplayName("⭐ reintentar una salida encolada no la corre ni reabre la visita")
+    void elReintentoDeLaSalidaNoCorreNada() {
+        // El caso que hace que esto se pueda encolar sin sello: el pedido salió, el servidor
+        // lo guardó, y la respuesta se perdió de vuelta. La cola lo manda otra vez.
+        LocalDateTime entrada = LocalDateTime.now().minusHours(3);
+        LocalDateTime cuandoSeFue = LocalDateTime.now().minusHours(2);
+
+        var visita = acceso(entrada);
+        var primera = accessLogService.checkOut(visita.log().getId(), cuandoSeFue);
+        LocalDateTime salidaOriginal = primera.getCheckOutAt();
+
+        var segunda = accessLogService.checkOut(visita.log().getId(), LocalDateTime.now());
+        var tercera = accessLogService.checkOut(visita.log().getId());
+
+        assertEquals(salidaOriginal, segunda.getCheckOutAt(), "el reintento no corre la salida");
+        assertEquals(salidaOriginal, tercera.getCheckOutAt(), "ni el de sin momento");
+        assertEquals(1, visitas(), "y no abre ninguna visita nueva");
+        reglas("reintento de la salida encolada");
+    }
+
+    @Test
+    @DisplayName("⭐ una salida REAL pisa la estimación del cierre nocturno")
+    void laSalidaRealPisaLaEstimacion() {
+        // El trabajo de las 00:15 cierra las visitas de días anteriores que quedaron abiertas,
+        // poniéndoles una salida ESTIMADA. Si la salida de verdad estaba esperando en la cola
+        // del mostrador, es mejor información y tiene que ganar — la misma regla que ya rige
+        // en visitaAbiertaEn, donde un acceso que cae dentro de una visita auto-cerrada gana.
+        //
+        // Fechas de calendario explícitas: cerrarVisitasAbandonadas mira "todo lo de ayer para
+        // atrás", así que con horas relativas a now() este test no probaría nada de mañana.
+        LocalDateTime entrada = LocalDate.now().minusDays(1).atTime(20, 0);
+        LocalDateTime cuandoSeFue = LocalDate.now().minusDays(1).atTime(21, 30);
+
+        var visita = acceso(entrada);
+        accessLogService.cerrarVisitasAbandonadas();
+
+        em.flush();
+        em.clear();
+        assertTrue(esAutoCerrada(visita.log().getId()),
+                "primero la cierra el sistema, con una estimación");
+
+        var real = accessLogService.checkOut(visita.log().getId(), cuandoSeFue);
+
+        assertFalse(real.isAutoClosed(), "ya no es una estimación: alguien la marcó");
+        assertEquals(cuandoSeFue, real.getCheckOutAt(), "y quedó en el momento real, no en el estimado");
+        assertEquals(1, visitas());
+        reglas("salida real sobre estimación");
+    }
+
+    /** Lee de la base si esa visita la cerró el sistema. */
+    private boolean esAutoCerrada(UUID accesoId) {
+        return (Boolean) em.createNativeQuery(
+                        "SELECT auto_closed FROM access_log WHERE id = :id")
+                .setParameter("id", accesoId)
+                .getSingleResult();
+    }
+
+    @Test
+    @DisplayName("una salida con el reloj corrido no queda antes que la entrada")
+    void elRelojCorridoNoInvierteLaVisita() {
+        // El reloj de un mostrador puede estar mal por meses y nadie lo mira. Una salida
+        // anterior a su entrada da duración negativa, y eso envenena el promedio del día.
+        LocalDateTime entrada = LocalDateTime.now().minusMinutes(20);
+
+        var visita = acceso(entrada);
+        var cerrada = accessLogService.checkOut(visita.log().getId(), entrada.minusHours(2));
+
+        assertTrue(!cerrada.getCheckOutAt().isBefore(cerrada.getCheckInAt()),
+                "REGLA 1 — nadie sale antes de haber entrado");
+        reglas("reloj corrido");
     }
 }

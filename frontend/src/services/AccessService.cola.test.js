@@ -223,22 +223,47 @@ describe('⭐ la salida sin conexión', () => {
     expect(cola.encolar).not.toHaveBeenCalled();
   });
 
-  it('⚠️⚠️ un fallo de TRANSPORTE no se encola: encolarlo invertiría al socio', async () => {
-    // LA DIFERENCIA DELIBERADA CON checkIn. El registro de un paso lleva `clientRef`, así que
-    // un reintento se reconoce. Este endpoint NO lleva sello: si la salida se guardó y la
-    // respuesta se perdió, encolar un paso lo haría procesar de nuevo — y con la visita ya
-    // cerrada el servidor lo leería como una ENTRADA. El socio quedaría adentro justo después
-    // de haberse ido. Ese bug ya apareció dos veces en este proyecto.
+  it('⭐⭐ un fallo de TRANSPORTE ahora SÍ se encola, y como SALIDA', async () => {
+    // ESTE CASO NO SE ENCOLABA, Y ERA UN AGUJERO. El pedido moría en el transporte y la
+    // salida se perdía: el socio quedaba "adentro" para siempre, con su permanencia inflada.
+    //
+    // No se encolaba por un motivo real: encolar un PASO sobre una visita que el servidor tal
+    // vez ya cerró lo haría leer como una ENTRADA, y el socio quedaría adentro justo después
+    // de irse. La salida a eso no era resignarse, era arreglarlo de raíz: acá hay id de
+    // visita, así que se encola una SALIDA —"cerrá ESTA"— y cerrar una visita ya cerrada no
+    // hace nada. El servidor la ignora en vez de invertir a nadie.
     apiClient.put.mockRejectedValue(new Error('Network Error')); // sin `response`
 
-    await expect(accessService.checkOut('log-1', 'm1', 'José Pérez')).rejects.toThrow('Network Error');
-    expect(cola.encolar, 'mejor fallar visible que invertir en silencio').not.toHaveBeenCalled();
+    const r = await accessService.checkOut('log-1', 'm1', 'José Pérez');
+
+    expect(r.encolado).toBe(true);
+    const fila = cola.filas()[0];
+    expect(fila.tipo, 'SALIDA, no ACCESO: se dice qué visita cerrar').toBe('SALIDA');
+    expect(fila.accessLogId).toBe('log-1');
+    expect(fila.ocurridoEn, 'con el momento congelado ANTES de intentar')
+      .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
   });
 
-  it('sin el id del socio no hay a quién encolarle nada: falla como antes', async () => {
+  it('un rechazo del SERVIDOR sigue sin encolarse: es una respuesta, no un corte', async () => {
+    // Un 404 o un 403 no se arreglan reintentando. Encolarlos escondería un problema real
+    // detrás de un "guardado" y lo dejaría girando en la cola para siempre.
+    const rechazo = new Error('Not Found');
+    rechazo.response = { status: 404 };
+    apiClient.put.mockRejectedValue(rechazo);
+
+    await expect(accessService.checkOut('log-1', 'm1', 'José Pérez')).rejects.toThrow('Not Found');
+    expect(cola.encolar).not.toHaveBeenCalled();
+  });
+
+  it('sin el id del socio la salida igual se encola: no le hace falta', async () => {
+    // Es lo que distingue este camino del PASO. El paso necesita saber de quién es; la
+    // salida no, porque la visita ya dice de quién es.
     sinRed(false);
     apiClient.put.mockRejectedValue(new Error('Network Error'));
 
-    await expect(accessService.checkOut('log-1')).rejects.toThrow('Network Error');
+    const r = await accessService.checkOut('log-1');
+
+    expect(r.encolado).toBe(true);
+    expect(cola.filas()[0].tipo).toBe('SALIDA');
   });
 });

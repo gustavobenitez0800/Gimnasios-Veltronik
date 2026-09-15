@@ -1,5 +1,5 @@
 import apiClient from '../lib/apiClient';
-import { encolar, disponible, nuevoSello, momentoLocal, cuantosPendientes } from '../lib/colaAccesos';
+import { encolar, encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes } from '../lib/colaAccesos';
 
 /**
  * Servicio de Control de Acceso.
@@ -111,46 +111,79 @@ class AccessService {
   }
 
   /**
-   * Marcar la salida. Sin conexión también, pero por otro camino.
+   * Manda una SALIDA que estaba esperando en la cola.
    *
-   * <p><b>Sin red, marcar la salida es EL MISMO hecho que marcar el paso:</b> se anota el
-   * momento y el servidor deduce la dirección contra ese instante. Como el socio tiene una
+   * <p>Va con el momento en que la persona se fue, no con el de ahora: una salida guardada a
+   * las 20:00 que sube a las 09:00 del día siguiente dejaría una visita de trece horas, y la
+   * permanencia es justo el número con el que el dueño decide cosas.</p>
+   */
+  async enviarSalidaEncolada(item) {
+    const response = await apiClient.put(`/gym/access/${item.accessLogId}/checkout`, {
+      ocurridoEn: item.ocurridoEn,
+    });
+    return response.data;
+  }
+
+  /**
+   * Marcar la salida. Sin conexión también, y por DOS caminos distintos.
+   *
+   * <p><b>1 · Sin red desde el arranque: va como un PASO.</b> Ahí no se sabe quién está
+   * adentro —esa lista la responde el servidor—, así que no hay id de visita. Se anota el
+   * momento y el servidor deduce la dirección contra ese instante: como el socio tiene una
    * visita abierta, la deduce SALIDA. Por eso va por la misma cola que las entradas, con su
    * sello y su momento, y respeta la misma regla de orden — si hay algo esperando, este
    * también espera, o se registraría antes que accesos que ocurrieron primero.</p>
    *
-   * <p><b>⚠️ Y POR ESO MISMO NO SE ENCOLA SI EL PEDIDO YA SALIÓ Y FALLÓ EL TRANSPORTE.</b>
-   * Esa es la diferencia con `checkIn`, y es deliberada. El registro de un paso lleva
-   * `clientRef`, así que si la respuesta se pierde el servidor reconoce el reintento y no lo
-   * procesa dos veces. Este endpoint <b>no lleva sello</b>: si la salida se guardó y la
-   * respuesta se perdió, encolar un paso lo haría procesar de nuevo — y con la visita ya
-   * cerrada el servidor lo leería como una ENTRADA. El socio quedaría adentro justo después
-   * de haberse ido. Ese es el bug que ya apareció dos veces en este proyecto, y no se paga
-   * una tercera vez por ahorrarle un mensaje a alguien.</p>
+   * <p><b>2 · Con la lista en pantalla y el pedido que falla en el transporte: va como
+   * SALIDA.</b> Acá sí hay id, así que no hace falta que el servidor deduzca nada: se le dice
+   * qué visita cerrar. <b>Y por eso se puede encolar sin sello</b> — cerrar una visita ya
+   * cerrada no hace nada, mientras que encolar un <i>paso</i> sobre una visita ya cerrada el
+   * servidor lo leería como una ENTRADA, y el socio quedaría adentro justo después de haberse
+   * ido. Ese fue el motivo por el que este caso no se encolaba, y se arregló de raíz haciendo
+   * que el endpoint acepte el momento real.</p>
    *
-   * <p>Entonces: sin red <b>conocida</b>, a la cola. Con red y fallo de transporte, falla —
-   * pero con un mensaje que se entiende.</p>
+   * <p><b>⚠️ El momento se toma ANTES de intentar</b>, no cuando la cola logra subirlo. Es el
+   * único dato que se pierde para siempre si se toma tarde.</p>
    *
-   * @param memberId  necesario para poder encolar; sin él, sin conexión no hay nada que hacer.
+   * <p><b>Si el servidor contestó, no se encola.</b> Un 404 o un 403 son respuestas, no cortes:
+   * reintentarlos no arregla nada y esconderían un problema real detrás de un "guardado".</p>
+   *
+   * @param memberId  necesario para el camino 1; sin él, sin red no hay nada que hacer.
    */
   async checkOut(accessLogId, memberId = null, memberName = '') {
-    const puedeEncolar = disponible() && !!memberId;
+    // El momento en que se fue. Se congela acá: si lo pusiera el reintento, una salida de
+    // anoche subiría fechada esta mañana.
+    const cuandoSeFue = momentoLocal();
+    const hayCola = disponible();
 
-    if (puedeEncolar) {
+    if (hayCola && memberId) {
       const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
       if (sinRed || (await cuantosPendientes()) > 0) {
         const ref = await encolar({
           memberId, method: 'manual', memberName,
-          ocurridoEn: momentoLocal(), clientRef: nuevoSello(),
+          ocurridoEn: cuandoSeFue, clientRef: nuevoSello(),
         });
         if (ref) return { encolado: true, clientRef: ref };
       }
     }
 
-    const response = await apiClient.put(`/gym/access/${accessLogId}/checkout`);
-    return response.data;
-  }
+    try {
+      const response = await apiClient.put(`/gym/access/${accessLogId}/checkout`);
+      return response.data;
+    } catch (error) {
+      // El servidor contestó: es un rechazo de verdad y tiene que verse.
+      if (error?.response || !hayCola) throw error;
 
+      const ref = await encolarPendiente({
+        tipo: 'SALIDA',
+        accessLogId,
+        memberName: memberName || '',
+        ocurridoEn: cuandoSeFue,
+      });
+      if (!ref) throw error;
+      return { encolado: true, clientRef: ref };
+    }
+  }
   async getCurrentlyCheckedIn(opts = {}) {
     const response = await apiClient.get('/gym/access/active', opts);
     return response.data;
