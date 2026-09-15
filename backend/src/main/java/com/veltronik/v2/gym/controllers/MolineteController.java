@@ -1,16 +1,15 @@
 package com.veltronik.v2.gym.controllers;
 
 import com.veltronik.v2.core.config.PlanFeature;
+import com.veltronik.v2.core.exceptions.FeatureNotInPlanException;
 import com.veltronik.v2.core.security.PlanPolicy;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.services.MolineteService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -49,7 +48,10 @@ public class MolineteController {
     public ResponseEntity<List<MolineteService.SocioDelPadron>> padron() {
         UUID tenantId = TenantContextHolder.getTenantId();
         if (!planPolicy.hasFeature(tenantId, PlanFeature.CONTROL_DE_ACCESO)) {
-            throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED,
+            // ⚠️ 403 con código, NUNCA 402. El frontend trata cualquier 402 como "sucursal
+            // impaga" y muestra el muro de cobro: un gimnasio AL DÍA en plan básico veía
+            // "Renová la suscripción" cada vez que el escritorio sincronizaba el equipo.
+            throw new FeatureNotInPlanException(
                     "El control de acceso no está incluido en el plan de este gimnasio.");
         }
         return ResponseEntity.ok(molineteService.padron(tenantId));

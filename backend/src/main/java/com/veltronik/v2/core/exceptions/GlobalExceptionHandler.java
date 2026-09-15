@@ -34,6 +34,25 @@ public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * La función no está en el plan → <b>403 con el código {@code FEATURE_NOT_IN_PLAN}</b>.
+     *
+     * <p>Va con código propio, y no con un 402, porque el frontend trata <em>cualquier</em> 402
+     * como "sucursal impaga" y le planta el muro de cobro. Un gimnasio al día que pide una
+     * función premium no está en deuda: le falta el plan, que es otra conversación.</p>
+     */
+    @ExceptionHandler(FeatureNotInPlanException.class)
+    public ResponseEntity<ErrorResponse> handleFeatureNotInPlan(FeatureNotInPlanException ex, HttpServletRequest request) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.FORBIDDEN.value(),
+                FeatureNotInPlanException.CODIGO,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest request) {
         ErrorResponse errorResponse = new ErrorResponse(

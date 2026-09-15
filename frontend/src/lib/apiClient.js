@@ -219,7 +219,15 @@ apiClient.interceptors.response.use(
         window.dispatchEvent(new Event('auth-unauthorized'));
       }
     } else if (error.response && error.response.status === 402) {
-      // Kill Switch Activado: Sucursal inactiva por falta de pago
+      // Kill Switch Activado: Sucursal inactiva por falta de pago.
+      //
+      // ⚠️ ESTE EVENTO PLANTA EL MURO DE COBRO, así que el 402 tiene UN SOLO significado:
+      // la sucursal está impaga. Ningún endpoint puede usarlo para otra cosa.
+      //
+      // El padrón del molinete lo usaba para decir "esta función no está en tu plan", y el
+      // resultado era que un gimnasio AL DÍA en plan básico veía "Renová la suscripción" cada
+      // vez que el escritorio sincronizaba el equipo — cada pocos minutos, sin deber un peso.
+      // Ahora eso viaja como 403 + FEATURE_NOT_IN_PLAN y cae en el bloque de abajo.
       window.dispatchEvent(new Event('auth-payment-required'));
     } else if (
       error.response &&
