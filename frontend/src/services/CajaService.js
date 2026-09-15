@@ -3,6 +3,7 @@ import {
   encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes,
   movimientosPendientes,
 } from '../lib/colaAccesos';
+import { guardarEspejo, arrancarPeriodoLocal, resumenSegunElTerminal } from '../lib/cajaLocal';
 
 /**
  * El cierre de caja, diario.
@@ -27,8 +28,29 @@ class CajaService {
    * recepción. Trae `fondo` (lo que dejó el cierre anterior) y `esperadoEnElCajon`.
    */
   async abierto() {
-    const { data } = await apiClient.get('/gym/caja/abierto');
-    return data;
+    // ⚠️ SIN RED CONOCIDA NI SE INTENTA. Es la misma regla que en el mostrador: preguntarle a
+    // la nube antes de mirar si hay red es regalarle el timeout a quien está esperando.
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (sinRed) {
+      const local = await resumenSegunElTerminal();
+      if (local) return local;
+      throw new Error('Sin conexión y sin datos de la caja guardados en este equipo.');
+    }
+
+    try {
+      const { data } = await apiClient.get('/gym/caja/abierto');
+      // Cada respuesta buena es el piso sobre el que se va a poder contar si la conexión se
+      // corta a mitad del día. Sin esto, un corte a las 15:00 deja la pantalla en blanco.
+      guardarEspejo(data);
+      return data;
+    } catch (error) {
+      // Un rechazo del servidor se muestra: no es un corte y esconderlo detrás de un número
+      // viejo sería peor que no mostrar nada.
+      if (error?.response) throw error;
+      const local = await resumenSegunElTerminal();
+      if (local) return local;
+      throw error;
+    }
   }
 
   /** ¿Hay una caja abierta? Desde cuándo, quién y con cuánto cambio. Lo ve cualquiera. */
@@ -161,8 +183,68 @@ class CajaService {
    * @param retiroEfectivo cuánto se lleva del cajón. 0 o null = queda todo para mañana, y
    *                       ese resto es el fondo con el que arranca el día siguiente.
    */
-  async cerrar({ retiroEfectivo, nota, cerradoPor }) {
-    const { data } = await apiClient.post('/gym/caja/cierre', { retiroEfectivo, nota, cerradoPor });
+  async cerrar({ retiroEfectivo, nota, cerradoPor, esperadoSegunTerminal, cobrosSegunTerminal }) {
+    const clientRef = nuevoSello();
+    const ocurridoEn = momentoLocal();
+
+    // ⭐ EL MOMENTO ES LO QUE HACE QUE ESTO SE PUEDA ENCOLAR. Un cierre hecho a las 22:00 que
+    // sube a las 09:00, sellado con el reloj del servidor, se llevaría puestas las ventas de
+    // la mañana siguiente: el período va desde el cierre anterior hasta ese momento.
+    //
+    // Los dos números del terminal viajan para quedar guardados AL LADO de los del servidor,
+    // no en su lugar. El que decide sigue siendo el del servidor, que cuando recibe esto ya
+    // recibió todos los cobros del día —la cola es una y respeta el orden—.
+    const cuerpo = {
+      retiroEfectivo, nota, cerradoPor,
+      ocurridoEn, clientRef,
+      esperadoSegunTerminal, cobrosSegunTerminal,
+    };
+
+    const quedaEnCaja = Number(esperadoSegunTerminal || 0) - Number(retiroEfectivo || 0);
+
+    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
+      // ⚠️ Con algo esperando, el cierre TAMBIÉN espera. Si se adelantara, el servidor lo
+      // contaría antes de haber recibido los cobros del día y cerraría con un total de menos.
+      const ref = await encolarPendiente({ ...cuerpo, tipo: 'CIERRE' });
+      if (ref) {
+        arrancarPeriodoLocal(quedaEnCaja, ocurridoEn);
+        return { encolado: true, clientRef: ref };
+      }
+    }
+
+    try {
+      const { data } = await apiClient.post('/gym/caja/cierre', cuerpo);
+      // El período arrancó de cero: dejar el espejo viejo haría que un corte diez minutos
+      // después mostrara el día que se acaba de cerrar.
+      arrancarPeriodoLocal(data?.quedaEnCaja ?? quedaEnCaja, ocurridoEn);
+      return data;
+    } catch (error) {
+      if (error?.response || !disponible()) throw error;
+      const ref = await encolarPendiente({ ...cuerpo, tipo: 'CIERRE' });
+      if (!ref) throw error;
+      arrancarPeriodoLocal(quedaEnCaja, ocurridoEn);
+      return { encolado: true, clientRef: ref };
+    }
+  }
+
+  /**
+   * Manda un CIERRE que estaba esperando en la cola, con su momento y su sello.
+   *
+   * <p>⚠️ Nombre distinto de {@code enviarEncolado} —el de los egresos— a propósito: en
+   * JavaScript el segundo método del mismo nombre pisa al primero <b>sin un solo aviso</b>,
+   * y lo que se rompería es el vaciado de los egresos, que nadie estaría mirando.</p>
+   */
+  async enviarCierreEncolado(item) {
+    const { data } = await apiClient.post('/gym/caja/cierre', {
+      retiroEfectivo: item.retiroEfectivo,
+      nota: item.nota,
+      cerradoPor: item.cerradoPor,
+      ocurridoEn: item.ocurridoEn,
+      clientRef: item.clientRef,
+      esperadoSegunTerminal: item.esperadoSegunTerminal,
+      cobrosSegunTerminal: item.cobrosSegunTerminal,
+    });
     return data;
   }
 

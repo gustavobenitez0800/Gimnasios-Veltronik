@@ -390,3 +390,53 @@ describe('cuando algo falla', () => {
     expect(boton('Cerrar caja diaria').disabled).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIN CONEXIÓN
+//
+// Lo que se defiende no es que los números aparezcan —eso lo cuidan los tests de
+// cajaLocal— sino que la pantalla DIGA que están incompletos. Es la regla 6 de la
+// fase 3, y es la que hace que cerrar sin internet no sea cerrar a ciegas con cara
+// de cerrar con todo.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('⭐ sin conexión', () => {
+
+  it('avisa de cuándo son los datos en vez de mostrarlos como completos', async () => {
+    cajaService.abierto.mockResolvedValue({
+      ...ABIERTO,
+      incompleto: true,
+      bajadoEn: '2026-09-15T18:04:00.000Z',
+      enCola: 2,
+    });
+
+    const texto = await pintar();
+
+    expect(texto).toContain('Sin conexión');
+    expect(texto, 'cuántos movimientos propios se sumaron a esa foto').toContain('2 movimientos');
+    expect(texto, 'y que igual se puede cerrar: la caja nunca se frena').toContain('Se puede cerrar igual');
+  });
+
+  it('con conexión NO aparece ese cartel', async () => {
+    // Un aviso que aparece siempre deja de leerse.
+    const texto = await pintar();
+    expect(texto).not.toContain('Sin conexión');
+  });
+
+  it('⭐ al cerrar manda lo que MOSTRÓ, para que el servidor pueda comparar', async () => {
+    // Las dos cuentas de la misma plata: el terminal manda la suya, el servidor calcula la
+    // propia, y si difieren queda registrado. No se elige cuál gana.
+    cajaService.abierto.mockResolvedValue({
+      ...ABIERTO, incompleto: true, bajadoEn: '2026-09-15T18:04:00.000Z', enCola: 0,
+    });
+    cajaService.cerrar.mockResolvedValue({ encolado: true, clientRef: 'sello-1' });
+
+    await pintar();
+    await clic(boton('Cerrar caja diaria'));
+    await clic(boton('Sí, cerrar'));
+
+    const enviado = cajaService.cerrar.mock.calls[0][0];
+    expect(enviado.esperadoSegunTerminal, 'lo que decía "Hay en el cajón"').toBe(50000);
+    expect(enviado.cobrosSegunTerminal).toBe(3);
+  });
+});

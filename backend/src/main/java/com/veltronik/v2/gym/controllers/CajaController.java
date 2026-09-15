@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -268,7 +269,11 @@ public class CajaController {
         return ResponseEntity.ok(cajaService.cerrar(
                 input.getRetiroEfectivo(),
                 input.getNota(),
-                input.getCerradoPor()));
+                input.getCerradoPor(),
+                input.getOcurridoEn(),
+                input.getClientRef(),
+                input.getEsperadoSegunTerminal(),
+                input.getCobrosSegunTerminal()));
     }
 
     /**
@@ -324,7 +329,6 @@ public class CajaController {
     }
 
     /** Lo que manda la pantalla al cerrar. */
-    /** Lo que hace falta para abrir. */
     public static class CierreInput {
         /**
          * Cuánto efectivo se lleva del cajón. NULL o 0 = no se retira nada.
@@ -338,11 +342,47 @@ public class CajaController {
         /** Quién cerró, para congelar el nombre en el registro. */
         private String cerradoPor;
 
+        /**
+         * CUÁNDO se cerró de verdad. Solo viaja cuando el cierre pasó por la cola.
+         *
+         * <p>Es el campo que impide que un cierre de las 22:00 que sube a las 09:00 se lleve
+         * puestas las ventas de la mañana siguiente. El período va desde el cierre anterior
+         * hasta acá.</p>
+         */
+        private LocalDateTime ocurridoEn;
+
+        /**
+         * El sello del terminal. Solo viaja cuando el cierre pasó por la cola.
+         *
+         * <p>Sin él, un reintento crearía un segundo cierre — y el segundo cuenta un período
+         * vacío cuyo cero se convierte en el fondo de mañana.</p>
+         */
+        private UUID clientRef;
+
+        /**
+         * El efectivo del período <b>según la cuenta del terminal</b>: lo que vio quien cerró.
+         *
+         * <p>No se usa para calcular nada. Se guarda al lado del número del servidor para que
+         * una diferencia entre las dos cuentas quede registrada en vez de desaparecer.</p>
+         */
+        private BigDecimal esperadoSegunTerminal;
+
+        /** Cuántos cobros contó el terminal. La otra mitad de la comparación. */
+        private Integer cobrosSegunTerminal;
+
         public BigDecimal getRetiroEfectivo() { return retiroEfectivo; }
         public void setRetiroEfectivo(BigDecimal v) { this.retiroEfectivo = v; }
         public String getNota() { return nota; }
         public void setNota(String v) { this.nota = v; }
         public String getCerradoPor() { return cerradoPor; }
         public void setCerradoPor(String v) { this.cerradoPor = v; }
+        public LocalDateTime getOcurridoEn() { return ocurridoEn; }
+        public void setOcurridoEn(LocalDateTime v) { this.ocurridoEn = v; }
+        public UUID getClientRef() { return clientRef; }
+        public void setClientRef(UUID v) { this.clientRef = v; }
+        public BigDecimal getEsperadoSegunTerminal() { return esperadoSegunTerminal; }
+        public void setEsperadoSegunTerminal(BigDecimal v) { this.esperadoSegunTerminal = v; }
+        public Integer getCobrosSegunTerminal() { return cobrosSegunTerminal; }
+        public void setCobrosSegunTerminal(Integer v) { this.cobrosSegunTerminal = v; }
     }
 }

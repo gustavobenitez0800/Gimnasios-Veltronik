@@ -48,9 +48,8 @@ export default function VaciadorDeCola() {
     if (!orgId) return;
 
     try {
-      // Un enviador por tipo. Falta el CIERRE, que es el último paso (ver
-      // docs/FASE3-CAMINOS.md) y el que más depende de que todo lo anterior lleve su
-      // momento real.
+      // Un enviador por tipo: los cinco caminos que tocan plata más los accesos
+      // (ver docs/FASE3-CAMINOS.md). Ya están todos.
       //
       // ⚠️ Lo que NO tiene enviador se queda en la cola y corta la tanda, no se descarta:
       // durante una actualización un terminal viejo puede encontrarse un tipo que su código
@@ -68,6 +67,11 @@ export default function VaciadorDeCola() {
         // ⚠️ El egreso sube con SU momento, no con el de llegada: un gasto de anoche que sube
         // esta mañana tiene que quedar en el arqueo de anoche, o descuadra los dos días.
         EGRESO: (item) => cajaService.enviarEncolado(item),
+        // ⚠️ EL CIERRE VA ÚLTIMO EN LA COLA Y ESO NO ES CASUAL: cuando llega, el servidor ya
+        // recibió todos los cobros del día, así que cuenta el número completo él mismo. Por
+        // eso el total no se manda desde el terminal — solo se manda lo que MOSTRÓ, para
+        // poder comparar.
+        CIERRE: (item) => cajaService.enviarCierreEncolado(item),
       });
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor

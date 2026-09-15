@@ -122,7 +122,7 @@ Se dejan escritos porque son reales, no porque estén resueltos.
 3. ✅ **Cobro offline**, que es el camino más usado y el que valida el diseño entero.
 4. ✅ **Alta + cobro en el mismo acto** (la decisión 1, el caso del orden cruzado).
 5. ✅ **Egresos.**
-6. ⬜ **Cierre de caja**, último: depende de que todo lo anterior tenga su momento real.
+6. ✅ **Cierre de caja.**
 
 ### Lo que dejó el paso 5, y le sirve al 6
 
@@ -130,3 +130,12 @@ Se dejan escritos porque son reales, no porque estén resueltos.
 - **⛔ Pero NO sirve para una fecha que elige una persona.** El portal deja cargar un pago hecho la semana pasada; acotarlo a 36 horas lo convertiría en uno de anteayer sin avisarle a nadie. Por eso `paymentDate` **no** pasa por ahí, y queda anotado que ese camino sigue sin acotar.
 - **Un agujero que no estaba en el plan**: la lista de movimientos existe, según su propio endpoint, *"para no cargar dos veces el mismo gasto"* — y sin conexión aparecía **vacía**. Anotar un gasto y no verlo lleva derecho a cargarlo de nuevo, y ahí el faltante lo inventa el sistema. Los pendientes ahora van en la misma lista, marcados, y **sin botón de anular** (decisión 2: no se anula lo que del otro lado todavía no existe).
 - **`registrar` tiene dos firmas.** La vieja —sin sello ni momento— sigue siendo la del camino con internet, donde los pone el servidor. Lo encolado usa la nueva.
+
+### Lo que dejó el paso 6, el último
+
+- **El total del cierre lo sigue calculando el SERVIDOR, y eso salió gratis.** Como la cola es una sola y respeta el orden, cuando el cierre llega ya subieron todos los cobros de ese día: `contar(desde, hasta)` cuenta el número completo sin que el terminal tenga que mandarlo. Lo que el terminal manda es solo **lo que mostró**, para poder comparar.
+- **El campo que hace posible todo esto es `ocurridoEn`.** El período va desde el cierre anterior hasta ese momento, así que sellarlo con el reloj del servidor haría que un cierre de las 22:00 que sube a las 09:00 se llevara puestas las ventas de la mañana siguiente.
+- **Un cierre duplicado es de los peores duplicados**, y no por la fila de más: el segundo cuenta un período vacío, y ese cero se convierte en el **fondo de mañana**. De ahí en adelante el error lo arrastran todos los cierres siguientes. Índice único en la V82 más la guarda de *"antes de tocar nada"*.
+- **El período ya cerrado por otro se rechaza con 409, no con 500.** La cola trata los 4xx como definitivos, así que lo saca en vez de reintentarlo para siempre y taponar todo lo que venga detrás. ⚠️ Queda abierto el borde que ya estaba anotado: esa plata no la cuenta ningún cierre, y hoy solo aparece en un `log.warn`.
+- **⭐ Una trampa que no estaba en el plan: después de cerrar sin conexión, los cobros del día SIGUEN EN LA COLA.** El período nuevo los volvería a sumar y quien atiende vería el día anterior otra vez, con su plata incluida. Por eso el espejo local que arranca el período nuevo guarda **desde cuándo** contar la cola (`contarDesde`), y no solo los totales en cero.
+- **La segunda cuenta existe y se asume.** `lib/cajaLocal.js` suma lo mismo que el servidor, que es el patrón que en este proyecto salió mal todas las veces. La mitigación es la de los días del socio: no se elige cuál gana, se guardan las dos (`esperado_segun_terminal`, `cobros_segun_terminal`) y si difieren se hace ruido.

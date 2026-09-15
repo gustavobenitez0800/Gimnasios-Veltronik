@@ -7,6 +7,7 @@ import com.veltronik.v2.gym.entities.CajaSesion;
 import com.veltronik.v2.gym.entities.GymPayment;
 import com.veltronik.v2.gym.repositories.CajaCierreRepository;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import java.util.Optional;
  * <p><b>El período lo definen los cierres, no el calendario.</b> Arranca donde terminó el
  * anterior, así el dueño cierra todos los días, una vez por semana, o cuando quiera.</p>
  */
+@Slf4j
 @Service
 public class CajaService {
 
@@ -321,8 +323,52 @@ public class CajaService {
      * @param retiroEfectivo cuánto se lleva del cajón. NULL o 0 = no se retira nada, todo
      *                       queda para mañana.
      */
+    /** El camino con internet: el momento lo pone el servidor y no hay nada que comparar. */
     @Transactional
     public CajaCierre cerrar(BigDecimal retiroEfectivo, String nota, String cerradoPor) {
+        return cerrar(retiroEfectivo, nota, cerradoPor, null, null, null, null);
+    }
+
+    /**
+     * Cierra el día, con el momento en que se cerró de verdad.
+     *
+     * <p><b>El momento no es un detalle.</b> Un cierre hecho a las 22:00 que sube a las 09:00
+     * del día siguiente, sellado con el reloj del servidor, se llevaría puestas las ventas de
+     * la mañana siguiente: el período va desde el cierre anterior hasta {@code hasta}, así que
+     * mover {@code hasta} mueve qué plata cuenta. Es la regla 4 de la fase 3 — un cierre nunca
+     * cuenta plata de otro día, llegue cuando llegue.</p>
+     *
+     * <p><b>⭐ Y por eso el total no se manda desde el terminal.</b> Como la cola es una sola y
+     * respeta el orden, cuando este cierre llega ya subieron todos los cobros de ese día — y
+     * el servidor los cuenta con {@code contar(desde, hasta)}. El número completo sale gratis
+     * del orden estricto; no hay que confiar en la suma del terminal.</p>
+     *
+     * <p><b>Lo que el terminal manda igual, y para qué.</b> Lo que MOSTRÓ en pantalla. No se
+     * usa para calcular nada: se guarda al lado del número del servidor para que una
+     * diferencia quede registrada en vez de desaparecer. El terminal cuenta con lo último que
+     * bajó más lo que encoló; el servidor ve además lo que entró por el portal o por Mercado
+     * Pago durante el corte. Que difieran es información, no un error.</p>
+     *
+     * @param ocurridoEn cuándo se cerró; {@code null} si lo pone el servidor.
+     * @param clientRef  el sello del terminal. Sin él no hay protección contra reintentos.
+     */
+    @Transactional
+    public CajaCierre cerrar(BigDecimal retiroEfectivo, String nota, String cerradoPor,
+                             LocalDateTime ocurridoEn, java.util.UUID clientRef,
+                             BigDecimal esperadoSegunTerminal, Integer cobrosSegunTerminal) {
+        // (0) ¿Ya lo guardamos? Antes de tocar nada — igual que registerScan y que el cobro.
+        //
+        // Acá un duplicado no deja una fila de más: el período del segundo arranca donde
+        // terminó el primero, así que cuenta CERO, y ese cero pasa a ser el fondo de mañana.
+        // El error después lo arrastran todos los cierres siguientes.
+        if (clientRef != null) {
+            java.util.Optional<CajaCierre> yaEstaba = cierreRepository
+                    .findByTenantIdAndClientRef(TenantContextHolder.getTenantId(), clientRef);
+            if (yaEstaba.isPresent()) {
+                return yaEstaba.get();
+            }
+        }
+
         BigDecimal retiro = retiroEfectivo == null ? BigDecimal.ZERO : retiroEfectivo;
         if (retiro.signum() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El retiro no puede ser negativo.");
@@ -332,7 +378,23 @@ public class CajaService {
         BigDecimal fondo = fondoDeHoy();
 
         LocalDateTime desde = inicioDelPeriodo();
-        LocalDateTime hasta = LocalDateTime.now(BUSINESS_ZONE);
+        LocalDateTime hasta = MomentoDeclarado.acotar(ocurridoEn);
+
+        // ⛔ EL PERÍODO YA ESTABA CERRADO POR OTRO.
+        //
+        // Pasa cuando un cierre esperó en la cola y, mientras tanto, alguien cerró desde el
+        // portal. Guardarlo igual haría un cierre de período vacío o —peor— negativo, y su
+        // quedaEnCaja se convertiría en el fondo de mañana.
+        //
+        // Se contesta 409 y no 500 a propósito: la cola trata los 4xx como definitivos, así
+        // que lo SACA en vez de reintentarlo para siempre y taponar todo lo que venga detrás.
+        if (!hasta.isAfter(desde)) {
+            log.warn("Cierre descartado: su momento ({}) no es posterior al ultimo cierre ({}). "
+                    + "Alguien cerro este periodo mientras este esperaba en la cola.", hasta, desde);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ese período ya lo cerró otro. Este cierre no se puede aplicar.");
+        }
+
         Resumen r = contar(desde, hasta);
 
         // ⚠️ LOS DOS TÉRMINOS QUE HACEN QUE ESTO CUADRE, Y CADA UNO COSTÓ UN BUG:
@@ -374,12 +436,27 @@ public class CajaService {
         // no en cero: cero significaría "cuadró perfecto", que es una afirmación que nadie hizo.
         cierre.setConArqueo(false);
 
+        // Lo que vio quien cerró, cuando cerró sin internet. Al lado de lo que calculó el
+        // servidor, no en su lugar.
+        cierre.setClientRef(clientRef);
+        cierre.setEsperadoSegunTerminal(esperadoSegunTerminal);
+        cierre.setCobrosSegunTerminal(cobrosSegunTerminal);
+
         cierre.setRetiroEfectivo(retiro);
         cierre.setQuedaEnCaja(enElCajon.subtract(retiro));
         cierre.setNota(nota != null && !nota.isBlank() ? nota.trim() : null);
         cierre.setCerradoPorNombre(cerradoPor);
 
         CajaCierre guardado = cierreRepository.save(cierre);
+
+        if (esperadoSegunTerminal != null && esperadoSegunTerminal.compareTo(r.efectivo()) != 0) {
+            // No se corrige solo: se hace ruido. Las dos cuentas quedan guardadas y esta línea
+            // es la que permite encontrar el caso sin ir a buscarlo fila por fila.
+            log.warn("Cierre {} con dos cuentas distintas: el terminal mostro {} en efectivo y "
+                            + "el servidor conto {}. Cobros: terminal {}, servidor {}.",
+                    guardado.getId(), esperadoSegunTerminal, r.efectivo(),
+                    cobrosSegunTerminal, r.cantidadCobros());
+        }
 
         // Si venía una sesión del modelo viejo, se cierra con el mismo acto: dejarla abierta
         // haría que el índice único bloqueara para siempre cualquier apertura futura.

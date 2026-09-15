@@ -18,6 +18,15 @@ public interface CajaCierreRepository extends JpaRepository<CajaCierre, UUID> {
      */
     Optional<CajaCierre> findTopByTenantIdOrderByHastaDesc(UUID tenantId);
 
+    /**
+     * El cierre que ya subió con ese sello, si está.
+     *
+     * <p>Es la mitad barata de la garantía anti-duplicado; la que garantiza de verdad es el
+     * índice único de la V82. Acá se consulta ANTES de tocar nada, para que un reintento
+     * devuelva el cierre que ya existe en vez de chocar contra el índice.</p>
+     */
+    Optional<CajaCierre> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
+
     /** El historial que mira el dueño, del más reciente al más viejo. */
     List<CajaCierre> findByTenantIdOrderByHastaDesc(UUID tenantId, Pageable pageable);
 }

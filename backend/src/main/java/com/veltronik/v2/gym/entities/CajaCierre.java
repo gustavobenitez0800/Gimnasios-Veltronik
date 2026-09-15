@@ -182,4 +182,45 @@ public class CajaCierre extends TenantAwareEntity {
      */
     @Column(name = "queda_en_caja")
     private BigDecimal quedaEnCaja;
+
+    /**
+     * El sello del terminal, cuando este cierre se hizo sin internet.
+     *
+     * <p>Es lo que hace que reintentar la subida no cree un segundo cierre. Y acá un
+     * duplicado no es una fila de más: el período del segundo arranca donde terminó el
+     * primero, así que cuenta CERO, y ese cero se convierte en el fondo de mañana y
+     * arrastra a todos los cierres siguientes.</p>
+     *
+     * <p>NULL en todo lo que se cerró con conexión.</p>
+     */
+    @Column(name = "client_ref", updatable = false)
+    private java.util.UUID clientRef;
+
+    /**
+     * El efectivo del período <b>según la cuenta del terminal</b> — la que vio quien cerró.
+     *
+     * <p>Sin internet la pantalla tiene que mostrar el número para que alguien pueda cerrar,
+     * y eso obliga a calcularlo también en el terminal: son dos cuentas de la misma plata.
+     * En vez de elegir cuál gana, se guardan las dos. La de acá es la del terminal; la de
+     * {@code esperadoEfectivo}, la del servidor.</p>
+     *
+     * <p><b>Que difieran no es un error a corregir, es información.</b> El terminal cuenta
+     * con lo último que bajó más lo que encoló; el servidor ve además lo que entró por el
+     * portal o por Mercado Pago durante el corte. Una diferencia dice exactamente eso, y
+     * esconderla sería inventar una precisión que no hubo.</p>
+     *
+     * <p>NULL cuando se cerró con conexión: ahí hay una sola cuenta.</p>
+     */
+    @Column(name = "esperado_segun_terminal")
+    private BigDecimal esperadoSegunTerminal;
+
+    /**
+     * Cuántos cobros contó el terminal en el período.
+     *
+     * <p>La otra mitad de la comparación: dos totales pueden coincidir contando distinta
+     * cantidad de cobros —uno de más y otro de menos que se compensan— y eso también hay que
+     * poder verlo.</p>
+     */
+    @Column(name = "cobros_segun_terminal")
+    private Integer cobrosSegunTerminal;
 }

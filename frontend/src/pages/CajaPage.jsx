@@ -68,6 +68,21 @@ const CATEGORIAS_INGRESO = ['Venta', 'Aporte', 'Otro'];
 
 const numero = (v) => Number(v || 0);
 
+/**
+ * La hora de un momento, para decir "según los datos de las 15:04".
+ *
+ * <p>Solo la hora y no la fecha: sin conexión el espejo es siempre del mismo día de trabajo,
+ * y una fecha completa ahí ocupa lugar sin agregar nada. Si algo saliera mal al leerlo,
+ * devuelve vacío en vez de romper la pantalla de la caja.</p>
+ */
+const horaCorta = (iso) => {
+  try {
+    return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
+
 export default function CajaPage() {
   const { showToast } = useToast();
   const { orgRole, profile } = useAuth();
@@ -275,10 +290,19 @@ export default function CajaPage() {
         retiroEfectivo: retiroNum,
         nota: null,
         cerradoPor: turno?.name || profile?.fullName || 'Sin identificar',
+        // ⭐ LO QUE ESTA PANTALLA MOSTRÓ, no lo que el servidor va a calcular. Viaja para
+        // quedar guardado AL LADO del número del servidor: si las dos cuentas difieren, eso
+        // queda registrado en vez de desaparecer. El que decide la plata sigue siendo el del
+        // servidor, que cuando recibe esto ya recibió todos los cobros del día.
+        esperadoSegunTerminal: enElCajon,
+        cobrosSegunTerminal: numero(abierto?.cantidadCobros),
       });
       setConfirmando(false);
       setRetiro('');
       setResultado(cierre);
+      if (cierre?.encolado) {
+        showToast('Caja cerrada. Se manda sola cuando vuelva internet.', 'success');
+      }
       cargar();
       cargarBalance(periodo);
     } catch (err) {
@@ -416,6 +440,25 @@ export default function CajaPage() {
            La única decisión del cierre. Todo lo de arriba lo calculó el sistema. */}
       <div className="card caja-distribucion">
         <h3><Icon name="dollarSign" size="1em" /> Distribución del efectivo en caja</h3>
+
+        {/* ⭐ REGLA 6 DE LA FASE 3: ningún total se muestra como si fuera completo cuando no
+            lo es. Sin conexión estos números salen de lo último que bajó más lo que este
+            equipo tiene sin subir — le falta lo que haya entrado por el portal o por Mercado
+            Pago durante el corte. Para el CAJÓN no cambia nada (esa plata nunca pasó por
+            ahí), y por eso se puede cerrar igual; pero decirlo sin aclararlo sería inventar
+            una precisión que no hubo.
+
+            En ámbar y no en rojo, y sin tocar los números: es el estado de la casa, no un
+            problema con la plata. Mismo criterio que el cartel del mostrador. */}
+        {abierto?.incompleto && (
+          <p className="form-hint caja-sin-conexion">
+            Sin conexión: la cuenta sale de los datos de{' '}
+            <strong>{horaCorta(abierto.bajadoEn)}</strong>
+            {abierto.enCola > 0 && <> más {abierto.enCola} movimiento{abierto.enCola === 1 ? '' : 's'} de este equipo</>}
+            . El efectivo del cajón está completo; puede faltar lo que haya entrado por el
+            portal o por Mercado Pago. Se puede cerrar igual.
+          </p>
+        )}
 
         {/* La cuenta a la vista: sin esto, "en el cajón" es un número que hay que creer. */}
         <ul className="caja-cuenta">
