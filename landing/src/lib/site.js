@@ -59,6 +59,22 @@ export const waLink = (mensaje = 'Hola! Vi Veltronik en la web y quiero saber m�
     : null
 );
 
+/**
+ * Las redes, para el pie y para `sameAs` de los datos estructurados.
+ *
+ * <p><b>Para qué sirve declararlas en el schema.</b> `sameAs` le dice a Google que el canal
+ * y este sitio son la misma organización. No es decorativo: cuando empiecen a subirse videos,
+ * el buscador ya sabe de antemano que son de acá, en vez de tener que deducirlo.</p>
+ *
+ * <p>⚠️ Se linkean, pero <b>no se promete contenido que todavía no está</b>. Al 16/09/2026 el
+ * canal está vacío. El día que tenga videos de capacitación, ahí sí vale sumarlo al FAQ
+ * —"¿es difícil de usar?" es una pregunta real que hoy la web no contesta— y a la página de
+ * descarga. Antes no: un link a un canal vacío es una promesa incumplida en un click.</p>
+ */
+export const REDES = {
+  youtube: 'https://www.youtube.com/@Veltronik-p5r',
+};
+
 export const NAV = [
   { href: '/#funciones', label: 'Funciones' },
   { href: '/molinete-facial', label: 'Molinete facial' },

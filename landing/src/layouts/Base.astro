@@ -4,7 +4,7 @@
 // Cada página está OBLIGADA a pasar su propio title y description: dos páginas con el
 // mismo título compiten entre sí en Google y ninguna gana. Por eso no hay valores por
 // defecto para esos dos — si falta uno, se ve en el build.
-import { SITE_URL, appRoute, NAV, CONTACTO } from '../lib/site.js';
+import { SITE_URL, appRoute, NAV, CONTACTO, REDES, waLink } from '../lib/site.js';
 import '../styles/global.css';
 
 const { title, description, image = '/logo.png', noindex = false, schema } = Astro.props;
@@ -100,7 +100,13 @@ const year = new Date().getFullYear();
             <ul>
               <li><a href={appRoute('/register')}>Crear cuenta</a></li>
               <li><a href={appRoute('/')}>Ingresar al sistema</a></li>
+              {waLink() && <li><a href={waLink()}>WhatsApp</a></li>}
               <li><a href={`mailto:${CONTACTO.email}`}>Contacto</a></li>
+              {/*
+                rel="noopener": sin esto, la página que se abre puede manipular la nuestra a
+                través de window.opener. Es gratis ponerlo y no hay razón para no hacerlo.
+              */}
+              <li><a href={REDES.youtube} target="_blank" rel="noopener">YouTube</a></li>
             </ul>
           </div>
         </div>

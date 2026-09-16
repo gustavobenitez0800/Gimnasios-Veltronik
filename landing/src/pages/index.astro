@@ -1,7 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import { appRoute, SITE_URL, CONTACTO, waLink } from '../lib/site.js';
+import { appRoute, SITE_URL, CONTACTO, REDES, waLink } from '../lib/site.js';
 import { getPlanes, formatoPrecio } from '../lib/plans.js';
 
 // El precio lo trae el backend en build time. Ver src/lib/plans.js para el porqué.
@@ -115,6 +115,9 @@ const schema = {
       logo: `${SITE_URL}/logo.png`,
       email: CONTACTO.email,
       areaServed: 'AR',
+      // sameAs le dice a Google que el canal es de esta misma organizacion. Hoy esta
+      // vacio; declararlo igual hace que el dia que tenga videos ya esten asociados.
+      sameAs: [REDES.youtube],
     },
     {
       '@type': 'FAQPage',
