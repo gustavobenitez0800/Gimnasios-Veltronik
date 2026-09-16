@@ -42,20 +42,23 @@ const RESPALDO = [{
 /**
  * Afirmaciones del catálogo que HOY no son ciertas y no se publican.
  *
- * ⚠️ ESTO ES UN PARCHE, NO LA SOLUCIÓN. El arreglo de verdad es sacar la frase de
- * PlanCatalog.java en el backend.
+ * ✅ **La lista está vacía desde el 2026-09-16, y es una buena noticia.**
  *
- * El caso: el catálogo promete "Sigue funcionando sin internet". Era cierto cuando
- * existía el circuito local-first, pero eso se borró entero en la V43 y hoy no queda
- * cola offline en el código (se buscó: no hay). O sea que la frase quedó prometiendo
- * algo que el sistema ya no hace — y no solo acá: se la está mostrando a los clientes
- * en el muro de pago del portal, que es literalmente la pantalla donde deciden pagar.
+ * Tenía una sola entrada: `/sin internet/i`. El catálogo prometía "Sigue funcionando sin
+ * internet" y era falso — el circuito local-first se había borrado entero en la V43 —, así
+ * que se filtraba acá para que la landing no se contradijera con su propio FAQ.
  *
- * Se filtra acá porque una landing pública no puede contradecirse: el FAQ de esta
- * misma página contesta, con todas las letras, que Veltronik necesita conexión.
- * Prometer lo contrario tres bloques más arriba es peor que no decir nada.
+ * **Volvió a ser cierto, y esta vez de punta a punta.** Entre el 6 y el 15 de septiembre se
+ * construyó el núcleo local: el mostrador cobra, da de alta, registra accesos y salidas,
+ * anota egresos y cierra la caja sin conexión, todo con el momento real y subiendo en orden
+ * cuando vuelve la red. Ver `docs/FASE3-CAMINOS.md`.
+ *
+ * ⚠️ **El filtro se deja vacío en vez de borrar el archivo entero.** Es el lugar donde va a
+ * ir la próxima frase del catálogo que se adelante a lo construido, y este proyecto ya
+ * demostró que eso pasa: una promesa quedó publicada meses después de que dejara de ser
+ * verdad. Tener el gancho puesto es más barato que volver a inventarlo.
  */
-const NO_PUBLICABLES = [/sin internet/i];
+const NO_PUBLICABLES = [];
 
 const esPublicable = (feature) => !NO_PUBLICABLES.some((re) => re.test(feature));
 

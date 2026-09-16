@@ -26,12 +26,38 @@ export const appRoute = (ruta = '/') => `${APP_URL}/#${ruta}`;
 
 export const REPO = 'gustavobenitez0800/Gimnasios-Veltronik';
 
-/** Contacto. TODO: reemplazar por el WhatsApp comercial real. */
 export const CONTACTO = {
   email: 'veltronikcompany@gmail.com',
-  // Formato internacional sin espacios ni signos: 549 + código de área + número.
-  whatsapp: '', // ← vacío = no se muestra el botón. Cargar cuando haya número.
+  /**
+   * Formato internacional sin espacios ni signos: `549` + código de área + número,
+   * los dos SIN el 0 ni el 15.
+   *
+   * <p>El `9` después del 54 no es opcional ni decorativo: es lo que distingue un celular
+   * de un fijo en Argentina. Sin él, WhatsApp no encuentra el contacto y el botón abre una
+   * conversación vacía con un número que no existe.</p>
+   *
+   * <p>Vacío = el botón no se muestra. Un botón de WhatsApp que no abre nada es peor que
+   * no tener botón: el que quería escribirte ya se fue.</p>
+   */
+  whatsapp: '5493756417238',
 };
+
+/**
+ * El link de WhatsApp, con el mensaje ya escrito.
+ *
+ * <p><b>Por qué el texto va precargado.</b> El que llega desde la web no sabe cómo
+ * arrancar la conversación, y un chat en blanco es donde se cae la mitad de las consultas.
+ * Con el mensaje puesto, solo tiene que apretar enviar — y del otro lado se sabe de qué
+ * página vino, que es media respuesta adelantada.</p>
+ *
+ * @returns el link, o `null` si no hay número cargado. Quien lo use tiene que contemplar
+ *          el null: es lo que apaga el botón en vez de dejarlo roto.
+ */
+export const waLink = (mensaje = 'Hola! Vi Veltronik en la web y quiero saber más.') => (
+  CONTACTO.whatsapp
+    ? `https://wa.me/${CONTACTO.whatsapp}?text=${encodeURIComponent(mensaje)}`
+    : null
+);
 
 export const NAV = [
   { href: '/#funciones', label: 'Funciones' },
