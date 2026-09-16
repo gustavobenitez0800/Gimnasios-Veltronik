@@ -8,7 +8,19 @@
     <meta name="description" content="Veltronik - Plataforma de gestión para gimnasios. Socios, cuotas, clases, control de acceso, pagos y reportes." />
     <meta name="keywords" content="gestión gimnasio, software para gimnasios, control de acceso, cuotas, socios, Veltronik" />
     <meta name="author" content="Veltronik" />
-    <meta name="robots" content="index, follow" />
+    <!-- ⛔ EL PORTAL NO SE INDEXA, Y NO ES UNA PRECAUCIÓN VAGA.
+         Esto es la APLICACIÓN: la pantalla de login de los clientes, el check-in por QR que
+         escanean los socios, el muro de cobro. Nada de eso tiene por qué aparecer en Google
+         — y si aparece, lo que pasa es lo contrario de lo que queremos: alguien que busca
+         "software para gimnasios" cae en un formulario de login que no entiende, en vez de
+         en veltronik.com.ar, que es la página hecha para explicarle qué es esto.
+
+         ⚠️ Y POR ESO NO HAY UN robots.txt CON Disallow ACÁ. Suena más contundente y es peor:
+         un Disallow impide que el buscador ENTRE, así que nunca llega a leer este noindex —
+         y una URL que alguien linkeó desde afuera puede terminar indexada igual, sin título
+         ni descripción, que es la peor versión posible. Para que no se indexe hay que
+         dejarlo pasar y que lea el cartel. -->
+    <meta name="robots" content="noindex, nofollow" />
 
     <!-- Open Graph -->
     <meta property="og:title" content="Veltronik | Plataforma de Gestión de Negocios" />
