@@ -114,10 +114,18 @@ jobs:
           # 3. ⚠️ UNA VARIABLE CON EL SECRET VACÍO ES PEOR QUE NO PONERLA. Si el Secret no
           #    existe en GitHub, `${{ secrets.X }}` se resuelve a cadena vacía y pisa el
           #    default de application.properties con "". Por eso NO están acá
-          #    FOUNDER_EMAILS, TRIAL_DAYS, MP_ENFORCE_SIGNATURE ni los BILLING_*: sus
-          #    defaults ya son los valores correctos (45000 el plan básico, premium oculto,
-          #    firma de webhook exigida, 14 días de prueba). Agregarlos sin cargar el Secret
-          #    los rompería en silencio.
+          #    FOUNDER_EMAILS, TRIAL_DAYS, MP_ENFORCE_SIGNATURE ni los BILLING_*.
+          #
+          #    ⚠️ CORREGIDO EL 2026-09-16: este comentario decía que "sus defaults ya son
+          #    los valores correctos (45000 el plan básico, premium oculto)" y hacía rato
+          #    que era falso — en producción se cobraban 55000, el premium estaba prendido
+          #    y valía 145000. Esos tres valores vivían SOLO en la consola de Cloud Run,
+          #    puestos a mano, y el repo decía otra cosa.
+          #
+          #    Ahora los defaults de application.properties SON los precios reales, así que
+          #    perder las variables de entorno ya no baja el precio en silencio. Si alguien
+          #    cambia un precio en la consola, que lo cambie TAMBIÉN en el repo — si no,
+          #    vuelve a abrirse la misma grieta.
           #
           # Nota: `JWT_SECRET` estaba acá por herencia de Railway y se sacó — este backend
           # valida los tokens con JWKS asimétrico (veltronik.jwt.jwks-uri), no con un secreto

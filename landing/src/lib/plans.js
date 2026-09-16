@@ -19,20 +19,30 @@ const API = import.meta.env.PUBLIC_API_URL || 'https://v2-backend-7rpsadmoka-rj.
 /**
  * Respaldo si el backend no contesta durante el build.
  *
- * No es un precio inventado: es el mismo default que tiene BillingProperties en el
- * backend (`veltronik.billing.monthly-price:45000`). Si algún día se separan, manda el
+ * No es un precio inventado: es el mismo default que tiene `BillingProperties` en el
+ * backend (`veltronik.billing.monthly-price`). Si algún día se separan, manda el
  * backend — este valor solo evita que la página de precios salga en blanco.
+ *
+ * ⚠️ **Y por eso hay que actualizarlo junto con el del backend, siempre.** Hasta el
+ * 2026-09-16 acá decía 45.000 mientras se cobraban 55.000: si Cloud Run hubiera estado
+ * frío durante un build, la web habría publicado un precio 18% más barato que el real —
+ * y alguien podría haberse suscripto mirando ese número.
+ *
+ * ⛔ El respaldo tiene UN solo plan a propósito: si el backend no contesta, no hay forma
+ * de saber si el premium está disponible hoy. Publicar un plan que tal vez no se puede
+ * comprar es peor que no mostrarlo.
  */
 const RESPALDO = [{
   code: 'BASICO',
   name: 'Veltronik',
   tagline: 'Todo lo que necesitás para manejar el gimnasio.',
-  price: 45000,
+  price: 55000,
   features: [
     'Gestión ilimitada de socios activos',
     'Control de caja y pagos mensuales',
     'Dashboard con las métricas del negocio',
     'Registro de asistencia y accesos',
+    'Sigue funcionando sin internet',
     'Múltiples perfiles de usuario por equipo',
     'Soporte técnico y asistencia prioritaria',
     'Nuevas funciones y actualizaciones gratis',

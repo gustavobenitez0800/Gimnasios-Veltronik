@@ -41,7 +41,7 @@ public class BillingProperties {
     private final int trialDays;
 
     public BillingProperties(
-            @Value("${veltronik.billing.monthly-price:45000}") BigDecimal monthlyPrice,
+            @Value("${veltronik.billing.monthly-price:55000}") BigDecimal monthlyPrice,
             @Value("${veltronik.billing.trial-days:14}") int trialDays,
             // Cadena de respaldo a propósito: `cors.frontend-url` es la variable histórica, pero
             // no está definida en application.properties, así que si nadie la setea caía SIEMPRE
