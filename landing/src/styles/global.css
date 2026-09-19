@@ -130,7 +130,9 @@ section { padding: clamp(56px, 8vw, 96px) 0; }
   color: var(--text-primary); letter-spacing: -.02em;
 }
 .nav-logo:hover { color: var(--text-primary); }
-.nav-logo img { width: 28px; height: 28px; border-radius: 6px; }
+/* El logo es vertical (600x776): se respeta su proporción. Es la versión clara porque el
+   original, azul marino, casi no se ve sobre este fondo. */
+.nav-logo img { height: 28px; width: auto; }
 .nav-links { display: flex; gap: 1.4rem; margin-left: auto; }
 .nav-links a { color: var(--text-muted); font-size: .93rem; font-weight: 500; }
 .nav-links a:hover { color: var(--text-primary); }
