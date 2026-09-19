@@ -180,4 +180,55 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     int asignarArancel(@Param("tenantId") UUID tenantId,
                        @Param("ids") java.util.Collection<UUID> ids,
                        @Param("plan") com.veltronik.v2.gym.entities.GymPlan plan);
+
+    // ── Para el importador (V84) ───────────────────────────────────────────────
+
+    /**
+     * Los documentos de los socios que están en la papelera, ya normalizados.
+     *
+     * <p>Si un archivo trae a alguien que se borró, el importador lo da de alta de nuevo —y
+     * avisa—: si era la misma persona, conviene restaurarla, porque así recupera su historia
+     * de visitas y cobros. Misma limpieza que {@link #findByDocumentoNormalizado}.</p>
+     */
+    @Query(value = """
+            SELECT DISTINCT UPPER(regexp_replace(m.document, '[^0-9A-Za-z]', '', 'g'))
+              FROM gym_member m
+             WHERE m.tenant_id = :tenantId
+               AND m.deleted_at IS NOT NULL
+               AND m.document IS NOT NULL
+            """, nativeQuery = true)
+    List<String> documentosEnPapelera(@Param("tenantId") UUID tenantId);
+
+    /**
+     * Cuáles de estos socios tienen al menos un cobro registrado en Veltronik.
+     *
+     * <p>Para dos reglas del importador: a quien ya cobra por Veltronik el archivo no le mueve
+     * el vencimiento (lo mueven los cobros), y un socio creado por una importación que ya
+     * cobró no se puede deshacer.</p>
+     */
+    @Query(value = "SELECT DISTINCT p.member_id FROM gym_payment p WHERE p.member_id IN (:ids)",
+            nativeQuery = true)
+    List<UUID> conCobros(@Param("ids") java.util.Collection<UUID> ids);
+
+    /** Cuáles de estos socios ya pasaron por la puerta. Registrar una entrada no toca al socio. */
+    @Query(value = "SELECT DISTINCT a.member_id FROM access_log a WHERE a.member_id IN (:ids)",
+            nativeQuery = true)
+    List<UUID> conAccesos(@Param("ids") java.util.Collection<UUID> ids);
+
+    /**
+     * ⚠️ El ÚNICO borrado definitivo de socios del sistema, y es a propósito.
+     *
+     * <p>Desde la V80 borrar un socio lo manda a la papelera: se conserva su historia. Esto es
+     * otra cosa — deshacer una importación. Los socios que borra los creó la importación y el
+     * servicio verificó antes que nadie los tocó después: sin cobros, sin entradas, sin
+     * ediciones. No hay historia que conservar, y mandarlos a la papelera dejaría 400 fichas
+     * fantasma que el dueño nunca cargó.</p>
+     *
+     * <p>Si algo los referencia igual (una tabla sin cascada), la base rechaza el borrado y la
+     * transacción entera vuelve atrás: nunca queda un deshacer a medias.</p>
+     */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM GymMember m WHERE m.tenant.id = :tenantId AND m.id IN :ids")
+    int borrarLosQueCreoUnaImportacion(@Param("tenantId") UUID tenantId,
+                                       @Param("ids") java.util.Collection<UUID> ids);
 }

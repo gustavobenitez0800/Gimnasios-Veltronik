@@ -170,8 +170,8 @@ public class CheckinService {
      * más— y son la misma persona. Se limpian los DOS lados y recién ahí se comparan.</p>
      */
     static String normalizarDocumento(String raw) {
-        if (raw == null) return "";
-        return raw.replaceAll("[^0-9A-Za-z]", "").toUpperCase();
+        // La regla vive en Documento: el importador compara documentos con la misma vara.
+        return Documento.normalizar(raw);
     }
 
     private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc, UUID scannerId) {
