@@ -1,152 +1,118 @@
 # 📋 Tareas manuales — Gustavo
 
-> Lo que **solo vos** podés hacer (paneles, credenciales, decisiones de deploy).
-> Actualizado: 2026-08-15. Tachá con `[x]` a medida que completes.
+> Lo que **solo vos** podés hacer: paneles, credenciales, pruebas con la app en la mano y
+> decisiones. Actualizado: **2026-09-19**. Tachá con `[x]` a medida que avances.
+>
+> La versión anterior (15/08) se reemplazó entera: hablaba de Railway, del kiosco y de un
+> flujo de releases que ya no existe. Está en la historia de git si hace falta.
 
 ---
 
-## 🆕 Tanda del plan (2026-08-15) — qué hay que mirar al deployar
+## 🔴 1. Rotar la contraseña de la base — urgente
 
-**Buena noticia: no hay ninguna variable de entorno nueva ni ningún panel que tocar.**
-El logo del gimnasio se guarda en la propia base (el navegador lo recorta y comprime
-antes de mandarlo), justamente para no depender de un bucket de Supabase Storage que
-haya que crear y configurar a mano.
+El repositorio es **público** y `scripts/.env.migration` (commit `c469ebb`, borrado en
+`6652c1a`) dejó en la historia de git dos cadenas de conexión de Postgres **con contraseña**.
+Borrarlo no las sacó: siguen legibles. Rotar es lo único que cierra el agujero.
 
-- [ ] Al mergear, verificar en los logs de Railway que aplicó la **V44 — Gym Identity
-      And Logo**. Es aditiva y reversible: ensancha `logo_url` a TEXT, agrega
-      `logo_emoji` y le pone DEFAULT `'GYM'` a `business_type`. **No dropea nada.**
-- [ ] Smoke del alta: "Registrá tu Gimnasio" tiene que ser **un solo paso** (ya no
-      pregunta "¿qué tipo de negocio tenés?" ni ofrece "← Cambiar tipo").
-- [ ] Smoke del logo: subir una imagen en el alta → tiene que aparecer en la tarjeta
-      del lobby. Sin imagen, tiene que salir el emoji (nunca el logo viejo de Veltronik).
-- [ ] Smoke en el CELULAR (esto es lo importante de esta tanda): entrar a una sucursal
-      y confirmar que **el menú de hamburguesa abre** y que las acciones rápidas
-      responden al tacto. Antes no respondía nada.
-- [ ] Smoke del borrado en el celular: tocar el tacho de una sucursal de prueba → el
-      diálogo tiene que quedar **centrado y arriba del teclado**, con el campo y el
-      botón alcanzables.
+Hacerlo **a primera hora** (el gimnasio está vacío): entre el paso 2 y el 4 el backend queda
+sin base unos 3–5 minutos.
 
-> Nota sobre `business_type`: la columna sigue en la base a propósito (con default del
-> lado del servidor). El dueño ya no la ve ni la contesta en ningún lado, y la API ya
-> no la acepta. El motivo de no dropearla está escrito en la propia migración V44.
+- [ ] 1. Supabase → *Project Settings* → *Database* → **Reset database password**. Copiala.
+- [ ] 2. GitHub → el repo → *Settings* → *Secrets and variables* → *Actions*: actualizar
+      **`DB_PASSWORD`** y **`DB_URL`** (la URL lleva la contraseña adentro).
+- [ ] 3. *Actions* → **Deploy to Google Cloud Run** → *Run workflow* sobre `main`.
+- [ ] 4. Cuando termine: abrir la app y cobrar algo de prueba (o mirar que el lobby cargue).
+- [ ] 5. Supabase → *Logs* → conexiones a la base: mirar si hubo accesos que no reconozcas.
 
----
+ℹ️ **El backup no se toca.** Usa su propio rol (`veltronik_backup`) con su propia clave
+(`.clave-backup`), creado el 15/09, después de la filtración. Rotar la de `postgres` no lo
+afecta.
 
-## 🔴 0. LO MÁS URGENTE — el fix de pagos todavía no está en producción
+⛔ La contraseña no se pega en ningún chat.
 
-La rama **ya está pusheada** (2026-07-27). Lo que falta es abrir el PR, esperar el verde
-y mergear. Hasta que eso pase, en producción siguen vivos estos tres bugs de plata:
+## 🔴 2. El 30/09 — la renovación de SEKUR
 
-- El muro de pago **deja entrar sin pagar** al tocar "Reactivar Suscripción".
-- El cobro **sale contra la sucursal equivocada** (o contra ninguna).
-- Mercado Pago devuelve al cliente a una URL que la app no resuelve → no ve
-  "pago confirmado" y **vuelve a intentar el pago** (más intentos = más rechazos de MP).
+Es el primer cobro recurrente que pasa por Cloud Run (el webhook se verificó con el
+simulador, pero el evento real `subscription_authorized_payment` entra por otro camino).
 
-**Pasos (en este orden):**
+- [ ] El 30/09 (o el 1/10): en el panel, que el período de SEKUR se haya corrido a octubre.
+- [ ] Si se renovó bien → **apagar Railway**, que seguís pagando sin usar.
+- ℹ️ Si la tarjeta rebota, desde la V85 SEKUR tiene **12 días** de gracia, no 3: Mercado Pago
+  reintenta durante 10.
 
-- [ ] Abrir el PR: https://github.com/gustavobenitez0800/Gimnasios-Veltronik/pull/new/feat/etapa1-limpieza-baja-futbol5
-      ⚠️ El PR es **obligatorio para que corra el CI**: `ci.yml` solo se dispara en PRs,
-      en `main`, o a mano. Pushear una rama sola NO lo dispara.
-- [ ] Esperar **CI verde** (backend `mvn verify` + frontend lint/build). Local ya está:
-      179 tests verdes, lint en 0, build OK.
-- [ ] Merge a `main` → Railway deploya solo y corre la **V40**.
-      ⚠️ **V40 es IRREVERSIBLE**: dropea las tablas `court_*` y borra los negocios
-      FUTBOL_5 (tus pruebas). Ya lo aprobaste; esto es el recordatorio.
-- [ ] Verificar en los logs de Railway: `Flyway ... V40` aplicada y app UP.
-- [ ] **Revisar en Mercado Pago** si en estas semanas se crearon suscripciones contra la
-      sucursal equivocada. El código ya no las genera, pero las que se hayan creado mal
-      siguen ahí.
-- [ ] Confirmarme **cuál variable de URL tenés seteada en Railway** (`CORS_FRONTEND_URL`
-      o `FRONTEND_URL`) y con qué valor. El código ahora funciona con cualquiera de las dos;
-      si ninguna está puesta usa la URL de Vercel por defecto. De ahí sale la dirección a la
-      que MP devuelve al cliente después de pagar.
+## 🧪 3. Probar con la app en la mano
 
----
+Todo esto tiene tests en verde, y ninguno lo usó nunca un humano. El 15/09 un bug del
+cierre offline apareció solo al probarlo en una máquina real, con 462 tests pasando.
 
-## 1. Supabase (para que funcionen "olvidé mi contraseña" y Google)
+- [ ] **Alta de cuenta** — con el alias `gustavobenitezlink+prueba1@gmail.com` (la cuenta
+      habitual daría el camino de la sucursal adicional). Faltan:
+  - [ ] 2b. *Ajustes*: tiene que decir `30/09/2026 (14 días de prueba restantes)` — o la
+        fecha que corresponda al día del alta + 14.
+  - [ ] 3. Cargar un socio y cobrarle: tiene que quedar al día.
+  - [ ] 4. **Segunda sucursal** con el mismo usuario: el lobby dice "Sumá otro local", NO
+        regala prueba y al entrar pide el pago.
+- [ ] **Importar socios** — en la cuenta de prueba: crear los aranceles "Pase libre",
+      "Musculación 3 veces", "Funcional" y "Personalizado", y en *Socios → Importar* subir
+      `OneDrive\Veltronik-Ventas\Gimnasio demo - socios.xlsx`. Esperado: 120 nuevos, 0
+      errores. Después probar **Deshacer**, y volver a importarlo.
+- [ ] **Offline de punta a punta** — los seis caminos con el wifi apagado (llegaste al paso 3).
+- [ ] **Check-in por QR** desde un celular.
+- [ ] **Restaurar el backup** ahora que la base tiene la V85.
 
-Panel: https://supabase.com/dashboard → tu proyecto → **Authentication**
+## 🔍 4. Dos consultas para el SQL Editor de Supabase
 
-- [ ] **URL Configuration → Site URL**: poner el dominio web de producción
-      (`https://gimnasio-veltronik-veltroniks-projects.vercel.app` o tu dominio custom si tenés).
-- [ ] **URL Configuration → Redirect URLs**: agregar `https://<tu-dominio-vercel>/**`
-      (con los `/**` al final — cubre `#/reset-password`, el retorno del OAuth **y el
-      retorno del login de escritorio**, que cae en `#/desktop-auth`).
-      ⚠️ Si preferís no usar el comodín, entonces agregá explícitamente
-      `https://<tu-dominio-vercel>/#/desktop-auth`: **sin esa URL en la lista, el login
-      con Google desde la app de escritorio rebota** y el usuario nunca vuelve a la app.
-- [ ] **Providers → Google → Enable**: pegar el Client ID y Client Secret que salen del paso 2.
+Lo que los tests no pueden ver: el estado REAL de producción. Correrlas **después** del
+próximo deploy.
 
-### 1.b. Confirmarme cuál es el dominio REAL del portal
+- [ ] Los dos triggers de `auth.users` existen (la V48 avisaba que el de borrado podía no
+      instalarse por permisos):
 
-Hay dos URLs dando vueltas y no coinciden:
+  ```sql
+  SELECT t.tgname, t.tgenabled
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'auth' AND c.relname = 'users' AND NOT t.tgisinternal;
+  ```
+  Esperado: `on_auth_user_created` y `on_auth_user_deleted`, los dos con `O`.
 
-| Dónde | Valor |
-|---|---|
-| `frontend/src/lib/config.js` (fallback que hoy manda) | `https://veltronik-v2.vercel.app` |
-| `frontend/package.json` → `homepage` | `https://gimnasio-veltronik-veltroniks-projects.vercel.app` |
+- [ ] La V83 quedó aplicada (quien entra con Google tiene nombre):
 
-`VITE_PUBLIC_WEB_URL` **no está seteada en ningún lado** (ni en los `.env` ni en los
-secrets del release), así que gana el fallback. De esa URL dependen tres cosas ahora:
-el botón de pago de la app de escritorio, el retorno del login con Google, y la lista
-blanca de `frontend/electron/portal.cjs`. Por las dudas quedaron las dos permitidas.
+  ```sql
+  SELECT prosrc LIKE '%full_name%' AS lee_full_name FROM pg_proc WHERE proname = 'handle_new_user';
+  ```
+  Esperado: `true`.
 
-- [ ] Decirme cuál es la buena → la dejo en una sola y la seteo como
-      `VITE_PUBLIC_WEB_URL` en los secrets del release.
+## 🪧 5. Los carteles de check-in
 
-## 2. Google Cloud Console (credenciales para "Continuar con Google")
+- [ ] Rotar los tokens de los 5 carteles de `checkin_point` (pendiente desde que se cerró el
+      RLS el 6/9: con la clave `anon` se podían leer). ⚠️ **Al rotar, el QR impreso deja de
+      andar**: hay que reimprimir el cartel en el gimnasio. Coordinarlo con cada uno.
 
-Panel: https://console.cloud.google.com → APIs & Services
+## 🤔 6. Decisiones que solo podés tomar vos
 
-- [ ] **OAuth consent screen**: completarla si no está (nombre "Veltronik", logo, dominios).
-- [ ] **Credentials → Create Credentials → OAuth client ID** (tipo **Web application**):
-      en "Authorized redirect URIs" poner **exactamente**
-      `https://<project-ref>.supabase.co/auth/v1/callback`
-      (el `<project-ref>` es el subdominio de tu URL de Supabase).
-- [ ] Copiar Client ID + Secret → pegarlos en Supabase (paso 1, último ítem).
+- [ ] **Pago adelantado: ¿se suma o arranca de cero?** Hoy se suma (31 días que quedaban + 31
+      nuevos = 62). Abierto desde el 7/09.
+- [ ] **Las 6 preguntas al proveedor de hardware.** La sexta —¿da plazo de pago?— decide el
+      modelo entero (comisión o comprar a gremio).
+- [ ] **El dominio a tu nombre.** `veltronik.com.ar` figura a nombre de DATTATEC.COM S.R.L.
+      Se pide el cambio a tu CUIT: es un trámite.
+- [ ] **¿Repo privado?** Hoy es público: se lee todo el código. Hacerlo privado tiene dos
+      consecuencias que hay que resolver ANTES del clic:
+      - **Rompe las actualizaciones automáticas** de todos los clientes: la app baja las
+        versiones de las releases de este repo. Primero hay que mudar las releases a un repo
+        público aparte (es trabajo mío, y necesita que crees ese repo y un token).
+      - **GitHub Actions deja de ser gratis ilimitado**: un repo privado tiene 2.000
+        minutos/mes, y el build de Windows cuenta doble.
 
-## 3. Railway (limpieza de variables sin uso)
+## 🛠️ 7. Pendientes técnicos que quedaron afuera a propósito (no son tareas tuyas)
 
-Panel: https://railway.app → servicio del backend → Variables
-
-- [ ] Borrar `GEMINI_API_KEY` (era del bot de canchas — eliminado).
-- [ ] Borrar `GEMINI_MODEL`.
-- [ ] Borrar `WHATSAPP_VERIFY_TOKEN`.
-- [ ] Borrar `WHATSAPP_GRAPH_VERSION`.
-
-**Pendientes de ANTES (verificá si ya los hiciste):**
-- [ ] `VELTRONIK_FISCAL_MASTER_KEY` — necesaria para el onboarding fiscal ARCA (del pulido del 06/07).
-- [ ] `FOUNDER_EMAILS` — solo si entrás a Mission Control con otro email que no sea el default.
-
-## 4. Smoke en producción (después del merge del punto 0)
-
-- [x] ~~Pushear la rama~~ — hecho el 2026-07-27.
-- [ ] Smoke en la web: login, lobby con logos correctos, crear negocio dice
-      "Registrá tu negocio", NO aparece "Cancha de Fútbol" en el onboarding.
-- [ ] Probar **borrar un negocio de prueba** → ya no debe dar el error 409.
-- [ ] **Probar el flujo de pago completo** con una sucursal bloqueada: tocar "Reactivar
-      Suscripción" → tiene que llevarte a la pantalla de pago (NO adentro del sistema) →
-      pagar → volver y ver "¡Pago Exitoso!".
-- [ ] Verificar que un kiosco ve "kiosco" y no "negocio" en Ajustes y en Planes.
-
-## 5. Después de configurar Supabase/Google (pruebas en vivo, en la web)
-
-- [ ] **Reset password**: pedir el mail → click en el link → debe abrir la página
-      "Restablecer Contraseña" y dejarte poner la clave nueva → login con la nueva.
-- [ ] **Google**: "Continuar con Google" → elegir cuenta → debe volver al Lobby logueado.
-
-## 6. Release de Electron (cuando decidas — lleva el logo nuevo al escritorio)
-
-- [ ] Subir versión en `frontend/package.json` (ej. 2.6.6 → 2.7.0).
-- [ ] Tag `v2.7.0` + push del tag → GitHub Actions arma el instalador (queda en **borrador**).
-- [ ] Probar el .exe del borrador en una máquina real (icono nuevo en barra de tareas,
-      login SIN botón de Google en escritorio, "olvidé contraseña" abre el navegador).
-- [ ] Publicar el borrador → la flota se actualiza sola por anillos.
-
----
-
-### Notas
-- El botón de Google en **Electron** quedó oculto a propósito (el OAuth de escritorio
-  necesita un protocolo custom — pendiente para una entrega futura). En la web funciona.
-- El logo azul marino tiene poco contraste sobre el tema oscuro de la app. Si querés
-  una variante clara para fondos oscuros, pedila en la Etapa 2.
+- **Firma sin conexión (ADR-012).** Hoy, sin internet y sin turno abierto, se cobra sin
+  firma (la caja nunca para). Hacerlo bien exige guardar si la firma fue verificada o
+  declarada y mostrarlo en el cierre: ~6 h. El agujero real es angosto (un lunes con
+  internet caído desde el domingo).
+- **Spring Boot 4.** El backend quedó en el último parche de la 3.2 con Tomcat y el driver al
+  día; la 3.2 ya no recibe parches propios. Pasar a la 4 es un proyecto aparte.
+- **electron-updater.** Quedan 5 avisos de seguridad, todos sin exposición real hoy. Se
+  actualiza junto con la mudanza de releases, que obliga a probar una actualización real.
