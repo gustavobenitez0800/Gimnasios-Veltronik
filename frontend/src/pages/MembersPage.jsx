@@ -13,12 +13,13 @@ import { memberService } from '../services/MemberService';
 import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
-import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete } from '../hooks';
+import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete, invalidateQueries } from '../hooks';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import CobroRapido from '../components/CobroRapido';
+import ImportarSocios from '../components/ImportarSocios';
 import { planService } from '../services/PlanService';
 import { getInitialMemberForm, mapMemberToForm } from '../controllers/formSocio';
 import { useAuth } from '../contexts/AuthContext';
@@ -155,6 +156,7 @@ export default function MembersPage() {
   // página: es una pantalla que se usa pocas veces al año, y no tiene por qué costarle un
   // pedido más a la pantalla más abierta del sistema.
   const [papelera, setPapelera] = useState(null);
+  const [importando, setImportando] = useState(false);
   const [cargandoPapelera, setCargandoPapelera] = useState(false);
   const [restaurando, setRestaurando] = useState(null);
 
@@ -581,6 +583,13 @@ export default function MembersPage() {
             {canDelete && (
               <button className="btn btn-secondary" onClick={abrirPapelera} title="Socios eliminados">
                 <Icon name="trash" /> Papelera
+              </button>
+            )}
+            {/* Mismo permiso que el backend (ImportacionSociosController): una importación
+                puede dar de alta cientos de socios o cambiarles el vencimiento a todos. */}
+            {canDelete && (
+              <button className="btn btn-secondary" onClick={() => setImportando(true)} title="Cargar socios desde un Excel">
+                <Icon name="fileText" /> Importar
               </button>
             )}
             <button className="btn btn-secondary" onClick={exportCSV}>
@@ -1064,6 +1073,19 @@ export default function MembersPage() {
           </div>
         )}
       </Modal>
+
+      {/* ─── IMPORTAR DESDE UN EXCEL ─── */}
+      <ImportarSocios
+        abierto={importando}
+        onCerrar={() => setImportando(false)}
+        onImportado={() => {
+          // Cambió el padrón entero de golpe: el listado, el panel y la retención.
+          invalidateQueries('members');
+          invalidateQueries('gym_dashboard');
+          invalidateQueries('retention_analytics');
+          refresh();
+        }}
+      />
 
       {/* ─── COBRAR, SIN IRSE DE ACÁ ─── */}
       <CobroRapido

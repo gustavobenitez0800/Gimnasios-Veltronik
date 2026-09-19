@@ -224,6 +224,47 @@ class MemberService {
     return data;
   }
 
+  // ── Importar socios desde un archivo (ver ImportacionSociosService.java) ──
+
+  /** Qué pasaría con cada fila. No escribe nada. */
+  async analizarImportacion(archivo, filas) {
+    const { data } = await apiClient.post('/gym/members/importacion/analizar', { archivo, filas });
+    return data;
+  }
+
+  /**
+   * Importa. Si el archivo tiene errores el backend responde 422 con el análisis entero y no
+   * escribe nada: se devuelve ese análisis para que la pantalla lo muestre igual que la vista
+   * previa, en vez de un cartel de error genérico.
+   *
+   * @returns {Promise<{ok: true, resultado} | {ok: false, analisis}>}
+   */
+  async importar(archivo, filas) {
+    try {
+      const { data } = await apiClient.post('/gym/members/importacion', { archivo, filas });
+      // Cientos de socios nuevos: el buscador de la puerta tiene que enterarse ya.
+      this.refrescarCopiaLocal();
+      return { ok: true, resultado: data };
+    } catch (error) {
+      if (error.response?.status === 422 && error.response.data?.filas) {
+        return { ok: false, analisis: error.response.data };
+      }
+      throw error;
+    }
+  }
+
+  /** La última importación del gimnasio y si se puede deshacer. null si nunca importó. */
+  async ultimaImportacion() {
+    const response = await apiClient.get('/gym/members/importacion/ultima');
+    return response.status === 204 ? null : response.data;
+  }
+
+  async deshacerImportacion(id) {
+    const { data } = await apiClient.post(`/gym/members/importacion/${id}/deshacer`);
+    this.refrescarCopiaLocal();
+    return data;
+  }
+
   /**
    * Búsqueda de socios para el modal de pagos y control de acceso.
    * Filtra en el BACKEND (SQL, endpoint paginado) en vez de traer TODOS los socios

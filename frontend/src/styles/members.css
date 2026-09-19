@@ -469,3 +469,81 @@
   border-top: 1px solid var(--border-color);
   animation: fadeIn var(--transition-fast) both;
 }
+
+/* ─── Importar socios (components/ImportarSocios.jsx) ─────────────────────── */
+
+.importar { display: flex; flex-direction: column; gap: 0.9rem; }
+.importar-chico { font-size: 0.82rem; }
+
+.importar-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+.importar-opcion {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-tertiary);
+}
+.importar-opcion h4 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+.importar-opcion p { margin: 0 0 0.6rem; font-size: 0.85rem; }
+.importar-elegir { align-self: flex-start; }
+
+.importar-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--border-radius-md);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.importar-aviso ul { margin: 0; padding-left: 1.1rem; }
+.importar-aviso svg { flex-shrink: 0; margin-top: 0.1rem; }
+.importar-aviso-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #fecaca; }
+.importar-aviso-atencion { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fde68a; }
+.importar-aviso-ok { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #bbf7d0; }
+
+.importar-numeros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
+.importar-numero {
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+.importar-numero-valor { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.importar-numero-texto { font-size: 0.8rem; color: var(--text-secondary); }
+.importar-numero-ok .importar-numero-valor { color: var(--success-500); }
+.importar-numero-info .importar-numero-valor { color: #60a5fa; }
+.importar-numero-error { border-color: rgba(239, 68, 68, 0.4); }
+.importar-numero-error .importar-numero-valor { color: var(--error-500); }
+.importar-numero-neutro .importar-numero-valor { color: var(--text-secondary); }
+
+.importar-columnas { line-height: 2; }
+.importar-columna {
+  display: inline-block;
+  margin: 0 0.3rem 0.2rem 0;
+  padding: 0 0.55rem;
+  border-radius: var(--border-radius-full);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  line-height: 1.7;
+}
+
+.importar-detalle summary { cursor: pointer; font-weight: 600; padding: 0.3rem 0; }
+.importar-tabla td { vertical-align: top; font-size: 0.87rem; }
+
+.importar-ultima {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--border-radius-md);
+  border: 1px dashed var(--border-color-hover);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 640px) {
+  .importar-numeros { grid-template-columns: repeat(2, 1fr); }
+  .importar-ultima { flex-direction: column; align-items: flex-start; }
+}
