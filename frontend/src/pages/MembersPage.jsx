@@ -670,13 +670,17 @@ export default function MembersPage() {
                 )}
                 <th>Nombre</th>
                 <th>DNI</th>
-                <th>Teléfono</th>
+                {/* Encabezados cortos A PROPÓSITO: a 1366px son ellos (y el select de Arancel) los que
+                    marcan el ancho mínimo de la tabla, no los datos. Medido el 2026-09-19: con los
+                    largos, la tabla pedía 1071px en 1012 y la columna que quedaba afuera era la
+                    de Acciones — el botón de Cobrar. Ver responsive.css, "el aire cede". */}
+                <th>Tel.</th>
                 <th>Estado</th>
                 {hayAranceles && <th>Arancel</th>}
-                <th>Asistencia</th>
+                <th className="col-asistencia">Asistencia</th>
                 <th>Días</th>
-                <th>Vencimiento</th>
-                <th>Acciones</th>
+                <th className="col-vence">Vence</th>
+                <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
@@ -768,13 +772,13 @@ export default function MembersPage() {
                           </select>
                         </td>
                       )}
-                      <td data-label="Asistencia">
+                      <td data-label="Asistencia" className="col-asistencia">
                         <DaySelector selectedDays={member.attendanceDays || []} readOnly />
                       </td>
                       <td data-label="Días">
                         <span className={`days-countdown ${daysInfo.className}`}>{daysInfo.text}</span>
                       </td>
-                      <td data-label="Vencimiento">{formatDate(member.membershipEnd)}</td>
+                      <td data-label="Vencimiento" className="col-vence">{formatDate(member.membershipEnd)}</td>
                       <td data-label="Acciones">
                         <div className="table-actions">
                           <button

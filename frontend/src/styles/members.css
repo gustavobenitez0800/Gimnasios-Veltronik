@@ -86,6 +86,24 @@
 /* Action Buttons */
 .table-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 
+/* En la tabla (no en las tarjetas del celular): una grilla FIJA de tres por renglón.
+   Con flex-wrap, cuando la tabla necesitaba espacio le sacaba ancho a esta celda y los
+   seis botones terminaban en dos, tres o seis renglones —una fila de socio de 237px de alto,
+   medido—. El nowrap que tenía la celda no lo evitaba: no le hace nada a un flex que parte.
+   Tres por renglón = como mucho dos renglones, siempre. */
+@media (min-width: 769px) {
+  .table .table-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 30px);
+  }
+}
+
+/* En un monitor grande sobra ancho: los seis en un renglón, filas más bajas y más socios por
+   pantalla. Desde 1700px entra con todas las columnas (medido: a 1920 sobran ~200px). */
+@media (min-width: 1700px) {
+  .table .table-actions { grid-template-columns: repeat(6, 30px); }
+}
+
 .action-btn-quick {
   width: 30px;
   height: 30px;
@@ -296,7 +314,11 @@
   padding: 0.3rem 0.4rem;
   font-size: 0.85rem;
   font-family: inherit;
-  max-width: 22ch;
+  /* Un <select> toma el ancho de su opción MÁS LARGA, no de la elegida: un solo arancel de
+     nombre largo ensanchaba la columna en todas las filas. El nombre entero está en el
+     title de la celda. (Era 22ch; con eso la tabla no entraba en 1366px.) */
+  max-width: 16ch;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -546,4 +568,12 @@
 @media (max-width: 640px) {
   .importar-numeros { grid-template-columns: repeat(2, 1fr); }
   .importar-ultima { flex-direction: column; align-items: flex-start; }
+}
+
+/* Un DNI o un teléfono partido en renglones no se lee: "3764 / 12- / 3456". Al acortar el
+   encabezado "Teléfono" a "Tel." la columna podía achicarse por debajo del número; esto le
+   pone el piso en el dato, que es donde tiene que estar. */
+.members-page td[data-label="DNI"],
+.members-page td[data-label="Teléfono"] {
+  white-space: nowrap;
 }

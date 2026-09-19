@@ -102,6 +102,32 @@ button, a, input, select, textarea, [role="button"] {
   .card:has(> .table-container) { padding: 1rem; }
 }
 
+/* Y SI EL AIRE NO ALCANZA, SE VAN COLUMNAS — en ese orden, como decía arriba.
+
+   Medido el 2026-09-19 con el peor caso real: el dueño (casilla de selección), aranceles de
+   nombre largo y los seis botones, con la cámara del molinete. Después de acortar los
+   encabezados y ponerle tope al select de Arancel, la tabla pide como mínimo:
+
+     · con todas las columnas ........ ~1060px
+     · sin Asistencia ................ ~950px
+     · sin Asistencia ni Vence ....... ~840px
+
+   y el contenedor mide el ancho de la ventana menos ~354px. Antes, a 1366px, pedía 1071 en
+   1012: la barra horizontal escondía la columna de Acciones — el botón de Cobrar.
+
+   Qué se va primero y por qué:
+     1. Asistencia: los días de la semana que viene el socio. Es lo que menos se mira
+        recorriendo la lista, y está en la ficha.
+     2. Vence: la fecha. La columna Días ("12d") dice lo mismo y es la que marca la
+        urgencia; la fecha exacta está en la ficha.
+   Lo que NUNCA se va es Acciones. */
+@media (min-width: 769px) and (max-width: 1449px) {
+  .col-asistencia { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1339px) {
+  .col-vence { display: none; }
+}
+
 /* Scroll horizontal de tablas con inercia nativa en iOS */
 .table-container {
   -webkit-overflow-scrolling: touch;
