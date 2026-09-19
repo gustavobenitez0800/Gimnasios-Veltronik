@@ -10,7 +10,6 @@
 const { app, BrowserWindow, ipcMain, dialog, session, Menu, shell, screen } = require('electron');
 const path = require('path');
 const { initAutoUpdater } = require('./updater.cjs');
-const deviceManager = require('./device-manager.cjs');
 const { isAllowedUrl } = require('./portal.cjs');
 const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
@@ -218,8 +217,6 @@ function createWindow() {
             initAutoUpdater(mainWindow);
         }
 
-        // Inicializar gestor universal de dispositivos de acceso
-        deviceManager.init(mainWindow);
     });
 
     // Arranque en frío: el usuario tocó el veltronik:// con la app cerrada, así que la

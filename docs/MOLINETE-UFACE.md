@@ -226,7 +226,9 @@ desconocido → nada; la puerta se apareó sola con el serial.
    el equipo hable HTTPS**, y Cloud Run no atiende otra cosa. Si no puede, el escritorio recibe
    en la LAN y reenvía — el endpoint no cambia.
 3. **Cambiar la clave del equipo**, que hoy es la de fábrica.
-4. **Activar el premium en el checkout**: hoy el checkout no sabe elegir plan (`PlanCatalog`
-   tiene el premium, pero `premiumAvailable` lo mantiene oculto). Sin esto no se puede contratar.
-5. **Limpiar `accessControl`** en `preload.cjs`: 25 canales sin handler, de un modelo distinto
-   —un aparato que nos pregunta si abre— que este equipo no usa.
+4. ~~**Activar el premium en el checkout**~~ ✅ **Hecho.** El checkout recibe el plan elegido
+   (`resolverPedido`) y cobra su precio; el premium está prendido desde septiembre de 2026 y el
+   default del repo ya dice la verdad (ver `PreciosInvariantesTest`).
+5. ~~**Limpiar `accessControl`**~~ ✅ **Hecho el 2026-09-19.** Se borraron los canales sin handler
+   del preload y `device-manager.cjs`, el esqueleto que los acompañaba. El molinete va solo por
+   `molinete.cjs` y los canales `molinete:*`.
