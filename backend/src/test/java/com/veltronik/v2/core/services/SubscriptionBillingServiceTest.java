@@ -42,7 +42,20 @@ class SubscriptionBillingServiceTest {
     /** Misma zona que usa el servicio: el "ahora" del negocio es hora Argentina. */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
     private static final int ACCESS_DAYS = 30;
-    private static final int GRACE_DAYS = 3;
+    /** El del servicio, no una copia: una copia seguiría diciendo 3 después de cambiarlo. */
+    private static final int GRACE_DAYS = SubscriptionBillingService.GRACE_DAYS;
+
+    @Test
+    @DisplayName("⭐ la gracia cubre los reintentos de Mercado Pago: no se bloquea a quien MP todavía está cobrando")
+    void laGraciaCubreLosReintentosDeMp() {
+        // MP reintenta una cuota rechazada durante 10 días, y su primer intento puede caer
+        // un día después de nuestro fin de período (mes de 31 contra período de 30).
+        int ultimoReintentoPosible = 1 + SubscriptionBillingService.VENTANA_REINTENTOS_MP;
+        assertTrue(GRACE_DAYS > ultimoReintentoPosible,
+                "Con " + GRACE_DAYS + " días de gracia se bloquearía a un gimnasio en el día "
+                        + GRACE_DAYS + ", pero MP puede cobrarle recién el día " + ultimoReintentoPosible
+                        + ". Se echaría a un cliente que estaba pagando.");
+    }
 
     @Mock
     private TenantRepository tenantRepository;

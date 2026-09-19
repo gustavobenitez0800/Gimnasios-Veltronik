@@ -38,8 +38,28 @@ public class SubscriptionBillingService {
 
     /** Días de acceso que otorga cada cobro mensual aprobado. */
     private static final int ACCESS_DAYS_PER_CYCLE = 30;
-    /** Gracia extra tras el fin de período antes de bloquear (colchón ante demoras de webhook). */
-    private static final int GRACE_DAYS = 3;
+    /**
+     * Días después del fin de período antes de bloquear a un gimnasio que no pagó.
+     *
+     * <p><b>Tiene que cubrir los reintentos de Mercado Pago, y 3 no los cubría.</b> Cuando una
+     * cuota se rechaza, MP la reintenta hasta 4 veces dentro de una ventana de 10 días
+     * (documentación de suscripciones, "pagos autorizados", leída el 2026-09-19). Además MP
+     * cobra el mismo DÍA del mes siguiente, y nuestro período es de 30 días: en un mes de 31,
+     * el primer intento cae 1 día después de {@code periodEnd}. Peor caso del último
+     * reintento: día 11. Con 3 días, un gimnasio al que le rebotó la tarjeta quedaba
+     * bloqueado el día 3 mientras MP todavía le iba a cobrar — se echaba a un cliente que
+     * estaba pagando.</p>
+     *
+     * <p>12 = 1 (desfase del mes) + 10 (ventana de reintentos) + 1 (demora del webhook).
+     * Durante la gracia el dueño ve el cartel de pago pendiente (Layout, {@code past_due}):
+     * más días no esconden el problema, solo le dan tiempo a MP y al dueño para resolverlo.</p>
+     *
+     * <p>Visible al paquete para que el test use ESTE número y no una copia.</p>
+     */
+    static final int GRACE_DAYS = 12;
+
+    /** La ventana de reintentos de Mercado Pago que {@link #GRACE_DAYS} tiene que cubrir. */
+    static final int VENTANA_REINTENTOS_MP = 10;
     /** Zona del negocio (Argentina): el "ahora" debe ser hora AR, no la del server UTC. */
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
