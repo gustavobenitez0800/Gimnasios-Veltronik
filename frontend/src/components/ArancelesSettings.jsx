@@ -112,7 +112,7 @@ export default function ArancelesSettings() {
   return (
     <div className="settings-section">
       <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Icon name="wallet" size="1.2em" /> Aranceles
+        <Icon name="cash" size="1.2em" /> Aranceles
       </h2>
       <p className="text-muted" style={{ fontSize: '.9rem', marginTop: '-.5rem' }}>
         Lo que vende el gimnasio. Al cobrar se elige uno y el sistema aplica solo los días

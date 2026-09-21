@@ -53,7 +53,7 @@ export default function RetentionPage() {
       <PageHeader 
         title="Retención de Socios" 
         subtitle={isFetching && data ? "Actualizando datos..." : "Análisis y seguimiento de membresías"} 
-        icon="shield" 
+        icon="heartHandshake" 
       />
 
       {/* Stats */}
