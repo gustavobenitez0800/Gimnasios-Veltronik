@@ -56,7 +56,11 @@ export default function ResetPasswordPage() {
     try {
       await authService.updatePassword(password);
       showToast('Tu contraseña se actualizó correctamente. Ya podés iniciar sesión.', 'success', 6000);
-      await authService.signOut().catch(() => {});
+      // En TODOS los dispositivos, y es una decisión: quien usa "olvidé mi contraseña" puede
+      // estar recuperándose de que otro la tenga, y dejar abiertas las sesiones viejas sería
+      // dejarle la puerta abierta. Es lo que hace cualquier banco. (Hasta la fase A de la
+      // sesión esto también era global, pero sin que nadie lo decidiera: `signOut()` a secas.)
+      await authService.signOutEverywhere().catch(() => {});
       navigate(CONFIG.ROUTES.LOGIN);
     } catch (error) {
       console.error('Reset error:', error);

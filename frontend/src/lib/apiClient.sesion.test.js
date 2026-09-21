@@ -125,21 +125,50 @@ describe('la sesión no se quema sola', () => {
     expect(signOut, 'la sesión se salvó: no se cierra').not.toHaveBeenCalled();
   });
 
-  it('si la renovación tampoco puede, ahí sí se cierra la sesión', async () => {
-    // Una sesión muerta de verdad tiene que cerrarse: dejar al usuario dando vueltas con
-    // una sesión inválida es peor que pedirle que entre de nuevo.
+  it('⭐ si la renovación tampoco puede, AVISA una vez — pero no cierra la sesión por su cuenta', async () => {
+    // Hasta la fase A, acá se llamaba a `supabase.auth.signOut()` —que sin parámetros es
+    // GLOBAL: revocaba la sesión en TODOS los dispositivos— y además se avisaba, y quien
+    // escuchaba el aviso volvía a cerrar. Ahora hay UN solo lugar que decide cerrar
+    // (AuthContext.logout), y apiClient solo informa lo que vio.
     getSession.mockResolvedValue(conSesion('tok-muerto'));
     refreshSession.mockResolvedValue(sinSesion);
     const avisos = [];
-    window.addEventListener('auth-unauthorized', () => avisos.push(1));
+    const contar = () => avisos.push(1);
+    window.addEventListener('auth-unauthorized', contar);
 
     const { apiClient } = await montar(noAutorizado);
 
     await expect(apiClient.get('/algo')).rejects.toBeDefined();
+    window.removeEventListener('auth-unauthorized', contar);
 
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    expect(signOut).toHaveBeenCalled();
-    expect(avisos.length).toBeGreaterThan(0);
+    expect(signOut).not.toHaveBeenCalled();
+    expect(avisos).toHaveLength(1);
+  });
+
+  it('⭐ un 400 por falta de sucursal NO toca la sesión: ni renueva ni avisa', async () => {
+    // El backend contestaba "falta la sucursal" con 401 y esto lo trataba como una sesión
+    // muerta. Ahora es 400 + TENANT_CONTEXT_MISSING: un pedido mal armado, no un problema
+    // de identidad.
+    getSession.mockResolvedValue(conSesion('tok'));
+    const avisos = [];
+    const contar = () => avisos.push(1);
+    window.addEventListener('auth-unauthorized', contar);
+
+    const sinSucursal = async (config) => {
+      const e = new Error('Request failed with status code 400');
+      e.config = config;
+      e.response = { status: 400, data: { error: 'TENANT_CONTEXT_MISSING' }, config };
+      throw e;
+    };
+    const { apiClient } = await montar(sinSucursal);
+
+    await expect(apiClient.get('/gym/molinete/padron')).rejects.toBeDefined();
+    window.removeEventListener('auth-unauthorized', contar);
+
+    expect(refreshSession).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+    expect(avisos).toHaveLength(0);
   });
 
   it('no entra en ciclo: el reintento por 401 se hace UNA sola vez', async () => {

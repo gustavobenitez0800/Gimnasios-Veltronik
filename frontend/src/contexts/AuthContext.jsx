@@ -680,14 +680,25 @@ export function AuthProvider({ children }) {
 
   // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
   // listener captura una referencia todavía no inicializada del primer render.
-  const logout = async () => {
+  /**
+   * ⭐ EL ÚNICO LUGAR QUE CIERRA UNA SESIÓN.
+   *
+   * <p>Hasta la fase A de la sesión había tres: apiClient llamaba a `signOut()` por su cuenta
+   * ante un 401, AuthService reenviaba ese 401 como un SIGNED_OUT falso, y esto. Y los
+   * `signOut()` eran GLOBALES. Ahora apiClient solo avisa, y cerrar —de este dispositivo o de
+   * todos— se decide acá.</p>
+   *
+   * @param {{ enTodos?: boolean }} opciones `enTodos` revoca también las sesiones de los otros
+   *   dispositivos. Solo la usa el botón que lo dice explícitamente.
+   */
+  const cerrarSesion = async ({ enTodos = false } = {}) => {
     // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
     // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
     // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
     if (loggingOutRef.current) return;
     loggingOutRef.current = true;
     try {
-      await authService.signOut();
+      await (enTodos ? authService.signOutEverywhere() : authService.signOut());
     } catch {
       // Force redirect anyway
     }
@@ -713,6 +724,17 @@ export function AuthProvider({ children }) {
     window.location.href = `${window.location.pathname}${window.location.search}${loginHash}`;
     window.location.reload();
   };
+
+  /** Salir de ESTE dispositivo. Los demás siguen adentro. */
+  const logout = () => cerrarSesion();
+
+  /** Salir de TODOS los dispositivos del usuario. Solo desde el botón que lo dice. */
+  const logoutEverywhere = () => cerrarSesion({ enTodos: true });
+
+  // El aviso de 401 se escucha con un listener que se registra UNA vez. Con la referencia
+  // llama siempre a la versión vigente del cierre, en vez de la que existía en el primer render.
+  const logoutRef = useRef(logout);
+  useEffect(() => { logoutRef.current = logout; });
 
   useEffect(() => {
     initAuth();
@@ -754,7 +776,7 @@ export function AuthProvider({ children }) {
       }
     );
 
-    const handleUnauthorized = () => logout();
+    const handleUnauthorized = () => logoutRef.current();
     const handlePaymentRequired = () => navigate(CONFIG.ROUTES.BLOCKED, { replace: true });
     const handleForbiddenTenant = () => {
       // El negocio seleccionado dejó de ser accesible: limpiar contexto y volver al Lobby.
@@ -890,6 +912,7 @@ export function AuthProvider({ children }) {
     register,
     loginWithGoogle,
     logout,
+    logoutEverywhere,
     refreshAuth,
     refreshOrgContext,
     updateGym,

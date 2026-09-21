@@ -85,13 +85,36 @@ class AuthService {
     return data;
   }
 
+  /**
+   * Cierra la sesión de ESTE dispositivo. Los demás siguen adentro.
+   *
+   * <p>⭐ <b>El `scope: 'local'` es el arreglo más importante de la sesión.</b>
+   * `supabase.auth.signOut()` sin parámetros es GLOBAL: revoca la sesión en todos los
+   * dispositivos del usuario. Así que el dueño tocaba "Salir" en el celular —o la app
+   * expulsaba sola en una máquina— y el mostrador caía al login una hora después, cuando le
+   * vencía el token, sin ninguna relación visible con lo que lo había causado. Instagram
+   * hace lo contrario: salir en un dispositivo no toca a los demás.</p>
+   *
+   * <p>OJO: acá NO se dispara 'auth-unauthorized'. Ese evento significa "el backend rechazó
+   * el token" y su handler en AuthContext es logout() → dispararlo desde el propio signOut
+   * creaba un bucle logout → signOut → evento → logout... que encadenaba recargas.</p>
+   */
   async signOut() {
-    // OJO: acá NO se dispara 'auth-unauthorized'. Ese evento significa "el backend
-    // rechazó el token" y su handler en AuthContext es logout() → dispararlo desde
-    // el propio signOut creaba un bucle logout → signOut → evento → logout... que
-    // encadenaba recargas y crasheaba al cerrar sesión para cambiar de cuenta.
     this.clearPlatformState();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
+  }
+
+  /**
+   * Cierra la sesión en TODOS los dispositivos del usuario.
+   *
+   * <p>Es una acción que alguien ELIGE —un celular perdido, una contraseña que se filtró—,
+   * nunca un efecto colateral de salir. Los demás dispositivos no se enteran en el acto: su
+   * token de acceso sigue valiendo hasta que vence (como mucho una hora) y ahí la renovación
+   * falla y van al login.</p>
+   */
+  async signOutEverywhere() {
+    this.clearPlatformState();
+    await supabase.auth.signOut({ scope: 'global' });
   }
 
   /**
@@ -141,20 +164,21 @@ class AuthService {
     return session;
   }
 
+  /**
+   * Los eventos de la sesión, tal como los emite Supabase. Nada más.
+   *
+   * <p>⚠️ Acá antes se reenviaba el aviso 'auth-unauthorized' (un 401 del backend) como un
+   * `SIGNED_OUT` falso. Tenía dos costos: el 401 se atendía dos veces —este SIGNED_OUT y el
+   * logout() de AuthContext—, y el único registro de diagnóstico ("[auth] SIGNED_OUT: Supabase
+   * dio la sesión por terminada") quedaba MINTIENDO: decía que la cerró Supabase cuando la
+   * cerramos nosotros. Cuando alguien reporta "me sacó solo", esa línea tiene que decir la
+   * verdad. El 401 ya tiene quien lo atienda.</p>
+   */
   onAuthStateChange(callback) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       callback(event, session);
     });
-
-    const handleUnauthorized = () => callback('SIGNED_OUT', null);
-    window.addEventListener('auth-unauthorized', handleUnauthorized);
-    
-    return {
-      unsubscribe: () => {
-        subscription.unsubscribe();
-        window.removeEventListener('auth-unauthorized', handleUnauthorized);
-      }
-    };
+    return { unsubscribe: () => subscription.unsubscribe() };
   }
 
   clearPlatformState() {
