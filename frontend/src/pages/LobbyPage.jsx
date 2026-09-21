@@ -96,6 +96,11 @@ export default function LobbyPage() {
   const [orgStatuses, setOrgStatuses] = useState({});
   const [groups, setGroups] = useState([]); // Grupos de sucursales del dueño
   const [loading, setLoading] = useState(true);
+  // ¿La PRIMERA carga falló? Sin esto, una lista que no se pudo traer se veía igual que una
+  // lista vacía: la pantalla le ofrecía "Registrá tu gimnasio" a un dueño que ya tiene, y un
+  // parpadeo de red podía terminar en un gimnasio duplicado (que además entra como segunda
+  // sucursal, sin prueba). Una recarga posterior que falla conserva la lista que había.
+  const [errorCarga, setErrorCarga] = useState(false);
   const [blockedOrg, setBlockedOrg] = useState(null); // For blocked modal
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null); // For delete confirmation
@@ -141,6 +146,7 @@ export default function LobbyPage() {
       // Filtrar duplicados en caso de errores en la DB
       const orgsList = Array.from(new Map((data || []).map(org => [org.id, org])).values());
       setOrgs(orgsList);
+      setErrorCarga(false);
       // Mostrar las cards YA: los estados de pago y los grupos llegan en background.
       // Antes la pantalla quedaba en "Cargando negocios..." hasta terminar TODO
       // (negocios → grupos → 1 request de suscripción POR negocio, en serie).
@@ -190,7 +196,11 @@ export default function LobbyPage() {
       await groupsPromise;
     } catch (err) {
       console.error('Error loading orgs:', err);
-      showToast('Error al cargar tus gimnasios', 'error');
+      if (!hasLoadedOnceRef.current) {
+        setErrorCarga(true);
+      } else {
+        showToast('Error al cargar tus gimnasios', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -594,6 +604,13 @@ export default function LobbyPage() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>
             <span className="spinner" /> Cargando tus gimnasios...
+          </div>
+        ) : errorCarga ? (
+          <div style={{ textAlign: 'center', padding: '3rem' }} role="alert">
+            <p style={{ marginBottom: '1rem' }}>
+              No pudimos traer tus gimnasios. Puede ser la conexión.
+            </p>
+            <button className="btn btn-primary" onClick={() => loadOrgs()}>Reintentar</button>
           </div>
         ) : hasGroups ? (
           /* Vista AGRUPADA: una sección por grupo + "Sin grupo" + crear */

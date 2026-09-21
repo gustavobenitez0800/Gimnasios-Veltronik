@@ -50,14 +50,18 @@ class GymService {
    * Obtiene todos los gimnasios asociados al usuario logueado.
    * Java API: GET /tenants/my
    */
+  /**
+   * Las sucursales a las que tiene acceso quien está logueado.
+   *
+   * <p>⚠️ <b>Si falla, FALLA.</b> Antes se tragaba el error y devolvía `[]`, y "no pude
+   * averiguarlo" pasaba a decir "no tenés ninguna": el terminal mostraba "tu usuario no tiene
+   * acceso a esta sucursal" con un solo botón —Cerrar sesión—, y el Lobby web le ofrecía al
+   * dueño "Registrá tu gimnasio" como si fuera nuevo. Un corte de red no es una respuesta.
+   * Cada pantalla decide qué hacer con el error.</p>
+   */
   async getUserGyms() {
-    try {
-      const response = await apiClient.get('/tenants/my');
-      return response.data;
-    } catch (error) {
-      console.error('getUserGyms error:', error);
-      return [];
-    }
+    const response = await apiClient.get('/tenants/my');
+    return response.data;
   }
 
   /**

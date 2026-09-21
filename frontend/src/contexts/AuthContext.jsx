@@ -303,7 +303,8 @@ export function AuthProvider({ children }) {
    * está.</p>
    *
    * <p>Todo pedido que sale en esa ventana viaja sin `X-Tenant-ID`, y el backend lo corta con
-   * <b>401 "Falta contexto de negocio"</b> (KillSwitchFilter). Había una guarda para eso, pero
+   * <b>400 TENANT_CONTEXT_MISSING</b> (KillSwitchFilter; hasta la fase A de la sesión era un 401
+   * que terminaba cerrando la sesión). Había una guarda para eso, pero
    * llegaba tarde: <b>en React los efectos de los hijos corren antes que los del padre</b>, así
    * que la pantalla ya había pedido sus datos cuando el padre se enteraba de redirigir.</p>
    *

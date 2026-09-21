@@ -63,7 +63,7 @@ describe('⚠️ sin sucursal no sale nada', () => {
   // El escritorio arranca BORRANDO `current_org_id` a propósito (`main.desktop.jsx`: la
   // sucursal la manda el enrolamiento, no el localStorage), así que en cada arranque hay una
   // ventana sin sucursal. Un acceso que sale ahí viaja sin `X-Tenant-ID` y el backend lo corta
-  // con 401 "Falta contexto de negocio".
+  // (hoy con 400 TENANT_CONTEXT_MISSING; antes de la fase A de la sesión, con 401).
   //
   // No se perdía nada —un 401 no es definitivo, la fila se queda—, pero se quemaban dos
   // intentos en CADA arranque, para siempre.
