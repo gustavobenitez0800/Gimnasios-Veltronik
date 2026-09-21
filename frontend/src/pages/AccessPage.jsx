@@ -608,7 +608,7 @@ export default function AccessPage() {
           vez y se pega en la puerta: tenerlo desplegado todo el día costaba media pantalla
           del mostrador, que es donde se trabaja. */}
       <div className="access-barra">
-        <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="door" />
+        <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="doorEnter" />
         {puedeAdministrarQr && (
           <button className="btn btn-secondary" onClick={() => setQrAbierto(true)}>
             <Icon name="qrCode" size="1em" /> Cartel de entrada
@@ -713,7 +713,7 @@ export default function AccessPage() {
                           dirección mirando si el socio ya está adentro. */}
                       {adentro ? (
                         <button className="btn btn-sm btn-secondary" onClick={() => handleCheckIn(member)}>
-                          <Icon name="door" size="0.9em" /> Registrar salida
+                          <Icon name="doorExit" size="0.9em" /> Registrar salida
                         </button>
                       ) : (
                         <button className="btn btn-sm btn-primary" onClick={() => handleCheckIn(member)}>
@@ -736,7 +736,7 @@ export default function AccessPage() {
         <aside className="card access-adentro">
           <div className="table-header">
             <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon name="building" size="1.2em" />
+              <Icon name="barbell" size="1.2em" />
               En el {orgLabelCap} ahora
             </h3>
             <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
@@ -768,7 +768,7 @@ export default function AccessPage() {
                   {/* El id del socio va sí o sí: sin él, sin conexión no hay a quién encolarle
                       la salida y el botón vuelve a no hacer nada. */}
                   <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName, member?.id)}>
-                    <Icon name="handWave" size="1em" /> Salida
+                    <Icon name="doorExit" size="1em" /> Salida
                   </button>
                 </div>
               );

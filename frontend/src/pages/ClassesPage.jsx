@@ -159,7 +159,7 @@ export default function ClassesPage() {
 
   return (
     <div className="classes-page">
-      <PageHeader title="Clases y Actividades" subtitle="Gestión de horarios y clases" icon="calendar"
+      <PageHeader title="Clases y Actividades" subtitle="Gestión de horarios y clases" icon="calendarEvent"
         actions={<button className="btn btn-primary" onClick={openNew}><Icon name="plus" /> Nueva Clase</button>} />
 
       {/* Calendar Navigation */}
@@ -172,7 +172,7 @@ export default function ClassesPage() {
           </div>
           <div className="view-toggle">
             <button className={`btn btn-sm ${view === 'calendar' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setView('calendar')}><Icon name="calendar" size="1em" /> Calendario</button>
+              onClick={() => setView('calendar')}><Icon name="calendarEvent" size="1em" /> Calendario</button>
             <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setView('list')}><Icon name="list" size="1em" /> Lista</button>
           </div>
@@ -223,7 +223,7 @@ export default function ClassesPage() {
               </thead>
               <tbody>
                 {classes.length === 0 ? (
-                  <tr><td colSpan="7" className="table-empty"><EmptyState icon="calendar" title="Todavía no hay clases" description="Creá la primera y aparece en el calendario de la semana." /></td></tr>
+                  <tr><td colSpan="7" className="table-empty"><EmptyState icon="calendarEvent" title="Todavía no hay clases" description="Creá la primera y aparece en el calendario de la semana." /></td></tr>
                 ) : classes.map(cls => (
                   <tr key={cls.id}>
                     <td data-label="Clase"><div className="flex items-center gap-1">
@@ -351,7 +351,7 @@ export default function ClassesPage() {
         {selectedClass && (
           <>
             <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="calendar" size="1em" /> {getDayName(selectedClass.day_of_week)} · {formatTime(selectedClass.start_time)} - {formatTime(selectedClass.end_time)}</p>
+              <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="calendarEvent" size="1em" /> {getDayName(selectedClass.day_of_week)} · {formatTime(selectedClass.start_time)} - {formatTime(selectedClass.end_time)}</p>
               <p className="text-muted mb-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="user" size="1em" /> {selectedClass.instructor || 'Sin instructor'}</p>
               <p className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}><Icon name="users" size="1em" /> {selectedClass.capacity || 20} cupos · {selectedClass.room || 'Sin sala'}</p>
             </div>

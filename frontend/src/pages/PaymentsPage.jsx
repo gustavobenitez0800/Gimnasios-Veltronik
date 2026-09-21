@@ -382,7 +382,7 @@ export default function PaymentsPage() {
       <PageHeader
         title="Pagos"
         subtitle={isFetching && payments.length > 0 ? "Actualizando datos..." : "Gestión de pagos de socios"}
-        icon="wallet"
+        icon="cash"
         actions={
           <div className="flex gap-1">
             {puedeImportar && (
@@ -449,7 +449,7 @@ export default function PaymentsPage() {
 
       {/* Stats */}
       <div className="stats-grid stats-grid-3 mb-3">
-        <StatCard icon="wallet" label="Ingresos del período" value={formatCurrency(stats.totalPeriod)} color="success" />
+        <StatCard icon="cash" label="Ingresos del período" value={formatCurrency(stats.totalPeriod)} color="success" />
         <StatCard icon="check" label="Pagos cobrados" value={stats.totalCount} color="primary" />
         <StatCard icon="clock" label="Pagos pendientes" value={stats.pendingCount} color={stats.pendingCount > 0 ? 'warning' : 'neutral'} />
       </div>

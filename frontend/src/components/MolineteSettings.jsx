@@ -81,7 +81,7 @@ export default function MolineteSettings() {
   return (
     <div className="settings-section">
       <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Icon name="shield" size="1.1em" /> Molinete
+        <Icon name="doorEnter" size="1.1em" /> Molinete
       </h2>
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '1rem', lineHeight: 1.5 }}>
         El equipo de reconocimiento facial de la entrada. Esta computadora es la que le mantiene

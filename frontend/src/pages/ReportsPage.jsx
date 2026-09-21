@@ -189,8 +189,8 @@ export default function ReportsPage() {
 
   const reports = [
     { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: 'users', color: 'primary', action: exportMembers },
-    { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: 'dollarSign', color: 'success', action: exportPayments },
-    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: 'doorOpen', color: 'accent', action: exportAccess },
+    { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: 'cash', color: 'success', action: exportPayments },
+    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: 'doorEnter', color: 'accent', action: exportAccess },
     { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: 'chart', color: 'warning', action: exportSummary },
   ];
 

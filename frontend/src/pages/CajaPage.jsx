@@ -344,7 +344,7 @@ export default function CajaPage() {
       <PageHeader
         title="Cierre de caja"
         subtitle="El sistema cuenta lo que entró; vos decidís cuánto se retira"
-        icon="dollarSign"
+        icon="receipt"
       />
 
       {/* La forma más fácil de esconder algo no es mentir en el cierre: es no cerrar. */}
@@ -412,7 +412,7 @@ export default function CajaPage() {
         {cargando ? (
           <p className="text-muted" style={{ padding: '1rem' }}><span className="spinner" /> Cargando...</p>
         ) : !cobros.length ? (
-          <EmptyState icon="wallet" title="Todavía no se cobró nada" description="Los cobros del día aparecen acá a medida que se registran." />
+          <EmptyState icon="cash" title="Todavía no se cobró nada" description="Los cobros del día aparecen acá a medida que se registran." />
         ) : (
           <table className="table">
             <thead>
@@ -440,7 +440,7 @@ export default function CajaPage() {
            dueño quería hacer de un vistazo: de 20 cobros, cuántos por transferencia y
            cuántos en efectivo. */}
       <div className="card caja-resumen">
-        <h3><Icon name="wallet" size="1em" /> Resumen por forma de pago</h3>
+        <h3><Icon name="cash" size="1em" /> Resumen por forma de pago</h3>
         <div className="caja-resumen-grid">
           <div className="caja-cifra es-efectivo">
             <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.efectivo))}</span>
@@ -462,7 +462,7 @@ export default function CajaPage() {
       {/* ─── DISTRIBUCIÓN DEL EFECTIVO EN CAJA ───
            La única decisión del cierre. Todo lo de arriba lo calculó el sistema. */}
       <div className="card caja-distribucion">
-        <h3><Icon name="dollarSign" size="1em" /> Distribución del efectivo en caja</h3>
+        <h3><Icon name="cash" size="1em" /> Distribución del efectivo en caja</h3>
 
         {/* ⭐ REGLA 6 DE LA FASE 3: ningún total se muestra como si fuera completo cuando no
             lo es. Sin conexión estos números salen de lo último que bajó más lo que este
@@ -549,7 +549,7 @@ export default function CajaPage() {
            desaparecer de la lista es justamente lo que no queremos que se pueda hacer. */}
       {movsCaja.length > 0 && (
         <div className="card caja-movimientos">
-          <h3><Icon name="wallet" size="1em" /> Movimientos de caja ({movsCaja.length})</h3>
+          <h3><Icon name="receipt" size="1em" /> Movimientos de caja ({movsCaja.length})</h3>
           <table className="table">
             <thead>
               <tr><th>Qué</th><th>Monto</th><th>Método</th><th>Quién</th><th>Cuándo</th><th /></tr>

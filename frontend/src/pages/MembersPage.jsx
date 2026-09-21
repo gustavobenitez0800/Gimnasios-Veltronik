@@ -789,7 +789,7 @@ export default function MembersPage() {
                                operación más común del gimnasio. */
                             onClick={() => setCobrando(member)}
                             title="Cobrar cuota"
-                          ><Icon name="dollarSign" size="1em" /></button>
+                          ><Icon name="cash" size="1em" /></button>
                           {member.phone && (
                             <button
                               className="action-btn-quick action-btn-whatsapp"

@@ -23,23 +23,23 @@ const NAV_SECTIONS = [
   {
     title: 'Principal',
     items: [
-      { to: CONFIG.ROUTES.DASHBOARD, icon: 'dashboard', label: 'Dashboard', module: 'dashboard' },
+      { to: CONFIG.ROUTES.DASHBOARD, icon: 'layoutDashboard', label: 'Dashboard', module: 'dashboard' },
       { to: CONFIG.ROUTES.MEMBERS, icon: 'users', label: GYM.membersLabel, module: 'members' },
-      { to: CONFIG.ROUTES.PAYMENTS, icon: 'wallet', label: 'Pagos', module: 'payments' },
-      { to: CONFIG.ROUTES.CLASSES, icon: 'calendar', label: 'Clases', module: 'classes' },
-      { to: CONFIG.ROUTES.ACCESS, icon: 'door', label: 'Acceso', module: 'access' },
+      { to: CONFIG.ROUTES.PAYMENTS, icon: 'cash', label: 'Pagos', module: 'payments' },
+      { to: CONFIG.ROUTES.CLASSES, icon: 'calendarEvent', label: 'Clases', module: 'classes' },
+      { to: CONFIG.ROUTES.ACCESS, icon: 'doorEnter', label: 'Acceso', module: 'access' },
       // Va PEGADO a Acceso: son la misma puerta vista de dos maneras — en Acceso se
       // registra el paso de la gente, acá se mira quién quedó adentro.
-      { to: CONFIG.ROUTES.ADENTRO, icon: 'dumbbell', label: `En el ${GYM.placeLabelCap}`, module: 'adentro' },
-      { to: CONFIG.ROUTES.RETENTION, icon: 'shield', label: 'Retención', module: 'retention' },
+      { to: CONFIG.ROUTES.ADENTRO, icon: 'barbell', label: `En el ${GYM.placeLabelCap}`, module: 'adentro' },
+      { to: CONFIG.ROUTES.RETENTION, icon: 'heartHandshake', label: 'Retención', module: 'retention' },
       { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
     ],
   },
   {
     title: 'Administración',
     items: [
-      { to: CONFIG.ROUTES.CAJA, icon: 'dollarSign', label: 'Cierre de caja', module: 'caja' },
-      { to: CONFIG.ROUTES.TEAM, icon: 'userCog', label: 'Equipo', module: 'team' },
+      { to: CONFIG.ROUTES.CAJA, icon: 'receipt', label: 'Cierre de caja', module: 'caja' },
+      { to: CONFIG.ROUTES.TEAM, icon: 'idBadge', label: 'Equipo', module: 'team' },
       { to: CONFIG.ROUTES.SETTINGS, icon: 'settings', label: 'Ajustes', module: 'settings' },
     ],
   },
@@ -259,7 +259,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 onClick={() => window.dispatchEvent(new Event('veltronik-cambiar-turno'))}
                 title={`En el turno: ${turno.name} — tocá para cambiar`}
               >
-                <Icon name="userCog" />
+                <Icon name="idBadge" />
               </button>
             )}
             <button

@@ -91,12 +91,12 @@ export default function AdentroPage() {
       <PageHeader
         title={`En el ${orgLabelCap}`}
         subtitle="Quién está adentro ahora y cómo viene el día"
-        icon="dumbbell"
+        icon="barbell"
       />
 
       <div className="stats-grid stats-grid-3 mb-3">
         <StatCard icon="users" color="success" value={stats.inGym} label={`En el ${orgLabel}`} />
-        <StatCard icon="door" color="primary" value={stats.totalToday} label="Accesos hoy" />
+        <StatCard icon="doorEnter" color="primary" value={stats.totalToday} label="Accesos hoy" />
         <StatCard icon="clock" color="accent" value={stats.avgTime} label="Tiempo promedio" />
       </div>
 
@@ -105,7 +105,7 @@ export default function AdentroPage() {
       <div className="card currently-in">
         <div className="table-header">
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon name="building" size="1.2em" />
+            <Icon name="barbell" size="1.2em" />
             En el {orgLabelCap} ahora
           </h3>
           <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
@@ -126,7 +126,7 @@ export default function AdentroPage() {
                   <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
                 </div>
                 <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName)}>
-                  <Icon name="handWave" size="1em" /> Salida
+                  <Icon name="doorExit" size="1em" /> Salida
                 </button>
               </div>
             );

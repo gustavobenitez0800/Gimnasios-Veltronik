@@ -143,7 +143,7 @@ function GymDashboard({ gym }) {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Dashboard" subtitle="Vista general de tu gimnasio" icon="dashboard" />
+        <PageHeader title="Dashboard" subtitle="Vista general de tu gimnasio" icon="layoutDashboard" />
         <div className="dashboard-loading">
           <div className="loading-spinner" />
           <p className="text-muted">Cargando dashboard...</p>
@@ -163,7 +163,7 @@ function GymDashboard({ gym }) {
       <PageHeader
         title="Dashboard"
         subtitle="Vista general de tu gimnasio"
-        icon="dashboard"
+        icon="layoutDashboard"
       />
 
       {/* Stats Cards
@@ -180,13 +180,13 @@ function GymDashboard({ gym }) {
                 contando solo a los que pagaron: dos números para la misma palabra, en la
                 misma pantalla. */}
             <StatCard icon="users" label={`${membersLabel} al día`} value={dashboardStats.alDia} color="primary" />
-            <StatCard icon="wallet" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
+            <StatCard icon="cash" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
           </>
         )}
         {/* Cuenta SOCIOS con la cuota vencida, no pagos: se llamaba "Pagos Vencidos" y no
             era lo que contaba. */}
         <StatCard icon="bell" label={`${membersLabel} vencidos`} value={dashboardStats.expiredMembers} color="warning" />
-        <StatCard icon="calendar" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
+        <StatCard icon="calendarEvent" label="Vencen esta semana" value={dashboardStats.expiringMembers} color="accent" />
       </div>
 
       {/* AI Section — solo en el portal: la predicción de ingresos y los dos gráficos son
@@ -260,7 +260,7 @@ function GymDashboard({ gym }) {
           <div className="insights-panel">
             {insights.length === 0 ? (
               <div className="insight-item info">
-                <span className="insight-icon"><Icon name="moon2" size="1.1em" /></span>
+                <span className="insight-icon"><Icon name="checkCircle" size="1.1em" /></span>
                 <div className="insight-content">
                   <div className="insight-title">Sin novedades</div>
                   <div className="insight-message">Todo está en orden por ahora</div>
@@ -364,7 +364,7 @@ function GymDashboard({ gym }) {
               <span className="quick-action-label">Nuevo {memberLabel}</span>
             </Link>
             <Link to={`${CONFIG.ROUTES.PAYMENTS}?action=new`} className="quick-action">
-              <span className="quick-action-icon"><Icon name="wallet" /></span>
+              <span className="quick-action-icon"><Icon name="cash" /></span>
               <span className="quick-action-label">Registrar Pago</span>
             </Link>
             <Link to={CONFIG.ROUTES.MEMBERS} className="quick-action">

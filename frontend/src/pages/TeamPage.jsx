@@ -116,8 +116,8 @@ export default function TeamPage() {
 
   const getActivityIcon = (type) => {
     switch (type) {
-      case 'access': return 'doorOpen';
-      case 'payment': return 'creditCard';
+      case 'access': return 'doorEnter';
+      case 'payment': return 'cash';
       case 'member': return 'plus';
       default: return 'fileText';
     }
@@ -125,7 +125,7 @@ export default function TeamPage() {
 
   return (
     <div className="team-page">
-      <PageHeader title="Equipo" subtitle="Gestión de miembros del equipo" icon="users" />
+      <PageHeader title="Equipo" subtitle="Gestión de miembros del equipo" icon="idBadge" />
 
       {/* Tabs */}
       <div className="team-tabs">

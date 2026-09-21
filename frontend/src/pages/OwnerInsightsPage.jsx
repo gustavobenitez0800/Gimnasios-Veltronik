@@ -20,7 +20,7 @@ import Icon from '../components/Icon';
 
 /** Las tres métricas, con lo justo para dibujarlas. */
 const METRICAS = [
-  { key: 'revenue', label: 'Plata cobrada', icon: 'dollarSign', formato: (v) => formatCurrency(v) },
+  { key: 'revenue', label: 'Plata cobrada', icon: 'cash', formato: (v) => formatCurrency(v) },
   { key: 'newMembers', label: 'Socios nuevos', icon: 'users', formato: (v) => String(v) },
   { key: 'churned', label: 'Bajas', icon: 'trendingDown', formato: (v) => String(v) },
 ];
