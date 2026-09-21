@@ -274,13 +274,18 @@ class KillSwitchFilterTest {
     // ─────────────────────────── plomería del filtro ───────────────────────────
 
     @Test
-    @DisplayName("sin contexto de tenant en ruta protegida → 401")
-    void missingTenantContextReturns401() throws Exception {
+    @DisplayName("⭐ sin sucursal en ruta protegida → 400 TENANT_CONTEXT_MISSING, NO 401")
+    void missingTenantContextIsNotASessionProblem() throws Exception {
+        // Era 401, y el frontend trata todo 401 como "tu sesión murió": renovaba, reintentaba
+        // y —como la sucursal seguía faltando— cerraba la sesión. Un pedido sin sucursal es un
+        // pedido mal armado, no una sesión vencida. Ver la sesión nivel Instagram, fase A.
         TenantContextHolder.clear();
 
         filter.doFilterInternal(request, response, chain);
 
-        assertEquals(401, response.getStatus());
+        assertEquals(400, response.getStatus());
+        assertTrue(response.getContentAsString().contains("\"TENANT_CONTEXT_MISSING\""),
+                "el cuerpo tiene que decir el motivo, para que el frontend no lo confunda");
         verify(chain, never()).doFilter(any(), any());
     }
 
