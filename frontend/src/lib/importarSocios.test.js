@@ -75,6 +75,13 @@ describe('las celdas', () => {
     expect(valorDeCelda(XLSX, { t: 'n', v: 30111222, w: '3.01E+07' })).toBe('30111222');
   });
 
+  it('una celda de HORA sale como 07:17, y una de fecha con hora no pierde la hora', () => {
+    // El historial de caja: la hora es una fracción de día (07:17 = 0,3035). Leída como fecha
+    // daba "1899-12-30", el día cero de Excel.
+    expect(valorDeCelda(XLSX, { t: 'n', v: (7 * 60 + 17) / 1440, z: 'hh:mm' })).toBe('07:17');
+    expect(valorDeCelda(XLSX, { t: 'n', v: 46027 + (7 * 60 + 17) / 1440, z: 'dd/mm/yyyy hh:mm' })).toBe('2026-01-05 07:17');
+  });
+
   it('una celda vacía o con error de Excel es texto vacío', () => {
     expect(valorDeCelda(XLSX, undefined)).toBe('');
     expect(valorDeCelda(XLSX, { t: 'e', v: 7 })).toBe('');

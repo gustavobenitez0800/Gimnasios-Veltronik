@@ -146,6 +146,49 @@ class PaymentService {
     avisarCambioDeCobertura();
     return response.data?.membershipEnd || null;
   }
+
+  // ── Importar el historial de caja de otro sistema (ver ImportacionCajaService.java) ──
+  //
+  // Nada de esto avisa al molinete ni refresca socios: un cobro importado es historia, no
+  // corre ningún vencimiento (ADR-014).
+
+  /** Qué pasaría con cada fila. No escribe nada. */
+  async analizarHistorial(archivo, filas) {
+    const { data } = await apiClient.post('/gym/payments/importacion/analizar', { archivo, filas }, { timeout: 120000 });
+    return data;
+  }
+
+  /**
+   * Importa. Con una fila con error el backend responde 422 con el análisis entero y no
+   * escribe nada: se devuelve para mostrarlo igual que la vista previa.
+   *
+   * El timeout es largo a propósito: son miles de cobros en una transacción, y cortar a los
+   * 20 s dejaría a la pantalla diciendo "error" mientras el servidor termina bien.
+   *
+   * @returns {Promise<{ok: true, resultado} | {ok: false, analisis}>}
+   */
+  async importarHistorial(archivo, filas) {
+    try {
+      const { data } = await apiClient.post('/gym/payments/importacion', { archivo, filas }, { timeout: 180000 });
+      return { ok: true, resultado: data };
+    } catch (error) {
+      if (error.response?.status === 422 && error.response.data?.filas) {
+        return { ok: false, analisis: error.response.data };
+      }
+      throw error;
+    }
+  }
+
+  /** La última importación de historial y si se puede deshacer. null si nunca importó. */
+  async ultimoHistorial() {
+    const response = await apiClient.get('/gym/payments/importacion/ultima');
+    return response.status === 204 ? null : response.data;
+  }
+
+  async deshacerHistorial(id) {
+    const { data } = await apiClient.post(`/gym/payments/importacion/${id}/deshacer`, null, { timeout: 120000 });
+    return data;
+  }
 }
 
 export const paymentService = new PaymentService();

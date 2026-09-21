@@ -60,6 +60,25 @@ describe('el gráfico de ingresos', () => {
   it('sin serie no rompe: seis meses en cero', () => {
     expect(graficoDeIngresos(null, 6).data).toEqual([0, 0, 0, 0, 0, 0]);
   });
+
+  it('⭐ con historial importado arranca en el primer mes con cobros, no seis meses atrás', () => {
+    // Un gimnasio que importó su caja desde enero: el gráfico tiene que mostrar enero.
+    const serie = [8, 5, 0].map((n) => ({ mes: mesAtras(n).toISOString(), total: 1000 * (n + 1) }));
+
+    const { labels, data } = graficoDeIngresos(serie, 6, 12);
+
+    expect(labels).toHaveLength(9);
+    expect(data[0], 'el mes más viejo, primero').toBe(9000);
+    expect(data[8]).toBe(1000);
+  });
+
+  it('nunca más de doce meses, y un gimnasio nuevo sigue viendo seis', () => {
+    const viejo = [{ mes: mesAtras(20).toISOString(), total: 5000 }, { mes: mesAtras(0).toISOString(), total: 1000 }];
+    expect(graficoDeIngresos(viejo, 6, 12).data).toHaveLength(12);
+
+    const nuevo = [{ mes: mesAtras(1).toISOString(), total: 5000 }];
+    expect(graficoDeIngresos(nuevo, 6, 12).data).toHaveLength(6);
+  });
 });
 
 describe('la predicción de ingresos', () => {

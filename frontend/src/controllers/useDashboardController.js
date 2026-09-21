@@ -133,7 +133,7 @@ export function useDashboardController(gym) {
     [resumen, members, payments, gym],
   );
   const revenueChartData = useMemo(
-    () => (resumen ? graficoDeIngresos(resumen.ingresos?.serieMensual, 6) : insightsService.getMonthlyRevenueChartData(payments, 6)),
+    () => (resumen ? graficoDeIngresos(resumen.ingresos?.serieMensual, 6, 12) : insightsService.getMonthlyRevenueChartData(payments, 6)),
     [resumen, payments],
   );
   const membersChartData = useMemo(

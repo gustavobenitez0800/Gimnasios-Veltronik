@@ -12,11 +12,13 @@ import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates, addOneMonth } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
-import { useModal, useConfirmDialog } from '../hooks';
+import { useModal, useConfirmDialog, invalidateQueries } from '../hooks';
+import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
+import ImportarHistorialCaja from '../components/ImportarHistorialCaja';
 
 /**
  * Compara el estado de un pago sin depender de mayúsculas.
@@ -29,6 +31,15 @@ import Icon from '../components/Icon';
  */
 function esEstado(pago, estado) {
   return (pago?.status || '').toLowerCase() === estado;
+}
+
+/**
+ * De quién es el cobro. Un cobro importado de un ex-socio (o un pase por día) no tiene socio
+ * en Veltronik: no es un "socio eliminado", es alguien que nunca estuvo en este padrón.
+ */
+function nombreDelCobro(pago) {
+  if (pago.member?.fullName) return pago.member.fullName;
+  return pago.importado ? 'Sin socio en Veltronik' : 'Socio eliminado';
 }
 
 function getInitialForm() {
@@ -62,6 +73,10 @@ const PAYMENT_MAP_FN = (p) => ({
 
 export default function PaymentsPage() {
   const { showToast } = useToast();
+  const { orgRole } = useAuth();
+  // Mismo permiso que el backend (ImportacionCajaController): son los ingresos del gimnasio.
+  const puedeImportar = orgRole === 'owner' || orgRole === 'admin';
+  const [importandoHistorial, setImportandoHistorial] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters
@@ -369,13 +384,21 @@ export default function PaymentsPage() {
         subtitle={isFetching && payments.length > 0 ? "Actualizando datos..." : "Gestión de pagos de socios"}
         icon="wallet"
         actions={
-          <button className="btn btn-primary" onClick={() => {
-            setMemberSearch('');
-            setSelectedMember(null);
-            modal.open();
-          }}>
-            <Icon name="plus" /> Registrar Pago
-          </button>
+          <div className="flex gap-1">
+            {puedeImportar && (
+              <button className="btn btn-secondary" onClick={() => setImportandoHistorial(true)}
+                title="Cargar los cobros de tu sistema anterior">
+                <Icon name="fileText" /> Importar historial
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => {
+              setMemberSearch('');
+              setSelectedMember(null);
+              modal.open();
+            }}>
+              <Icon name="plus" /> Registrar Pago
+            </button>
+          </div>
         }
       />
 
@@ -500,10 +523,18 @@ export default function PaymentsPage() {
                 payments.map((payment) => (
                   <tr key={payment.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                     <td data-label="Socio">
-                      <strong>{payment.member?.fullName || 'Socio eliminado'}</strong>
+                      <strong>{nombreDelCobro(payment)}</strong>
                       {payment.member?.dni && (
                         <small className="text-muted" style={{ display: 'block' }}>
                           DNI: {payment.member.dni}
+                        </small>
+                      )}
+                      {/* Historia del sistema anterior: suma en los ingresos, pero no corrió
+                          ningún vencimiento ni entra al cierre de caja (ADR-014). */}
+                      {payment.importado && (
+                        <small className="text-muted" style={{ display: 'block' }}
+                          title="Importado del sistema anterior: no movió vencimientos ni entra al cierre de caja">
+                          Historial importado{payment.notes ? ` · ${payment.notes}` : ''}
                         </small>
                       )}
                     </td>
@@ -677,6 +708,16 @@ export default function PaymentsPage() {
           <ModalActions onCancel={modal.close} saving={modal.saving} />
         </form>
       </Modal>
+
+      <ImportarHistorialCaja
+        abierto={importandoHistorial}
+        onCerrar={() => setImportandoHistorial(false)}
+        onImportado={() => {
+          // Cambian los ingresos de meses enteros: el panel y este listado.
+          invalidateQueries('gym_dashboard');
+          refresh();
+        }}
+      />
 
       <ConfirmDialog
         open={deleteDialog.isOpen}

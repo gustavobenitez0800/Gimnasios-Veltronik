@@ -117,7 +117,16 @@ export function valorDeCelda(XLSX, celda) {
   if (celda.t === 'n') {
     if (celda.z && XLSX.SSF.is_date(celda.z)) {
       const p = XLSX.SSF.parse_date_code(celda.v);
-      if (p) return `${p.y}-${dosCifras(p.m)}-${dosCifras(p.d)}`;
+      if (p) {
+        const hora = `${dosCifras(p.H)}:${dosCifras(p.M)}`;
+        // Una celda de SOLO hora (07:17) es una fracción de día: el "día" que trae es el 0 de
+        // Excel (30/12/1899). Lo que vale es la hora. La usa el historial de caja.
+        if (celda.v < 1) return hora;
+        const dia = `${p.y}-${dosCifras(p.m)}-${dosCifras(p.d)}`;
+        // Fecha CON hora ("05/01/2026 07:17" en una celda): la hora viaja, no se pierde. Una
+        // fecha sola sigue saliendo "2026-09-30", como siempre.
+        return celda.v % 1 > 0 && (p.H || p.M) ? `${dia} ${hora}` : dia;
+      }
     }
     // Un DNI o un teléfono guardado como número: el número entero, nunca "3.01E+07".
     if (Number.isInteger(celda.v)) return String(celda.v);
@@ -161,7 +170,7 @@ export function decodificarTexto(bytes) {
 }
 
 /** ¿Es un Excel de verdad (xlsx = zip, xls = OLE) o texto disfrazado? */
-function esBinario(bytes) {
+export function esBinario(bytes) {
   const zip = bytes[0] === 0x50 && bytes[1] === 0x4b;
   const ole = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
   return zip || ole;

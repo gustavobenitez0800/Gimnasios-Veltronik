@@ -34,16 +34,32 @@ function porMes(serie) {
 }
 
 /**
- * Ingresos de los últimos N meses para el gráfico.
+ * Ingresos de los últimos meses para el gráfico: al menos `minimo`, y hasta `maximo` si hay
+ * cobros más viejos.
  *
  * Un mes sin cobros vale 0 y aparece igual: si se saltearan, el gráfico mostraría una línea
  * que se salta los meses malos, que son justo los que hay que ver.
+ *
+ * ⭐ Por qué se estira: un gimnasio que importó su historial (ADR-014) tiene cobros desde
+ * enero, y con seis meses fijos el dueño no veía el primer trimestre — en un gimnasio con
+ * estudiantes, justo los meses más fuertes. Se arranca en el mes más viejo con cobros, así
+ * que un gimnasio nuevo sigue viendo seis meses, no doce con seis ceros adelante.
  */
-export function graficoDeIngresos(serie, meses = 6) {
+export function graficoDeIngresos(serie, minimo = 6, maximo = minimo) {
   const mapa = porMes(serie);
   const hoy = new Date();
   const labels = [];
   const data = [];
+
+  // Cuántos meses atrás está el cobro más viejo. Se mira la serie entera, no solo la ventana:
+  // con cobros de hace dos años y un hueco en el medio, igual corresponden los doce.
+  let masViejo = 0;
+  (serie || []).forEach((m) => {
+    const f = new Date(m.mes);
+    if (Number.isNaN(f.getTime()) || !(Number(m.total) > 0)) return;
+    masViejo = Math.max(masViejo, (hoy.getFullYear() - f.getFullYear()) * 12 + hoy.getMonth() - f.getMonth());
+  });
+  const meses = Math.min(maximo, Math.max(minimo, masViejo + 1));
 
   for (let i = meses - 1; i >= 0; i -= 1) {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
