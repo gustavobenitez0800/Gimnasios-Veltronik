@@ -41,7 +41,7 @@ import ArancelesSettings from '../components/ArancelesSettings';
  */
 export default function SettingsPage({ SubscriptionActions }) {
   const { showToast } = useToast();
-  const { user, gym: authGym, profile, logout, refreshAuth, orgRole } = useAuth();
+  const { user, gym: authGym, profile, logout, logoutEverywhere, refreshAuth, orgRole } = useAuth();
   const currentRole = orgRole;
   const orgLabel = GYM.placeLabel;
   const orgLabelCap = GYM.placeLabelCap;
@@ -60,6 +60,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Action states
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmLogoutAll, setConfirmLogoutAll] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancellingSubscription, setCancellingSubscription] = useState(false);
   const [verifyingSubscription, setVerifyingSubscription] = useState(false);
@@ -639,6 +640,16 @@ export default function SettingsPage({ SubscriptionActions }) {
               </div>
               <button className="btn-outline-secondary" onClick={() => setConfirmLogout(true)}>Cerrar Sesión</button>
             </div>
+            {/* Cerrar en TODOS es una acción aparte y explícita, nunca el efecto de salir. Antes
+                "Cerrar Sesión" decía "en esta computadora" y cerraba en todas: el mostrador caía
+                al login una hora después de que el dueño saliera desde el celular. */}
+            <div className="danger-item">
+              <div className="danger-info">
+                <h3>Cerrar sesión en todos los dispositivos</h3>
+                <p>Para cuando perdiste un celular o creés que alguien más tiene tu contraseña. Se cierra en todas las computadoras y teléfonos donde entraste, <strong>incluido el mostrador</strong>: ahí va a haber que volver a iniciar sesión.</p>
+              </div>
+              <button className="btn-outline-danger" onClick={() => setConfirmLogoutAll(true)}>Cerrar en todos</button>
+            </div>
 
           </div>
         </div>
@@ -654,6 +665,13 @@ export default function SettingsPage({ SubscriptionActions }) {
         message="¿Estás seguro de cerrar tu sesión?"
         icon="logout" confirmText="Cerrar Sesión" confirmClass="btn-danger"
         onConfirm={handleLogout} onCancel={() => setConfirmLogout(false)} />
+
+      <ConfirmDialog open={confirmLogoutAll} title="Cerrar sesión en todos los dispositivos"
+        message="Se cierra tu sesión en todas las computadoras y teléfonos, incluido el mostrador del gimnasio."
+        extra="Los otros dispositivos pueden tardar hasta una hora en salir. En el mostrador va a haber que volver a iniciar sesión."
+        icon="logout" confirmText="Cerrar en todos" confirmClass="btn-danger"
+        onConfirm={async () => { setConfirmLogoutAll(false); await logoutEverywhere(); }}
+        onCancel={() => setConfirmLogoutAll(false)} />
 
       {/* Equipos: la confirmación del bautizo es explícita y con nombre del negocio (diseño en docs/FASE1-PLAN.md) */}
       <ConfirmDialog open={enrollConfirm} title="Enrolar esta computadora"

@@ -212,10 +212,13 @@ apiClient.interceptors.response.use(
 
       if (!unauthorizedHandled) {
         unauthorizedHandled = true;
-        // Token expirado o inválido, y la renovación no lo salvó: cerrar sesión.
-        supabase.auth.signOut();
-
-        // Emitir un evento global para que AuthContext reaccione (UNA sola vez)
+        // ⚠️ ACÁ NO SE CIERRA LA SESIÓN: SOLO SE AVISA, UNA VEZ.
+        //
+        // Antes se llamaba a `supabase.auth.signOut()` directamente, y además se avisaba —y
+        // quien escuchaba el aviso volvía a cerrar—. Dos cierres por cada 401, y los dos
+        // GLOBALES: `signOut()` sin parámetros revoca la sesión en TODOS los dispositivos del
+        // usuario, así que un 401 en una máquina tiraba al login a las demás una hora
+        // después, "de la nada". Decidir un cierre es de UN solo lugar: AuthContext.logout.
         window.dispatchEvent(new Event('auth-unauthorized'));
       }
     } else if (error.response && error.response.status === 402) {

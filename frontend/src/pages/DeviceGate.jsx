@@ -197,9 +197,15 @@ export default function DeviceGate() {
     try {
       // Las dos preguntas en paralelo: a qué sucursal pertenece el equipo, y a cuáles
       // pertenece la persona (que además trae su rol en cada una).
+      //
+      // ⚠️ Sin `.catch(() => [])` en la segunda, a propósito. Convertía un corte de red en
+      // "no tenés ninguna sucursal", y la pantalla terminaba diciendo "tu usuario no tiene
+      // acceso" con un solo botón: Cerrar sesión. Si falla, cae en el catch de abajo, que ya
+      // sabe distinguir un corte (entra con la sucursal recordada) de un error del servidor
+      // (lo muestra, con Reintentar).
       const [equipo, misSucursales] = await Promise.all([
         deviceService.me(),
-        gymService.getUserGyms().catch(() => []),
+        gymService.getUserGyms(),
       ]);
 
       if (!vigente()) return;
@@ -422,7 +428,13 @@ export default function DeviceGate() {
           <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
             {detalleError || 'Pedile al dueño que inicie sesión una vez en esta computadora para activarla en su sucursal. Después vas a poder entrar normalmente.'}
           </p>
-          <button className="btn btn-ghost" style={{ width: '100%', marginTop: '1.5rem' }} onClick={logout}>
+          {/* Reintentar primero: Cerrar sesión nunca es la única salida. Quien atiende toca el
+              único botón que hay, y si ese botón cierra la sesión, un dato viejo o un permiso
+              que se acaba de dar se convierten en una contraseña que hay que ir a buscar. */}
+          <button className="auth-submit" style={{ width: '100%', marginTop: '1.5rem' }} onClick={identificar}>
+            Reintentar
+          </button>
+          <button className="btn btn-ghost" style={{ width: '100%', marginTop: '0.75rem' }} onClick={logout}>
             <Icon name="logout" size="1em" /> Cerrar sesión
           </button>
         </div>

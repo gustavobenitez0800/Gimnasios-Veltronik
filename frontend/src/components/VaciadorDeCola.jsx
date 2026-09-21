@@ -40,9 +40,11 @@ export default function VaciadorDeCola() {
 
     // ⚠️ NI SIN SUCURSAL. El escritorio arranca borrando `current_org_id` a propósito, así
     // que en cada arranque hay una ventana sin sucursal. Un acceso que sale en esa ventana
-    // viaja sin `X-Tenant-ID` y el backend lo corta con 401 "Falta contexto de negocio".
+    // viaja sin `X-Tenant-ID` y el backend lo corta: hoy con 400 TENANT_CONTEXT_MISSING (hasta
+    // la fase A de la sesión, con 401 "Falta contexto de negocio").
     //
-    // No se perdía nada —un 401 no es definitivo, la fila se queda y se reintenta— pero se
+    // No se perdía nada —ninguno de los dos es definitivo para la cola (ver esDefinitivo), la
+    // fila se queda y se reintenta— pero se
     // quemaban DOS intentos en cada arranque, para siempre. Se encontró al revés: una fila
     // en la cola con `intentos: 2` y ningún motivo a la vista.
     if (!orgId) return;

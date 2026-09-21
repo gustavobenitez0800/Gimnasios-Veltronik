@@ -196,6 +196,16 @@ describe('qué error dice "no insistas"', () => {
     expect(esDefinitivo(500)).toBe(false);
     expect(esDefinitivo(undefined)).toBe(false);
   });
+
+  it('⭐ un 400 por falta de sucursal NO es definitivo: se arregla cuando llega la sucursal', () => {
+    // Hasta la fase A de la sesión, el backend contestaba "falta la sucursal" con 401 (que
+    // la cola ya reintentaba). Ahora es 400 + TENANT_CONTEXT_MISSING, para que no cierre la
+    // sesión — y sin esta excepción la cola lo leería como "el servidor lo rechazó para
+    // siempre" y TIRARÍA un cobro o una visita real.
+    expect(esDefinitivo(400, 'TENANT_CONTEXT_MISSING')).toBe(false);
+    // Un 400 por cualquier otro motivo sigue siendo definitivo.
+    expect(esDefinitivo(400, 'VALIDATION_ERROR')).toBe(true);
+  });
 });
 
 describe('contar y limpiar', () => {

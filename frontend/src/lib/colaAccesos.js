@@ -382,9 +382,18 @@ export async function cuantosPendientes(tenantId = orgActual()) {
  * cuerpo está mal. Reintentar no lo va a cambiar y trabaría la cola para siempre detrás
  * de un acceso imposible. Se exceptúan 408 y 429, que sí son "probá de nuevo", y 401/403,
  * que se arreglan solos cuando la sesión se renueva.
+ *
+ * ⚠️ Y un 400 con código `TENANT_CONTEXT_MISSING`: el pedido salió sin sucursal (el arranque
+ * del escritorio la borra hasta confirmarla). Se arregla solo cuando llega la sucursal. Antes
+ * el backend lo contestaba con 401 —que ya se reintentaba—; pasó a 400 para no cerrar la
+ * sesión, y sin esta excepción la cola tiraría un cobro o una visita real.
+ *
+ * @param {number} status el código HTTP
+ * @param {string} [codigo] el `error` del cuerpo de la respuesta, si vino
  */
-export function esDefinitivo(status) {
+export function esDefinitivo(status, codigo) {
   if (!status || status < 400 || status >= 500) return false;
+  if (codigo === 'TENANT_CONTEXT_MISSING') return false;
   return ![408, 429, 401, 403].includes(status);
 }
 
@@ -442,7 +451,7 @@ export async function vaciar(enviadores, tenantId = orgActual()) {
         await c.sacar(item.clientRef);
         enviados++;
       } catch (error) {
-        if (esDefinitivo(error?.response?.status)) {
+        if (esDefinitivo(error?.response?.status, error?.response?.data?.error)) {
           // El servidor lo entendió y lo rechazó para siempre. Sacarlo NO es perder un
           // dato: es sacar del camino algo que nunca va a entrar, para que los que vienen
           // detrás puedan pasar. Sin esto, un solo acceso imposible tapona la cola entera.

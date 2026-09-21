@@ -75,8 +75,18 @@ public class KillSwitchFilter extends OncePerRequestFilter {
         // 2. Obtener el Tenant del contexto (seteado previamente por el JwtFilter)
         UUID tenantId = TenantContextHolder.getTenantId();
         if (tenantId == null) {
-            // Si la ruta requiere tenant y no hay (error de JWT o configuración previa)
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Falta contexto de negocio");
+            // ⚠️ 400 Y NO 401, Y ES LO QUE MANDABA GENTE AL LOGIN.
+            //
+            // Un pedido que llega sin sucursal está mal armado —pasa en el arranque del
+            // escritorio, que borra la sucursal a propósito hasta que el equipo la confirma—,
+            // pero la sesión está perfecta. Con 401, el frontend lo leía como "tu sesión murió":
+            // renovaba el token, reintentaba, y como la sucursal seguía faltando, cerraba la
+            // sesión. El 401 queda reservado para un token que el servidor rechaza.
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write(
+                    "{\"error\":\"TENANT_CONTEXT_MISSING\",\"message\":\"El pedido llegó sin sucursal.\"}");
             return;
         }
 

@@ -282,3 +282,54 @@ describe('sin conexión, el equipo se acuerda de su sucursal', () => {
     expect(container.textContent).toContain('No pudimos identificar este equipo');
   });
 });
+
+describe('⭐ si falla traer las sucursales de la persona, NO dice que no tiene acceso', () => {
+  // DeviceGate pregunta dos cosas a la vez: a qué sucursal está atado el equipo, y a cuáles
+  // tiene acceso la persona. La segunda tenía un `.catch(() => [])` —y el servicio además se
+  // tragaba el error—, así que un corte de red la convertía en "no tenés ninguna". La pantalla
+  // decía entonces "Este equipo pertenece a SEKUR, y tu usuario no tiene acceso a ella", con un
+  // solo botón: Cerrar sesión. Era mentira, y quien atendía tocaba el único botón que había.
+
+  function recordada() {
+    localStorage.setItem('terminal_org_id', 'org1');
+    localStorage.setItem('terminal_org_name', 'SEKUR');
+    localStorage.setItem('terminal_org_role', 'owner');
+  }
+
+  beforeEach(() => {
+    deviceService.me.mockReset();
+    gymService.getUserGyms.mockReset();
+    deviceService.me.mockResolvedValue({ enrolledTenantId: 'org1', enrolledTenantName: 'SEKUR' });
+  });
+
+  it('con un corte de red entra con la sucursal recordada, como cualquier otro corte', async () => {
+    recordada();
+    gymService.getUserGyms.mockRejectedValue(new Error('Network Error')); // sin `response`
+
+    await pintar();
+
+    expect(container.textContent).not.toContain('no tiene acceso');
+    expect(navegado).toEqual(['/access']);
+  });
+
+  it('con un error del servidor muestra el error de verdad, con Reintentar', async () => {
+    const caida = new Error('El servidor tuvo un problema');
+    caida.response = { status: 500 };
+    gymService.getUserGyms.mockRejectedValue(caida);
+
+    await pintar();
+
+    expect(container.textContent).not.toContain('no tiene acceso');
+    expect(container.textContent).toContain('No pudimos identificar este equipo');
+    expect(container.textContent).toContain('Reintentar');
+  });
+
+  it('cuando de verdad no tiene acceso, igual ofrece Reintentar: Cerrar sesión nunca es la única salida', async () => {
+    gymService.getUserGyms.mockResolvedValue([]); // respuesta real: ninguna sucursal
+
+    await pintar();
+
+    expect(container.textContent).toContain('no tiene acceso');
+    expect(container.textContent).toContain('Reintentar');
+  });
+});

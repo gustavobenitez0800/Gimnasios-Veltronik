@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { sincronizarMolinete } from '../lib/molinete';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Cada cuánto se revisa que el equipo esté como debe.
@@ -28,8 +29,14 @@ import { sincronizarMolinete } from '../lib/molinete';
 const CADA_MS = 3 * 60 * 1000;
 
 export default function MolineteAlDia() {
+  // ⚠️ SIN SUCURSAL NO SE SINCRONIZA. El escritorio arranca borrando la sucursal hasta que
+  // DeviceGate la confirma, y este componente corre en cualquier pantalla: sincronizaba en ese
+  // hueco, el pedido salía sin sucursal, y el 401 que volvía terminaba cerrando la sesión —en
+  // cada arranque de un gimnasio con molinete—. Se espera, igual que el VaciadorDeCola.
+  const { orgId } = useAuth();
+
   useEffect(() => {
-    if (!window.electronAPI?.molinete) return undefined;
+    if (!window.electronAPI?.molinete || !orgId) return undefined;
 
     let vivo = true;
     const correr = () => {
@@ -45,10 +52,10 @@ export default function MolineteAlDia() {
       });
     };
 
-    correr();                                   // al abrir la app, para arrancar en orden
+    correr();                                   // apenas hay sucursal, para arrancar en orden
     const t = setInterval(correr, CADA_MS);
     return () => { vivo = false; clearInterval(t); };
-  }, []);
+  }, [orgId]);
 
   return null;
 }
