@@ -205,10 +205,25 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * <p>Para dos reglas del importador: a quien ya cobra por Veltronik el archivo no le mueve
      * el vencimiento (lo mueven los cobros), y un socio creado por una importación que ya
      * cobró no se puede deshacer.</p>
+     *
+     * <p>⚠️ <b>El historial importado NO cuenta</b> ({@code import_id IS NULL}, ADR-014). Un cobro
+     * de ControlFit no movió ningún vencimiento, así que no puede quitarle al archivo del padrón
+     * la palabra sobre la fecha: sin este filtro, cargar el historial de un gimnasio que migra
+     * dejaba a casi todo su padrón con el vencimiento congelado para cualquier reimportación.</p>
      */
-    @Query(value = "SELECT DISTINCT p.member_id FROM gym_payment p WHERE p.member_id IN (:ids)",
+    @Query(value = "SELECT DISTINCT p.member_id FROM gym_payment p WHERE p.member_id IN (:ids) "
+            + "AND p.import_id IS NULL",
             nativeQuery = true)
     List<UUID> conCobros(@Param("ids") java.util.Collection<UUID> ids);
+
+    /**
+     * Cuáles de estos socios tienen historial de caja importado. Deshacer la importación que
+     * los creó dejaría ese historial sin dueño: primero se deshace el historial.
+     */
+    @Query(value = "SELECT DISTINCT p.member_id FROM gym_payment p WHERE p.member_id IN (:ids) "
+            + "AND p.import_id IS NOT NULL",
+            nativeQuery = true)
+    List<UUID> conHistorialImportado(@Param("ids") java.util.Collection<UUID> ids);
 
     /** Cuáles de estos socios ya pasaron por la puerta. Registrar una entrada no toca al socio. */
     @Query(value = "SELECT DISTINCT a.member_id FROM access_log a WHERE a.member_id IN (:ids)",

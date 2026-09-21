@@ -5,6 +5,7 @@ import com.veltronik.v2.gym.dto.GymPaymentDTO;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.entities.GymPayment;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface GymPaymentMapper {
 
+    @Mapping(target = "importado", expression = "java(entity.esImportado())")
     GymPaymentDTO toDto(GymPayment entity);
 
     List<GymPaymentDTO> toDtoList(List<GymPayment> entities);

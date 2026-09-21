@@ -77,7 +77,8 @@ import java.util.stream.Collectors;
  * <h2>Lo que NO importa, a propósito</h2>
  * <p>La historia de pagos. El vencimiento del archivo ya dice lo que importa —si está al día—,
  * y cargar pagos viejos es lo que el 31/08 reactivó ex-socios y corrió fechas que no había
- * que correr. Los cobros empiezan a registrarse desde el día que el gimnasio usa Veltronik.</p>
+ * que correr. El historial de caja tiene su propio importador ({@link ImportacionCajaService}),
+ * que lo carga como HISTORIA: suma en los ingresos y no toca ningún vencimiento (ADR-014).</p>
  */
 @Service
 public class ImportacionSociosService {
@@ -693,6 +694,11 @@ public class ImportacionSociosService {
             if (conCobros > 0) {
                 return conCobros + (conCobros == 1 ? " socio importado ya tiene" : " socios importados ya tienen")
                         + " cobros registrados. Deshacer los borraría con su plata.";
+            }
+            int conHistorial = socios.conHistorialImportado(creados).size();
+            if (conHistorial > 0) {
+                return conHistorial + (conHistorial == 1 ? " socio importado tiene" : " socios importados tienen")
+                        + " historial de caja importado. Deshacé primero el historial de caja (en Pagos).";
             }
             int conAccesos = socios.conAccesos(creados).size();
             if (conAccesos > 0) {

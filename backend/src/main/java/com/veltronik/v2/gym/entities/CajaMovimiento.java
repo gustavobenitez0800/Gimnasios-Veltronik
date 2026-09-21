@@ -118,6 +118,20 @@ public class CajaMovimiento extends TenantAwareEntity {
     @Column(name = "motivo_anulacion", length = 255)
     private String motivoAnulacion;
 
+    /**
+     * De qué importación de historial vino (V86). {@code null} = se anotó en Veltronik.
+     * Un gasto importado se ve, pero no entra al arqueo: esa plata no salió de este cajón.
+     */
+    @Column(name = "import_id", updatable = false)
+    private UUID importId;
+
+    @Column(name = "import_clave", length = 64, updatable = false)
+    private String importClave;
+
+    public boolean esImportado() {
+        return importId != null;
+    }
+
     public boolean estaVigente() {
         return anuladoAt == null;
     }

@@ -102,6 +102,21 @@ public class GymPaymentService {
         // 'PAID' → no contaba nada de lo cargado desde la app.
         normalizarEstado(payment);
 
+        // ⭐ UN COBRO IMPORTADO ES HISTORIA, Y EDITARLO NO LO CONVIERTE EN COBRO (ADR-014).
+        //
+        // Solo llega acá por la edición (PUT): la importación escribe por su lado. Sin esta
+        // guarda, corregirle el monto a un cobro de ControlFit de marzo pasaba por el camino
+        // de abajo —sin arancel y sin período, "el mes corre solo"— y le daba al socio un mes
+        // desde HOY: el mismo error del 31/08, disparado por un clic en "Editar".
+        //
+        // Nunca cubre un período (la V86 lo exige con un CHECK), así que tampoco se acepta el
+        // que venga escrito en la edición.
+        if (payment.esImportado()) {
+            payment.setPeriodStart(null);
+            payment.setPeriodEnd(null);
+            return repository.save(payment);
+        }
+
         // Ensure the member belongs to the tenant
         GymMember member = null;
         if (payment.getMember() != null && payment.getMember().getId() != null) {

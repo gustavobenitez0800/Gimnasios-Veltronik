@@ -33,4 +33,18 @@ public interface CajaMovimientoRepository extends JpaRepository<CajaMovimiento, 
      * otro. "Improbable" no es una garantía de aislamiento.</p>
      */
     Optional<CajaMovimiento> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
+
+    // ── El historial importado (V86, ADR-014) ──
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT m.importClave FROM CajaMovimiento m WHERE m.tenant.id = :tenantId AND m.importClave IS NOT NULL")
+    List<String> clavesImportadas(@org.springframework.data.repository.query.Param("tenantId") UUID tenantId);
+
+    long countByImportIdAndUpdatedAtAfter(UUID importId, LocalDateTime despuesDe);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query(
+            "DELETE FROM CajaMovimiento m WHERE m.tenant.id = :tenantId AND m.importId = :importId")
+    int borrarLosDeUnaImportacion(@org.springframework.data.repository.query.Param("tenantId") UUID tenantId,
+                                  @org.springframework.data.repository.query.Param("importId") UUID importId);
 }

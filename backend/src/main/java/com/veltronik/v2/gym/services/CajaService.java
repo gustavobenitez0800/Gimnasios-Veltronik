@@ -195,6 +195,12 @@ public class CajaService {
         if (!m.estaVigente()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese movimiento ya estaba anulado.");
         }
+        if (m.esImportado()) {
+            // No es de este cajón: vino con el historial del sistema anterior (ADR-014), y
+            // lo que vino junto se va junto, deshaciendo la importación.
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ese gasto vino con el historial importado. Se quita deshaciendo la importación.");
+        }
         if (m.getFecha().isBefore(inicioDelPeriodo())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Ese movimiento es de una caja ya cerrada. Para corregirlo, cargá uno al revés.");
@@ -219,7 +225,10 @@ public class CajaService {
     @Transactional(readOnly = true)
     public List<com.veltronik.v2.gym.entities.CajaMovimiento> movimientosDeCaja() {
         return movimientoRepository.findByTenantIdAndFechaBetweenOrderByFechaDesc(
-                TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE));
+                        TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE))
+                .stream()
+                .filter(m -> !m.esImportado())
+                .toList();
     }
 
     /**
@@ -262,6 +271,7 @@ public class CajaService {
         return paymentRepository.findByTenantIdAndDateRange(
                         TenantContextHolder.getTenantId(), inicioDelPeriodo(),
                         LocalDateTime.now(BUSINESS_ZONE)).stream()
+                .filter(CajaService::pasoPorEsteCajon)
                 .filter(p -> "PAID".equalsIgnoreCase(p.getStatus() == null ? "" : p.getStatus()))
                 .toList();
     }
@@ -574,6 +584,7 @@ public class CajaService {
         int cuantos = 0;
 
         for (GymPayment p : pagos) {
+            if (!pasoPorEsteCajon(p)) continue;
             if (!"PAID".equalsIgnoreCase(nullSafe(p.getStatus()))) continue;
             BigDecimal monto = p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO;
             cuantos++;
@@ -603,6 +614,7 @@ public class CajaService {
         for (var m : movimientoRepository.findByTenantIdAndFechaBetweenOrderByFechaDesc(
                 TenantContextHolder.getTenantId(), desde, hasta)) {
             if (!m.estaVigente()) continue;
+            if (m.esImportado()) continue; // un gasto del sistema anterior no salió de este cajón
             cuantosMovimientos++;
             if (!m.afectaElCajon()) continue;
             if (m.esEgreso()) egresos = egresos.add(m.getMonto());
@@ -615,6 +627,22 @@ public class CajaService {
 
     private static String nullSafe(String s) {
         return s == null ? "" : s;
+    }
+
+    /**
+     * ¿Este cobro pasó por el cajón de Veltronik?
+     *
+     * <p>⭐ <b>El historial importado de otro sistema, NO</b> (V86, ADR-014). Suma en los
+     * ingresos del tablero, pero esa plata la cobró ControlFit (o el que fuera) y ya se
+     * rindió allá. Sin este filtro el primer cierre de un gimnasio que migra —que mira
+     * {@value #DIAS_DEL_PRIMER_CIERRE} días para atrás— se llevaba puestos casi un mes de
+     * cobros viejos como plata del día, y el balance del mes decía que el cajón tenía millones.</p>
+     *
+     * <p>Se filtra acá y no en la consulta para que las tres lecturas de la caja (el cierre,
+     * el balance y la lista de cobros) pasen por el mismo lugar.</p>
+     */
+    private static boolean pasoPorEsteCajon(GymPayment p) {
+        return !p.esImportado();
     }
 
     /** Lo que el sistema contó en un período. */

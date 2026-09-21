@@ -96,6 +96,27 @@ public class GymPayment extends TenantAwareEntity {
     private java.util.UUID clientRef;
 
     /**
+     * ⭐ DE QUÉ IMPORTACIÓN VINO. {@code null} = se cobró en Veltronik.
+     *
+     * <p>Un cobro importado es historia del sistema anterior (V86, ADR-014): suma en los
+     * ingresos, pero <b>no corre vencimientos ni entra a la caja</b>. Cargarlo por el camino
+     * normal habría reactivado ex-socios (31/08) y el primer cierre de caja se habría llevado
+     * meses de plata que nunca pasó por este cajón. Se escribe solo al importar y nunca se
+     * cambia: ni la API de cobros ni la edición lo tocan.</p>
+     */
+    @Column(name = "import_id", updatable = false)
+    private java.util.UUID importId;
+
+    /** La identidad de la fila en el archivo: lo que hace que reimportar no duplique. */
+    @Column(name = "import_clave", length = 64, updatable = false)
+    private String importClave;
+
+    /** ¿Es historia importada de otro sistema? */
+    public boolean esImportado() {
+        return importId != null;
+    }
+
+    /**
      * Acepta {@code member_id} (snake_case) que envía el frontend al crear un pago.
      * Sin esto, Jackson no encontraba dónde mapearlo y el pago se guardaba SIN socio
      * (la columna es nullable → quedaba huérfano en silencio). Crea una referencia mínima;

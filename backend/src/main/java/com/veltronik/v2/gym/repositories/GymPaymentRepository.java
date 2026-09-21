@@ -107,15 +107,48 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
             + "m.membershipEnd AS membershipEnd, MAX(p.periodEnd) AS paidUntil "
             + "FROM GymPayment p JOIN p.member m "
             + "WHERE p.tenant.id = :tenantId AND UPPER(p.status) = 'PAID' AND p.periodEnd IS NOT NULL "
+            + "AND p.importId IS NULL "
             + "GROUP BY m.id, m.firstName, m.lastName, m.membershipEnd "
             + "HAVING m.membershipEnd IS NULL OR MAX(p.periodEnd) > m.membershipEnd "
             + "ORDER BY MAX(p.periodEnd) DESC")
     List<CoverageGapProjection> findCoverageGaps(@Param("tenantId") UUID tenantId);
 
-    /** Hasta cuándo pagó realmente un socio (el período más lejano entre sus pagos cobrados). */
+    /**
+     * Hasta cuándo pagó realmente un socio (el período más lejano entre sus pagos cobrados).
+     *
+     * <p>Ni esta ni {@link #findCoverageGaps} miran el historial importado (ADR-014): un cobro
+     * de ControlFit no cubre ningún período. La V86 ya lo garantiza —un importado no puede
+     * tener {@code period_end}—, y el filtro lo dice donde se lee.</p>
+     */
     @Query("SELECT MAX(p.periodEnd) FROM GymPayment p WHERE p.tenant.id = :tenantId "
-            + "AND p.member.id = :memberId AND UPPER(p.status) = 'PAID' AND p.periodEnd IS NOT NULL")
+            + "AND p.member.id = :memberId AND UPPER(p.status) = 'PAID' AND p.periodEnd IS NOT NULL "
+            + "AND p.importId IS NULL")
     LocalDateTime findPaidUntil(@Param("tenantId") UUID tenantId, @Param("memberId") UUID memberId);
+
+    // ── El historial importado (V86, ADR-014) ─────────────────────────────────────
+
+    /** Las claves de todas las filas ya importadas del gimnasio: lo que ya está no se vuelve a cargar. */
+    @Query("SELECT p.importClave FROM GymPayment p WHERE p.tenant.id = :tenantId AND p.importClave IS NOT NULL")
+    List<String> clavesImportadas(@Param("tenantId") UUID tenantId);
+
+    /**
+     * Los cobros hechos EN VELTRONIK en un rango, con su socio: para no importar como historia
+     * un cobro que ya se registró acá (el mismo socio, el mismo día, el mismo monto).
+     */
+    @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member WHERE p.tenant.id = :tenantId "
+            + "AND p.importId IS NULL AND p.paymentDate >= :from AND p.paymentDate <= :to")
+    List<GymPayment> cobrosDeVeltronikEntre(@Param("tenantId") UUID tenantId,
+                                            @Param("from") LocalDateTime from,
+                                            @Param("to") LocalDateTime to);
+
+    /** Cuántos cobros de una importación se editaron después de importarla. */
+    @Query("SELECT COUNT(p) FROM GymPayment p WHERE p.importId = :importId AND p.updatedAt > :despuesDe")
+    long editadosDespuesDe(@Param("importId") UUID importId, @Param("despuesDe") LocalDateTime despuesDe);
+
+    /** Deshacer una importación de historial: se van los cobros que trajo, y solo esos. */
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("DELETE FROM GymPayment p WHERE p.tenant.id = :tenantId AND p.importId = :importId")
+    int borrarLosDeUnaImportacion(@Param("tenantId") UUID tenantId, @Param("importId") UUID importId);
 
     /** Proyección de {@link #findCoverageGaps}: solo lo que la pantalla de revisión necesita. */
     interface CoverageGapProjection {

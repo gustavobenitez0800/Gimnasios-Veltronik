@@ -33,4 +33,11 @@ public class GymPaymentDTO {
 
     /** Arancel cobrado, si el cobro pasó por el catálogo. */
     private GymPlanDTO plan;
+
+    /**
+     * Historia importada de otro sistema (ADR-014): suma en los ingresos pero no corrió
+     * vencimientos ni entró a la caja. La pantalla lo marca para que no se confunda con un
+     * cobro hecho acá.
+     */
+    private boolean importado;
 }
