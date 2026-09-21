@@ -15,9 +15,11 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 
+// Con la forma que manda el backend desde el ADR-013: la cobertura es cantidad + unidad.
+// `durationDays` quedó congelado en la V65 y ninguna pantalla lo lee.
 const ARANCELES = [
-  { id: 'p1', name: 'Mensual', price: 45000, durationDays: 30, isActive: true },
-  { id: 'p2', name: 'Pase Libre', price: 60000, durationDays: 30, isActive: true },
+  { id: 'p1', name: 'Mensual', price: 45000, coberturaCantidad: 1, coberturaUnidad: 'MES', isActive: true },
+  { id: 'p2', name: 'Pase Libre', price: 60000, coberturaCantidad: 1, coberturaUnidad: 'MES', isActive: true },
 ];
 
 const SOCIOS = [

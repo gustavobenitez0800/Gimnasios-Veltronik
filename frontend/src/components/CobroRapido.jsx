@@ -22,6 +22,10 @@ import Modal, { ModalActions } from './ui/Modal';
 import Icon from './Icon';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { arancelDelSocio } from '../controllers/formSocio';
+// Cuánto corre el vencimiento este arancel, en criollo (`null` = no lo corre). Es la misma
+// traducción que usan Ajustes y Pagos: antes acá un Pase Semanal decía "7 días" y allá
+// "1 semana".
+import { queCubre } from '../lib/cobertura';
 
 /** Los mismos nombres y el mismo orden que usa la pantalla de Pagos. */
 const METODOS = [
@@ -30,20 +34,6 @@ const METODOS = [
   { valor: 'mercadopago', etiqueta: 'Mercado Pago' },
   { valor: 'card', etiqueta: 'Tarjeta' },
 ];
-
-/**
- * Cuánto corre el vencimiento este arancel, en criollo. `null` = no lo corre.
- *
- * <p>No calcula ninguna fecha: solo nombra lo que el arancel ya declara. La fecha la corre el
- * backend, y dos cuentas para lo mismo es el error que este proyecto ya cometió.</p>
- */
-function queCubre(plan) {
-  const n = plan?.coberturaCantidad ?? 1;
-  if (!(n > 0)) return null;
-  return (plan?.coberturaUnidad || 'MES') === 'MES'
-    ? `${n} ${n === 1 ? 'mes' : 'meses'}`
-    : `${n} ${n === 1 ? 'día' : 'días'}`;
-}
 
 export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCobrar }) {
   const [planId, setPlanId] = useState('');
