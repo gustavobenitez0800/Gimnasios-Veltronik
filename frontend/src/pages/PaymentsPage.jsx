@@ -11,6 +11,7 @@ import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates, addOneMonth } from '../lib/utils';
+import { etiquetaCobertura } from '../lib/cobertura';
 import { useModal, useConfirmDialog } from '../hooks';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
@@ -246,14 +247,13 @@ export default function PaymentsPage() {
     return () => { cancelado = true; };
   }, []);
 
-  /** "· 1 mes" — para que el que cobra vea qué período está vendiendo. */
-  const describirArancel = (a) => {
-    if (!(a.durationDays > 0)) return '';
-    const periodo = a.durationDays % 30 === 0 && a.durationDays >= 30
-      ? `${a.durationDays / 30} ${a.durationDays === 30 ? 'mes' : 'meses'}`
-      : `${a.durationDays} ${a.durationDays === 1 ? 'día' : 'días'}`;
-    return ` · ${periodo}`;
-  };
+  /**
+   * "· 1 mes" — para que el que cobra vea qué período está vendiendo.
+   *
+   * <p>Sale de la cobertura (ADR-013), no de `durationDays`: ese campo quedó congelado en la
+   * V65 y todo arancel creado después lo tiene en 0.</p>
+   */
+  const describirArancel = (a) => ` · ${etiquetaCobertura(a)}`;
 
   /**
    * Al elegir arancel se completa el monto, pero el período NO se toca acá.

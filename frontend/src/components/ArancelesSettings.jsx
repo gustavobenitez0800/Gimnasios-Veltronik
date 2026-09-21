@@ -20,30 +20,9 @@ import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../lib/utils';
 import { ConfirmDialog } from './Layout';
 import Icon from './Icon';
-
-/**
- * ⭐ LO QUE CUBRE UN ARANCEL, EN LAS PALABRAS DE UN DUEÑO DE GIMNASIO (ADR-013).
- *
- * <p>Antes esto era un campo de número libre que decía "días que cubre", con 0 por defecto —y
- * 0 significaba "no corre la fecha", así que el valor por defecto era el que rompía, en
- * silencio—. Ahora es una lista: no hay ningún número que escribir ni que traducir. "Pase
- * Semanal" se elige diciendo una semana, no 7.</p>
- *
- * <p><b>⚠️ Esta lista salió del catálogo REAL de los clientes, no de la cabeza de nadie.</b> La
- * primera versión era solo de meses (1/3/6/12) y le rompía tres de los once aranceles que vende
- * HaA Fitness: Pase Diario, Pase Semanal y Pase Bimestral.</p>
- */
-const COBERTURAS = [
-  { valor: '1|DIA', etiqueta: '1 día' },
-  { valor: '7|DIA', etiqueta: '1 semana' },
-  { valor: '15|DIA', etiqueta: '15 días' },
-  { valor: '1|MES', etiqueta: '1 mes' },
-  { valor: '2|MES', etiqueta: '2 meses' },
-  { valor: '3|MES', etiqueta: '3 meses' },
-  { valor: '6|MES', etiqueta: '6 meses' },
-  { valor: '12|MES', etiqueta: '1 año' },
-  { valor: '0|DIA', etiqueta: 'No cubre tiempo (clase suelta)' },
-];
+// Lo que cubre un arancel, en las palabras de un dueño de gimnasio (ADR-013). La lista y su
+// traducción viven en un solo lugar porque Pagos y el cobro rápido dicen lo mismo.
+import { COBERTURAS, claveCobertura, etiquetaCobertura } from '../lib/cobertura';
 
 /** El default es UN MES, y es el corazón de la decisión: sin pensar nada, la cuota corre. */
 const FORM_VACIO = { name: '', price: '', cobertura: '1|MES' };
@@ -104,7 +83,7 @@ export default function ArancelesSettings() {
       price: p.price ?? '',
       // Un arancel viejo que todavía no tenga cobertura cargada se muestra como un mes, que
       // es el default: es lo que la migración le puso a todos.
-      cobertura: `${p.coberturaCantidad ?? 1}|${p.coberturaUnidad || 'MES'}`,
+      cobertura: claveCobertura(p),
     });
   };
 
@@ -128,22 +107,6 @@ export default function ArancelesSettings() {
     } catch (e) {
       showToast(errorService.getMessage(e), 'error');
     }
-  };
-
-  /** "1 mes", "3 meses", "1 semana" — la misma etiqueta que se eligió al crearlo. */
-  const queOtorga = (p) => {
-    const clave = `${p.coberturaCantidad ?? 1}|${p.coberturaUnidad || 'MES'}`;
-    const conocida = COBERTURAS.find((c) => c.valor === clave);
-    if (conocida) return conocida.etiqueta;
-
-    // Un valor que no está en la lista: se muestra tal cual en vez de forzarlo a la opción más
-    // parecida. La migración conserva como días lo que no mapea, y un arancel que nadie previó
-    // no puede cambiar de significado por comodidad de esta función.
-    const n = p.coberturaCantidad ?? 0;
-    if (n <= 0) return 'No cubre tiempo';
-    return p.coberturaUnidad === 'MES'
-      ? `${n} ${n === 1 ? 'mes' : 'meses'}`
-      : `${n} ${n === 1 ? 'día' : 'días'}`;
   };
 
   return (
@@ -211,7 +174,7 @@ export default function ArancelesSettings() {
                   {!p.active && <small className="text-muted" style={{ display: 'block' }}>dado de baja</small>}
                 </td>
                 <td data-label="Precio">{formatCurrency(p.price)}</td>
-                <td data-label="Otorga">{queOtorga(p)}</td>
+                <td data-label="Otorga">{etiquetaCobertura(p)}</td>
                 <td data-label="Acciones">
                   <div style={{ display: 'flex', gap: '.4rem' }}>
                     <button className="btn btn-sm btn-secondary" onClick={() => editar(p)}>Editar</button>
