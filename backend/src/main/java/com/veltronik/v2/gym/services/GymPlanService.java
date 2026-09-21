@@ -91,21 +91,38 @@ public class GymPlanService {
         return repository.save(plan);
     }
 
+    /**
+     * Lo que se valida es la cobertura de verdad (ADR-013): {@code coberturaCantidad} y
+     * {@code coberturaUnidad}.
+     *
+     * <p>🔴 <b>Acá se leía {@code durationDays}, y eso rechazó TODO arancel nuevo desde el
+     * 2026-09-07 hasta el 2026-09-21.</b> Desde el ADR-013 la pantalla ya no manda días, así que
+     * {@code durationDays} quedaba en su default (0) y la regla "tiene que otorgar días o
+     * clases" fallaba siempre. Lo vio el primer gimnasio que se dio de alta después: no pudo
+     * cargar ni un arancel. La columna es solo para auditar lo de antes de la V65 — no la lea
+     * nadie para decidir nada.</p>
+     *
+     * <p><b>Cubrir 0 es válido</b>: es "No cubre tiempo (clase suelta)", que cobra plata sin
+     * correr la fecha. El problema del 0 era que fuera el default y pasara en silencio; ahora
+     * el default es un mes, el 0 se elige con esas palabras, y el cobro avisa en el momento
+     * que no va a mover el vencimiento (ADR-013, puntos 4 y 5).</p>
+     */
     private void validar(GymPlan plan) {
         if (plan.getName() == null || plan.getName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El arancel necesita un nombre");
         }
-        if (plan.getDurationDays() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Los días no pueden ser negativos");
+        if (plan.getCoberturaCantidad() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Lo que cubre el arancel no puede ser negativo");
+        }
+        // La base tiene el mismo CHECK, pero llegaría como un 500 sin explicación. La unidad
+        // decide si se suman días o meses: una tercera no puede pasar callada.
+        if (!"DIA".equals(plan.getCoberturaUnidad()) && !"MES".equals(plan.getCoberturaUnidad())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La cobertura del arancel tiene que ser en días o en meses");
         }
         if (plan.getClasses() != null && plan.getClasses() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las clases no pueden ser negativas");
-        }
-        // Un arancel que no otorga ni tiempo ni clases no cubre nada: sería cobrarle a alguien
-        // por nada. Es un error de carga, no una opción.
-        if (plan.getDurationDays() == 0 && (plan.getClasses() == null || plan.getClasses() == 0)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "El arancel tiene que otorgar días, clases, o las dos cosas");
         }
     }
 }
