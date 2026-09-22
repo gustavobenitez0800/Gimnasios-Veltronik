@@ -169,6 +169,59 @@
   flex-shrink: 0;
 }
 
+/* ─── Micro-animaciones del menú ───
+   Al pasar el mouse, cada ícono hace UN gesto corto que dice qué es: la flecha entra por
+   la puerta, la pesa se levanta, el corazón late, el engranaje gira. Duran menos de medio
+   segundo, se mueven 2-3px y vuelven solas a su lugar: se notan de reojo sin distraer a
+   quien atiende el mostrador todo el día.
+   Solo con mouse (en pantallas táctiles el hover queda pegado después del toque) y nunca
+   con "reducir movimiento". El ícono se elige por `data-icon`, que pone Icon.jsx: un
+   ícono nuevo en el menú sin regla acá simplemente no se mueve, no se rompe. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .nav-item:hover [data-icon="layoutDashboard"] svg { animation: navPop 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .nav-item:hover [data-icon="users"] svg           { animation: navHop 450ms ease-out; }
+  .nav-item:hover [data-icon="cash"] svg            { animation: navWiggle 500ms ease-in-out; }
+  .nav-item:hover [data-icon="barbell"] svg         { animation: navLift 520ms ease-in-out; }
+  .nav-item:hover [data-icon="heartHandshake"] svg  { animation: navBeat 600ms ease-out; }
+  .nav-item:hover [data-icon="receipt"] svg         { animation: navPrint 450ms ease-out; }
+
+  /* Cuelgan de arriba: el calendario de sus argollas, la credencial de su clip. */
+  .nav-item:hover [data-icon="calendarEvent"] svg,
+  .nav-item:hover [data-icon="idBadge"] svg {
+    transform-origin: 50% 0;
+    animation: navSwing 550ms ease-in-out;
+  }
+
+  /* Las barras crecen desde el piso. */
+  .nav-item:hover [data-icon="chart"] svg {
+    transform-origin: 50% 100%;
+    animation: navGrow 480ms ease-out;
+  }
+
+  /* Solo se mueve la flecha, no la puerta: es el último trazo del dibujo. */
+  .nav-item:hover [data-icon="doorEnter"] path:last-child { animation: navNudgeLeft 450ms ease-out; }
+
+  /* Cambiar de sucursal: las dos flechas se cruzan. */
+  .nav-item:hover [data-icon="switchSystem"] path:nth-child(-n+2) { animation: navNudgeRight 450ms ease-out; }
+  .nav-item:hover [data-icon="switchSystem"] path:nth-child(n+3)  { animation: navNudgeLeft 450ms ease-out; }
+
+  /* El engranaje con transición y no con animación: gira mientras el mouse está encima y
+     vuelve girando al salir, en vez de saltar a su lugar. */
+  [data-icon="settings"] svg { transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .nav-item:hover [data-icon="settings"] svg { transform: rotate(90deg); }
+}
+
+@keyframes navPop        { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.16); } }
+@keyframes navHop        { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-3px); } 70% { transform: translateY(0.5px); } }
+@keyframes navLift       { 0%, 100% { transform: translateY(0); } 30%, 55% { transform: translateY(-3px); } }
+@keyframes navWiggle     { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-10deg); } 55% { transform: rotate(7deg); } 80% { transform: rotate(-3deg); } }
+@keyframes navSwing      { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(10deg); } 55% { transform: rotate(-7deg); } 80% { transform: rotate(3deg); } }
+@keyframes navBeat       { 0%, 36%, 100% { transform: scale(1); } 18% { transform: scale(1.18); } 54% { transform: scale(1.1); } }
+@keyframes navPrint      { 0%, 100% { transform: translateY(0); } 35% { transform: translateY(2px); } 70% { transform: translateY(-1px); } }
+@keyframes navGrow       { 0%, 100% { transform: scaleY(1); } 35% { transform: scaleY(0.82); } 70% { transform: scaleY(1.06); } }
+@keyframes navNudgeLeft  { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(-3px); } }
+@keyframes navNudgeRight { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(3px); } }
+
 .sidebar-footer {
   padding: 1rem 1.25rem;
   border-top: 1px solid var(--border-color);
