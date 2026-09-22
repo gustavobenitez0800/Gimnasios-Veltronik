@@ -407,6 +407,205 @@ class CheckinFlowIntegrationTest extends EmbeddedPostgresTest {
     }
 
     /**
+     * ⭐ EL BOTÓN DEL TELÉFONO YA NO ES UN INTERRUPTOR (2026-09-22).
+     *
+     * <p>Lo reportó el dueño: el socio entraba por QR, el mostrador le marcaba la salida, y su
+     * teléfono seguía diciendo "Marcá tu salida". Al tocarlo, el servidor abría una ENTRADA. Y
+     * algunos socios, por curiosos, tocaban "Marcá tu salida" al rato de entrar. Ahora el
+     * teléfono dice qué quiere, y si el estado ya es ese no se toca nada.</p>
+     */
+    @Nested
+    @DisplayName("⭐ lo que el socio quiere hacer manda")
+    class LoQueQuiere {
+
+        private long visitasDe(UUID socio) {
+            return ((Number) em.createNativeQuery("SELECT count(*) FROM access_log WHERE member_id = :m")
+                    .setParameter("m", socio).getSingleResult()).longValue();
+        }
+
+        private void entroHace(UUID socio, long minutos) {
+            em.createNativeQuery("UPDATE access_log SET check_in_at = :t WHERE member_id = :m AND check_out_at IS NULL")
+                    .setParameter("t", LocalDateTime.now().minusMinutes(minutos))
+                    .setParameter("m", socio).executeUpdate();
+            em.flush();
+            em.clear();
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("⭐ si el mostrador ya le marcó la salida, tocar \"Marcá tu salida\" NO abre una entrada")
+        void yaSalioPorElMostrador() {
+            UUID gym = crearGimnasio("Gimnasio Quiere A");
+            UUID socio = crearSocio(gym, "Laura", "27222111", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "27222111", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, 40);
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                accessLogService.registerScan(socio, "manual", null, null, null, null);
+                em.flush();
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+
+            var r = checkinService.scan(token, "27222111", null, CheckinService.Quiere.SALIDA);
+
+            assertEquals("YA_AFUERA", r.direccion());
+            assertTrue(r.detalle().contains("Quedó marcada a las"), r.detalle());
+            assertEquals(1, visitasDe(socio), "no se abrió ninguna visita fantasma");
+            assertTrue(!checkinService.estado(token, "27222111").adentro());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("⭐ el curioso que toca \"salida\" a los dos minutos sigue adentro")
+        void elCuriosoSigueAdentro() {
+            UUID gym = crearGimnasio("Gimnasio Quiere B");
+            UUID socio = crearSocio(gym, "Bruno", "24111222", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "24111222", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, 2);
+
+            var r = checkinService.scan(token, "24111222", null, CheckinService.Quiere.SALIDA);
+
+            assertEquals("MUY_PRONTO", r.direccion());
+            assertTrue(r.detalle().contains("desde las"), "le dice desde cuándo puede: " + r.detalle());
+            assertTrue(checkinService.estado(token, "24111222").adentro(), "la visita sigue abierta");
+            assertEquals(1, visitasDe(socio));
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("pasados los 20 minutos, la salida se marca")
+        void despuesDeVeinteMinutosSale() {
+            UUID gym = crearGimnasio("Gimnasio Quiere C");
+            UUID socio = crearSocio(gym, "Carla", "25333444", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "25333444", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, CheckinService.SALIDA_MINIMA_MIN + 5);
+
+            var r = checkinService.scan(token, "25333444", null, CheckinService.Quiere.SALIDA);
+
+            assertEquals("SALIDA", r.direccion());
+            assertTrue(!checkinService.estado(token, "25333444").adentro());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("quiere entrar y ya está adentro: se lo dice, no le marca la salida")
+        void yaEstaAdentro() {
+            UUID gym = crearGimnasio("Gimnasio Quiere D");
+            UUID socio = crearSocio(gym, "Diego", "26111000", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "26111000", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, 45);
+
+            var r = checkinService.scan(token, "26111000", null, CheckinService.Quiere.ENTRADA);
+
+            assertEquals("YA_ADENTRO", r.direccion());
+            assertTrue(checkinService.estado(token, "26111000").adentro(), "no se le cerró la visita");
+            assertEquals(1, visitasDe(socio));
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("quiere entrar y tenía una visita vieja sin cerrar: entra (la vieja se cierra sola)")
+        void visitaAbandonada() {
+            UUID gym = crearGimnasio("Gimnasio Quiere E");
+            UUID socio = crearSocio(gym, "Elsa", "26555666", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "26555666", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, 11 * 60);
+            assertTrue(!checkinService.estado(token, "26555666").adentro(),
+                    "una visita de hace once horas no es alguien adentro");
+
+            var r = checkinService.scan(token, "26555666", null, CheckinService.Quiere.ENTRADA);
+
+            assertEquals("ENTRADA", r.direccion());
+            assertEquals(2, visitasDe(socio));
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("⭐ el teléfono con la pantalla vieja (sin decir qué quiere) tampoco saca al curioso")
+        void telefonoViejo() {
+            UUID gym = crearGimnasio("Gimnasio Quiere F");
+            UUID socio = crearSocio(gym, "Fede", "23999000", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "23999000", null);
+            em.flush();
+            entroHace(socio, 1);
+
+            var r = checkinService.scan(token, "23999000", null);
+
+            assertEquals("MUY_PRONTO", r.direccion());
+            assertTrue(checkinService.estado(token, "23999000").adentro());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("el estado dice cuánto falta para poder marcar la salida")
+        void cuantoFalta() {
+            UUID gym = crearGimnasio("Gimnasio Quiere G");
+            UUID socio = crearSocio(gym, "Gabi", "22888777", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            checkinService.scan(token, "22888777", null, CheckinService.Quiere.ENTRADA);
+            em.flush();
+            entroHace(socio, 5);
+            long falta = checkinService.estado(token, "22888777").faltaParaSalir();
+            assertTrue(falta > 14 * 60 && falta <= 15 * 60, "faltan ~15 minutos: " + falta);
+
+            entroHace(socio, 30);
+            assertEquals(0, checkinService.estado(token, "22888777").faltaParaSalir());
+        }
+
+        @Test
+        @Transactional
+        @DisplayName("⭐ la marca del mostrador cambia con cada entrada y cada salida")
+        void laMarcaCambia() {
+            UUID gym = crearGimnasio("Gimnasio Marca");
+            UUID socio = crearSocio(gym, "Hugo", "21777666", LocalDateTime.now().plusDays(10));
+            String token = crearCartel(gym);
+            em.flush();
+
+            com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+            try {
+                String antes = accessLogService.marcaDeAccesos();
+                checkinService.scan(token, "21777666", null, CheckinService.Quiere.ENTRADA);
+                em.flush();
+                com.veltronik.v2.core.security.TenantContextHolder.setTenantId(gym);
+                String conEntrada = accessLogService.marcaDeAccesos();
+                assertTrue(!antes.equals(conEntrada), "la entrada por QR mueve la marca");
+
+                accessLogService.registerScan(socio, "manual", null, null, null, null);
+                em.flush();
+                assertTrue(!conEntrada.equals(accessLogService.marcaDeAccesos()), "la salida también");
+            } finally {
+                com.veltronik.v2.core.security.TenantContextHolder.clear();
+            }
+        }
+    }
+
+    /**
      * La consulta que reemplazó a la memoria del teléfono. Antes el celular guardaba la última
      * dirección y esa copia se volvía mentira apenas el mostrador tocaba algo: ofrecía "marcar
      * salida", el servidor no encontraba visita abierta, y abría una ENTRADA — el socio

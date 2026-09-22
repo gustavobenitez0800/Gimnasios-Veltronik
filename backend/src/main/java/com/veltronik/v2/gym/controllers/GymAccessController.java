@@ -136,6 +136,21 @@ public class GymAccessController {
     }
 
     /**
+     * ¿Pasó algo en la puerta? Una marca que cambia con cada entrada, salida, aviso atendido o
+     * rechazo del molinete.
+     *
+     * <p>⭐ Es lo que hace que el QR aparezca AL INSTANTE en el mostrador. El socio marca desde
+     * su celular, así que la pantalla del gimnasio solo se entera preguntando. Preguntar el
+     * mostrador entero cada dos segundos es traer la lista del día y recalcular avisos para, casi
+     * siempre, nada; esto son dos cuentas sobre un índice. La pantalla la pregunta seguido y pide
+     * el mostrador recién cuando la marca cambia.</p>
+     */
+    @GetMapping("/novedades")
+    public ResponseEntity<Map<String, String>> novedades() {
+        return ResponseEntity.ok(Map.of("marca", accessService.marcaDeAccesos() + "|" + molineteService.marcaDeRechazos()));
+    }
+
+    /**
      * Socios que entraron SOLOS por QR y necesitan que alguien les hable.
      *
      * <p>Es la otra punta del check-in: cuando un socio vencido escanea el cartel, el aviso

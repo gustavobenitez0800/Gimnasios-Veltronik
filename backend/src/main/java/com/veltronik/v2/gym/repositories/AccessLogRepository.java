@@ -40,6 +40,30 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     
     Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtIsNullOrderByCheckInAtDesc(UUID tenantId, UUID memberId);
 
+    /** La última salida de este socio desde un momento: el teléfono dice "la marcó el mostrador a las 19:40". */
+    Optional<AccessLog> findTopByTenantIdAndMemberIdAndCheckOutAtAfterOrderByCheckOutAtDesc(
+            UUID tenantId, UUID memberId, LocalDateTime desde);
+
+    /**
+     * La MARCA del mostrador: cambia cada vez que pasa algo en la puerta desde {@code desde}.
+     *
+     * <p>Una entrada nueva sube la cuenta; una salida, un aviso atendido o un cierre nocturno
+     * mueven el máximo. La pantalla la pregunta cada dos segundos y recién cuando cambia pide
+     * el mostrador entero: preguntar el mostrador entero cada dos segundos sería traer la lista
+     * del día con las fichas de todos los socios para, casi siempre, no encontrar nada nuevo.</p>
+     *
+     * <p>Usa el índice (tenant_id, check_in_at).</p>
+     */
+    @Query(value = """
+            SELECT count(*) || ':' || coalesce(to_char(max(greatest(
+                       updated_at, check_in_at,
+                       coalesce(check_out_at, check_in_at),
+                       coalesce(aviso_visto_at, check_in_at))), 'YYYYMMDDHH24MISSUS'), '-')
+            FROM access_log
+            WHERE tenant_id = :tenantId AND check_in_at >= :desde
+            """, nativeQuery = true)
+    String marcaDesde(@Param("tenantId") UUID tenantId, @Param("desde") LocalDateTime desde);
+
     /**
      * La visita que estaba abierta EN UN MOMENTO DADO, y no simplemente la última abierta.
      *

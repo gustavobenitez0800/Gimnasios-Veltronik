@@ -45,12 +45,29 @@ public class CheckinService {
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Cuánto tiene que pasar desde la entrada para que el TELÉFONO pueda marcar la salida.
+     *
+     * <p>Pedido del dueño (2026-09-22): hay socios que, por curiosos, tocan "Marcá tu salida" al
+     * rato de entrar, y quedaban afuera del gimnasio estando adentro. Nadie entrena menos de
+     * veinte minutos; el que de verdad se va antes (se olvidó algo) lo marca el mostrador, o la
+     * visita se cierra sola. Solo frena al QR: la recepcionista siempre es deliberada.</p>
+     */
+    static final long SALIDA_MINIMA_MIN = 20;
+
+    /** Lo que el socio quiso hacer al tocar el botón. Null = un teléfono con la pantalla vieja. */
+    public enum Quiere { ENTRADA, SALIDA }
+
     /** Lo que ve el socio en su teléfono después de escanear. */
     public record CheckinResult(
             boolean ok,
             String gimnasio,
             String socio,
-            String direccion,        // ENTRADA | SALIDA | REBOTE
+            // ENTRADA | SALIDA | REBOTE, y los que NO cambian nada:
+            //   YA_ADENTRO  quiso entrar y ya estaba adentro
+            //   YA_AFUERA   quiso salir y ya no estaba (la salida la marcó el mostrador)
+            //   MUY_PRONTO  quiso salir a los pocos minutos de entrar
+            String direccion,
             String estado,           // AL_DIA | EN_GRACIA | VENCIDO | SIN_DATOS | INACTIVO
             String titulo,
             String detalle,
@@ -81,8 +98,14 @@ public class CheckinService {
     /** Ventana en la que se mira ese patrón. Un mes: suficiente para ver una costumbre. */
     private static final int DIAS_DE_PATRON = 30;
 
+    /** El teléfono viejo, que no dice qué quiere: se decide por el estado, como siempre. */
     @Transactional
     public CheckinResult scan(String token, String documento, UUID scannerId) {
+        return scan(token, documento, scannerId, null);
+    }
+
+    @Transactional
+    public CheckinResult scan(String token, String documento, UUID scannerId, Quiere quiere) {
         Optional<CheckinPointRepository.PointLookup> lookup = pointRepository.findByToken(token);
         if (lookup.isEmpty()) {
             // Mismo mensaje para token inexistente que para desactivado: si dijéramos cuál es,
@@ -113,15 +136,30 @@ public class CheckinService {
         UUID anterior = TenantContextHolder.getTenantId();
         try {
             TenantContextHolder.setTenantId(punto.getTenantId());
-            return resolverSocio(punto, doc, scannerId);
+            return resolverSocio(punto, doc, scannerId, quiere);
         } finally {
             if (anterior != null) TenantContextHolder.setTenantId(anterior);
             else TenantContextHolder.clear();
         }
     }
 
-    /** Si el socio está adentro ahora mismo. Lo pregunta el teléfono para escribir el botón. */
-    public record EstadoSocio(boolean adentro, LocalDateTime desde) {}
+    /**
+     * Si el socio está adentro ahora mismo. Lo pregunta el teléfono para escribir el botón, y lo
+     * vuelve a preguntar solo: si el mostrador le marcó la salida, el botón cambia sin que nadie
+     * toque nada.
+     *
+     * @param adentro          si hay una visita en curso (una abandonada NO cuenta)
+     * @param desde            desde cuándo está adentro
+     * @param faltaParaSalir   segundos hasta que el teléfono pueda marcar la salida (0 = ya puede).
+     *                         En segundos y no como hora: el reloj del celular puede estar corrido.
+     *
+     * <p>⚠️ Sin "a qué hora salió hoy", a propósito: para un documento que no existe esto contesta
+     * "afuera", y una hora de salida le confirmaría a un curioso que esa persona es socia y vino
+     * hoy. La hora se dice al marcar, que tiene su propio freno de intentos.</p>
+     */
+    public record EstadoSocio(boolean adentro, LocalDateTime desde, long faltaParaSalir) {
+        static EstadoSocio nada() { return new EstadoSocio(false, null, 0); }
+    }
 
     /**
      * ¿Este socio está adentro del gimnasio en este momento?
@@ -141,21 +179,23 @@ public class CheckinService {
     @Transactional(readOnly = true)
     public EstadoSocio estado(String token, String documento) {
         var lookup = pointRepository.findByToken(token);
-        if (lookup.isEmpty() || lookup.get().getTenantId() == null) return new EstadoSocio(false, null);
+        if (lookup.isEmpty() || lookup.get().getTenantId() == null) return EstadoSocio.nada();
 
         String normalizado = normalizarDocumento(documento);
-        if (normalizado.isEmpty()) return new EstadoSocio(false, null);
+        if (normalizado.isEmpty()) return EstadoSocio.nada();
 
         UUID anterior = TenantContextHolder.getTenantId();
         try {
             TenantContextHolder.setTenantId(lookup.get().getTenantId());
             List<GymMember> encontrados = memberRepository
                     .findByDocumentoNormalizado(lookup.get().getTenantId(), normalizado);
-            if (encontrados.size() != 1) return new EstadoSocio(false, null);
+            if (encontrados.size() != 1) return EstadoSocio.nada();
 
-            return accessLogService.visitaAbiertaDe(encontrados.get(0).getId())
-                    .map(a -> new EstadoSocio(true, a.getCheckInAt()))
-                    .orElse(new EstadoSocio(false, null));
+            UUID socio = encontrados.get(0).getId();
+            LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+            return accessLogService.visitaEnCurso(socio, ahora)
+                    .map(a -> new EstadoSocio(true, a.getCheckInAt(), faltaParaSalir(a.getCheckInAt(), ahora)))
+                    .orElse(EstadoSocio.nada());
         } finally {
             if (anterior != null) TenantContextHolder.setTenantId(anterior);
             else TenantContextHolder.clear();
@@ -174,7 +214,18 @@ public class CheckinService {
         return Documento.normalizar(raw);
     }
 
-    private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc, UUID scannerId) {
+    /** Segundos que faltan para que el teléfono pueda marcar la salida de una visita que empezó a esa hora. */
+    static long faltaParaSalir(LocalDateTime entrada, LocalDateTime ahora) {
+        long pasaron = java.time.Duration.between(entrada, ahora).getSeconds();
+        return Math.max(0, SALIDA_MINIMA_MIN * 60 - pasaron);
+    }
+
+    private static String hora(LocalDateTime t) {
+        return t == null ? "" : String.format("%02d:%02d", t.getHour(), t.getMinute());
+    }
+
+    private CheckinResult resolverSocio(CheckinPointRepository.PointLookup punto, String doc, UUID scannerId,
+                                        Quiere quiere) {
         String normalizado = normalizarDocumento(doc);
         if (normalizado.isEmpty()) {
             return error("Falta tu documento", "Escribí tu DNI sin puntos para poder identificarte.");
@@ -206,6 +257,37 @@ public class CheckinService {
         GymMember member = encontrados.get(0);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         MemberAccessPolicy.Verdict veredicto = accessPolicy.evaluate(member, now);
+
+        // ⭐ LO QUE EL SOCIO QUISO HACER MANDA. EL BOTÓN YA NO ES UN INTERRUPTOR.
+        //
+        // Lo reportó el dueño: el socio entraba por QR, el mostrador le marcaba la salida, y su
+        // teléfono seguía diciendo "Marcá tu salida". Al tocarlo, el servidor no encontraba
+        // visita abierta y abría una ENTRADA: el socio quedaba adentro después de haberse ido.
+        // Ahora el teléfono dice qué quiere, y si el estado ya es ese no se toca nada: se le
+        // dice cómo están las cosas.
+        String nombre = nullSafe(member.getFirstName()).trim();
+        Optional<com.veltronik.v2.gym.entities.AccessLog> enCurso = accessLogService.visitaEnCurso(member.getId(), now);
+        if (quiere == Quiere.ENTRADA && enCurso.isPresent()) {
+            return sinCambios(punto, nombre, veredicto, "YA_ADENTRO", "Ya estás adentro",
+                    "Tu entrada quedó marcada a las " + hora(enCurso.get().getCheckInAt()) + ". ¡Buen entrenamiento!");
+        }
+        if (quiere == Quiere.SALIDA && enCurso.isEmpty()) {
+            Optional<LocalDateTime> salio = accessLogService.ultimaSalidaDeHoy(member.getId());
+            return sinCambios(punto, nombre, veredicto, "YA_AFUERA", "Tu salida ya está registrada",
+                    salio.map(s -> "Quedó marcada a las " + hora(s) + ". ¡Hasta la próxima!")
+                            .orElse("No tenías una entrada abierta. Si recién llegás, marcá tu entrada."));
+        }
+        // ⭐ Y NADIE SALE A LOS DOS MINUTOS DE ENTRAR. Vale también para el teléfono viejo, que no
+        // dice qué quiere: su segundo toque es exactamente el del curioso.
+        if (quiere != Quiere.ENTRADA && enCurso.isPresent()) {
+            long falta = faltaParaSalir(enCurso.get().getCheckInAt(), now);
+            if (falta > 0) {
+                LocalDateTime habilita = enCurso.get().getCheckInAt().plusMinutes(SALIDA_MINIMA_MIN);
+                return sinCambios(punto, nombre, veredicto, "MUY_PRONTO", "Recién entraste",
+                        "Tu entrada es de las " + hora(enCurso.get().getCheckInAt())
+                                + ". La salida se marca cuando te vas: desde las " + hora(habilita) + ".");
+            }
+        }
 
         AccessLogService.ScanResult scan =
                 accessLogService.registerScan(member.getId(), "QR", punto.getPointId(), scannerId, null, null);
@@ -302,6 +384,17 @@ public class CheckinService {
 
         return new CheckinResult(true, punto.getGymName(), nombre, dir, v.status().name(),
                 titulo, detalle, avisar, sonar);
+    }
+
+    /**
+     * Una respuesta que NO registró nada, porque el estado ya era el que el socio quería (o
+     * todavía no le toca salir). Sin aviso al mostrador y sin sonido: no pasó nada nuevo.
+     */
+    private CheckinResult sinCambios(CheckinPointRepository.PointLookup punto, String nombre,
+                                     MemberAccessPolicy.Verdict v, String direccion,
+                                     String titulo, String detalle) {
+        return new CheckinResult(true, punto.getGymName(), nombre, direccion, v.status().name(),
+                titulo, detalle, false, false);
     }
 
     private CheckinResult error(String titulo, String detalle) {

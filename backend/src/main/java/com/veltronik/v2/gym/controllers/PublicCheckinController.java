@@ -123,7 +123,16 @@ public class PublicCheckinController {
             try { scannerId = UUID.fromString(scannerRaw.trim()); } catch (IllegalArgumentException ignored) { }
         }
 
-        CheckinService.CheckinResult r = checkinService.scan(token, documento, scannerId);
+        // Qué quiso hacer el socio. Un teléfono con la pantalla vieja no lo manda, y se decide
+        // por el estado como siempre; un valor raro se trata igual que ninguno.
+        CheckinService.Quiere quiere = null;
+        String quiereRaw = body.get("quiere");
+        if (quiereRaw != null) {
+            try { quiere = CheckinService.Quiere.valueOf(quiereRaw.trim().toUpperCase()); }
+            catch (IllegalArgumentException ignored) { }
+        }
+
+        CheckinService.CheckinResult r = checkinService.scan(token, documento, scannerId, quiere);
         registrarIntento(token, r.ok());
 
         return ResponseEntity.ok(r);

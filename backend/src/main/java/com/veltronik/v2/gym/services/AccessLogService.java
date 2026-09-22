@@ -334,6 +334,38 @@ public class AccessLogService {
                 TenantContextHolder.getTenantId(), memberId);
     }
 
+    /**
+     * La visita de alguien que está adentro DE VERDAD: abierta y no abandonada.
+     *
+     * <p>Una visita abierta de hace diez horas no es alguien entrenando: es alguien que se fue
+     * sin marcar (ver {@link #esAbandonada}). Para el teléfono esa persona está AFUERA — lo
+     * próximo que hace es entrar, y el escaneo cierra la vieja sola.</p>
+     */
+    @Transactional(readOnly = true)
+    public Optional<AccessLog> visitaEnCurso(UUID memberId, LocalDateTime ahora) {
+        return visitaAbiertaDe(memberId).filter(v -> !esAbandonada(v.getCheckInAt(), ahora));
+    }
+
+    /** Cuándo salió hoy por última vez, si salió. */
+    @Transactional(readOnly = true)
+    public Optional<LocalDateTime> ultimaSalidaDeHoy(UUID memberId) {
+        LocalDateTime hoy = LocalDateTime.now(BUSINESS_ZONE).toLocalDate().atStartOfDay();
+        return accessLogRepository
+                .findTopByTenantIdAndMemberIdAndCheckOutAtAfterOrderByCheckOutAtDesc(
+                        TenantContextHolder.getTenantId(), memberId, hoy)
+                .map(AccessLog::getCheckOutAt);
+    }
+
+    /**
+     * La marca de los accesos: cambia cuando pasa algo en la puerta (una entrada, una salida, un
+     * aviso atendido). Desde ayer: una visita de anoche que se cierra hoy también cuenta.
+     */
+    @Transactional(readOnly = true)
+    public String marcaDeAccesos() {
+        LocalDateTime desde = LocalDateTime.now(BUSINESS_ZONE).toLocalDate().minusDays(1).atStartOfDay();
+        return accessLogRepository.marcaDesde(TenantContextHolder.getTenantId(), desde);
+    }
+
     /** Compatibilidad con el mostrador, que ya llamaba así. Sin cola: pasa ahora. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {

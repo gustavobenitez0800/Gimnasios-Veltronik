@@ -10,6 +10,16 @@ import java.util.UUID;
 
 public interface AccessDeniedRepository extends JpaRepository<AccessDenied, UUID> {
 
+    /** La marca de los rechazos del molinete: la misma idea que la de los accesos. */
+    @org.springframework.data.jpa.repository.Query(value = """
+            SELECT count(*) || ':' || coalesce(to_char(max(greatest(
+                       updated_at, occurred_at, coalesce(aviso_visto_at, occurred_at))), 'YYYYMMDDHH24MISSUS'), '-')
+            FROM access_denied
+            WHERE tenant_id = :tenantId AND occurred_at >= :desde
+            """, nativeQuery = true)
+    String marcaDesde(@org.springframework.data.repository.query.Param("tenantId") UUID tenantId,
+                      @org.springframework.data.repository.query.Param("desde") java.time.LocalDateTime desde);
+
     /**
      * El último rechazo de este socio, para no guardar treinta veces el mismo.
      *

@@ -198,6 +198,13 @@ public class MolineteService {
      * conviene saberlo para pedirle disculpas o resincronizar el equipo— pero con su situación
      * de ahora, no con la de hace media hora.</p>
      */
+    /** La marca de los rechazos, para que el mostrador sepa que pasó algo sin pedir la lista. */
+    @Transactional(readOnly = true)
+    public String marcaDeRechazos() {
+        LocalDateTime desde = java.time.LocalDate.now(BUSINESS_ZONE).minusDays(1).atStartOfDay();
+        return deniedRepository.marcaDesde(TenantContextHolder.getTenantId(), desde);
+    }
+
     @Transactional(readOnly = true)
     public List<Rechazo> rechazosPendientes() {
         LocalDateTime desde = java.time.LocalDate.now(BUSINESS_ZONE).atStartOfDay();
