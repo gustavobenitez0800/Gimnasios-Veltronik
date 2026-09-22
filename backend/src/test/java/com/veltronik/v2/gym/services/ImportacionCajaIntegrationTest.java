@@ -125,7 +125,7 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
                     cobro(4, ayer.format(DMA), ayer.format(HM), "", "", "Gasto", "Efectivo", "-5000")));
             // Y uno cobrado de verdad en Veltronik, hoy.
             // A la hora exacta: un minuto antes, a las 00:00 del día 1, caería en el mes anterior.
-            cobrarEnVeltronik(null, "20000", "cash", LocalDateTime.now(RELOJ));
+            cobrarEnVeltronik(null, "20000", "CASH", LocalDateTime.now(RELOJ));
 
             CajaService.Resumen abierto = caja.resumenAbierto();
             assertThat(abierto.efectivo()).isEqualByComparingTo("20000");
@@ -134,7 +134,12 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
             assertThat(abierto.egresosEfectivo()).as("el gasto importado no salió de este cajón").isEqualByComparingTo("0");
             assertThat(caja.movimientosDelPeriodo()).hasSize(1);
             assertThat(caja.movimientosDeCaja()).isEmpty();
-            assertThat(caja.balance(true).efectivo()).isEqualByComparingTo("20000");
+            // El BALANCE ("¿cuánta plata entró?") sí lo cuenta, marcado aparte: es el libro de
+            // ingresos, el mismo número del tablero (decisión del 2026-09-22). La caja, no.
+            var balance = caja.balance(ayer.toLocalDate(), LocalDateTime.now(RELOJ).toLocalDate());
+            assertThat(balance.ingresos().cuotas()).isEqualByComparingTo("20000");
+            assertThat(balance.ingresos().historial()).isEqualByComparingTo("66000");
+            assertThat(balance.efectivo()).isEqualByComparingTo("54000");
 
             var cierre = caja.cerrar(BigDecimal.ZERO, null, "Carla");
             assertThat(cierre.getCantidadCobros()).isEqualTo(1);
@@ -213,7 +218,7 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
             Map<String, Object> p = jdbc.queryForMap("SELECT member_id, notes, payment_method, payment_date FROM gym_payment WHERE tenant_id = ?", gym);
             assertThat(p.get("member_id")).isNull();
             assertThat(p.get("notes")).isEqualTo("PEREYRA LUCIA (DNI 33444555) · Cuota");
-            assertThat(p.get("payment_method")).isEqualTo("transfer");
+            assertThat(p.get("payment_method")).isEqualTo("TRANSFER");
             assertThat(p.get("payment_date")).isEqualTo(Timestamp.valueOf(LocalDateTime.of(2026, 1, 5, 7, 17)));
             assertThat(cuantosSocios()).as("no se da de alta a nadie").isZero();
         }
@@ -225,7 +230,7 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
             // El mismo instante para los dos: con "un minuto antes", a las 00:00 el archivo
             // caería en el día anterior y el test fallaría solo de madrugada.
             LocalDateTime hoy = LocalDateTime.now(RELOJ).withSecond(0).withNano(0);
-            cobrarEnVeltronik(tito, "34000", "cash", hoy);
+            cobrarEnVeltronik(tito, "34000", "CASH", hoy);
 
             Analisis a = importador.analizar(pedido(
                     cobro(2, hoy.format(DMA), hoy.format(HM), "TITO", "40111222", "Cuota", "Efectivo", "34000")));
@@ -368,7 +373,7 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
         @Test
         @DisplayName("⭐ se lleva los cobros y los gastos que trajo, y nada más")
         void seLlevaLoQueTrajo() {
-            cobrarEnVeltronik(null, "20000", "cash", LocalDateTime.now(RELOJ));
+            cobrarEnVeltronik(null, "20000", "CASH", LocalDateTime.now(RELOJ));
             Resultado r = importador.importar(pedido(
                     cobro(2, "05/01/2026", "07:17", "Ana", "", "Cuota", "Efectivo", "29000"),
                     cobro(3, "13/02/2026", "18:03", "", "", "Gasto", "Efectivo", "-3500")));
@@ -500,7 +505,7 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
             UUID ana = crearSocio(gym, "Ana", "30111222", LocalDateTime.of(2026, 10, 15, 23, 59, 59), true);
             jdbc.update("INSERT INTO gym_payment (id, created_at, updated_at, tenant_id, member_id, amount, "
                             + "payment_method, payment_date, status, period_start, period_end) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    UUID.randomUUID(), LocalDateTime.now(), LocalDateTime.now(), gym, ana, new BigDecimal("34000"), "cash",
+                    UUID.randomUUID(), LocalDateTime.now(), LocalDateTime.now(), gym, ana, new BigDecimal("34000"), "CASH",
                     LocalDateTime.of(2026, 9, 16, 10, 0), "paid",
                     LocalDateTime.of(2026, 9, 15, 0, 0), LocalDateTime.of(2026, 10, 15, 0, 0));
 

@@ -13,7 +13,31 @@
 // Desde afuera se veía como "los aranceles no hacen nada", y eran dos líneas.
 
 import { describe, it, expect } from 'vitest';
-import { CAMPOS_DEL_PAGO, mapPaymentModelToDTO } from './mapeoPago';
+import { CAMPOS_DEL_PAGO, mapPaymentModelToDTO, momentoDelCobro } from './mapeoPago';
+
+describe('el momento del cobro', () => {
+  const ahora = new Date(2026, 8, 22, 19, 40, 5); // 22/09/2026 19:40:05, hora de la PC
+
+  it('⭐ editar sin tocar el día NO le borra la hora (antes pasaba a las 00:00)', () => {
+    expect(momentoDelCobro('2026-09-20', '2026-09-20T19:40:00', ahora)).toBe('2026-09-20T19:40:00');
+  });
+
+  it('un cobro de HOY lleva la hora de ahora, no las 00:00', () => {
+    expect(momentoDelCobro('2026-09-22', null, ahora)).toBe('2026-09-22T19:40:05');
+  });
+
+  it('otro día sin hora conocida: las 00:00 de ese día', () => {
+    expect(momentoDelCobro('2026-09-18', null, ahora)).toBe('2026-09-18T00:00:00');
+  });
+
+  it('si se cambió el día al editar, vale el día nuevo', () => {
+    expect(momentoDelCobro('2026-09-19', '2026-09-20T19:40:00', ahora)).toBe('2026-09-19T00:00:00');
+  });
+
+  it('sin día no inventa uno', () => {
+    expect(momentoDelCobro('', null, ahora)).toBe(null);
+  });
+});
 
 const formulario = {
   member_id: 'socio-1',

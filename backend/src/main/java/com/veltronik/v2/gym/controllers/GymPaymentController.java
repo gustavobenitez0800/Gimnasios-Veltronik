@@ -32,10 +32,13 @@ public class GymPaymentController {
 
     private final GymPaymentService paymentService;
     private final GymPaymentMapper paymentMapper;
+    private final com.veltronik.v2.gym.services.LibroDeIngresos libro;
 
-    public GymPaymentController(GymPaymentService paymentService, GymPaymentMapper paymentMapper) {
+    public GymPaymentController(GymPaymentService paymentService, GymPaymentMapper paymentMapper,
+                                com.veltronik.v2.gym.services.LibroDeIngresos libro) {
         this.paymentService = paymentService;
         this.paymentMapper = paymentMapper;
+        this.libro = libro;
     }
 
     /**
@@ -95,35 +98,56 @@ public class GymPaymentController {
     @PutMapping("/{id}")
     public ResponseEntity<GymPaymentDTO> updatePayment(@PathVariable UUID id, @RequestBody GymPaymentInputDTO input,
                                                        @RequestHeader(value = "X-Cashier-Name", required = false) String quien) {
-        GymPayment existingPayment = paymentService.findByIdAndVerifyOwnership(id);
-
-        // Foto del ANTES, para poder anotar qué cambió. Se copia a mano y no se guarda la
-        // entidad: la de JPA es la misma instancia que se está por modificar, así que
-        // quedarse con la referencia daría el "antes" ya pisado por el "después".
-        GymPayment antes = new GymPayment();
-        antes.setId(existingPayment.getId());
-        antes.setAmount(existingPayment.getAmount());
-        antes.setPaymentMethod(existingPayment.getPaymentMethod());
-        antes.setStatus(existingPayment.getStatus());
-        antes.setMember(existingPayment.getMember());
-        antes.setPaymentDate(existingPayment.getPaymentDate());
-
         // Parche parcial. El socio NO se reasigna en un update (igual que el comportamiento previo).
-        if (input.getAmount() != null) existingPayment.setAmount(input.getAmount());
-        if (input.getPaymentDate() != null) existingPayment.setPaymentDate(input.getPaymentDate());
-        if (input.getPaymentMethod() != null) existingPayment.setPaymentMethod(input.getPaymentMethod());
-        if (input.getStatus() != null) existingPayment.setStatus(input.getStatus());
-        if (input.getNotes() != null) existingPayment.setNotes(input.getNotes());
-        if (input.getPeriodStart() != null) existingPayment.setPeriodStart(input.getPeriodStart());
-        if (input.getPeriodEnd() != null) existingPayment.setPeriodEnd(input.getPeriodEnd());
-
-        GymPayment guardado = paymentService.saveForCurrentTenant(existingPayment);
-        paymentService.anotarEdicion(antes, guardado, quien);
+        // ⚠️ No pasa por el alta: editar un cobro con arancel ya no le regala un mes al socio
+        // (ver GymPaymentService.actualizar).
+        GymPayment guardado = paymentService.actualizar(id, new GymPaymentService.Cambios(
+                input.getAmount(), input.getPaymentDate(), input.getPaymentMethod(), input.getStatus(),
+                input.getNotes(), input.getPeriodStart(), input.getPeriodEnd()), quien);
         return ResponseEntity.ok(paymentMapper.toDto(guardado));
     }
 
     /**
-     * Borra un cobro. <b>Solo dueño o admin.</b>
+     * ⭐ Anula un cobro. <b>Solo dueño o admin</b>, por lo mismo que el borrado de antes: el robo
+     * era cobrar, que el socio se fuera contento, y después hacer desaparecer el cobro.
+     *
+     * <p>No lo borra: queda tachado, con quién, cuándo y por qué, y deja de sumar en todas partes.
+     * Si ya había entrado en un cierre de caja, el próximo cierre lo descuenta a la vista.</p>
+     */
+    @PostMapping("/{id}/anular")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> anular(@PathVariable UUID id,
+                                                                @RequestBody(required = false) java.util.Map<String, String> body,
+                                                                @RequestHeader(value = "X-Cashier-Name", required = false) String quien) {
+        String motivo = body == null ? null : body.get("motivo");
+        String hechoPor = body != null && body.get("anuladoPor") != null ? body.get("anuladoPor") : quien;
+        GymPaymentService.Anulacion a = paymentService.anular(id, motivo, hechoPor);
+        java.util.Map<String, Object> salida = new java.util.HashMap<>();
+        salida.put("pago", paymentMapper.toDto(a.pago()));
+        salida.put("vencimientoRestaurado", a.vencimientoRestaurado());
+        return ResponseEntity.ok(salida);
+    }
+
+    /**
+     * ⭐ Cuánto entró en un rango de días, del LIBRO DE INGRESOS: el mismo número del tablero,
+     * de la caja y del Excel. Pagos lo muestra en vez de sumar en el navegador lo que tiene cargado.
+     *
+     * <p>Por forma de pago y por origen: cuotas cobradas en Veltronik, historial importado, y las
+     * ventas y otros ingresos anotados en la caja.</p>
+     */
+    @GetMapping("/ingresos")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<java.util.Map<String, Object>> ingresos(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        com.veltronik.v2.gym.services.CajaService.validarRango(desde, hasta);
+        return ResponseEntity.ok(libro.enLosDias(
+                com.veltronik.v2.core.security.TenantContextHolder.getTenantId(), desde, hasta).comoMapa());
+    }
+
+    /**
+     * El borrado de los escritorios viejos. <b>Ya no borra: anula</b> (ver {@link #anular}).
+     * <b>Solo dueño o admin.</b>
      *
      * <p>Acá estaba el agujero más grande del sistema: cualquiera podía borrar. El robo era
      * registrar el cobro —el socio se va contento y su vencimiento se corre—, y más tarde

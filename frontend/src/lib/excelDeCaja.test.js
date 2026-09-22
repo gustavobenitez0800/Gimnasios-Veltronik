@@ -42,7 +42,8 @@ const REPORTE = {
   cierres: [
     { desde: '2026-09-21T21:00:00', hasta: '2026-09-22T21:00:00', cerradoPor: 'Carla', fondo: 10000,
       efectivo: 34000, transferencia: 30000, mercadopago: 32000, tarjeta: 0, otros: 0, cantidadCobros: 3,
-      ingresosEfectivo: 5000, egresosEfectivo: 15000, enElCajon: 34000, retiro: 30000, quedaEnCaja: 4000, nota: null },
+      ingresosEfectivo: 5000, egresosEfectivo: 15000, ajustesEfectivo: 0, enElCajon: 34000, retiro: 30000,
+      quedaEnCaja: 4000, nota: null },
   ],
 };
 
@@ -72,7 +73,7 @@ describe('el Excel de la caja', () => {
     expect(alLadoDe(ws, 'Total cobrado').v).toBe(96000);
     expect(alLadoDe(ws, 'Total cobrado').z).toContain('#,##0');
     expect(alLadoDe(ws, 'Gastos pagados por otros medios').v).toBe(20000);
-    expect(alLadoDe(ws, 'RESULTADO (todo lo que entró menos todo lo que salió)').v).toBe(66000);
+    expect(alLadoDe(ws, 'RESULTADO (todo lo que entró menos todo lo que se gastó)').v).toBe(66000);
     expect(alLadoDe(ws, 'Tarjeta'), 'sin tarjeta, no hay fila en cero').toBeUndefined();
   });
 
@@ -120,9 +121,48 @@ describe('el Excel de la caja', () => {
     expect(fila).toBeGreaterThan(0);
     const celda = (c) => ws[XLSX.utils.encode_cell({ r: fila, c })].v;
     expect(celda(3), 'quedaba de antes').toBe(10000);
-    expect(celda(7), 'había en el cajón').toBe(34000);
-    expect(celda(8), 'retiro').toBe(30000);
-    expect(celda(9), 'quedó en caja').toBe(4000);
+    expect(celda(7), 'correcciones de días anteriores').toBe(0);
+    expect(celda(8), 'había en el cajón').toBe(34000);
+    expect(celda(9), 'retiro').toBe(30000);
+    expect(celda(10), 'quedó en caja').toBe(4000);
+  });
+
+  it('⭐ el historial importado va adentro, marcado renglón por renglón y en el resumen', () => {
+    const conHistorial = {
+      ...REPORTE,
+      totales: { ...REPORTE.totales, cuotas: 64000, historial: 32000, cantidadHistorial: 1, ingresos: 101000 },
+      cobros: REPORTE.cobros.map((c, i) => (i === 2 ? { ...c, importado: true } : c)),
+    };
+    const libro = abrir(conHistorial);
+    const resumen = libro.Sheets.Resumen;
+    expect(alLadoDe(resumen, '   Cobrado en Veltronik').v).toBe(64000);
+    expect(alLadoDe(resumen, '   Historial importado (no pasó por esta caja)').v).toBe(32000);
+    expect(alLadoDe(resumen, 'TOTAL QUE ENTRÓ (cobros + ventas y otros ingresos)').v).toBe(101000);
+    expect(libro.Sheets.Cobros.L1.v).toBe('Origen');
+    expect(libro.Sheets.Cobros.L2.v).toBe('Veltronik');
+    expect(libro.Sheets.Cobros.L4.v).toBe('Historial importado');
+  });
+
+  it('los aportes y retiros del dueño van aparte y no cuentan como gasto', () => {
+    const conRetiro = {
+      ...REPORTE,
+      totales: { ...REPORTE.totales, aportes: 0, retiros: 50000 },
+      movimientos: [...REPORTE.movimientos, {
+        fecha: '2026-09-22T19:00:00', tipo: 'EGRESO', categoria: 'Retiro', detalle: 'al banco', metodo: 'CASH',
+        monto: 50000, hechoPor: 'Dueño', tocaElCajon: true, anulado: false, deFondos: true,
+      }],
+    };
+    const libro = abrir(conRetiro);
+    expect(alLadoDe(libro.Sheets.Resumen, 'Retiros del cajón').v).toBe(50000);
+    const ws = libro.Sheets['Gastos e ingresos'];
+    expect(ws.C6.v).toBe('Retiro del dueño');
+    expect(alLadoDe(ws, 'Total gastos (sin anulados)', 7).v, 'el retiro no es un gasto').toBe(35000);
+  });
+
+  it('⭐ los centavos no se pierden: el formato de la plata los muestra', () => {
+    const ws = abrir(REPORTE).Sheets.Resumen;
+    expect(alLadoDe(ws, 'Total cobrado').z).toContain('0.00');
+    expect(XLSX.SSF.format(alLadoDe(ws, 'Total cobrado').z, 10000.5)).toContain('10,000.50');
   });
 
   it('un día sin movimiento no es un archivo vacío: lo dice', () => {

@@ -223,4 +223,84 @@ class CoberturaDelMesIntegrationTest extends EmbeddedPostgresTest {
 
         assertNull(guardado.getMember());
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ⭐⭐ EDITAR NO ES COBRAR DE NUEVO (2026-09-22)
+    //
+    // La edición pasaba por el alta, que a un cobro con arancel le recalcula el período
+    // arrancando donde termina la cobertura del socio — que ya incluía ESTE cobro. Corregir la
+    // nota de la cuota de septiembre le daba octubre gratis, y cada edición, otro mes.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static GymPaymentService.Cambios soloLaNota(String nota) {
+        return new GymPaymentService.Cambios(null, null, null, null, nota, null, null);
+    }
+
+    @Test
+    @DisplayName("⭐⭐ editar un cobro con arancel NO le regala otro mes al socio")
+    void editarNoRegalaUnMes() {
+        LocalDateTime vence = LocalDate.now().plusDays(5).atStartOfDay();
+        crearSocio(vence);
+        GymPayment p = cobrar(crearArancel("Mensual", 1, "MES"));
+        LocalDateTime conElCobro = vencimiento();
+        assertEquals(vence.plusMonths(1), conElCobro);
+
+        paymentService.actualizar(p.getId(), soloLaNota("pagó en dos veces"), "Carla");
+        assertEquals(conElCobro, vencimiento(), "corregir la nota le daba otro mes gratis");
+
+        paymentService.actualizar(p.getId(), new GymPaymentService.Cambios(new BigDecimal("40000"),
+                null, null, null, null, null, null), "Carla");
+        assertEquals(conElCobro, vencimiento(), "corregir el monto, lo mismo");
+    }
+
+    @Test
+    @DisplayName("un pendiente que se marca pagado SÍ corre el mes: recién ahí entró la plata")
+    void elPendienteQueSePagaCorreElMes() {
+        LocalDateTime vence = LocalDate.now().plusDays(5).atStartOfDay();
+        crearSocio(vence);
+        GymPayment p = new GymPayment();
+        p.setMemberId(socio);
+        GymPlan plan = new GymPlan();
+        plan.setId(crearArancel("Mensual", 1, "MES"));
+        p.setPlan(plan);
+        p.setAmount(new BigDecimal("45000"));
+        p.setPaymentDate(LocalDateTime.now());
+        p.setStatus("pending");
+        p = paymentService.saveForCurrentTenant(p);
+        assertEquals(vence, vencimiento(), "un pendiente no corre nada");
+
+        paymentService.actualizar(p.getId(), new GymPaymentService.Cambios(null, null, null, "paid",
+                null, null, null), "Carla");
+        assertEquals(vence.plusMonths(1), vencimiento());
+    }
+
+    @Test
+    @DisplayName("⭐ anular el cobro que corrió el vencimiento lo devuelve a donde estaba")
+    void anularDevuelveElVencimiento() {
+        LocalDateTime vence = LocalDate.now().plusDays(5).atStartOfDay();
+        crearSocio(vence);
+        GymPayment p = cobrar(crearArancel("Mensual", 1, "MES"));
+        assertEquals(vence.plusMonths(1), vencimiento());
+
+        var anulacion = paymentService.anular(p.getId(), "Se cargó dos veces", "Dueño");
+
+        assertEquals(vence, anulacion.vencimientoRestaurado());
+        assertEquals(vence, vencimiento(), "el mes que dio un cobro que no existió se va con él");
+    }
+
+    @Test
+    @DisplayName("si después hubo otro cobro que corrió la fecha, anular el primero no la toca")
+    void anularUnoViejoNoTocaLaCadena() {
+        LocalDateTime vence = LocalDate.now().plusDays(5).atStartOfDay();
+        crearSocio(vence);
+        UUID mensual = crearArancel("Mensual", 1, "MES");
+        GymPayment primero = cobrar(mensual);
+        cobrar(mensual);
+        LocalDateTime conLosDos = vencimiento();
+
+        var anulacion = paymentService.anular(primero.getId(), "prueba", "Dueño");
+
+        assertNull(anulacion.vencimientoRestaurado(), "rehacer la cadena sería adivinar");
+        assertEquals(conLosDos, vencimiento());
+    }
 }

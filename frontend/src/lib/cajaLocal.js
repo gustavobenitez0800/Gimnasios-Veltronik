@@ -87,6 +87,9 @@ export function arrancarPeriodoLocal(quedaEnCaja, cuando, ahora = new Date()) {
         efectivo: 0, transferencia: 0, mercadopago: 0, tarjeta: 0, otros: 0,
         cantidadCobros: 0,
         egresos: 0, ingresosManuales: 0, cantidadMovimientos: 0,
+        // Las correcciones de días ya cerrados las tomó el cierre que se acaba de hacer.
+        ingresosOtrosMedios: 0, ajustesEfectivo: 0, ajustesOtrosMedios: 0, cantidadAjustes: 0,
+        correcciones: [],
         fondo: num(quedaEnCaja),
         ultimoCierre: cuando,
         ajustes: [],
@@ -179,8 +182,10 @@ export async function resumenSegunElTerminal(tenantId) {
   // de cuando bajó; si se dejara el viejo, un cobro en efectivo encolado no aparecería en el
   // único número que quien cierra realmente mira.
   base.digital = num(base.transferencia) + num(base.mercadopago);
+  // Las correcciones de días ya cerrados (V88) vienen del servidor y también mueven el cajón:
+  // un cobro en efectivo de ayer que se anuló porque se devolvió la plata salió de acá.
   base.esperadoEnElCajon = num(base.fondo) + num(base.efectivo)
-    + num(base.ingresosManuales) - num(base.egresos);
+    + num(base.ingresosManuales) - num(base.egresos) + num(base.ajustesEfectivo);
 
   return {
     ...base,

@@ -129,9 +129,34 @@ class PaymentService {
     return response.data;
   }
 
+  /**
+   * ⭐ ANULAR un cobro. No se borra: queda tachado, con quién y por qué, y deja de sumar en
+   * todas partes. Si ya había entrado en un cierre de caja, el próximo cierre lo descuenta.
+   *
+   * @returns {{pago, vencimientoRestaurado}} el vencimiento que volvió a tener el socio, o null
+   */
+  async anular(id, { motivo, anuladoPor } = {}) {
+    const { data } = await apiClient.post(`/gym/payments/${id}/anular`, { motivo, anuladoPor });
+    // Anular puede devolverle al socio el vencimiento de antes: el molinete y Socios lo tienen que saber.
+    avisarCambioDeCobertura();
+    invalidateQueries('gym_dashboard');
+    return data;
+  }
+
+  /** El borrado de antes. El servidor ya no borra: anula (ver anular). */
   async deletePayment(id) {
     await apiClient.delete(`/gym/payments/${id}`);
     return true;
+  }
+
+  /**
+   * ⭐ Cuánto entró en un rango de días, del LIBRO DE INGRESOS del servidor: el mismo número del
+   * tablero, la caja y el Excel. Por forma de pago y por origen (cuotas, historial importado,
+   * ventas y otros ingresos).
+   */
+  async ingresos(desde, hasta) {
+    const { data } = await apiClient.get('/gym/payments/ingresos', { params: { desde, hasta } });
+    return data;
   }
 
   /**

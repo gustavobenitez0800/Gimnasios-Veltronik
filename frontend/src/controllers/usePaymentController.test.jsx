@@ -6,12 +6,15 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
 const getAllPayments = vi.fn();
+const ingresos = vi.fn();
 vi.mock('../services/PaymentService', () => ({
   paymentService: {
     getAllPayments: (...a) => getAllPayments(...a),
+    ingresos: (...a) => ingresos(...a),
     createPayment: vi.fn(),
     update: vi.fn(),
     deletePayment: vi.fn(),
+    anular: vi.fn(),
   },
 }));
 
@@ -28,7 +31,8 @@ function montar(useHook) {
   return { renders, ultimo: () => renders[renders.length - 1], desmontar: () => act(() => { root.unmount(); }) };
 }
 
-const esperar = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+// Unas vueltas de microtareas: la lista y el total del período viajan juntos (Promise.all).
+const esperar = () => act(async () => { for (let i = 0; i < 8; i += 1) await Promise.resolve(); });
 
 const UN_PAGO = {
   id: 'p1',
@@ -43,6 +47,8 @@ describe('usePaymentController', () => {
   beforeEach(() => {
     clearQueryCache();
     getAllPayments.mockReset();
+    ingresos.mockReset();
+    ingresos.mockResolvedValue(null);
     window.localStorage.setItem('current_org_id', 'org-1');
   });
 
@@ -79,6 +85,8 @@ describe('usePaymentController — el negocio que llega tarde', () => {
   beforeEach(() => {
     clearQueryCache();
     getAllPayments.mockReset();
+    ingresos.mockReset();
+    ingresos.mockResolvedValue(null);
     window.localStorage.removeItem('current_org_id');
   });
 
@@ -123,6 +131,43 @@ describe('usePaymentController — el negocio que llega tarde', () => {
 
     expect(vista.ultimo().payments).toHaveLength(0);
     expect(vista.ultimo().error).toBeTruthy();
+    vista.desmontar();
+  });
+});
+
+describe('usePaymentController — el total del período lo cuenta el servidor', () => {
+  beforeEach(() => {
+    clearQueryCache();
+    getAllPayments.mockReset();
+    ingresos.mockReset();
+    window.localStorage.setItem('current_org_id', 'org-1');
+  });
+
+  it('⭐ trae el total del libro de ingresos junto con la lista', async () => {
+    getAllPayments.mockResolvedValue([UN_PAGO]);
+    ingresos.mockResolvedValue({ total: 12500.5, otrosIngresos: 7500.5, historial: 0 });
+
+    const vista = montar(() => usePaymentController({
+      dateFrom: '2026-08-01', dateTo: '2026-08-31', search: '', method: '', status: '',
+    }));
+    await esperar();
+
+    expect(ingresos).toHaveBeenCalledWith('2026-08-01', '2026-08-31');
+    expect(vista.ultimo().ingresos.total).toBe(12500.5);
+    vista.desmontar();
+  });
+
+  it('si el total no se pudo preguntar, la lista se muestra igual', async () => {
+    getAllPayments.mockResolvedValue([UN_PAGO]);
+    ingresos.mockRejectedValue(new Error('backend viejo'));
+
+    const vista = montar(() => usePaymentController({
+      dateFrom: '2026-08-01', dateTo: '2026-08-31', search: '', method: '', status: '',
+    }));
+    await esperar();
+
+    expect(vista.ultimo().payments).toHaveLength(1);
+    expect(vista.ultimo().ingresos).toBeNull();
     vista.desmontar();
   });
 });

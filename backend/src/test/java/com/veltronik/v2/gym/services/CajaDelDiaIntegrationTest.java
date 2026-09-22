@@ -170,9 +170,9 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
 
         assertEquals(2, movs.size(),
                 "un total que no se puede abrir es un numero en el que hay que creer");
-        assertTrue(movs.stream().anyMatch(p -> "CASH".equals(p.getPaymentMethod())));
-        assertTrue(movs.stream().allMatch(p -> p.getMember() != null),
-                "el socio tiene que venir cargado: la pantalla lo muestra");
+        assertTrue(movs.stream().anyMatch(p -> "CASH".equals(p.metodo())));
+        assertTrue(movs.stream().allMatch(p -> "Lurdes Rollet".equals(p.socio())),
+                "el socio tiene que venir con su nombre: la pantalla lo muestra");
     }
 
     @Test
@@ -186,7 +186,7 @@ class CajaDelDiaIntegrationTest extends EmbeddedPostgresTest {
 
         assertEquals(2, hoy.cantidadCobros());
         assertEquals(0, hoy.efectivo().compareTo(new BigDecimal("40000")));
-        assertEquals(0, hoy.digital().compareTo(new BigDecimal("45000")));
+        assertEquals(0, hoy.ingresos().digital().compareTo(new BigDecimal("45000")));
     }
 
     /**

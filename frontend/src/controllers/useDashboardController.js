@@ -52,6 +52,9 @@ export function useDashboardController(gym) {
       expiredMembers: vencidos,
       expiringMembers: Number(resumen?.vencimientos?.estaSemana) || 0,
       monthlyRevenue: Number(resumen?.ingresos?.delMes) || 0,
+      // Ya están DENTRO de monthlyRevenue (el libro de ingresos): viajan aparte para decirlo.
+      ventasDelMes: Number(resumen?.ingresos?.otrosIngresosDelMes) || 0,
+      historialDelMes: Number(resumen?.ingresos?.historialDelMes) || 0,
     };
   }, [resumen]);
 

@@ -75,31 +75,36 @@ class GymPaymentAjusteTest {
     @DisplayName("el borrado")
     class Borrado {
 
-        // ⭐ EL TEST DEL ROBO PERFECTO
+        // ⭐ EL TEST DEL ROBO PERFECTO. Desde la V88 "borrar" ya no borra: anula. El cobro queda
+        // en la base, tachado, y el rastro dice cuánta plata se anuló y quién.
         @Test
-        @DisplayName("borrar un cobro deja rastro ANTES de borrarlo")
+        @DisplayName("borrar un cobro ya no lo borra: lo ANULA y deja rastro")
         void borrarDejaRastro() {
             GymPayment p = pago("48000", "CASH");
             when(repo.findById(p.getId())).thenReturn(Optional.of(p));
+            when(repo.save(any(GymPayment.class))).thenAnswer(i -> i.getArgument(0));
 
             service.deleteAndVerifyOwnership(p.getId(), "Carla");
 
             List<GymPaymentAjuste> a = anotados();
             assertEquals(1, a.size());
-            assertEquals(GymPaymentAjuste.BORRADO, a.get(0).getTipo());
+            assertEquals(GymPaymentAjuste.ANULACION, a.get(0).getTipo());
             assertTrue(a.get(0).getAntes().contains("48000"),
                     "el rastro tiene que decir CUÁNTA plata se fue");
             assertEquals("Carla", a.get(0).getHechoPorNombre());
-            verify(repo).delete(p);
+            verify(repo, never()).delete(any(GymPayment.class));
+            assertEquals("cancelled", p.getStatus(), "queda en la base, anulado");
+            assertEquals("Carla", p.getAnuladoPorNombre());
         }
 
         @Test
-        @DisplayName("el rastro guarda el id del cobro, que ya no va a existir")
+        @DisplayName("el rastro guarda el id del cobro")
         void guardaElIdDelCobroBorrado() {
-            // Por eso la tabla no tiene FK: con una FK en cascada, borrar el cobro se
-            // llevaría puesta la prueba de que se borró.
+            // La tabla no tiene FK igual: deshacer una importación sí borra, y la prueba de
+            // lo que se tocó no se puede ir con el cobro.
             GymPayment p = pago("48000", "CASH");
             when(repo.findById(p.getId())).thenReturn(Optional.of(p));
+            when(repo.save(any(GymPayment.class))).thenAnswer(i -> i.getArgument(0));
 
             service.deleteAndVerifyOwnership(p.getId(), "Carla");
 

@@ -23,6 +23,7 @@ import java.util.List;
 public interface GymPaymentMapper {
 
     @Mapping(target = "importado", expression = "java(entity.esImportado())")
+    @Mapping(target = "cerradoEnCaja", expression = "java(entity.getCierreId() != null)")
     GymPaymentDTO toDto(GymPayment entity);
 
     List<GymPaymentDTO> toDtoList(List<GymPayment> entities);

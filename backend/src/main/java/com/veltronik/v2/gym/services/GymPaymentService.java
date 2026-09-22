@@ -60,7 +60,10 @@ public class GymPaymentService {
             return findAllForCurrentTenant();
         }
         LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
-        LocalDateTime toDt = (to != null) ? to.atTime(LocalTime.MAX) : LocalDateTime.of(2999, 12, 31, 23, 59, 59);
+        // ⚠️ No LocalTime.MAX: son nanosegundos, Postgres redondea a microsegundos y el "hasta"
+        // caía en las 00:00 del día siguiente. Septiembre traía los cobros del 1° de octubre
+        // cargados desde el modal de Pagos, que los guardaba justo a las 00:00.
+        LocalDateTime toDt = (to != null) ? CajaService.finDelDia(to) : LocalDateTime.of(2999, 12, 31, 23, 59, 59);
         return repository.findByTenantIdAndDateRange(TenantContextHolder.getTenantId(), fromDt, toDt);
     }
 
@@ -101,6 +104,7 @@ public class GymPaymentService {
         // la misma columna, y la suma de ingresos del Dashboard comparaba exacto contra
         // 'PAID' → no contaba nada de lo cargado desde la app.
         normalizarEstado(payment);
+        validarPlata(payment);
 
         // ⭐ UN COBRO IMPORTADO ES HISTORIA, Y EDITARLO NO LO CONVIERTE EN COBRO (ADR-014).
         //
@@ -319,6 +323,156 @@ public class GymPaymentService {
         return status != null && "paid".equalsIgnoreCase(status.trim());
     }
     
+    /**
+     * Edita un cobro. Es un parche: solo cambia lo que viene.
+     *
+     * <p>⭐ <b>EDITAR NO ES COBRAR DE NUEVO, y hasta el 2026-09-22 lo era.</b> La edición pasaba
+     * por {@link #saveForCurrentTenant}, que a un cobro con arancel le recalcula el período
+     * arrancando donde termina la cobertura del socio — que ya incluía ESTE cobro. Corregir la
+     * nota de la cuota de septiembre le daba al socio octubre gratis, y cada edición, otro mes.
+     * Ahora el período se calcula solo cuando el cobro PASA a cobrado (un pendiente que se paga),
+     * que es cuando la plata entra de verdad.</p>
+     *
+     * <p>Un cobro YA CERRADO en la caja se puede corregir igual: la diferencia entra en el
+     * próximo cierre como corrección, a la vista (V88). Uno anulado, no: está anulado.</p>
+     */
+    @Transactional
+    public GymPayment actualizar(UUID id, Cambios cambios, String hechoPor) {
+        GymPayment p = findByIdAndVerifyOwnership(id);
+        if (p.estaAnulado()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Ese cobro está anulado. Si la plata entró, registrá un cobro nuevo.");
+        }
+        // Pasarlo a "anulado" desde la edición es anular: con su rastro y su vencimiento.
+        if (cambios.status() != null && GymPayment.ANULADO.equalsIgnoreCase(cambios.status().trim())) {
+            return anular(id, null, hechoPor).pago();
+        }
+
+        // Foto del ANTES, para anotar qué cambió. Se copia a mano: la entidad de JPA es la misma
+        // instancia que se está por modificar.
+        GymPayment antes = new GymPayment();
+        antes.setId(p.getId());
+        antes.setAmount(p.getAmount());
+        antes.setPaymentMethod(p.getPaymentMethod());
+        antes.setStatus(p.getStatus());
+        antes.setMember(p.getMember());
+        antes.setPaymentDate(p.getPaymentDate());
+        boolean estabaCobrado = p.estaCobrado();
+
+        if (cambios.amount() != null) p.setAmount(cambios.amount());
+        if (cambios.paymentDate() != null) p.setPaymentDate(cambios.paymentDate());
+        if (cambios.paymentMethod() != null) p.setPaymentMethod(cambios.paymentMethod());
+        if (cambios.status() != null) p.setStatus(cambios.status());
+        if (cambios.notes() != null) p.setNotes(cambios.notes());
+        if (cambios.periodStart() != null) p.setPeriodStart(cambios.periodStart());
+        if (cambios.periodEnd() != null) p.setPeriodEnd(cambios.periodEnd());
+        normalizarEstado(p);
+        validarPlata(p);
+
+        if (p.esImportado()) {
+            // Historia: nunca cubre un período (V86, ADR-014), se edite lo que se edite.
+            p.setPeriodStart(null);
+            p.setPeriodEnd(null);
+            GymPayment guardado = repository.save(p);
+            anotarEdicion(antes, guardado, hechoPor);
+            return guardado;
+        }
+
+        GymMember member = p.getMember() != null && p.getMember().getId() != null
+                ? memberService.findByIdAndVerifyOwnership(p.getMember().getId()) : null;
+
+        // Recién ahora entra la plata: el período se calcula como en un cobro nuevo.
+        if (!estabaCobrado && p.estaCobrado()) {
+            if (p.getPlan() != null && p.getPlan().getId() != null) {
+                aplicarPeriodoDelPlan(p, planService.findByIdAndVerifyOwnership(p.getPlan().getId()), member);
+            } else if (cambios.periodEnd() == null) {
+                aplicarPeriodoDelPlan(p, null, member);
+            }
+        }
+
+        GymPayment guardado = repository.save(p);
+        // Solo hacia adelante y sin repetir: si el período no cambió, la cobertura ya lo tenía.
+        extenderCobertura(guardado, member);
+        anotarEdicion(antes, guardado, hechoPor);
+        return guardado;
+    }
+
+    /** Lo que se puede cambiar de un cobro. {@code null} = no se toca. */
+    public record Cambios(java.math.BigDecimal amount, LocalDateTime paymentDate, String paymentMethod,
+                          String status, String notes, LocalDateTime periodStart, LocalDateTime periodEnd) { }
+
+    /**
+     * ⭐ ANULA un cobro. No lo borra.
+     *
+     * <p>Borrar era borrar la prueba: la plata desaparecía de los ingresos y del cierre sin dejar
+     * el renglón, y el socio seguía figurando al día. Anulado queda en la lista —tachado, con
+     * quién, cuándo y por qué—, deja de sumar en todas partes (ninguna suma cuenta
+     * {@code cancelled}), y si ya había entrado en un cierre de caja, el próximo cierre lo
+     * descuenta como corrección (V88).</p>
+     *
+     * <p><b>Y le devuelve al socio el vencimiento que tenía</b>, cuando se puede hacer exacto: si
+     * este cobro fue el que le corrió la fecha (su fin de período es el vencimiento de hoy), la
+     * fecha vuelve a donde estaba antes de este cobro. Si después hubo otro cobro que la corrió
+     * más, no se toca: rehacer la cadena sería adivinar.</p>
+     */
+    @Transactional
+    public Anulacion anular(UUID id, String motivo, String hechoPor) {
+        GymPayment p = findByIdAndVerifyOwnership(id);
+        if (p.estaAnulado()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese cobro ya estaba anulado.");
+        }
+        boolean estabaCobrado = p.estaCobrado();
+        String resumen = resumirCobro(p);
+
+        p.setStatus(GymPayment.ANULADO);
+        p.setAnuladoAt(LocalDateTime.now(BUSINESS_ZONE));
+        p.setAnuladoPorNombre(recortar(hechoPor, 160));
+        p.setMotivoAnulacion(motivo != null && !motivo.isBlank() ? recortar(motivo.trim(), 255) : null);
+
+        LocalDateTime vuelveA = null;
+        if (estabaCobrado && !p.esImportado() && p.getMember() != null && p.getMember().getId() != null
+                && p.getPeriodEnd() != null && p.getPeriodStart() != null) {
+            GymMember m = memberService.findByIdAndVerifyOwnership(p.getMember().getId());
+            if (p.getPeriodEnd().equals(m.getMembershipEnd())) {
+                m.setMembershipEnd(p.getPeriodStart());
+                memberService.saveForCurrentTenant(m);
+                vuelveA = p.getPeriodStart();
+            }
+        }
+
+        anotar(p.getId(), GymPaymentAjuste.ANULACION, null, resumen, p.getMotivoAnulacion(), hechoPor);
+        return new Anulacion(repository.save(p), vuelveA);
+    }
+
+    /** @param vencimientoRestaurado el vencimiento que volvió a tener el socio, o null si no se tocó. */
+    public record Anulacion(GymPayment pago, LocalDateTime vencimientoRestaurado) { }
+
+    /**
+     * La plata tiene que ser plata: un monto mayor a cero, con centavos como mucho, y una forma
+     * de pago que se entienda.
+     *
+     * <p>La base lo exige también (V88), pero ahí el error es un 500 que nadie entiende. Acá es un
+     * mensaje. Un cobro negativo no es una devolución —eso es anular—: es un número mal escrito
+     * que restaría en todos los totales.</p>
+     */
+    private static void validarPlata(GymPayment p) {
+        if (p.getAmount() == null || p.getAmount().signum() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto tiene que ser mayor a cero.");
+        }
+        if (p.getAmount().stripTrailingZeros().scale() > 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto tiene más de dos decimales.");
+        }
+        if (com.veltronik.v2.gym.entities.MetodoDePago.reconocer(p.getPaymentMethod()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No conozco la forma de pago «" + p.getPaymentMethod() + "».");
+        }
+        String estado = p.getStatus();
+        if (!GymPayment.COBRADO.equals(estado) && !GymPayment.PENDIENTE.equals(estado)
+                && !GymPayment.ANULADO.equals(estado)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El estado del cobro no es válido.");
+        }
+    }
+
     public GymPayment findByIdAndVerifyOwnership(UUID id) {
         GymPayment payment = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pago de gym no encontrado"));
@@ -330,21 +484,17 @@ public class GymPaymentService {
     }
     
     /**
-     * Borra un cobro, DEJANDO RASTRO.
+     * El "borrar" de los escritorios viejos. <b>Ya no borra: anula</b> (V88).
      *
-     * <p>El rastro se guarda ANTES de borrar y no tiene FK al cobro: si la tuviera, el
-     * borrado en cascada se llevaría puesta justamente la prueba de que se borró.</p>
-     *
-     * <p>⚠️ Borrar un cobro NO recalcula la cobertura del socio. Eso es a propósito —el
-     * backend nunca acorta una membresía hacia atrás— pero significa que un cobro borrado
-     * deja al socio figurando al día. Sin este rastro, esa plata desaparecía sin que nadie
-     * pudiera notarlo nunca.</p>
+     * <p>Los escritorios instalados siguen mandando DELETE. Borrar de verdad sacaba la plata de
+     * un cierre ya hecho sin dejar el renglón; anular deja el cobro tachado, y si ya estaba
+     * cerrado, el próximo cierre lo descuenta a la vista.</p>
      */
     @Transactional
     public void deleteAndVerifyOwnership(UUID id, String hechoPor) {
         GymPayment payment = findByIdAndVerifyOwnership(id);
-        anotar(payment.getId(), GymPaymentAjuste.BORRADO, null, resumirCobro(payment), null, hechoPor);
-        repository.delete(payment);
+        if (payment.estaAnulado()) return; // borrar dos veces lo mismo no es un error
+        anular(id, "Borrado desde una versión anterior de la app", hechoPor);
     }
 
     /** Firma vieja, para los llamadores que todavía no pasan el nombre. */
@@ -404,7 +554,11 @@ public class GymPaymentService {
     }
 
     private static String recortar(String s) {
+        return recortar(s, 255);
+    }
+
+    private static String recortar(String s, int largo) {
         if (s == null) return null;
-        return s.length() > 255 ? s.substring(0, 255) : s;
+        return s.length() > largo ? s.substring(0, largo) : s;
     }
 }

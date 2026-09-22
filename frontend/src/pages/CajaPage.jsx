@@ -33,7 +33,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cajaService } from '../services/CajaService';
 import { errorService } from '../services';
-import { formatCurrency, formatDate, toLocalDateString } from '../lib/utils';
+import { formatCurrency, formatDate, toLocalDateString, sumarPlata } from '../lib/utils';
 import { getShift } from '../lib/shift';
 import { descargarExcelDeCaja } from '../lib/excelDeCaja';
 import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
@@ -51,6 +51,18 @@ const fecha = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', {
 const horaDe = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-AR', {
   hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }) : '');
+
+/**
+ * La hora si el cobro es de hoy; día y hora si es de otro día.
+ *
+ * <p>⭐ Desde la V88 el cierre toma también lo que se cargó TARDE con la fecha de un día que ya
+ * cerró (antes no lo contaba ningún cierre). Esos cobros tienen que verse con su día: "18:30" a
+ * secas haría creer que se cobraron hoy.</p>
+ */
+const cuandoDe = (iso) => {
+  if (!iso) return '';
+  return toLocalDateString(new Date(iso)) === toLocalDateString(new Date()) ? horaDe(iso) : fecha(iso);
+};
 
 /** El título del total según el atajo del selector. */
 const TOTAL_DEL = { today: 'Total de hoy', week: 'Total de la semana', month: 'Total del mes', year: 'Total del año' };
@@ -77,6 +89,9 @@ const ES_EFECTIVO = (metodo) => String(metodo || '').toUpperCase() === 'CASH';
  */
 const CATEGORIAS_EGRESO = ['Limpieza', 'Adelanto', 'Proveedor', 'Mantenimiento', 'Retiro', 'Otro'];
 const CATEGORIAS_INGRESO = ['Venta', 'Aporte', 'Otro'];
+
+/** Aporte y retiro son plata del dueño: mueven el cajón, pero no son ingreso ni gasto del negocio. */
+const ES_DE_FONDOS = (rubro) => ['aporte', 'retiro'].includes(String(rubro || '').trim().toLowerCase());
 
 const numero = (v) => Number(v || 0);
 
@@ -375,8 +390,8 @@ export default function CajaPage() {
   };
 
   const sinCerrarHace = diasDesde(abierto?.ultimoCierre);
-  const totalCobrado = numero(abierto?.efectivo) + numero(abierto?.digital)
-    + numero(abierto?.tarjeta) + numero(abierto?.otros);
+  // En centavos: 0,1 + 0,2 no da 0,3 en JavaScript.
+  const totalCobrado = sumarPlata([abierto?.efectivo, abierto?.digital, abierto?.tarjeta, abierto?.otros]);
 
   return (
     <div className="caja-page">
@@ -440,6 +455,10 @@ export default function CajaPage() {
             )}
           </div>
           <SelectorDeFechas rango={rango} className="caja-balance-fechas" />
+          {/* ⭐ Es el LIBRO DE INGRESOS: el mismo número del tablero, de Pagos y del Excel. Con el
+              historial importado y las ventas adentro, cada uno dicho aparte abajo. Hasta el
+              22/09 esto dejaba afuera el historial, y el año de un gimnasio recién migrado
+              decía una fracción de lo que decía el tablero. */}
           <div className="caja-balance-cifras">
             <div className="caja-cifra">
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.total))}</span>
@@ -456,11 +475,40 @@ export default function CajaPage() {
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.digital))}</span>
               <span className="caja-cifra-label">Transferencia y Mercado Pago</span>
             </div>
+            {/* Tarjeta y otros medios, si hubo: sin este casillero, efectivo + digital no daba
+                el total y parecía que faltaba plata. */}
+            {sumarPlata([balance?.tarjeta, balance?.otros]) > 0 && (
+              <div className="caja-cifra">
+                <span className="caja-cifra-valor">{formatCurrency(sumarPlata([balance?.tarjeta, balance?.otros]))}</span>
+                <span className="caja-cifra-label">Tarjeta y otros medios</span>
+              </div>
+            )}
             <div className="caja-cifra">
               <span className="caja-cifra-valor">{numero(balance?.cantidadCobros)}</span>
               <span className="caja-cifra-label">Cobros</span>
             </div>
           </div>
+          {/* De dónde salió el total. Las tres partes suman exactamente el total de arriba. */}
+          {balance && (
+            <ul className="caja-balance-origen">
+              <li>
+                <span>Cuotas cobradas en Veltronik</span>
+                <strong>{formatCurrency(numero(balance.cuotas))}</strong>
+              </li>
+              {numero(balance.historial) > 0 && (
+                <li title="Importado del sistema anterior: suma en los ingresos, pero no pasó por esta caja ni entra en ningún cierre.">
+                  <span>Historial importado <small className="text-muted">(no pasó por esta caja)</small></span>
+                  <strong>{formatCurrency(numero(balance.historial))}</strong>
+                </li>
+              )}
+              {numero(balance.otrosIngresos) > 0 && (
+                <li>
+                  <span>Ventas y otros ingresos</span>
+                  <strong>{formatCurrency(numero(balance.otrosIngresos))}</strong>
+                </li>
+              )}
+            </ul>
+          )}
         </div>
       )}
 
@@ -485,7 +533,7 @@ export default function CajaPage() {
               <tbody>
                 {cobros.map((m) => (
                   <tr key={m.id}>
-                    <td data-label="Hora" className="caja-hora">{horaDe(m.fecha)}</td>
+                    <td data-label="Hora" className="caja-hora">{cuandoDe(m.fecha)}</td>
                     <td data-label="Socio">{m.socio || <span className="text-muted">Sin socio</span>}</td>
                     <td data-label="Forma de pago">
                       <span className={`caja-metodo ${ES_EFECTIVO(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
@@ -523,7 +571,57 @@ export default function CajaPage() {
             </span>
           </div>
         </div>
+        {/* Una venta por transferencia no toca el cajón, pero es plata que entró en el período. */}
+        {numero(abierto?.ingresosOtrosMedios) > 0 && (
+          <p className="form-hint caja-nota">
+            Además entraron {formatCurrency(numero(abierto.ingresosOtrosMedios))} de ventas y otros
+            ingresos por transferencia, Mercado Pago o tarjeta.
+          </p>
+        )}
       </div>
+
+      {/* ─── LAS CORRECCIONES DE DÍAS YA CERRADOS (V88) ───
+           Un cobro de un día que ya se cerró y que después se corrigió o se anuló. El cierre de
+           ese día quedó con su número y no se reescribe: la diferencia entra en este, a la
+           vista, renglón por renglón. Antes esa plata no aparecía en ningún cierre. */}
+      {!!abierto?.correcciones?.length && (
+        <div className="card caja-correcciones">
+          <div className="caja-card-cabecera">
+            <h3><Icon name="alertTriangle" size="1em" /> Correcciones de días ya cerrados ({abierto.correcciones.length})</h3>
+          </div>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr><th>Cobro del</th><th>Socio</th><th>Antes</th><th>Ahora</th><th className="caja-col-monto">Diferencia</th></tr>
+              </thead>
+              <tbody>
+                {abierto.correcciones.map((c) => {
+                  const diferencia = sumarPlata([c.montoDespues, -numero(c.montoAntes)]);
+                  const metodo = (m) => NOMBRE_METODO[String(m || '').toLowerCase()] || m || '';
+                  const mismoMedio = String(c.metodoAntes) === String(c.metodoDespues);
+                  return (
+                    <tr key={c.pagoId}>
+                      <td data-label="Cobro del">{fecha(c.fecha)}</td>
+                      <td data-label="Socio">{c.socio || <span className="text-muted">Sin socio</span>}</td>
+                      <td data-label="Antes">{formatCurrency(c.montoAntes)} · {metodo(c.metodoAntes)}</td>
+                      <td data-label="Ahora">
+                        {numero(c.montoDespues) === 0 ? 'Anulado' : `${formatCurrency(c.montoDespues)} · ${metodo(c.metodoDespues)}`}
+                      </td>
+                      <td data-label="Diferencia" className="caja-monto-celda caja-col-monto">
+                        {mismoMedio || numero(c.montoDespues) === 0
+                          ? <span className={diferencia < 0 ? 'caja-falta' : 'caja-entra'}>
+                              {diferencia < 0 ? '−' : '+'}{formatCurrency(Math.abs(diferencia))}
+                            </span>
+                          : <span>Cambió la forma de pago</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ─── LO QUE SALE Y ENTRA SIN SER UN COBRO ───
            Antes de la distribución, porque la cambia: un gasto pagado del cajón es plata que
@@ -648,6 +746,16 @@ export default function CajaPage() {
           {numero(abierto?.egresos) > 0 && (
             <li><span>Gastos pagados del cajón</span><strong className="caja-falta">− {formatCurrency(numero(abierto?.egresos))}</strong></li>
           )}
+          {/* Un cobro en efectivo de un día ya cerrado que se anuló (se devolvió la plata) o se
+              corrigió: esa diferencia pasa HOY por el cajón. */}
+          {numero(abierto?.ajustesEfectivo) !== 0 && (
+            <li>
+              <span>Correcciones de días ya cerrados</span>
+              <strong className={numero(abierto.ajustesEfectivo) < 0 ? 'caja-falta' : undefined}>
+                {numero(abierto.ajustesEfectivo) < 0 ? '−' : '+'} {formatCurrency(Math.abs(numero(abierto.ajustesEfectivo)))}
+              </strong>
+            </li>
+          )}
           <li className="caja-cuenta-total"><span>Hay en el cajón</span><strong>{formatCurrency(enElCajon)}</strong></li>
         </ul>
 
@@ -728,6 +836,13 @@ export default function CajaPage() {
                           {numero(c.egresosEfectivo) > 0
                             ? <span className="caja-falta">− {formatCurrency(c.egresosEfectivo)}</span>
                             : formatCurrency(0)}
+                          {/* Las correcciones de días anteriores que entraron en este cierre. */}
+                          {numero(c.cantidadAjustes) > 0 && (
+                            <div className="form-hint">
+                              Correcciones: {numero(c.ajustesEfectivo) < 0 ? '−' : '+'}
+                              {formatCurrency(Math.abs(numero(c.ajustesEfectivo)))} en efectivo
+                            </div>
+                          )}
                         </td>
                         {/* Los cierres viejos son de la época del arqueo a ciegas: no tienen
                             retiro. Se muestran igual, con el guion, en vez de un cero que
@@ -810,6 +925,12 @@ export default function CajaPage() {
                 <span>Transferencia y Mercado Pago</span>
                 <strong>{formatCurrency(numero(resultado.esperadoTransferencia) + numero(resultado.esperadoMercadopago))}</strong>
               </li>
+              {numero(resultado.ajustesEfectivo) !== 0 && (
+                <li>
+                  <span>Correcciones de días ya cerrados</span>
+                  <strong>{numero(resultado.ajustesEfectivo) < 0 ? '−' : '+'} {formatCurrency(Math.abs(numero(resultado.ajustesEfectivo)))}</strong>
+                </li>
+              )}
               <li><span>Retirado</span><strong>{formatCurrency(resultado.retiroEfectivo)}</strong></li>
               <li className="caja-cuenta-total">
                 <span>Queda en caja para mañana</span>
@@ -897,7 +1018,7 @@ export default function CajaPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">¿De dónde salió?</label>
+            <label className="form-label">{movTipo === 'EGRESO' ? '¿De dónde salió?' : '¿Cómo entró?'}</label>
             <select className="form-input" value={movMetodo} onChange={(e) => setMovMetodo(e.target.value)}>
               <option value="CASH">Efectivo (del cajón)</option>
               <option value="TRANSFER">Transferencia</option>
@@ -907,7 +1028,13 @@ export default function CajaPage() {
                 salió de ahí, y restarlo daría un faltante inventado. */}
             {movMetodo !== 'CASH' && (
               <small className="form-hint">
-                Esto no cambia la cuenta del cajón: no salió plata de ahí. Queda anotado igual.
+                Esto no cambia la cuenta del cajón: {movTipo === 'EGRESO' ? 'no salió plata de ahí' : 'no entró plata ahí'}. Queda anotado igual.
+              </small>
+            )}
+            {/* El aporte es plata del dueño: entra al cajón, pero no es un ingreso del gimnasio. */}
+            {movTipo === 'INGRESO' && ES_DE_FONDOS(movCategoria) && (
+              <small className="form-hint">
+                Un aporte es plata del dueño: suma en el cajón, pero no cuenta como ingreso del gimnasio.
               </small>
             )}
           </div>

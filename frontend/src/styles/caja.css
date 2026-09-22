@@ -371,3 +371,22 @@
     .caja-historial .table td { padding-left: 0.5rem; padding-right: 0.5rem; }
   }
 }
+
+/* ─── De dónde salió el total del balance (V88) ───
+   Cuotas, historial importado y ventas: las tres partes suman el total de arriba. */
+.caja-balance-origen {
+  list-style: none; margin: 1rem 0 0; padding: 0.25rem 0 0;
+  border-top: 1px solid var(--border-color);
+}
+.caja-balance-origen li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: 0.4rem 0;
+}
+.caja-balance-origen span { color: var(--text-muted); font-size: var(--font-size-sm); }
+.caja-balance-origen strong { font-variant-numeric: tabular-nums; }
+
+/* Una aclaración debajo de una tarjeta: la plata que entró sin pasar por el cajón. */
+.caja-nota { margin: 0.75rem 0 0; }
+
+/* Las correcciones de días ya cerrados: en ámbar, porque es lo que el dueño tiene que mirar. */
+.caja-correcciones { border-left: 3px solid var(--warning-500); }

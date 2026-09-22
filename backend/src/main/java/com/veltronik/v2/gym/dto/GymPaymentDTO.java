@@ -47,4 +47,15 @@ public class GymPaymentDTO {
      */
     private java.time.LocalDate periodoImportadoDesde;
     private java.time.LocalDate periodoImportadoHasta;
+
+    /** La anulación (V88): un cobro no se borra, queda tachado con quién, cuándo y por qué. */
+    private LocalDateTime anuladoAt;
+    private String anuladoPorNombre;
+    private String motivoAnulacion;
+
+    /**
+     * ¿Ya lo contó un cierre de caja? Corregirlo sigue pudiéndose, pero la pantalla avisa que la
+     * diferencia va a entrar como corrección en el próximo cierre.
+     */
+    private boolean cerradoEnCaja;
 }

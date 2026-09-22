@@ -94,6 +94,31 @@ public class CajaCierre extends TenantAwareEntity {
     @Column(name = "cantidad_movimientos", nullable = false)
     private int cantidadMovimientos;
 
+    /**
+     * Ventas y otros ingresos que NO fueron en efectivo (una remera pagada por transferencia).
+     * No tocan el cajón, pero son plata que entró en el período y el cierre la tiene que decir.
+     */
+    @Column(name = "ingresos_otros_medios", nullable = false)
+    private BigDecimal ingresosOtrosMedios = BigDecimal.ZERO;
+
+    // ─── Las correcciones de días ya cerrados (V88) ───
+    //
+    // Un cobro de ayer al que hoy se le corrige el monto o se anula: el cierre de ayer quedó
+    // congelado con el número viejo y no se reescribe. La diferencia entra HOY, a la vista,
+    // como corrección. Sin esto la plata corregida no aparecía en ningún cierre.
+
+    /** Lo que las correcciones mueven en el cajón (negativo = salió plata: una devolución). */
+    @Column(name = "ajustes_efectivo", nullable = false)
+    private BigDecimal ajustesEfectivo = BigDecimal.ZERO;
+
+    /** Lo mismo para transferencia, Mercado Pago, tarjeta y otros. */
+    @Column(name = "ajustes_otros_medios", nullable = false)
+    private BigDecimal ajustesOtrosMedios = BigDecimal.ZERO;
+
+    /** Cuántos cobros ya cerrados se corrigieron. El detalle está en {@code caja_cierre_ajuste}. */
+    @Column(name = "cantidad_ajustes", nullable = false)
+    private int cantidadAjustes;
+
     // ─── Lo que declaró la PERSONA ───
 
     /**

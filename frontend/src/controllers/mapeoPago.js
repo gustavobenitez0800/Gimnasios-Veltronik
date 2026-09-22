@@ -17,6 +17,38 @@ export const CAMPOS_DEL_PAGO = [
   'status', 'notes', 'periodStart', 'periodEnd',
 ];
 
+const dos = (n) => String(n).padStart(2, '0');
+
+/** "2026-09-22T19:40:05", en la hora de la PC (la del gimnasio), sin pasar por UTC. */
+function momentoLocal(d) {
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`
+    + `T${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;
+}
+
+/**
+ * ⭐ El momento del cobro que se manda, a partir del DÍA que tiene el formulario.
+ *
+ * <p>El formulario solo tiene el día, y antes se mandaba siempre a las 00:00. Eso rompía dos cosas:</p>
+ * <ul>
+ *   <li><b>Editar un cobro le borraba la hora.</b> El de las 19:40 del mostrador pasaba a las
+ *       00:00 aunque nadie hubiera tocado la fecha, y el Excel del contador mostraba otra hora.</li>
+ *   <li><b>Un cobro de hoy quedaba a las 00:00</b>, antes del cierre del mediodía si lo hubo. El
+ *       cierre ya no lo pierde (lo toma el siguiente), pero la hora es mentira.</li>
+ * </ul>
+ * <p>Ahora: si el día no cambió, viaja el momento original entero; si es hoy, la hora de ahora;
+ * si es otro día, las 00:00 de ese día (no se sabe la hora, y el día es lo que cuenta).</p>
+ *
+ * @param {string} dia       'YYYY-MM-DD' del formulario
+ * @param {string} [original] el momento que ya tenía el cobro, si se está editando
+ * @param {Date}   [ahora]
+ */
+export function momentoDelCobro(dia, original, ahora = new Date()) {
+  if (!dia) return null;
+  if (original && String(original).slice(0, 10) === dia) return original;
+  const hoy = `${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}`;
+  return dia === hoy ? momentoLocal(ahora) : `${dia}T00:00:00`;
+}
+
 /**
  * @param model lo que tiene el formulario
  * @returns el cuerpo del POST/PUT
@@ -28,7 +60,7 @@ export function mapPaymentModelToDTO(model) {
     // Mandarlo como `planId` es lo mismo que no mandarlo: Jackson lo ignora en silencio.
     plan_id: model.plan_id || null,
     amount: parseFloat(model.amount) || 0,
-    paymentDate: model.paymentDate ? `${model.paymentDate}T00:00:00` : null,
+    paymentDate: momentoDelCobro(model.paymentDate, model.paymentDateOriginal),
     paymentMethod: (model.paymentMethod || 'cash').toUpperCase(),
     status: (model.status || 'paid').toUpperCase(),
     notes: model.notes || '',

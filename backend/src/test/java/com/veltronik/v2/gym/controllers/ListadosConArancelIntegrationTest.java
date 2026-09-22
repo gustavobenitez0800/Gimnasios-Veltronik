@@ -108,7 +108,7 @@ class ListadosConArancelIntegrationTest extends EmbeddedPostgresTest {
         em.createNativeQuery("""
                 INSERT INTO gym_payment (id, tenant_id, member_id, plan_id, amount, payment_method,
                                           status, payment_date, created_at, updated_at)
-                VALUES (:id, :t, :m, :plan, 25000, 'CASH', 'PAID', now(), now(), now())
+                VALUES (:id, :t, :m, :plan, 25000, 'CASH', 'paid', now(), now(), now())
                 """)
                 .setParameter("id", UUID.randomUUID()).setParameter("t", tenant)
                 .setParameter("m", socio).setParameter("plan", plan)

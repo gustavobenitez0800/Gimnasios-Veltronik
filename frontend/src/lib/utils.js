@@ -25,15 +25,36 @@ export function getInitials(name) {
 }
 
 /**
- * Format currency for display
+ * La plata, como se lee en Argentina: "$ 48.000", o "$ 48.000,50" si tiene centavos.
+ *
+ * ⚠️ Hasta el 2026-09-22 redondeaba siempre a pesos enteros: un cobro de $10.000,50 se veía
+ * "$ 10.001", y una columna de montos redondeados no sumaba el total que tenía abajo. Los
+ * centavos se muestran cuando los hay, y los montos enteros siguen sin ",00" (es lo que se
+ * lee en un mostrador).
  */
 export function formatCurrency(amount, currency = 'ARS') {
+  const n = Number(amount);
+  const conCentavos = Number.isFinite(n) && Math.round(Math.abs(n) * 100) % 100 !== 0;
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: conCentavos ? 2 : 0,
+    maximumFractionDigits: conCentavos ? 2 : 0,
   }).format(amount);
+}
+
+/**
+ * Suma plata sin los errores del punto flotante: en centavos enteros.
+ *
+ * 0,1 + 0,2 no da 0,3 en JavaScript. Sumar cien cobros con centavos con parseFloat deja un
+ * total corrido por fracciones que después se redondean para cualquier lado.
+ *
+ * @param {Array} lista
+ * @param {(x) => (number|string)} monto cómo sacar el monto de cada elemento
+ */
+export function sumarPlata(lista, monto = (x) => x) {
+  const centavos = (lista || []).reduce((acc, x) => acc + Math.round((Number(monto(x)) || 0) * 100), 0);
+  return centavos / 100;
 }
 
 /**

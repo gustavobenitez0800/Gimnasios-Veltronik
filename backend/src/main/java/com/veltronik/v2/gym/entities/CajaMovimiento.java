@@ -128,6 +128,61 @@ public class CajaMovimiento extends TenantAwareEntity {
     @Column(name = "import_clave", length = 64, updatable = false)
     private String importClave;
 
+    /**
+     * En qué cierre entró (V88). Lo escribe SOLO el cierre, con un UPDATE directo: por eso
+     * insertable/updatable = false (ver el mismo campo en {@link GymPayment}).
+     */
+    @Column(name = "cierre_id", insertable = false, updatable = false)
+    private UUID cierreId;
+
+    /** Cuándo lo tomó un cierre. NULL = sigue en el período abierto. */
+    @Column(name = "sellado_at", insertable = false, updatable = false)
+    private LocalDateTime selladoAt;
+
+    /** ¿Ya lo contó un cierre? Entonces no se anula: se corrige con otro movimiento al revés. */
+    public boolean estaCerrado() {
+        return selladoAt != null;
+    }
+
+    /** La forma de pago se escribe de una sola manera (ver {@link MetodoDePago}). */
+    @jakarta.persistence.PrePersist
+    @jakarta.persistence.PreUpdate
+    void normalizarAlGuardar() {
+        metodo = MetodoDePago.normalizar(metodo);
+    }
+
+    /**
+     * ¿Es plata del NEGOCIO que entró? Una venta sí; un aporte no.
+     *
+     * <p>El aporte es el dueño poniendo cambio en el cajón: mueve el efectivo —el arqueo lo
+     * tiene que sumar— pero no es un ingreso del gimnasio. Contarlo en el libro de ingresos
+     * inflaría lo que "ganó" el mes con plata que ya era del dueño.</p>
+     */
+    public boolean esIngresoDelNegocio() {
+        return INGRESO.equalsIgnoreCase(tipo) && !esMovimientoDeFondos();
+    }
+
+    /**
+     * Aporte o retiro: plata del dueño que entra o sale del cajón. No es ni ingreso ni gasto
+     * del negocio. El texto es libre, así que se reconoce por el nombre del rubro.
+     */
+    public boolean esMovimientoDeFondos() {
+        return esRubroDeFondos(categoria);
+    }
+
+    /**
+     * Los rubros que son plata del dueño y no del negocio.
+     *
+     * <p>⚠️ La consulta de {@code LibroDeIngresos} hace la MISMA comparación en SQL
+     * ({@code lower(btrim(categoria)) NOT IN ('aporte', 'retiro')}). Si se cambia acá, se cambia
+     * allá: si no, el cierre y el libro dirían cosas distintas de la misma venta.</p>
+     */
+    public static boolean esRubroDeFondos(String categoria) {
+        if (categoria == null) return false;
+        String c = categoria.trim().toLowerCase(java.util.Locale.ROOT);
+        return c.equals("aporte") || c.equals("retiro");
+    }
+
     public boolean esImportado() {
         return importId != null;
     }
@@ -138,7 +193,7 @@ public class CajaMovimiento extends TenantAwareEntity {
 
     /** {@code true} si esta plata pasó por el cajón. Es lo único que el arqueo puede contar. */
     public boolean afectaElCajon() {
-        return EFECTIVO.equalsIgnoreCase(metodo);
+        return MetodoDePago.esEfectivo(metodo);
     }
 
     public boolean esEgreso() {

@@ -61,13 +61,14 @@ export function ModalForm({ children, onSubmit }) {
 /**
  * Standard modal action buttons (Cancel + Submit).
  */
-export function ModalActions({ onCancel, saving, submitText = 'Guardar', cancelText = 'Cancelar' }) {
+/** @param {string} [submitClass] el color del botón: 'btn-danger' para lo que no tiene vuelta atrás (anular). */
+export function ModalActions({ onCancel, saving, submitText = 'Guardar', cancelText = 'Cancelar', submitClass = 'btn-primary' }) {
   return (
     <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
       <button type="button" className="btn btn-secondary" onClick={onCancel}>
         {cancelText}
       </button>
-      <button type="submit" className="btn btn-primary" disabled={saving}>
+      <button type="submit" className={`btn ${submitClass}`} disabled={saving}>
         {saving ? (
           <>
             <span className="spinner" /> Guardando...

@@ -1,6 +1,6 @@
 # ADR-014: El historial de caja importado suma en los ingresos, pero no cubre a nadie ni entra a la caja
 
-- **Estado:** ✅ Aceptada
+- **Estado:** ✅ Aceptada · el **balance** de la caja cambió en [ADR-015](ADR-015-un-libro-de-ingresos-y-cada-peso-en-un-cierre.md): ahora incluye el historial, marcado. El cierre sigue sin contarlo.
 - **Fecha:** 2026-09-21
 
 ## Contexto

@@ -66,6 +66,8 @@ public class GymOwnerInsightsService {
 
     private final TenantMembershipRepository membershipRepository;
     private final EntityManager entityManager;
+    /** ⭐ La plata la cuenta el libro de ingresos: la misma cuenta de cada sucursal por separado. */
+    private final LibroDeIngresos libro;
 
     /**
      * @param months cuántos meses hacia atrás (incluido el actual)
@@ -100,7 +102,7 @@ public class GymOwnerInsightsService {
         final LocalDateTime desde = primerMes.atDay(1).atStartOfDay();
         final LocalDateTime corteBajas = ahora.minusDays(GRACE_DAYS);
 
-        Map<String, BigDecimal> plata = sumarPlata(ids, desde);
+        Map<String, BigDecimal> plata = sumarPlata(ids, desde, mesActual.plusMonths(1).atDay(1).atStartOfDay());
         Map<String, Long> altas = contarAltas(ids, desde);
         Map<String, Long> bajas = contarBajas(ids, desde, corteBajas);
 
@@ -129,22 +131,16 @@ public class GymOwnerInsightsService {
 
     // ── Consultas ──────────────────────────────────────────────────────────────
 
-    /** Cuotas cobradas por mes. UPPER(status) porque conviven "paid" y "PAID" en datos viejos. */
-    private Map<String, BigDecimal> sumarPlata(List<UUID> ids, LocalDateTime desde) {
-        List<?> filas = entityManager.createNativeQuery(
-                        "SELECT tenant_id, to_char(date_trunc('month', payment_date), 'YYYY-MM'), COALESCE(SUM(amount), 0) "
-                                + "FROM gym_payment "
-                                + "WHERE tenant_id IN (:ids) AND UPPER(status) = 'PAID' AND payment_date >= :desde "
-                                + "GROUP BY 1, 2")
-                .setParameter("ids", ids)
-                .setParameter("desde", desde)
-                .getResultList();
-
+    /**
+     * Lo que entró por mes en cada sucursal, del {@link LibroDeIngresos}: cuotas, historial
+     * importado y ventas. Es el mismo número que el tablero de cada sucursal por separado.
+     *
+     * <p>Hasta el mes en curso: un cobro con la fecha mal tipeada en el futuro no es plata de hoy.</p>
+     */
+    private Map<String, BigDecimal> sumarPlata(List<UUID> ids, LocalDateTime desde, LocalDateTime hasta) {
         Map<String, BigDecimal> out = new HashMap<>();
-        for (Object fila : filas) {
-            Object[] c = (Object[]) fila;
-            out.put(clave((UUID) c[0], (String) c[1]), (BigDecimal) c[2]);
-        }
+        libro.porMes(ids, desde, hasta).forEach((gym, meses) ->
+                meses.forEach((mes, totales) -> out.put(clave(gym, mes.toString()), totales.total())));
         return out;
     }
 

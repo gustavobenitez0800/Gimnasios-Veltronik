@@ -58,4 +58,6 @@ public class GymPaymentAjuste extends TenantAwareEntity {
 
     public static final String EDICION = "EDICION";
     public static final String BORRADO = "BORRADO";
+    /** Un cobro no se borra más: se anula (V88). */
+    public static final String ANULACION = "ANULACION";
 }

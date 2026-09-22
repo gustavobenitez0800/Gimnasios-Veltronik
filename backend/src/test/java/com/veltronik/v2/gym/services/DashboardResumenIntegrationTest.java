@@ -98,7 +98,10 @@ class DashboardResumenIntegrationTest extends EmbeddedPostgresTest {
                 VALUES (:id, :t, :m, :monto, 'CASH', :estado, :cuando, now(), now())
                 """)
                 .setParameter("id", UUID.randomUUID()).setParameter("t", gym).setParameter("m", socio)
-                .setParameter("monto", new BigDecimal(monto)).setParameter("estado", estado)
+                .setParameter("monto", new BigDecimal(monto))
+                // Los tests se escribieron con "PAID" cuando convivían las dos ortografías. Desde la
+                // V88 hay una sola y la exige la base: se guarda como la guardaría la app.
+                .setParameter("estado", estado.toLowerCase(java.util.Locale.ROOT))
                 .setParameter("cuando", cuando)
                 .executeUpdate();
     }

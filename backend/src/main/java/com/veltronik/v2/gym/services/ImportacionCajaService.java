@@ -254,7 +254,7 @@ public class ImportacionCajaService {
         LocalDateTime cuando;
         BigDecimal monto;          // siempre positivo: el signo lo dice `gasto`
         boolean gasto;
-        String metodoCobro;        // como lo guarda el cobro: "cash", "mercadopago"…
+        String metodoCobro;        // como lo guarda el cobro: "CASH", "MERCADOPAGO"… (MetodoDePago)
         String metodoCaja;         // como lo guarda la caja: "CASH", "MERCADOPAGO"…
         String concepto;
         String nota;
@@ -418,7 +418,7 @@ public class ImportacionCajaService {
                         + "Mercado Pago o Tarjeta.");
             } else {
                 d.metodoCaja = codigo;
-                d.metodoCobro = codigo.toLowerCase(Locale.ROOT);
+                d.metodoCobro = codigo;
             }
         }
         return d;

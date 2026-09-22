@@ -53,8 +53,11 @@ public class GymPayment extends TenantAwareEntity {
     @Column(name = "payment_date", nullable = false)
     private LocalDateTime paymentDate;
 
-    // e.g. "CASH", "CARD", "TRANSFER"
-    @Column(name = "payment_method", length = 50)
+    /**
+     * CASH | TRANSFER | MERCADOPAGO | CARD | OTHER, siempre así (ver {@link MetodoDePago}).
+     * Lo normaliza {@link #normalizarAlGuardar()} y la base lo exige con un CHECK (V88).
+     */
+    @Column(name = "payment_method", length = 50, nullable = false)
     private String paymentMethod;
 
     /**
@@ -125,6 +128,73 @@ public class GymPayment extends TenantAwareEntity {
 
     @Column(name = "periodo_importado_hasta", insertable = false, updatable = false)
     private java.time.LocalDate periodoImportadoHasta;
+
+    // ── El sello del cierre de caja (V88): cada peso en exactamente un cierre ──────────
+    //
+    // ⚠️ insertable/updatable = false en los cuatro, y no es un detalle: los escribe SOLO el
+    // cierre, con un UPDATE directo (CajaService). Si JPA pudiera escribirlos, editar un cobro
+    // en otra pestaña —con la entidad cargada antes del cierre— pisaría el sello con el valor
+    // viejo, y el cobro volvería a entrar en el cierre siguiente: contado dos veces.
+
+    /** En qué cierre entró. NULL = todavía en el período abierto, o carga histórica sin cierre. */
+    @Column(name = "cierre_id", insertable = false, updatable = false)
+    private java.util.UUID cierreId;
+
+    /** Cuándo lo tomó un cierre. NULL = ningún cierre lo contó todavía. */
+    @Column(name = "sellado_at", insertable = false, updatable = false)
+    private LocalDateTime selladoAt;
+
+    /**
+     * Lo que ESE cierre contó. Si después se corrige el monto o se anula el cobro, la diferencia
+     * entre esto y lo de ahora es la corrección que entra en el cierre siguiente.
+     */
+    @Column(name = "sellado_monto", insertable = false, updatable = false)
+    private BigDecimal selladoMonto;
+
+    @Column(name = "sellado_metodo", insertable = false, updatable = false)
+    private String selladoMetodo;
+
+    // ── La anulación (V88): un cobro no se borra, se anula ─────────────────────────────
+    //
+    // Borrar un cobro era borrar la prueba: la plata desaparecía de los ingresos y del cierre
+    // sin dejar el renglón. Anulado queda con status 'cancelled' —que ninguna suma cuenta—,
+    // con quién, cuándo y por qué.
+
+    @Column(name = "anulado_at")
+    private LocalDateTime anuladoAt;
+
+    @Column(name = "anulado_por_nombre", length = 160)
+    private String anuladoPorNombre;
+
+    @Column(name = "motivo_anulacion", length = 255)
+    private String motivoAnulacion;
+
+    /** Los estados que existen. Cualquier suma de plata cuenta SOLO {@link #COBRADO}. */
+    public static final String COBRADO = "paid";
+    public static final String PENDIENTE = "pending";
+    public static final String ANULADO = "cancelled";
+
+    public boolean estaCobrado() {
+        return COBRADO.equalsIgnoreCase(status == null ? "" : status.trim());
+    }
+
+    public boolean estaAnulado() {
+        return ANULADO.equalsIgnoreCase(status == null ? "" : status.trim());
+    }
+
+    /**
+     * ⭐ La forma de pago y el estado se escriben de UNA manera, la escriba quien la escriba.
+     *
+     * <p>Vive en la entidad y no en un servicio a propósito: el importador, el cobro de la API
+     * y la edición guardan por caminos distintos, y una regla que depende de que cada camino se
+     * acuerde es una regla que en alguno falta. Ya pasó con el estado ("PAID" contra "paid").</p>
+     */
+    @PrePersist
+    @PreUpdate
+    void normalizarAlGuardar() {
+        paymentMethod = MetodoDePago.normalizar(paymentMethod);
+        status = (status == null || status.isBlank()) ? COBRADO : status.trim().toLowerCase(java.util.Locale.ROOT);
+    }
 
     /** ¿Es historia importada de otro sistema? */
     public boolean esImportado() {

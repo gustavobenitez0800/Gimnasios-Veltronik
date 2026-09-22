@@ -125,13 +125,14 @@ class OwnerInsightsIntegrationTest extends EmbeddedPostgresTest {
     }
 
     @Test
-    @DisplayName("La plata cuenta igual con el estado en mayúscula (datos viejos)")
+    @DisplayName("El estado en mayúscula (datos viejos) ya no puede existir: la V88 lo normalizó y la base lo rechaza")
     void cuentaLosDatosViejosEnMayuscula() {
         LocalDateTime esteMes = LocalDateTime.now(AR).withDayOfMonth(15).withHour(10);
-        pago(centro, new BigDecimal("40000"), esteMes, "PAID", null);
-
-        assertThat(totalDelMesActual(insightsService.forCurrentOwner(12)).getRevenue())
-                .isEqualByComparingTo(new BigDecimal("40000"));
+        // Antes cada suma tenía que acordarse de UPPER(status). Ahora hay una sola ortografía y
+        // la garantiza la base (ck_gym_payment_estado): el libro de ingresos compara exacto.
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> pago(centro, new BigDecimal("40000"), esteMes, "PAID", null))
+                .hasMessageContaining("ck_gym_payment_estado");
     }
 
     @Test

@@ -203,6 +203,12 @@ function GymDashboard({ gym }) {
     ? `${comparacion.cambio > 0 ? '+' : ''}${comparacion.cambio}% frente al 1 al ${comparacion.dia} de ${comparacion.mesAnterior}`
     : null;
   const tonoDelMes = comparacion?.cambio > 0 ? 'up' : comparacion?.cambio < 0 ? 'down' : undefined;
+  // De qué está hecho el número: las ventas de la caja y el historial importado suman adentro
+  // (es el mismo total de la caja, Pagos y el Excel), y se dice en su propio renglón.
+  const notaDelMes = [
+    dashboardStats.ventasDelMes > 0 && `${formatCurrency(dashboardStats.ventasDelMes)} de ventas`,
+    dashboardStats.historialDelMes > 0 && `${formatCurrency(dashboardStats.historialDelMes)} del historial importado`,
+  ].filter(Boolean).join(' · ');
 
   return (
     <div className="dashboard">
@@ -233,7 +239,8 @@ function GymDashboard({ gym }) {
                 misma pantalla. */}
             <StatCard icon="users" label={`${membersLabel} al día`} value={dashboardStats.alDia} color="primary" />
             <StatCard icon="cash" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)}
-              color="success" detail={detalleDelMes} detailTone={tonoDelMes} />
+              color="success" detail={detalleDelMes} detailTone={tonoDelMes}
+              nota={notaDelMes ? `Incluye ${notaDelMes}` : undefined} />
           </>
         )}
         {/* Cuenta SOCIOS con la cuota vencida, no pagos: se llamaba "Pagos Vencidos" y no

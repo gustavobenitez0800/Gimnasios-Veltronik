@@ -4,9 +4,8 @@ import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.CajaCierre;
 import com.veltronik.v2.gym.entities.CajaSesion;
-import com.veltronik.v2.gym.entities.GymPayment;
+import com.veltronik.v2.gym.entities.MetodoDePago;
 import com.veltronik.v2.gym.repositories.CajaCierreRepository;
-import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -19,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * El arqueo de caja: cuánto dice el sistema que hay, cuánto dice la persona, y la diferencia.
@@ -37,30 +37,37 @@ public class CajaService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     /**
-     * Desde cuándo cuenta el PRIMER cierre de un gimnasio.
+     * Hasta cuántos días para atrás mira un cierre.
      *
-     * <p>Sin cierres anteriores no hay un "desde" natural. Se toman 30 días para atrás en vez
-     * de "desde siempre": el primer arqueo de un gimnasio que viene de migrar arrastraría
-     * meses de cobros históricos y daría una diferencia enorme y sin sentido, que es la peor
-     * forma de estrenar la función.</p>
+     * <p>Nació como la regla del PRIMER cierre: sin cierres anteriores no hay un "desde"
+     * natural, y el primer arqueo de un gimnasio que viene de migrar arrastraría meses de cobros
+     * históricos. Desde la V88 vale para todos: lo sin sellar más viejo que esto es carga
+     * histórica (los cobros de un cuaderno pasados al sistema), y esa plata ya no está en el
+     * cajón. Ver {@link ContadorDeCaja}.</p>
      */
-    private static final int DIAS_DEL_PRIMER_CIERRE = 30;
+    public static final int DIAS_QUE_MIRA_UN_CIERRE = 30;
 
     private final CajaCierreRepository cierreRepository;
-    private final GymPaymentRepository paymentRepository;
     private final com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository;
     private final com.veltronik.v2.gym.repositories.CajaSesionRepository sesionRepository;
     private final com.veltronik.v2.gym.repositories.CajaMovimientoRepository movimientoRepository;
+    private final com.veltronik.v2.gym.repositories.CajaCierreAjusteRepository correccionRepository;
+    private final ContadorDeCaja contador;
+    private final LibroDeIngresos libro;
 
-    public CajaService(CajaCierreRepository cierreRepository, GymPaymentRepository paymentRepository,
+    public CajaService(CajaCierreRepository cierreRepository,
                        com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository ajusteRepository,
                        com.veltronik.v2.gym.repositories.CajaSesionRepository sesionRepository,
-                       com.veltronik.v2.gym.repositories.CajaMovimientoRepository movimientoRepository) {
+                       com.veltronik.v2.gym.repositories.CajaMovimientoRepository movimientoRepository,
+                       com.veltronik.v2.gym.repositories.CajaCierreAjusteRepository correccionRepository,
+                       ContadorDeCaja contador, LibroDeIngresos libro) {
         this.cierreRepository = cierreRepository;
-        this.paymentRepository = paymentRepository;
         this.ajusteRepository = ajusteRepository;
         this.sesionRepository = sesionRepository;
         this.movimientoRepository = movimientoRepository;
+        this.correccionRepository = correccionRepository;
+        this.contador = contador;
+        this.libro = libro;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -139,8 +146,13 @@ public class CajaService {
         m.setDetalle(detalle == null || detalle.isBlank() ? null
                 : detalle.trim().substring(0, Math.min(detalle.trim().length(), LARGO_MAXIMO_DETALLE)));
         m.setMonto(monto);
-        m.setMetodo(nullSafe(metodo).isBlank()
-                ? com.veltronik.v2.gym.entities.CajaMovimiento.EFECTIVO : metodo.toUpperCase());
+        // Sin forma de pago es efectivo (lo que sale del cajón, que es para lo que existe esto). Una
+        // que no se entiende se rechaza: guardarla como vino la dejaba fuera de toda cuenta.
+        String forma = nullSafe(metodo).isBlank() ? MetodoDePago.EFECTIVO : MetodoDePago.reconocer(metodo);
+        if (forma == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No conozco la forma de pago «" + metodo + "».");
+        }
+        m.setMetodo(forma);
         // La hora la escribe la app en zona argentina: la base responde en la suya y el
         // movimiento caería fuera del período. Con conexión es ahora; encolado, el momento en
         // que la plata salió del cajón — acotado, porque el reloj del mostrador puede estar
@@ -201,7 +213,9 @@ public class CajaService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Ese gasto vino con el historial importado. Se quita deshaciendo la importación.");
         }
-        if (m.getFecha().isBefore(inicioDelPeriodo())) {
+        // Lo dice el sello, no la fecha (V88): un gasto con fecha de hoy pudo haber entrado ya en
+        // el cierre del mediodía, y uno de anoche que subió tarde puede estar todavía abierto.
+        if (m.estaCerrado()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Ese movimiento es de una caja ya cerrada. Para corregirlo, cargá uno al revés.");
         }
@@ -224,10 +238,14 @@ public class CajaService {
      */
     @Transactional(readOnly = true)
     public List<com.veltronik.v2.gym.entities.CajaMovimiento> movimientosDeCaja() {
-        return movimientoRepository.findByTenantIdAndFechaBetweenOrderByFechaDesc(
-                        TenantContextHolder.getTenantId(), inicioDelPeriodo(), LocalDateTime.now(BUSINESS_ZONE))
-                .stream()
-                .filter(m -> !m.esImportado())
+        // Los mismos que va a tomar el cierre: sin sello, dentro de la ventana (ContadorDeCaja).
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        java.util.Set<java.util.UUID> abiertos = new java.util.HashSet<>();
+        contador.leer(TenantContextHolder.getTenantId(), ahora, ahora.minusDays(DIAS_QUE_MIRA_UN_CIERRE), false)
+                .movimientos().forEach(m -> abiertos.add(m.id()));
+        if (abiertos.isEmpty()) return List.of();
+        return movimientoRepository.findAllById(abiertos).stream()
+                .sorted(java.util.Comparator.comparing(com.veltronik.v2.gym.entities.CajaMovimiento::getFecha).reversed())
                 .toList();
     }
 
@@ -267,13 +285,28 @@ public class CajaService {
      * medir nada.</p>
      */
     @Transactional(readOnly = true)
-    public List<GymPayment> movimientosDelPeriodo() {
-        return paymentRepository.findByTenantIdAndDateRange(
-                        TenantContextHolder.getTenantId(), inicioDelPeriodo(),
-                        LocalDateTime.now(BUSINESS_ZONE)).stream()
-                .filter(CajaService::pasoPorEsteCajon)
-                .filter(p -> "PAID".equalsIgnoreCase(p.getStatus() == null ? "" : p.getStatus()))
-                .toList();
+    public List<ContadorDeCaja.Cobro> movimientosDelPeriodo() {
+        // EXACTAMENTE lo que va a tomar el cierre: la misma lectura (ContadorDeCaja), sin bloquear.
+        // Incluye lo cargado tarde con fecha de un día ya cerrado, que antes no aparecía nunca.
+        return leerAbierto().cobros();
+    }
+
+    /**
+     * Los cobros YA CERRADOS que se corrigieron o se anularon después (V88). Su diferencia entra
+     * en el próximo cierre, y la pantalla la muestra antes de cerrar, renglón por renglón.
+     */
+    @Transactional(readOnly = true)
+    public List<ContadorDeCaja.Correccion> correccionesPendientes() {
+        return leerAbierto().correcciones();
+    }
+
+    private ContadorDeCaja.PorCerrar leerAbierto() {
+        return leerAbierto(LocalDateTime.now(BUSINESS_ZONE));
+    }
+
+    /** Lo que tomaría un cierre hecho en {@code hasta}, sin bloquear ni sellar. */
+    private ContadorDeCaja.PorCerrar leerAbierto(LocalDateTime hasta) {
+        return contador.leer(TenantContextHolder.getTenantId(), hasta, hasta.minusDays(DIAS_QUE_MIRA_UN_CIERRE), false);
     }
 
     /**
@@ -286,22 +319,15 @@ public class CajaService {
     }
 
     /**
-     * Balance de ingresos de un período FIJO de calendario: hoy, o el mes en curso.
+     * Balance de ingresos de hoy, o del mes en curso. Lo piden los escritorios que todavía no
+     * mandan un rango.
      *
-     * <p>Distinto del período abierto, que va desde el último cierre. Son dos preguntas
-     * diferentes y confundirlas fue tentador: "¿cuánto va del día?" no es "¿cuánto hay sin
-     * cerrar?". Si nadie cerró ayer, el período abierto arrastra dos días y el balance de
-     * hoy sigue diciendo lo de hoy.</p>
-     *
-     * @param desdeElPrimeroDelMes true = del 1° del mes a ahora; false = de hoy a las 00:00.
+     * @param desdeElPrimeroDelMes true = del 1° del mes a hoy; false = hoy.
      */
     @Transactional(readOnly = true)
-    public Resumen balance(boolean desdeElPrimeroDelMes) {
-        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
-        LocalDateTime desde = desdeElPrimeroDelMes
-                ? ahora.withDayOfMonth(1).toLocalDate().atStartOfDay()
-                : ahora.toLocalDate().atStartOfDay();
-        return contar(desde, ahora);
+    public Balance balance(boolean desdeElPrimeroDelMes) {
+        java.time.LocalDate hoy = LocalDateTime.now(BUSINESS_ZONE).toLocalDate();
+        return balance(desdeElPrimeroDelMes ? hoy.withDayOfMonth(1) : hoy, hoy);
     }
 
     /** El tope de un rango: un año y un poco. Más que eso es un pedido que nadie hizo a mano. */
@@ -311,13 +337,52 @@ public class CajaService {
      * Balance de un rango de días de CALENDARIO, con los dos extremos adentro. Es el que elige
      * el dueño con el selector (Hoy, Semana, Mes, Año o dos fechas a mano).
      *
-     * <p>Misma cuenta que el balance de hoy y que el cierre ({@link #contar}): lo que entró a
-     * este cajón, sin el historial importado (ADR-014).</p>
+     * <p>⭐ <b>Es la pregunta "¿cuánta plata entró?", y la contesta el {@link LibroDeIngresos}</b>
+     * —el mismo número del tablero, de Pagos y del Excel—, con el historial importado y las
+     * ventas incluidos y marcados aparte. Hasta el 22/09 lo contaba la cuenta del cajón, sin el
+     * historial, y el año de un gimnasio recién migrado decía $283.000 mientras el tablero
+     * decía millones: dos respuestas a la misma pregunta.</p>
+     *
+     * <p>No es lo mismo que el cierre, que contesta otra cosa: "¿qué tiene que haber en el
+     * cajón?". Esa cuenta sigue sin el historial (esa plata la cobró el otro sistema).</p>
      */
     @Transactional(readOnly = true)
-    public Resumen balance(java.time.LocalDate desde, java.time.LocalDate hasta) {
+    public Balance balance(java.time.LocalDate desde, java.time.LocalDate hasta) {
         validarRango(desde, hasta);
-        return contar(desde.atStartOfDay(), finDelDia(hasta));
+        UUID gym = TenantContextHolder.getTenantId();
+        LibroDeIngresos.Totales ingresos = libro.enLosDias(gym, desde, hasta);
+
+        // Los gastos del rango, que el libro de INGRESOS no mira. Sin el historial importado y
+        // sin anulados, como siempre.
+        BigDecimal egresosEfectivo = BigDecimal.ZERO;
+        BigDecimal egresosOtrosMedios = BigDecimal.ZERO;
+        for (var m : movimientoRepository.findByTenantIdAndFechaBetweenOrderByFechaDesc(
+                gym, desde.atStartOfDay(), finDelDia(hasta))) {
+            if (!m.estaVigente() || m.esImportado() || !m.esEgreso()) continue;
+            if (m.afectaElCajon()) egresosEfectivo = egresosEfectivo.add(m.getMonto());
+            else egresosOtrosMedios = egresosOtrosMedios.add(m.getMonto());
+        }
+        return new Balance(desde.atStartOfDay(), finDelDia(hasta), ingresos, egresosEfectivo, egresosOtrosMedios);
+    }
+
+    /**
+     * Lo que entró en un rango de días (el libro de ingresos) y lo que salió de gastos.
+     *
+     * @param ingresos por forma de pago y por origen: cuotas, historial importado y otros ingresos.
+     */
+    public record Balance(LocalDateTime desde, LocalDateTime hasta, LibroDeIngresos.Totales ingresos,
+                          BigDecimal egresosEfectivo, BigDecimal egresosOtrosMedios) {
+        public BigDecimal total() {
+            return ingresos.total();
+        }
+
+        public BigDecimal efectivo() {
+            return ingresos.efectivo();
+        }
+
+        public int cantidadCobros() {
+            return ingresos.cantidadCobros();
+        }
     }
 
     /** Un rango que se pueda pedir: las dos puntas, en orden, y no más largo que el tope. */
@@ -347,12 +412,14 @@ public class CajaService {
         return dia.atTime(23, 59, 59, 999_999_000);
     }
 
-    /** Lo que lleva acumulado el período abierto, sin cerrarlo. */
+    /**
+     * Lo que lleva acumulado el período abierto, sin cerrarlo: lo MISMO que contaría un cierre
+     * hecho ahora (la misma lectura, sin bloquear ni sellar).
+     */
     @Transactional(readOnly = true)
     public Resumen resumenAbierto() {
-        LocalDateTime desde = inicioDelPeriodo();
         LocalDateTime hasta = LocalDateTime.now(BUSINESS_ZONE);
-        return contar(desde, hasta);
+        return sumar(inicioDelPeriodo(), hasta, leerAbierto(hasta));
     }
 
     /**
@@ -393,7 +460,7 @@ public class CajaService {
      *
      * <p><b>⭐ Y por eso el total no se manda desde el terminal.</b> Como la cola es una sola y
      * respeta el orden, cuando este cierre llega ya subieron todos los cobros de ese día — y
-     * el servidor los cuenta con {@code contar(desde, hasta)}. El número completo sale gratis
+     * el servidor los cuenta ({@link ContadorDeCaja}). El número completo sale gratis
      * del orden estricto; no hay que confiar en la suma del terminal.</p>
      *
      * <p><b>Lo que el terminal manda igual, y para qué.</b> Lo que MOSTRÓ en pantalla. No se
@@ -414,9 +481,9 @@ public class CajaService {
         // Acá un duplicado no deja una fila de más: el período del segundo arranca donde
         // terminó el primero, así que cuenta CERO, y ese cero pasa a ser el fondo de mañana.
         // El error después lo arrastran todos los cierres siguientes.
+        UUID gym = TenantContextHolder.getTenantId();
         if (clientRef != null) {
-            java.util.Optional<CajaCierre> yaEstaba = cierreRepository
-                    .findByTenantIdAndClientRef(TenantContextHolder.getTenantId(), clientRef);
+            java.util.Optional<CajaCierre> yaEstaba = cierreRepository.findByTenantIdAndClientRef(gym, clientRef);
             if (yaEstaba.isPresent()) {
                 return yaEstaba.get();
             }
@@ -425,6 +492,18 @@ public class CajaService {
         BigDecimal retiro = retiroEfectivo == null ? BigDecimal.ZERO : retiroEfectivo;
         if (retiro.signum() < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El retiro no puede ser negativo.");
+        }
+
+        // (1) UN CIERRE POR VEZ en cada gimnasio. Dos a la vez (el portal y el escritorio en el
+        // mismo minuto) leerían el mismo cierre anterior y el mismo fondo. Todo lo que sigue se
+        // lee DESPUÉS del candado, así el segundo ve el cierre del primero.
+        contador.candado(gym);
+        if (clientRef != null) {
+            // El reintento que llegó en paralelo con el original, y esperó el candado.
+            java.util.Optional<CajaCierre> yaEstaba = cierreRepository.findByTenantIdAndClientRef(gym, clientRef);
+            if (yaEstaba.isPresent()) {
+                return yaEstaba.get();
+            }
         }
 
         java.util.Optional<CajaSesion> sesion = sesionAbierta();
@@ -448,13 +527,19 @@ public class CajaService {
                     "Ese período ya lo cerró otro. Este cierre no se puede aplicar.");
         }
 
-        Resumen r = contar(desde, hasta);
+        // (2) Lo que entra en este cierre, BLOQUEADO hasta que termine: lo que se lee es
+        // exactamente lo que después se sella (ver ContadorDeCaja).
+        LocalDateTime piso = hasta.minusDays(DIAS_QUE_MIRA_UN_CIERRE);
+        ContadorDeCaja.PorCerrar porCerrar = contador.leer(gym, hasta, piso, true);
+        Resumen r = sumar(desde, hasta, porCerrar);
 
-        // ⚠️ LOS DOS TÉRMINOS QUE HACEN QUE ESTO CUADRE, Y CADA UNO COSTÓ UN BUG:
+        // ⚠️ LOS TÉRMINOS QUE HACEN QUE ESTO CUADRE, Y CADA UNO COSTÓ UN BUG:
         //   · EL FONDO. En el cajón está el cambio de ayer MÁS lo cobrado hoy. Sin sumarlo,
         //     TODOS los cierres daban sobrante por el mismo monto.
         //   · LOS EGRESOS. Del cajón también sale plata. Sin restarlos, el día que se le paga
         //     a la limpieza el cierre decía FALTANTE y acusaba a quien atendió.
+        //   · LAS CORRECCIONES (V88). Un cobro en efectivo de ayer que hoy se anula porque se
+        //     devolvió la plata: esa plata salió HOY del cajón.
         BigDecimal enElCajon = r.enElCajon(fondo);
 
         // No se puede sacar del cajón lo que no hay. Sin esto, un dedazo (un cero de más)
@@ -483,7 +568,11 @@ public class CajaService {
         // sirve para comparar nada.
         cierre.setEgresosEfectivo(r.egresosEfectivo());
         cierre.setIngresosEfectivo(r.ingresosEfectivo());
+        cierre.setIngresosOtrosMedios(r.ingresosOtrosMedios());
         cierre.setCantidadMovimientos(r.cantidadMovimientos());
+        cierre.setAjustesEfectivo(r.ajustesEfectivo());
+        cierre.setAjustesOtrosMedios(r.ajustesOtrosMedios());
+        cierre.setCantidadAjustes(r.cantidadAjustes());
 
         // Sin conteo declarado no hay diferencia que calcular. Quedan en NULL a propósito, y
         // no en cero: cero significaría "cuadró perfecto", que es una afirmación que nadie hizo.
@@ -500,14 +589,50 @@ public class CajaService {
         cierre.setNota(nota != null && !nota.isBlank() ? nota.trim() : null);
         cierre.setCerradoPorNombre(cerradoPor);
 
-        CajaCierre guardado = cierreRepository.save(cierre);
+        CajaCierre guardado = cierreRepository.saveAndFlush(cierre);
 
-        if (esperadoSegunTerminal != null && esperadoSegunTerminal.compareTo(r.efectivo()) != 0) {
+        // (3) EL SELLO. Cada cobro y cada movimiento que contó este cierre queda marcado con él,
+        // y ningún otro cierre lo vuelve a contar. Tiene que sellar TODOS los que leyó: si uno
+        // no se selló, algo lo tocó en el medio y el número guardado arriba ya no es cierto.
+        LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        List<UUID> cobros = porCerrar.cobros().stream().map(ContadorDeCaja.Cobro::id).toList();
+        List<UUID> movimientos = porCerrar.movimientos().stream().map(ContadorDeCaja.Movimiento::id).toList();
+        int sellados = contador.sellarCobros(gym, cobros, guardado.getId(), ahora);
+        int movSellados = contador.sellarMovimientos(gym, movimientos, guardado.getId(), ahora);
+        if (sellados != cobros.size() || movSellados != movimientos.size()) {
+            throw new IllegalStateException("El cierre leyó " + cobros.size() + " cobros y "
+                    + movimientos.size() + " movimientos pero selló " + sellados + " y " + movSellados
+                    + ". No se guarda: el número no sería cierto.");
+        }
+        for (ContadorDeCaja.Correccion c : porCerrar.correcciones()) {
+            com.veltronik.v2.gym.entities.CajaCierreAjuste a = new com.veltronik.v2.gym.entities.CajaCierreAjuste();
+            a.setTenant(tenant);
+            a.setCierreId(guardado.getId());
+            a.setPaymentId(c.pagoId());
+            a.setMetodoAntes(c.metodoAntes());
+            a.setMontoAntes(c.montoAntes());
+            a.setMetodoDespues(c.metodoDespues());
+            a.setMontoDespues(c.montoDespues());
+            correccionRepository.save(a);
+            contador.resellar(c.pagoId(), c.montoDespues(), c.metodoDespues(), ahora);
+        }
+        // Lo sin sellar más viejo que la ventana: carga histórica, que ningún arqueo cuenta.
+        int historicos = contador.sellarHistoricos(gym, piso, ahora);
+        if (historicos > 0) {
+            log.info("Cierre {}: {} cobros o movimientos con fecha de hace más de {} días quedaron como "
+                    + "carga histórica (no entran al arqueo).", guardado.getId(), historicos, DIAS_QUE_MIRA_UN_CIERRE);
+        }
+
+        // ⚠️ Lo que manda el terminal es lo que decía "Hay en el cajón" (fondo + efectivo +
+        // ingresos − gastos), así que se compara contra ESA cuenta. Compararlo contra el efectivo
+        // cobrado solo hacía saltar el aviso cada vez que había fondo o un gasto: un aviso que
+        // salta siempre es un aviso que nadie mira.
+        if (esperadoSegunTerminal != null && esperadoSegunTerminal.compareTo(enElCajon) != 0) {
             // No se corrige solo: se hace ruido. Las dos cuentas quedan guardadas y esta línea
             // es la que permite encontrar el caso sin ir a buscarlo fila por fila.
-            log.warn("Cierre {} con dos cuentas distintas: el terminal mostro {} en efectivo y "
+            log.warn("Cierre {} con dos cuentas distintas: el terminal mostro {} en el cajon y "
                             + "el servidor conto {}. Cobros: terminal {}, servidor {}.",
-                    guardado.getId(), esperadoSegunTerminal, r.efectivo(),
+                    guardado.getId(), esperadoSegunTerminal, enElCajon,
                     cobrosSegunTerminal, r.cantidadCobros());
         }
 
@@ -607,65 +732,7 @@ public class CajaService {
     private LocalDateTime desdeElUltimoCierre() {
         return cierreRepository.findTopByTenantIdOrderByHastaDesc(TenantContextHolder.getTenantId())
                 .map(CajaCierre::getHasta)
-                .orElseGet(() -> LocalDateTime.now(BUSINESS_ZONE).minusDays(DIAS_DEL_PRIMER_CIERRE));
-    }
-
-    /**
-     * Suma los cobros del período, separados por método.
-     *
-     * <p>Solo cuentan los cobrados: un pago pendiente no puso plata en ningún cajón.</p>
-     */
-    private Resumen contar(LocalDateTime desde, LocalDateTime hasta) {
-        List<GymPayment> pagos = paymentRepository.findByTenantIdAndDateRange(
-                TenantContextHolder.getTenantId(), desde, hasta);
-
-        BigDecimal efectivo = BigDecimal.ZERO;
-        BigDecimal transferencia = BigDecimal.ZERO;
-        BigDecimal mercadopago = BigDecimal.ZERO;
-        BigDecimal tarjeta = BigDecimal.ZERO;
-        BigDecimal otros = BigDecimal.ZERO;
-        int cuantos = 0;
-
-        for (GymPayment p : pagos) {
-            if (!pasoPorEsteCajon(p)) continue;
-            if (!"PAID".equalsIgnoreCase(nullSafe(p.getStatus()))) continue;
-            BigDecimal monto = p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO;
-            cuantos++;
-            switch (nullSafe(p.getPaymentMethod()).toUpperCase()) {
-                case "CASH" -> efectivo = efectivo.add(monto);
-                case "TRANSFER" -> transferencia = transferencia.add(monto);
-                // Mercado Pago es una de las opciones que ofrece el sistema al cobrar, pero
-                // acá no estaba y caía en "otros" con los métodos raros: el gimnasio que
-                // cobra por MP no veía esa plata en ninguna parte del arqueo.
-                case "MERCADOPAGO", "MERCADO_PAGO", "MP" -> mercadopago = mercadopago.add(monto);
-                case "CARD" -> tarjeta = tarjeta.add(monto);
-                default -> otros = otros.add(monto);
-            }
-        }
-        // ─── Lo que entró y salió del cajón sin ser un cobro ───
-        //
-        // ⚠️ SOLO EL EFECTIVO CUENTA ACÁ. Un pago al proveedor por transferencia se anota
-        // —el dueño quiere verlo— pero NO toca el arqueo: lo que se declara al cerrar es
-        // cuánto ENTRÓ a la cuenta, y meter salidas ahí obligaría a quien cuenta a hacer una
-        // resta mental sobre la app del banco.
-        //
-        // Y los anulados no suman: para eso se anulan.
-        BigDecimal egresos = BigDecimal.ZERO;
-        BigDecimal ingresosManuales = BigDecimal.ZERO;
-        int cuantosMovimientos = 0;
-
-        for (var m : movimientoRepository.findByTenantIdAndFechaBetweenOrderByFechaDesc(
-                TenantContextHolder.getTenantId(), desde, hasta)) {
-            if (!m.estaVigente()) continue;
-            if (m.esImportado()) continue; // un gasto del sistema anterior no salió de este cajón
-            cuantosMovimientos++;
-            if (!m.afectaElCajon()) continue;
-            if (m.esEgreso()) egresos = egresos.add(m.getMonto());
-            else ingresosManuales = ingresosManuales.add(m.getMonto());
-        }
-
-        return new Resumen(desde, hasta, efectivo, transferencia, mercadopago, tarjeta, otros, cuantos,
-                egresos, ingresosManuales, cuantosMovimientos);
+                .orElseGet(() -> LocalDateTime.now(BUSINESS_ZONE).minusDays(DIAS_QUE_MIRA_UN_CIERRE));
     }
 
     private static String nullSafe(String s) {
@@ -673,32 +740,120 @@ public class CajaService {
     }
 
     /**
-     * ¿Este cobro pasó por el cajón de Veltronik?
+     * Suma lo que entra en un cierre: los cobros por forma de pago, las correcciones de días ya
+     * cerrados, y los gastos e ingresos de caja.
      *
-     * <p>⭐ <b>El historial importado de otro sistema, NO</b> (V86, ADR-014). Suma en los
-     * ingresos del tablero, pero esa plata la cobró ControlFit (o el que fuera) y ya se
-     * rindió allá. Sin este filtro el primer cierre de un gimnasio que migra —que mira
-     * {@value #DIAS_DEL_PRIMER_CIERRE} días para atrás— se llevaba puestos casi un mes de
-     * cobros viejos como plata del día, y el balance del mes decía que el cajón tenía millones.</p>
+     * <p>Una sola cuenta para las tres lecturas de la caja —el resumen de la pantalla, el cierre y
+     * lo que ve el terminal sin internet (que parte de este mismo número)—. La lectura la hace
+     * {@link ContadorDeCaja}, con el mismo {@code WHERE} en las tres.</p>
      *
-     * <p>Se filtra acá y no en la consulta para que las tres lecturas de la caja (el cierre,
-     * el balance y la lista de cobros) pasen por el mismo lugar.</p>
+     * <p>El historial importado no llega hasta acá (ADR-014): {@code ContadorDeCaja} no lo lee,
+     * porque esa plata la cobró el sistema anterior y ya se rindió allá.</p>
      */
-    private static boolean pasoPorEsteCajon(GymPayment p) {
-        return !p.esImportado();
+    static Resumen sumar(LocalDateTime desde, LocalDateTime hasta, ContadorDeCaja.PorCerrar porCerrar) {
+        BigDecimal efectivo = BigDecimal.ZERO;
+        BigDecimal transferencia = BigDecimal.ZERO;
+        BigDecimal mercadopago = BigDecimal.ZERO;
+        BigDecimal tarjeta = BigDecimal.ZERO;
+        BigDecimal otros = BigDecimal.ZERO;
+
+        for (ContadorDeCaja.Cobro c : porCerrar.cobros()) {
+            BigDecimal monto = c.monto() != null ? c.monto() : BigDecimal.ZERO;
+            switch (MetodoDePago.normalizar(c.metodo())) {
+                case MetodoDePago.EFECTIVO -> efectivo = efectivo.add(monto);
+                case MetodoDePago.TRANSFERENCIA -> transferencia = transferencia.add(monto);
+                case MetodoDePago.MERCADO_PAGO -> mercadopago = mercadopago.add(monto);
+                case MetodoDePago.TARJETA -> tarjeta = tarjeta.add(monto);
+                default -> otros = otros.add(monto);
+            }
+        }
+
+        // ─── Las correcciones de cobros ya cerrados (V88) ───
+        //
+        // Lo que vale hoy menos lo que contó su cierre, del lado de la forma de pago en que está
+        // cada uno: pasar $10.000 de efectivo a transferencia saca $10.000 del cajón y los pone
+        // en el banco, y el total no cambia.
+        BigDecimal ajustesEfectivo = BigDecimal.ZERO;
+        BigDecimal ajustesOtrosMedios = BigDecimal.ZERO;
+        for (ContadorDeCaja.Correccion c : porCerrar.correcciones()) {
+            BigDecimal antes = c.montoAntes() != null ? c.montoAntes() : BigDecimal.ZERO;
+            BigDecimal despues = c.montoDespues() != null ? c.montoDespues() : BigDecimal.ZERO;
+            if (MetodoDePago.esEfectivo(c.metodoAntes())) ajustesEfectivo = ajustesEfectivo.subtract(antes);
+            else ajustesOtrosMedios = ajustesOtrosMedios.subtract(antes);
+            if (MetodoDePago.esEfectivo(c.metodoDespues())) ajustesEfectivo = ajustesEfectivo.add(despues);
+            else ajustesOtrosMedios = ajustesOtrosMedios.add(despues);
+        }
+
+        // ─── Lo que entró y salió del cajón sin ser un cobro ───
+        //
+        // ⚠️ SOLO EL EFECTIVO MUEVE EL CAJÓN. Un pago al proveedor por transferencia se anota —el
+        // dueño quiere verlo— pero no toca el arqueo. Una venta por transferencia tampoco toca el
+        // cajón, pero es plata que entró: va en su propio renglón (ingresosOtrosMedios).
+        //
+        // Y los anulados no suman: para eso se anulan (se sellan igual, para que el cierre diga
+        // que los vio).
+        BigDecimal egresos = BigDecimal.ZERO;
+        BigDecimal ingresosEfectivo = BigDecimal.ZERO;
+        BigDecimal ingresosOtrosMedios = BigDecimal.ZERO;
+        int cuantosMovimientos = 0;
+        for (ContadorDeCaja.Movimiento m : porCerrar.movimientos()) {
+            if (!m.vigente()) continue;
+            cuantosMovimientos++;
+            BigDecimal monto = m.monto() != null ? m.monto() : BigDecimal.ZERO;
+            boolean esEgreso = com.veltronik.v2.gym.entities.CajaMovimiento.EGRESO.equalsIgnoreCase(m.tipo());
+            boolean enEfectivo = MetodoDePago.esEfectivo(m.metodo());
+            if (esEgreso) {
+                if (enEfectivo) egresos = egresos.add(monto);
+            } else if (enEfectivo) {
+                ingresosEfectivo = ingresosEfectivo.add(monto);
+            } else {
+                ingresosOtrosMedios = ingresosOtrosMedios.add(monto);
+            }
+        }
+
+        return new Resumen(desde, hasta, efectivo, transferencia, mercadopago, tarjeta, otros,
+                porCerrar.cobros().size(), egresos, ingresosEfectivo, cuantosMovimientos,
+                ingresosOtrosMedios, ajustesEfectivo, ajustesOtrosMedios, porCerrar.correcciones().size());
     }
 
-    /** Lo que el sistema contó en un período. */
+    /**
+     * Lo que el sistema contó en un período.
+     *
+     * @param ingresosEfectivo    ventas, aportes y otros ingresos en efectivo: entran al cajón
+     * @param ingresosOtrosMedios ventas y otros ingresos por transferencia, MP o tarjeta
+     * @param ajustesEfectivo     correcciones de cobros ya cerrados que mueven el cajón
+     *                            (negativo = salió plata, por ejemplo una devolución)
+     * @param ajustesOtrosMedios  lo mismo, de los otros medios
+     */
     public record Resumen(LocalDateTime desde, LocalDateTime hasta,
                           BigDecimal efectivo, BigDecimal transferencia,
                           BigDecimal mercadopago, BigDecimal tarjeta,
                           BigDecimal otros, int cantidadCobros,
                           BigDecimal egresosEfectivo, BigDecimal ingresosEfectivo,
-                          int cantidadMovimientos) {
+                          int cantidadMovimientos,
+                          BigDecimal ingresosOtrosMedios,
+                          BigDecimal ajustesEfectivo, BigDecimal ajustesOtrosMedios, int cantidadAjustes) {
+
+        /** Sin correcciones ni ventas por otros medios: los cierres de antes de la V88. */
+        public Resumen(LocalDateTime desde, LocalDateTime hasta,
+                       BigDecimal efectivo, BigDecimal transferencia,
+                       BigDecimal mercadopago, BigDecimal tarjeta,
+                       BigDecimal otros, int cantidadCobros,
+                       BigDecimal egresosEfectivo, BigDecimal ingresosEfectivo,
+                       int cantidadMovimientos) {
+            this(desde, hasta, efectivo, transferencia, mercadopago, tarjeta, otros, cantidadCobros,
+                    egresosEfectivo, ingresosEfectivo, cantidadMovimientos,
+                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0);
+        }
 
         /** Transferencias y Mercado Pago juntos: es lo que se revisa de una sola mirada. */
         public BigDecimal digital() {
             return transferencia.add(mercadopago);
+        }
+
+        /** Todo lo cobrado a socios en el período, por el medio que sea. */
+        public BigDecimal cobrado() {
+            return efectivo.add(transferencia).add(mercadopago).add(tarjeta).add(otros);
         }
 
         /**
@@ -708,8 +863,9 @@ public class CajaService {
          * <pre>
          *   fondo inicial          el cambio de ayer — sin esto todo daba SOBRANTE siempre
          * + cobrado en efectivo    lo que entró por la ventanilla
-         * + ingresos manuales      plata que entró sin ser un cobro (una venta suelta)
+         * + ingresos en efectivo   plata que entró sin ser un cobro (una venta suelta)
          * - egresos en efectivo    lo que salió — sin esto todo daba FALTANTE siempre
+         * ± correcciones           un cobro de ayer anulado hoy porque se devolvió la plata
          * </pre>
          *
          * <p>Vive acá y no repartida en la pantalla y el servicio: una cuenta de plata copiada
@@ -719,7 +875,8 @@ public class CajaService {
             return (fondo == null ? BigDecimal.ZERO : fondo)
                     .add(efectivo)
                     .add(ingresosEfectivo)
-                    .subtract(egresosEfectivo);
+                    .subtract(egresosEfectivo)
+                    .add(ajustesEfectivo == null ? BigDecimal.ZERO : ajustesEfectivo);
         }
     }
 }

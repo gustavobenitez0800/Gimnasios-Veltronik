@@ -151,6 +151,8 @@
 }
 .stat-detail.is-up { color: var(--success-500); }
 .stat-detail.is-down { color: var(--warning-500); }
+/* De qué está hecho el número: apagado, no compite con la comparación de arriba. */
+.stat-detail.stat-nota { color: var(--text-muted); font-weight: 400; }
 
 /* AI Section */
 .ai-section { margin-bottom: 2rem; }

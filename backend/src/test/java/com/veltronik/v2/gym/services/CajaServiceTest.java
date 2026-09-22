@@ -2,9 +2,7 @@ package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.entities.CajaCierre;
-import com.veltronik.v2.gym.entities.GymPayment;
 import com.veltronik.v2.gym.repositories.CajaCierreRepository;
-import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -29,30 +27,47 @@ class CajaServiceTest {
     private static final UUID TENANT = UUID.randomUUID();
 
     private CajaCierreRepository cierres;
-    private GymPaymentRepository pagos;
     private com.veltronik.v2.gym.repositories.CajaSesionRepository sesiones;
     private com.veltronik.v2.gym.repositories.CajaMovimientoRepository movimientos;
+    private com.veltronik.v2.gym.repositories.CajaCierreAjusteRepository correcciones;
+    private ContadorDeCaja contador;
     private CajaService service;
+
+    /** Lo que el contador "lee" de la base en cada test. Lo arman hayPagos, hayMovimientos y hayCorrecciones. */
+    private final List<ContadorDeCaja.Cobro> cobrosSinSellar = new java.util.ArrayList<>();
+    private final List<ContadorDeCaja.Movimiento> movimientosSinSellar = new java.util.ArrayList<>();
+    private final List<ContadorDeCaja.Correccion> corregidos = new java.util.ArrayList<>();
 
     @BeforeEach
     void setUp() {
         cierres = mock(CajaCierreRepository.class);
-        pagos = mock(GymPaymentRepository.class);
         sesiones = mock(com.veltronik.v2.gym.repositories.CajaSesionRepository.class);
         movimientos = mock(com.veltronik.v2.gym.repositories.CajaMovimientoRepository.class);
-        // El rastro de ajustes se simula: acá se prueba el arqueo, no el rastro.
-        service = new CajaService(cierres, pagos,
-                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class), sesiones, movimientos);
+        correcciones = mock(com.veltronik.v2.gym.repositories.CajaCierreAjusteRepository.class);
+        contador = mock(ContadorDeCaja.class);
+        // El rastro de ajustes y el libro de ingresos se simulan: acá se prueba el arqueo.
+        service = new CajaService(cierres,
+                mock(com.veltronik.v2.gym.repositories.GymPaymentAjusteRepository.class), sesiones, movimientos,
+                correcciones, contador, mock(LibroDeIngresos.class));
         when(sesiones.save(any(com.veltronik.v2.gym.entities.CajaSesion.class))).thenAnswer(i -> i.getArgument(0));
         when(sesiones.findByTenantIdAndCerradaAtIsNull(TENANT)).thenReturn(Optional.empty());
-        // Por defecto no hay movimientos: los tests que los necesitan llaman a hayMovimientos().
-        when(movimientos.findByTenantIdAndFechaBetweenOrderByFechaDesc(eq(TENANT), any(), any()))
-                .thenReturn(List.of());
         when(movimientos.save(any(com.veltronik.v2.gym.entities.CajaMovimiento.class)))
                 .thenAnswer(i -> i.getArgument(0));
         TenantContextHolder.setTenantId(TENANT);
-        when(cierres.save(any(CajaCierre.class))).thenAnswer(i -> i.getArgument(0));
+        when(cierres.saveAndFlush(any(CajaCierre.class))).thenAnswer(i -> {
+            CajaCierre c = i.getArgument(0);
+            c.setId(UUID.randomUUID());
+            return c;
+        });
         when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.empty());
+
+        // ⚠️ El contador es la base: la lectura (lo que filtra el WHERE) y el sello los prueban
+        // CadaPesoEnUnSoloCierreIntegrationTest y CierreSinInternetIntegrationTest contra Postgres.
+        // Acá se simula para probar la CUENTA: qué suma, qué resta y qué queda en el cajón.
+        when(contador.leer(eq(TENANT), any(), any(), anyBoolean())).thenAnswer(i -> new ContadorDeCaja.PorCerrar(
+                List.copyOf(cobrosSinSellar), List.copyOf(corregidos), List.copyOf(movimientosSinSellar)));
+        when(contador.sellarCobros(eq(TENANT), any(), any(), any())).thenAnswer(i -> ((List<?>) i.getArgument(1)).size());
+        when(contador.sellarMovimientos(eq(TENANT), any(), any(), any())).thenAnswer(i -> ((List<?>) i.getArgument(1)).size());
     }
 
     /** Un movimiento de caja ya cargado, para los tests que necesitan que existan. */
@@ -67,8 +82,10 @@ class CajaServiceTest {
     }
 
     private void hayMovimientos(com.veltronik.v2.gym.entities.CajaMovimiento... lista) {
-        when(movimientos.findByTenantIdAndFechaBetweenOrderByFechaDesc(eq(TENANT), any(), any()))
-                .thenReturn(List.of(lista));
+        for (var m : lista) {
+            movimientosSinSellar.add(new ContadorDeCaja.Movimiento(UUID.randomUUID(), m.getTipo(), m.getCategoria(),
+                    m.getMetodo(), m.getMonto(), m.estaVigente()));
+        }
     }
 
     /**
@@ -96,17 +113,20 @@ class CajaServiceTest {
         TenantContextHolder.clear();
     }
 
-    private GymPayment pago(String metodo, String estado, String monto) {
-        GymPayment p = new GymPayment();
-        p.setPaymentMethod(metodo);
-        p.setStatus(estado);
-        p.setAmount(new BigDecimal(monto));
-        p.setPaymentDate(LocalDateTime.now().minusHours(1));
-        return p;
+    /** Un cobro sin sellar, como lo devuelve la base: ya cobrado (el WHERE deja afuera lo demás). */
+    private ContadorDeCaja.Cobro pago(String metodo, String monto) {
+        return new ContadorDeCaja.Cobro(UUID.randomUUID(), LocalDateTime.now().minusHours(1),
+                new BigDecimal(monto), metodo, "Socio");
     }
 
-    private void hayPagos(GymPayment... lista) {
-        when(pagos.findByTenantIdAndDateRange(eq(TENANT), any(), any())).thenReturn(List.of(lista));
+    private void hayPagos(ContadorDeCaja.Cobro... lista) {
+        cobrosSinSellar.addAll(List.of(lista));
+    }
+
+    /** Un cobro YA CERRADO que hoy vale otra cosa: lo que contó su cierre, y lo de ahora. */
+    private void hayCorreccion(String metodoAntes, String montoAntes, String metodoDespues, String montoDespues) {
+        corregidos.add(new ContadorDeCaja.Correccion(UUID.randomUUID(), LocalDateTime.now().minusDays(1), "Socio",
+                metodoAntes, new BigDecimal(montoAntes), metodoDespues, new BigDecimal(montoDespues)));
     }
 
     @Nested
@@ -116,8 +136,8 @@ class CajaServiceTest {
         @Test
         @DisplayName("separa efectivo, transferencia y tarjeta")
         void separaPorMetodo() {
-            hayPagos(pago("CASH", "paid", "48000"), pago("TRANSFER", "paid", "45000"),
-                    pago("CARD", "paid", "10000"), pago("CASH", "paid", "2000"));
+            hayPagos(pago("CASH", "48000"), pago("TRANSFER", "45000"),
+                    pago("CARD", "10000"), pago("CASH", "2000"));
 
             var r = service.resumenAbierto();
 
@@ -127,21 +147,13 @@ class CajaServiceTest {
             assertEquals(4, r.cantidadCobros());
         }
 
-        @Test
-        @DisplayName("un pago pendiente NO cuenta: no puso plata en ningún cajón")
-        void ignoraLosNoCobrados() {
-            hayPagos(pago("CASH", "paid", "48000"), pago("CASH", "pending", "99999"));
-
-            var r = service.resumenAbierto();
-
-            assertEquals(0, r.efectivo().compareTo(new BigDecimal("48000")));
-            assertEquals(1, r.cantidadCobros());
-        }
+        // ("Un pago pendiente NO cuenta" lo prueba CadaPesoEnUnSoloCierreIntegrationTest: lo deja
+        // afuera el WHERE del contador, que acá está simulado.)
 
         @Test
         @DisplayName("un método raro cae en 'otros' en vez de perderse")
         void metodoDesconocido() {
-            hayPagos(pago("CHEQUE", "paid", "30000"));
+            hayPagos(pago("CHEQUE", "30000"));
             assertEquals(0, service.resumenAbierto().otros().compareTo(new BigDecimal("30000")));
         }
 
@@ -151,7 +163,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("Mercado Pago tiene su propia cuenta, no cae en 'otros'")
         void mercadoPagoSeReconoce() {
-            hayPagos(pago("MERCADOPAGO", "paid", "30000"));
+            hayPagos(pago("MERCADOPAGO", "30000"));
 
             var r = service.resumenAbierto();
 
@@ -172,7 +184,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("no hay que declarar nada: se cierra y el sistema pone los números")
         void cierraSinDeclarar() {
-            hayPagos(pago("CASH", "paid", "50000"), pago("TRANSFER", "paid", "45000"));
+            hayPagos(pago("CASH", "50000"), pago("TRANSFER", "45000"));
 
             CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -184,7 +196,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("lo que se retira sale del cajón, y el resto queda para mañana")
         void elRetiroDejaElResto() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             CajaCierre c = service.cerrar(new BigDecimal("30000"), null, "Carla");
 
@@ -196,7 +208,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("sin retiro queda todo en el cajón")
         void sinRetiroQuedaTodo() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             CajaCierre c = service.cerrar(null, null, "Carla");
 
@@ -211,19 +223,19 @@ class CajaServiceTest {
         @Test
         @DisplayName("no se puede retirar más de lo que hay en el cajón")
         void noSePuedeRetirarDeMas() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             var e = assertThrows(ResponseStatusException.class,
                     () -> service.cerrar(new BigDecimal("500000"), null, "Carla"));
 
             assertTrue(e.getMessage().contains("retirar"));
-            verify(cierres, never()).save(any());
+            verify(cierres, never()).saveAndFlush(any());
         }
 
         @Test
         @DisplayName("tampoco un retiro negativo")
         void nadaDeRetirosNegativos() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             assertThrows(ResponseStatusException.class,
                     () -> service.cerrar(new BigDecimal("-100"), null, "Carla"));
@@ -237,7 +249,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("⚠️ lo cobrado por transferencia no se puede retirar del cajón")
         void loDigitalNoEstaEnElCajon() {
-            hayPagos(pago("CASH", "paid", "10000"), pago("TRANSFER", "paid", "90000"));
+            hayPagos(pago("CASH", "10000"), pago("TRANSFER", "90000"));
 
             assertThrows(ResponseStatusException.class,
                     () -> service.cerrar(new BigDecimal("100000"), null, "Carla"),
@@ -252,7 +264,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("sin conteo declarado no hay diferencia que informar")
         void sinArqueoNoHayDiferencia() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -265,7 +277,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("el nombre de quien cerró queda congelado en el registro")
         void congelaElNombre() {
-            hayPagos(pago("CASH", "paid", "1000"));
+            hayPagos(pago("CASH", "1000"));
 
             CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -284,7 +296,7 @@ class CajaServiceTest {
             CajaCierre anterior = new CajaCierre();
             anterior.setHasta(finAnterior);
             when(cierres.findTopByTenantIdOrderByHastaDesc(TENANT)).thenReturn(Optional.of(anterior));
-            hayPagos(pago("CASH", "paid", "1000"));
+            hayPagos(pago("CASH", "1000"));
 
             CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -297,7 +309,7 @@ class CajaServiceTest {
             // Un gimnasio que viene de migrar tiene meses de cobros importados. Si el primer
             // arqueo los tomara, daría un faltante enorme y sin sentido — la peor forma de
             // estrenar la función.
-            hayPagos(pago("CASH", "paid", "1000"));
+            hayPagos(pago("CASH", "1000"));
 
             CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -337,7 +349,7 @@ class CajaServiceTest {
         @DisplayName("el fondo entra en la cuenta del cajón, y por eso se puede retirar")
         void elFondoSeSumaAlCajon() {
             cierreAnterior("20000");
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
 
             CajaCierre c = service.cerrar(new BigDecimal("70000"), null, "Carla");
 
@@ -371,7 +383,7 @@ class CajaServiceTest {
         @DisplayName("si venía una caja abierta del modelo viejo, el cierre la cierra")
         void cierraLaSesionVieja() {
             var abierta = hayUnaAbierta("10000");
-            hayPagos(pago("CASH", "paid", "1000"));
+            hayPagos(pago("CASH", "1000"));
 
             service.cerrar(BigDecimal.ZERO, null, "Carla");
 
@@ -394,7 +406,7 @@ class CajaServiceTest {
             // noche el sistema espera esa plata igual. El cierre decía FALTANTE y acusaba a
             // quien atendió, que no había robado nada.
             hayUnaAbierta("10000");
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
             hayMovimientos(movimiento(EGRESO, EFECTIVO, "15000"));
 
             var r = service.resumenAbierto();
@@ -408,7 +420,7 @@ class CajaServiceTest {
         @DisplayName("con el gasto anotado, el cierre CUADRA en vez de acusar a quien atendió")
         void conElEgresoLaCajaCuadra() {
             hayUnaAbierta("10000");
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
             hayMovimientos(movimiento(EGRESO, EFECTIVO, "15000"));
 
             var c = service.cerrar(BigDecimal.ZERO, null, "Carla");
@@ -423,7 +435,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("una entrada de plata que no es un cobro SUMA")
         void elIngresoManualSuma() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
             hayMovimientos(movimiento(INGRESO, EFECTIVO, "3000"));
 
             var r = service.resumenAbierto();
@@ -436,7 +448,7 @@ class CajaServiceTest {
         void loQueNoPasaPorElCajonNoCuenta() {
             // Se le paga al proveedor desde el banco: se anota porque el dueño quiere verlo,
             // pero el efectivo del cajón no se movió. Restarlo daría un faltante inventado.
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
             hayMovimientos(movimiento(EGRESO, "TRANSFER", "15000"));
 
             var r = service.resumenAbierto();
@@ -449,7 +461,7 @@ class CajaServiceTest {
         @Test
         @DisplayName("un movimiento anulado no mueve la cuenta")
         void elAnuladoNoCuenta() {
-            hayPagos(pago("CASH", "paid", "50000"));
+            hayPagos(pago("CASH", "50000"));
             var anulado = movimiento(EGRESO, EFECTIVO, "15000");
             anulado.setAnuladoAt(LocalDateTime.now());
             hayMovimientos(anulado);
@@ -492,6 +504,107 @@ class CajaServiceTest {
 
             assertEquals(INGRESO, m.getTipo());
             assertNull(m.getDetalle());
+        }
+    }
+
+    /**
+     * ⭐ Un cobro de un día YA CERRADO que se corrige o se anula (V88).
+     *
+     * <p>Hasta el 2026-09-22 esa diferencia no entraba en ningún cierre: el de ayer quedaba
+     * congelado con el número viejo, y el de hoy no la veía. Ahora el cierre de hoy la toma como
+     * corrección, a la vista, del lado de la forma de pago en que está cada peso.</p>
+     */
+    @Nested
+    @DisplayName("las correcciones de días ya cerrados")
+    class LasCorrecciones {
+
+        @Test
+        @DisplayName("⭐ un cobro en efectivo de ayer anulado hoy (se devolvió la plata) BAJA el cajón de hoy")
+        void laAnulacionSaleDelCajon() {
+            hayPagos(pago("CASH", "50000"));
+            hayCorreccion("CASH", "30000", "CASH", "0");
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.ajustesEfectivo().compareTo(new BigDecimal("-30000")));
+            assertEquals(0, r.enElCajon(BigDecimal.ZERO).compareTo(new BigDecimal("20000")),
+                    "50.000 de hoy menos los 30.000 que se devolvieron");
+            assertEquals(1, r.cantidadAjustes());
+            assertEquals(0, r.efectivo().compareTo(new BigDecimal("50000")),
+                    "lo cobrado HOY sigue diciendo lo de hoy: la corrección va en su propio renglón");
+        }
+
+        @Test
+        @DisplayName("pasar un cobro de efectivo a transferencia saca la plata del cajón y la pone en el banco")
+        void cambiarLaFormaDePagoMueveLaPlataDeLado() {
+            hayCorreccion("CASH", "10000", "TRANSFER", "10000");
+
+            var r = service.resumenAbierto();
+
+            assertEquals(0, r.ajustesEfectivo().compareTo(new BigDecimal("-10000")));
+            assertEquals(0, r.ajustesOtrosMedios().compareTo(new BigDecimal("10000")));
+        }
+
+        @Test
+        @DisplayName("bajar el monto de un cobro ya cerrado deja la diferencia a la vista")
+        void bajarElMonto() {
+            hayCorreccion("CASH", "48000", "CASH", "40000");
+
+            assertEquals(0, service.resumenAbierto().ajustesEfectivo().compareTo(new BigDecimal("-8000")));
+        }
+
+        @Test
+        @DisplayName("el cierre congela la corrección, guarda el detalle y re-sella el cobro con el valor nuevo")
+        void elCierreLaCongela() {
+            hayPagos(pago("CASH", "50000"));
+            hayCorreccion("CASH", "30000", "CASH", "0");
+
+            CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
+
+            assertEquals(0, c.getAjustesEfectivo().compareTo(new BigDecimal("-30000")));
+            assertEquals(1, c.getCantidadAjustes());
+            assertEquals(0, c.getQuedaEnCaja().compareTo(new BigDecimal("20000")));
+            verify(correcciones).save(any(com.veltronik.v2.gym.entities.CajaCierreAjuste.class));
+            verify(contador).resellar(any(), eq(new BigDecimal("0")), eq("CASH"), any());
+        }
+
+        @Test
+        @DisplayName("no se puede retirar la plata que se devolvió")
+        void noSeRetiraLoDevuelto() {
+            hayPagos(pago("CASH", "50000"));
+            hayCorreccion("CASH", "30000", "CASH", "0");
+
+            assertThrows(ResponseStatusException.class,
+                    () -> service.cerrar(new BigDecimal("50000"), null, "Carla"),
+                    "en el cajón quedan 20.000, no 50.000");
+        }
+    }
+
+    @Nested
+    @DisplayName("el sello")
+    class ElSello {
+
+        @Test
+        @DisplayName("⭐ el cierre sella exactamente lo que contó")
+        void sellaLoQueConto() {
+            var a = pago("CASH", "50000");
+            var b = pago("TRANSFER", "20000");
+            hayPagos(a, b);
+
+            CajaCierre c = service.cerrar(BigDecimal.ZERO, null, "Carla");
+
+            verify(contador).sellarCobros(eq(TENANT), eq(List.of(a.id(), b.id())), eq(c.getId()), any());
+            verify(contador).candado(TENANT);
+        }
+
+        @Test
+        @DisplayName("si no pudo sellar todo lo que leyó, el cierre NO se guarda")
+        void sinSelloNoHayCierre() {
+            hayPagos(pago("CASH", "50000"), pago("CASH", "1000"));
+            when(contador.sellarCobros(eq(TENANT), any(), any(), any())).thenReturn(1);
+
+            assertThrows(IllegalStateException.class, () -> service.cerrar(BigDecimal.ZERO, null, "Carla"),
+                    "un cierre que dice 51.000 habiendo sellado uno solo contaría el otro dos veces");
         }
     }
 }

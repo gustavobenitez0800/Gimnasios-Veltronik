@@ -600,3 +600,70 @@ describe('la hora, como se lee en el mostrador', () => {
     expect(texto).not.toMatch(/p\.\s?m\./);
   });
 });
+
+describe('⭐ el balance es el libro de ingresos (2026-09-22)', () => {
+  // Sin el signo ni los espacios: formatCurrency separa con un espacio NO-SEPARABLE.
+  const plata = (texto) => texto.replace(/\s/g, '');
+
+  it('dice de dónde salió el total: cuotas, historial importado y ventas', async () => {
+    cajaService.balanceDeRango.mockResolvedValue({
+      periodo: 'rango', total: 145000, efectivo: 70000, digital: 75000, tarjeta: 0, otros: 0,
+      cantidadCobros: 5, cuotas: 100000, historial: 30000, otrosIngresos: 15000,
+    });
+    const texto = plata(await pintar());
+
+    expect(texto).toContain('CuotascobradasenVeltronik$100.000');
+    expect(texto).toContain('Historialimportado');
+    expect(texto).toContain('$30.000');
+    expect(texto).toContain('Ventasyotrosingresos$15.000');
+  });
+
+  it('con tarjeta u otros medios, aparece su casillero: si no, efectivo + digital no daba el total', async () => {
+    cajaService.balanceDeRango.mockResolvedValue({
+      periodo: 'rango', total: 150000, efectivo: 40000, digital: 100000, tarjeta: 10000, otros: 0,
+      cantidadCobros: 3, cuotas: 150000, historial: 0, otrosIngresos: 0,
+    });
+    const texto = plata(await pintar());
+    expect(texto).toContain('$10.000Tarjetayotrosmedios');
+  });
+
+  it('los centavos se ven', async () => {
+    cajaService.balanceDeRango.mockResolvedValue({
+      periodo: 'rango', total: 145000.5, efectivo: 145000.5, digital: 0, tarjeta: 0, otros: 0,
+      cantidadCobros: 1, cuotas: 145000.5, historial: 0, otrosIngresos: 0,
+    });
+    expect(plata(await pintar())).toContain('$145.000,50');
+  });
+
+  it('un cobro de otro día se ve con su día, no solo con la hora', async () => {
+    const texto = await pintar();
+    // El formato exacto depende del ICU de cada motor (Node dice 1/9, Chromium 01/09).
+    expect(texto).toMatch(/0?1\/0?9, 18:05/);
+  });
+});
+
+describe('⭐ las correcciones de días ya cerrados (V88)', () => {
+  it('se ven renglón por renglón y entran en la cuenta del cajón', async () => {
+    cajaService.abierto.mockResolvedValue({
+      ...ABIERTO,
+      ajustesEfectivo: -30000,
+      esperadoEnElCajon: 20000,
+      correcciones: [{
+        pagoId: 'x', fecha: '2026-08-31T19:00:00', socio: 'LURDES ROLLET',
+        metodoAntes: 'CASH', montoAntes: 30000, metodoDespues: 'CASH', montoDespues: 0,
+      }],
+    });
+    const texto = (await pintar()).replace(/\s/g, '');
+
+    expect(texto).toContain('Correccionesdedíasyacerrados(1)');
+    expect(texto).toContain('Anulado');
+    expect(texto).toContain('−$30.000');
+    expect(texto, 'lo que hay en el cajón lo manda el backend, con la corrección adentro')
+      .toContain('Hayenelcajón$20.000');
+  });
+
+  it('sin correcciones no aparece nada', async () => {
+    const texto = await pintar();
+    expect(texto).not.toContain('Correcciones de días ya cerrados');
+  });
+});

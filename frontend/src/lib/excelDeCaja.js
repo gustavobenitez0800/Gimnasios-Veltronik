@@ -7,18 +7,25 @@
 //   Cobros             cada cobro: hora, socio, DNI, arancel, período, forma de pago, quién cobró
 //   Gastos e ingresos  lo que salió o entró sin ser un cobro (los anulados, a la vista)
 //
-// ⭐ LOS TOTALES VIENEN DEL SERVIDOR, no se suman acá: son la misma cuenta del cierre y de la
-// pantalla (CajaReporteService). Si el Excel sumara por su lado, el día que las dos cuentas
-// difieran el contador y el dueño estarían mirando números distintos. Las filas de total de
-// las hojas de detalle sí llevan una fórmula (=SUMA), para que el contador pueda auditar, y con
-// el valor ya calculado adentro: un visor que no calcula muestra el número igual.
+// ⭐ LOS TOTALES VIENEN DEL SERVIDOR, no se suman acá: son la suma de los renglones del reporte,
+// y el servidor verifica que den el mismo total que el libro de ingresos (el de la pantalla y el
+// tablero). Si el Excel sumara por su lado, el día que las dos cuentas difieran el contador y el
+// dueño estarían mirando números distintos. Las filas de total de las hojas de detalle sí llevan
+// una fórmula (=SUMA), para que el contador pueda auditar, y con el valor ya calculado adentro:
+// un visor que no calcula muestra el número igual.
+//
+// ⭐ EL HISTORIAL IMPORTADO VA ADENTRO, MARCADO (2026-09-22). Es plata que entró, así que está en
+// los ingresos del período; pero la cobró el sistema anterior, así que ningún cierre de caja la
+// cuenta, y cada renglón lo dice. Los aportes y retiros del dueño van aparte: mueven el cajón,
+// pero no son ingreso ni gasto del gimnasio.
 //
 // ⭐ FECHAS Y MONTOS SON NÚMEROS DE VERDAD, con formato. Un "22/09/2026" escrito como texto no se
 // ordena ni se filtra, y un "$ 34.000" como texto no se suma. La fecha se convierte a mano al
 // número de serie de Excel: dejárselo a la librería mete el huso horario de la PC en el medio.
 // ============================================
 
-const FORMATO_PLATA = '"$" #,##0;[Red]-"$" #,##0';
+// Con centavos: el contador suma la columna y tiene que llegar al total, centavo por centavo.
+const FORMATO_PLATA = '"$" #,##0.00;[Red]-"$" #,##0.00';
 const FORMATO_FECHA = 'dd/mm/yyyy';
 const FORMATO_HORA = 'hh:mm';
 
@@ -29,7 +36,10 @@ const NOMBRE_METODO = {
   mercado_pago: 'Mercado Pago',
   mp: 'Mercado Pago',
   card: 'Tarjeta',
+  other: 'Otro',
 };
+
+const ORIGEN_HISTORIAL = 'Historial importado';
 
 /** "cash", "CASH", "MERCADOPAGO"… → cómo se lee. */
 export function nombreDelMetodo(metodo) {
@@ -124,15 +134,40 @@ function hojaResumen(XLSX, rep) {
   filas.push(
     [texto('Total cobrado'), plata(t.cobrado)],
     [texto('Cantidad de cobros'), entero(t.cantidadCobros)],
+  );
+  // Lo importado del sistema anterior está dentro del total, dicho aparte.
+  if (num(t.historial) > 0) {
+    filas.push(
+      [texto('   Cobrado en Veltronik'), plata(t.cuotas)],
+      [texto(`   ${ORIGEN_HISTORIAL} (no pasó por esta caja)`), plata(t.historial)],
+    );
+  }
+  filas.push(
     [],
-    [texto('GASTOS E INGRESOS QUE NO SON COBROS')],
+    [texto('VENTAS, GASTOS E INGRESOS QUE NO SON COBROS')],
     [texto('Ingresos en efectivo'), plata(t.ingresosEfectivo)],
     [texto('Ingresos por otros medios'), plata(t.ingresosOtros)],
     [texto('Gastos pagados en efectivo'), plata(t.egresosEfectivo)],
     [texto('Gastos pagados por otros medios'), plata(t.egresosOtros)],
-    [],
-    [texto('RESULTADO (todo lo que entró menos todo lo que salió)'), plata(t.neto)],
   );
+  if (num(t.gastosHistorial) > 0) {
+    filas.push([texto(`   de los cuales, gastos del ${ORIGEN_HISTORIAL.toLowerCase()}`), plata(t.gastosHistorial)]);
+  }
+  filas.push(
+    [],
+    // El total de todo lo que entró: es el número de la pantalla y del tablero.
+    [texto('TOTAL QUE ENTRÓ (cobros + ventas y otros ingresos)'),
+      plata(t.ingresos ?? num(t.cobrado) + num(t.ingresosEfectivo) + num(t.ingresosOtros))],
+    [texto('RESULTADO (todo lo que entró menos todo lo que se gastó)'), plata(t.neto)],
+  );
+  if (num(t.aportes) > 0 || num(t.retiros) > 0) {
+    filas.push(
+      [],
+      [texto('APORTES Y RETIROS DEL DUEÑO (no son ingreso ni gasto del gimnasio)')],
+      [texto('Aportes al cajón'), plata(t.aportes)],
+      [texto('Retiros del cajón'), plata(t.retiros)],
+    );
+  }
 
   const cierres = rep.cierres || [];
   filas.push([], [texto('CIERRES DE CAJA')]);
@@ -141,12 +176,13 @@ function hojaResumen(XLSX, rep) {
   } else {
     filas.push([
       texto('Fecha'), texto('Hora'), texto('Cerró'), texto('Quedaba de antes'), texto('Efectivo cobrado'),
-      texto('Otros ingresos en efectivo'), texto('Gastos en efectivo'), texto('Había en el cajón'),
-      texto('Retiro'), texto('Quedó en caja'), texto('Transferencia y MP'), texto('Nota'),
+      texto('Otros ingresos en efectivo'), texto('Gastos en efectivo'), texto('Correcciones de días anteriores'),
+      texto('Había en el cajón'), texto('Retiro'), texto('Quedó en caja'), texto('Transferencia y MP'), texto('Nota'),
     ]);
     cierres.forEach((c) => filas.push([
       fecha(c.hasta), hora(c.hasta), texto(c.cerradoPor), plata(c.fondo), plata(c.efectivo),
-      plata(c.ingresosEfectivo), plata(c.egresosEfectivo), plata(c.enElCajon),
+      // Un cobro de un día ya cerrado que se corrigió o se anuló: la diferencia pasó por este cajón.
+      plata(c.ingresosEfectivo), plata(c.egresosEfectivo), plata(c.ajustesEfectivo), plata(c.enElCajon),
       // Un cierre de la época del arqueo a ciegas no tiene retiro: vacío, no un cero que diría
       // que ese día no se retiró nada.
       c.retiro == null ? texto('') : plata(c.retiro),
@@ -154,19 +190,21 @@ function hojaResumen(XLSX, rep) {
       plata(num(c.transferencia) + num(c.mercadopago)), texto(c.nota),
     ]));
   }
-  return hoja(XLSX, filas, [52, 16, 16, 16, 16, 22, 18, 18, 14, 14, 18, 30]);
+  return hoja(XLSX, filas, [56, 16, 16, 16, 16, 22, 18, 22, 18, 14, 14, 18, 30]);
 }
 
 function hojaCobros(XLSX, rep) {
   const cobros = rep.cobros || [];
   const filas = [[
     texto('Fecha'), texto('Hora'), texto('Socio'), texto('DNI'), texto('Arancel'), texto('Período desde'),
-    texto('Período hasta'), texto('Forma de pago'), texto('Monto'), texto('Cobró'), texto('Nota'),
+    texto('Período hasta'), texto('Forma de pago'), texto('Monto'), texto('Cobró'), texto('Nota'), texto('Origen'),
   ]];
   cobros.forEach((c) => filas.push([
     fecha(c.fecha), hora(c.fecha), texto(c.socio || 'Sin socio'), texto(c.dni), texto(c.arancel),
     fecha(c.periodoDesde), fecha(c.periodoHasta), texto(nombreDelMetodo(c.metodo)), plata(c.monto),
     texto(c.cobradoPor), texto(c.nota),
+    // Del sistema anterior: suma en los ingresos, pero no pasó por esta caja.
+    texto(c.importado ? ORIGEN_HISTORIAL : 'Veltronik'),
   ]));
   if (cobros.length) {
     filas.push([], [texto('Total'), null, null, null, null, null, null, null,
@@ -174,8 +212,8 @@ function hojaCobros(XLSX, rep) {
   } else {
     filas.push([texto('No hubo cobros en este período.')]);
   }
-  const ws = hoja(XLSX, filas, [12, 8, 30, 13, 26, 13, 13, 15, 13, 16, 30]);
-  if (cobros.length) ws['!autofilter'] = { ref: `A1:K${cobros.length + 1}` };
+  const ws = hoja(XLSX, filas, [12, 8, 30, 13, 26, 13, 13, 15, 13, 16, 30, 20]);
+  if (cobros.length) ws['!autofilter'] = { ref: `A1:L${cobros.length + 1}` };
   return ws;
 }
 
@@ -183,10 +221,17 @@ function hojaMovimientos(XLSX, rep) {
   const movs = rep.movimientos || [];
   const filas = [[
     texto('Fecha'), texto('Hora'), texto('Tipo'), texto('Rubro'), texto('Detalle'), texto('Forma'),
-    texto('¿Salió o entró al cajón?'), texto('Monto'), texto('Anotó'), texto('Estado'),
+    texto('¿Salió o entró al cajón?'), texto('Monto'), texto('Anotó'), texto('Estado'), texto('Origen'),
   ]];
+  // El aporte y el retiro son plata del dueño: con su propio nombre, así las sumas de "Gasto" e
+  // "Ingreso" de abajo no los cuentan (igual que el servidor).
+  const tipoDe = (m) => {
+    const egreso = m.tipo === 'EGRESO';
+    if (m.deFondos) return egreso ? 'Retiro del dueño' : 'Aporte del dueño';
+    return egreso ? 'Gasto' : 'Ingreso';
+  };
   movs.forEach((m) => filas.push([
-    fecha(m.fecha), hora(m.fecha), texto(m.tipo === 'EGRESO' ? 'Gasto' : 'Ingreso'), texto(m.categoria),
+    fecha(m.fecha), hora(m.fecha), texto(tipoDe(m)), texto(m.categoria),
     texto(m.detalle), texto(nombreDelMetodo(m.metodo)), texto(m.tocaElCajon ? 'Sí' : 'No'), plata(m.monto),
     texto(m.hechoPor),
     // ⚠️ El anulado se LISTA, no desaparece: un gasto que se puede borrar del reporte es
@@ -194,6 +239,7 @@ function hojaMovimientos(XLSX, rep) {
     texto(m.anulado
       ? `Anulado${m.anuladoPor ? ` por ${m.anuladoPor}` : ''}${m.motivoAnulacion ? `: ${m.motivoAnulacion}` : ''}`
       : 'Vigente'),
+    texto(m.importado ? ORIGEN_HISTORIAL : 'Veltronik'),
   ]));
   if (!movs.length) {
     filas.push([texto('No hubo gastos ni ingresos sueltos en este período.')]);
@@ -211,8 +257,8 @@ function hojaMovimientos(XLSX, rep) {
       [texto('Total ingresos (sin anulados)'), null, null, null, null, null, null,
         sumaSi('Ingreso', num(t.ingresosEfectivo) + num(t.ingresosOtros))]);
   }
-  const ws = hoja(XLSX, filas, [12, 8, 10, 16, 34, 15, 22, 13, 16, 34]);
-  if (movs.length) ws['!autofilter'] = { ref: `A1:J${movs.length + 1}` };
+  const ws = hoja(XLSX, filas, [12, 8, 16, 16, 34, 15, 22, 13, 16, 34, 20]);
+  if (movs.length) ws['!autofilter'] = { ref: `A1:K${movs.length + 1}` };
   return ws;
 }
 

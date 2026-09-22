@@ -6,6 +6,7 @@ import { useQueryCache, invalidateQueries } from '../hooks';
 // Una sola lista vacía compartida: `data || []` crea un array nuevo en cada render
 // mientras no hay datos, y eso le rompe la memorización a todo lo que dependa de él.
 const EMPTY = [];
+const SIN_DATOS = { lista: EMPTY, ingresos: null };
 
 // Un minuto de frescura. Los pagos los carga esta misma pantalla (y ahí se invalida la
 // caché a mano), así que lo único que puede quedar viejo es un cobro hecho desde otra
@@ -35,6 +36,9 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
       member: member,
       amount: dto.amount,
       paymentDate: dto.paymentDate ? dto.paymentDate.split('T')[0] : null,
+      // El momento ENTERO, con la hora. Editar un cobro sin tocar la fecha lo mandaba a las
+      // 00:00 de ese día: la hora del mostrador (19:40) se perdía en cada edición.
+      paymentDateOriginal: dto.paymentDate || null,
       paymentMethod: (dto.paymentMethod || 'CASH').toLowerCase(),
       status: (dto.status || 'PAID').toLowerCase(),
       notes: dto.notes || '',
@@ -46,6 +50,12 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
       // El período ESTIMADO de un cobro importado (V87). Aparte del de verdad: no es cobertura.
       periodoImportadoDesde: dto.periodoImportadoDesde || null,
       periodoImportadoHasta: dto.periodoImportadoHasta || null,
+      // La anulación (V88): un cobro no se borra, queda tachado con quién y por qué.
+      anuladoAt: dto.anuladoAt || null,
+      anuladoPorNombre: dto.anuladoPorNombre || '',
+      motivoAnulacion: dto.motivoAnulacion || '',
+      // Ya lo contó un cierre de caja: corregirlo se puede, y entra como corrección en el próximo.
+      cerradoEnCaja: !!dto.cerradoEnCaja,
     };
   }, []);
 
@@ -64,10 +74,21 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
   const orgId = localStorage.getItem('current_org_id');
 
   const fetchPayments = useCallback(async () => {
-    if (!orgId) return EMPTY;
+    if (!orgId) return SIN_DATOS;
     // El rango de fecha lo filtra el BACKEND (params from/to).
-    const data = await paymentService.getAllPayments(dateFrom, dateTo);
-    return (data || []).map(mapPaymentDTOToModel);
+    //
+    // ⭐ Y el total del período lo cuenta el SERVIDOR (el libro de ingresos: el mismo número del
+    // tablero, la caja y el Excel). Viaja en el mismo pedido para que la lista y el total no
+    // puedan quedar de dos momentos distintos. Si ese endpoint falla (un backend que todavía no
+    // lo tiene), la lista se muestra igual: el total cae a la suma de lo que está en pantalla.
+    const [data, ingresos] = await Promise.all([
+      paymentService.getAllPayments(dateFrom, dateTo),
+      // Envuelto en un .then para que ni un error síncrono se lleve puesta la lista.
+      dateFrom && dateTo
+        ? Promise.resolve().then(() => paymentService.ingresos(dateFrom, dateTo)).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    return { lista: (data || []).map(mapPaymentDTOToModel), ingresos };
   }, [orgId, dateFrom, dateTo, mapPaymentDTOToModel]);
 
   // ─── Lo que se guarda es lo que costó traer ───
@@ -79,13 +100,13 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
   // Antes sí le pegaba: escribir en el buscador disparaba una consulta COMPLETA de pagos
   // para después filtrarla en el navegador. Se pedía todo el mes de nuevo para tachar
   // filas que ya estaban ahí.
-  const { data, loading, isFetching, error, mutate, invalidate } = useQueryCache(
+  const { data, loading, isFetching, error, invalidate } = useQueryCache(
     ['payments', orgId, dateFrom || '', dateTo || ''],
     fetchPayments,
     { staleTime: STALE_MS },
   );
 
-  const todos = data || EMPTY;
+  const todos = data?.lista || EMPTY;
 
   const payments = useMemo(() => {
     let lista = todos;
@@ -134,22 +155,28 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
     }
   };
 
-  const deletePayment = async (id) => {
+  /**
+   * ⭐ ANULAR. El cobro no desaparece: queda en la lista, tachado, y deja de sumar.
+   *
+   * <p>Antes esto borraba, y borrar era borrar la prueba: la plata salía de los ingresos y del
+   * cierre sin dejar el renglón.</p>
+   */
+  const anularPayment = async (id, { motivo, anuladoPor } = {}) => {
     try {
-      await paymentService.deletePayment(id);
-      // Saca la fila al toque, sin esperar la recarga…
-      mutate(todos.filter(p => p.id !== id));
-      // …y después se invalida todo lo derivado: borrar un pago mueve los ingresos del mes.
+      const r = await paymentService.anular(id, { motivo, anuladoPor });
       invalidarDerivados();
       invalidate();
+      return r;
     } catch (err) {
-      console.error("Error deleting payment:", err);
+      console.error("Error anulando el cobro:", err);
       throw err;
     }
   };
 
   return {
     payments,
+    // Lo que entró en el rango, contado por el servidor (null si no se pudo preguntar).
+    ingresos: data?.ingresos || null,
     // ─── Que la pantalla pueda decir la verdad ───
     //
     // Si el pedido falla, `payments` queda vacío — igual que si el gimnasio no tuviera
@@ -163,6 +190,6 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
     loading: loading || isFetching,
     refresh: invalidate,
     savePayment,
-    deletePayment
+    anularPayment,
   };
 }

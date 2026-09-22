@@ -61,7 +61,15 @@ public class CajaController {
         // bien: un egreso inventado la hace cuadrar exacto.
         body.put("egresos", r.egresosEfectivo());
         body.put("ingresosManuales", r.ingresosEfectivo());
+        // Ventas por transferencia, MP o tarjeta: plata que entró y no está en el cajón.
+        body.put("ingresosOtrosMedios", r.ingresosOtrosMedios());
         body.put("cantidadMovimientos", r.cantidadMovimientos());
+        // ⭐ Las correcciones de cobros YA CERRADOS (V88): un cobro de ayer que hoy se corrigió
+        // o se anuló. Entran en este cierre, a la vista, con su detalle.
+        body.put("ajustesEfectivo", r.ajustesEfectivo());
+        body.put("ajustesOtrosMedios", r.ajustesOtrosMedios());
+        body.put("cantidadAjustes", r.cantidadAjustes());
+        body.put("correcciones", cajaService.correccionesPendientes());
         // La cuenta completa, calculada en UN solo lugar (Resumen.enElCajon): fondo + cobrado
         // en efectivo + ingresos manuales - egresos. Repetirla en la pantalla es garantizar
         // que en algún lado quede mal.
@@ -144,20 +152,19 @@ public class CajaController {
     @GetMapping("/movimientos")
     public ResponseEntity<List<Map<String, Object>>> movimientos() {
         List<Map<String, Object>> salida = new java.util.ArrayList<>();
-        for (var p : cajaService.movimientosDelPeriodo()) {
+        // Lo MISMO que va a tomar el cierre, incluido lo cargado tarde con fecha de un día ya
+        // cerrado (la fecha viaja entera: la pantalla la muestra si no es de hoy).
+        for (var c : cajaService.movimientosDelPeriodo()) {
             Map<String, Object> m = new java.util.HashMap<>();
-            m.put("id", p.getId());
-            m.put("monto", p.getAmount());
-            m.put("metodo", p.getPaymentMethod());
-            m.put("fecha", p.getPaymentDate());
-            m.put("socio", p.getMember() == null ? null
-                    : (nvl(p.getMember().getFirstName()) + " " + nvl(p.getMember().getLastName())).trim());
+            m.put("id", c.id());
+            m.put("monto", c.monto());
+            m.put("metodo", c.metodo());
+            m.put("fecha", c.fecha());
+            m.put("socio", c.socio());
             salida.add(m);
         }
         return ResponseEntity.ok(salida);
     }
-
-    private static String nvl(String s) { return s == null ? "" : s; }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Movimientos de caja: los gastos y las entradas que no son cobros
@@ -296,23 +303,20 @@ public class CajaController {
         // Con las dos fechas, el rango que eligió el dueño en el selector. Sin ellas, "hoy" o
         // "mes" como antes: los escritorios que todavía no actualizaron siguen pidiendo así.
         boolean conRango = desde != null || hasta != null;
-        CajaService.Resumen r = conRango
+        CajaService.Balance b = conRango
                 ? cajaService.balance(desde, hasta)
                 : cajaService.balance("mes".equalsIgnoreCase(periodo));
-        Map<String, Object> body = new java.util.HashMap<>();
+        // ⭐ El libro de ingresos: el mismo número del tablero, de Pagos y del Excel. Por forma
+        // de pago Y por origen (cuotas, historial importado, ventas y otros ingresos): las dos
+        // cuentas suman el total.
+        Map<String, Object> body = new java.util.HashMap<>(b.ingresos().comoMapa());
         body.put("periodo", conRango ? "rango" : "mes".equalsIgnoreCase(periodo) ? "mes" : "hoy");
-        body.put("desde", r.desde());
-        body.put("hasta", r.hasta());
-        body.put("efectivo", r.efectivo());
-        body.put("transferencia", r.transferencia());
-        body.put("mercadopago", r.mercadopago());
-        body.put("tarjeta", r.tarjeta());
-        body.put("otros", r.otros());
-        body.put("digital", r.digital());
-        body.put("cantidadCobros", r.cantidadCobros());
-        body.put("egresos", r.egresosEfectivo());
-        body.put("ingresosManuales", r.ingresosEfectivo());
-        body.put("total", r.efectivo().add(r.digital()).add(r.tarjeta()).add(r.otros()));
+        body.put("desde", b.desde());
+        body.put("hasta", b.hasta());
+        body.put("egresos", b.egresosEfectivo());
+        body.put("egresosOtrosMedios", b.egresosOtrosMedios());
+        // Los escritorios viejos leían "ingresosManuales": las ventas, ahora dentro del total.
+        body.put("ingresosManuales", b.ingresos().otrosIngresos());
         return ResponseEntity.ok(body);
     }
 

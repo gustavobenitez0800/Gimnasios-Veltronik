@@ -10,11 +10,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth, sumarPlata } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
-import { useModal, useConfirmDialog, invalidateQueries } from '../hooks';
+import { useModal, invalidateQueries } from '../hooks';
 import { useAuth } from '../contexts/AuthContext';
-import { PageHeader, ConfirmDialog } from '../components/Layout';
+import { PageHeader } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
@@ -63,6 +63,8 @@ const PAYMENT_MAP_FN = (p) => ({
   member_id: p.member_id || '',
   amount: p.amount || '',
   paymentDate: p.paymentDate || '',
+  // Con la hora: si al editar no se cambia el día, el cobro conserva la hora que tenía.
+  paymentDateOriginal: p.paymentDateOriginal || '',
   paymentMethod: p.paymentMethod || 'cash',
   // En minúscula: si no, un pago viejo con "PAID" no coincide con ninguna opción del
   // select de estado y el campo aparece en blanco al editarlo.
@@ -75,7 +77,7 @@ const PAYMENT_MAP_FN = (p) => ({
 
 export default function PaymentsPage() {
   const { showToast } = useToast();
-  const { orgRole } = useAuth();
+  const { orgRole, profile } = useAuth();
   // Mismo permiso que el backend (ImportacionCajaController): son los ingresos del gimnasio.
   const puedeImportar = orgRole === 'owner' || orgRole === 'admin';
   const [importandoHistorial, setImportandoHistorial] = useState(false);
@@ -135,7 +137,10 @@ export default function PaymentsPage() {
   // recién cuando llega el fetch de abajo, para nacer con el período calculado.
   const modal = useModal(initialForm, deepLink.wantsNew && !deepLink.memberId);
   const openModal = modal.open;
-  const deleteDialog = useConfirmDialog();
+  // El cobro que se está por anular, y por qué. No se borra: queda tachado (V88).
+  const [anulando, setAnulando] = useState(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+  const [guardandoAnulacion, setGuardandoAnulacion] = useState(false);
 
   // ─── CONTROLLER ───
   // Los filtros van como parámetros y no como una llamada dentro de un efecto: el rango de
@@ -144,11 +149,12 @@ export default function PaymentsPage() {
   // cada vez que se tocaba cualquiera de los cinco.
   const {
     payments,
+    ingresos,
     loading: isFetching,
     error: loadError,
     refresh,
     savePayment,
-    deletePayment
+    anularPayment,
   } = usePaymentController({
     dateFrom,
     dateTo,
@@ -157,18 +163,35 @@ export default function PaymentsPage() {
     status: statusFilter,
   });
 
-  // Stats computed strictly from currently fetched payments
+  // ─── Los números de arriba ───
+  //
+  // ⭐ Sin filtros, "Ingresos del período" es el del SERVIDOR (el libro de ingresos): el mismo
+  // número del tablero, la caja y el Excel, con las ventas incluidas y dichas aparte. Antes se
+  // sumaba acá lo que había en pantalla, con parseFloat, y era otro número más.
+  //
+  // Con un filtro puesto (un socio, una forma de pago) el total es el de lo filtrado —eso es lo
+  // que se está preguntando—, sumado en centavos, y la etiqueta lo dice.
+  const hayFiltro = !!((debouncedSearch || '').trim() || methodFilter || statusFilter);
   const stats = useMemo(() => {
     const paidInPeriod = payments.filter((p) => esEstado(p, 'paid'));
     const pendingInPeriod = payments.filter((p) => esEstado(p, 'pending'));
+    const delServidor = !hayFiltro && ingresos ? Number(ingresos.total) : null;
 
     return {
-      totalPeriod: paidInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+      totalPeriod: delServidor ?? sumarPlata(paidInPeriod, (p) => p.amount),
       totalCount: paidInPeriod.length,
       pendingCount: pendingInPeriod.length,
-      pendingTotal: pendingInPeriod.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+      pendingTotal: sumarPlata(pendingInPeriod, (p) => p.amount),
+      ventas: delServidor != null ? Number(ingresos.otrosIngresos) || 0 : 0,
+      historial: delServidor != null ? Number(ingresos.historial) || 0 : 0,
     };
-  }, [payments]);
+  }, [payments, ingresos, hayFiltro]);
+
+  // De qué está hecho el total: las ventas de la caja no están en esta lista (es de cobros).
+  const notaDelTotal = [
+    stats.ventas > 0 && `${formatCurrency(stats.ventas)} de ventas de la caja`,
+    stats.historial > 0 && `${formatCurrency(stats.historial)} del historial importado`,
+  ].filter(Boolean).join(' · ');
 
   // Deep-link con socio: lo trae por ID y abre el modal ya preseleccionado.
   useEffect(() => {
@@ -321,15 +344,37 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleDelete = async () => {
-    await deleteDialog.confirm(async (id) => {
-      try {
-        await deletePayment(id);
-        showToast('Pago eliminado', 'success');
-      } catch (error) {
-        showToast(errorService.getMessage(error), 'error');
-      }
-    });
+  const pedirAnulacion = (payment) => {
+    setMotivoAnulacion('');
+    setAnulando(payment);
+  };
+
+  /**
+   * ⭐ Anular, no borrar. El cobro queda en la lista, tachado, con quién y por qué, y deja de
+   * sumar en todas partes. Si ya estaba en un cierre de caja, el próximo cierre lo descuenta.
+   */
+  const confirmarAnulacion = async (e) => {
+    e?.preventDefault();
+    // El motivo es obligatorio por lo mismo que el detalle de un gasto: un cobro que se anula
+    // "porque sí" no se puede revisar después.
+    if (motivoAnulacion.trim().length < 3) {
+      showToast('Escribí por qué se anula. Sin eso no se puede revisar después.', 'error');
+      return;
+    }
+    setGuardandoAnulacion(true);
+    try {
+      const r = await anularPayment(anulando.id, {
+        motivo: motivoAnulacion.trim(),
+        anuladoPor: profile?.fullName || null,
+      });
+      const vence = r?.vencimientoRestaurado;
+      showToast(vence ? `Cobro anulado. El socio vuelve a vencer el ${formatDate(vence)}.` : 'Cobro anulado.', 'success');
+      setAnulando(null);
+    } catch (error) {
+      showToast(errorService.getMessage(error), 'error');
+    } finally {
+      setGuardandoAnulacion(false);
+    }
   };
 
   const handleMarkPaid = async (payment) => {
@@ -404,7 +449,9 @@ export default function PaymentsPage() {
 
       {/* Stats */}
       <div className="stats-grid stats-grid-3 mb-3">
-        <StatCard icon="cash" label="Ingresos del período" value={formatCurrency(stats.totalPeriod)} color="success" />
+        <StatCard icon="cash" label={hayFiltro ? 'Cobrado en lo filtrado' : 'Ingresos del período'}
+          value={formatCurrency(stats.totalPeriod)} color="success"
+          nota={!hayFiltro && notaDelTotal ? `Incluye ${notaDelTotal}` : undefined} />
         <StatCard icon="check" label="Pagos cobrados" value={stats.totalCount} color="primary" />
         <StatCard icon="clock" label="Pagos pendientes" value={stats.pendingCount} color={stats.pendingCount > 0 ? 'warning' : 'neutral'} />
       </div>
@@ -433,6 +480,7 @@ export default function PaymentsPage() {
               { value: '', label: 'Todos los estados' },
               { value: 'paid', label: 'Pagados' },
               { value: 'pending', label: 'Pendientes' },
+              { value: 'cancelled', label: 'Anulados' },
             ],
           },
         ]}
@@ -476,7 +524,8 @@ export default function PaymentsPage() {
                 </tr>
               ) : (
                 payments.map((payment) => (
-                  <tr key={payment.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+                  <tr key={payment.id} className={esEstado(payment, 'cancelled') ? 'pago-anulado' : undefined}
+                    style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                     <td data-label="Socio">
                       <strong>{nombreDelCobro(payment)}</strong>
                       {payment.member?.dni && (
@@ -492,15 +541,27 @@ export default function PaymentsPage() {
                           Historial importado{payment.notes ? ` · ${payment.notes}` : ''}
                         </small>
                       )}
+                      {/* Anulado: se ve, tachado, con quién y por qué. Un cobro que desaparece de
+                          la lista es justamente lo que no queremos que se pueda hacer. */}
+                      {esEstado(payment, 'cancelled') && (payment.anuladoPorNombre || payment.motivoAnulacion) && (
+                        <small className="pago-anulado-motivo">
+                          Anulado{payment.anuladoPorNombre ? ` por ${payment.anuladoPorNombre}` : ''}
+                          {payment.motivoAnulacion ? `: ${payment.motivoAnulacion}` : ''}
+                        </small>
+                      )}
                     </td>
                     <td data-label="Monto">
-                      <span style={{ fontWeight: 600, color: 'var(--success-500)' }}>
+                      <span className="pago-monto" style={{ fontWeight: 600, color: 'var(--success-500)' }}>
                         {formatCurrency(payment.amount)}
                       </span>
                     </td>
                     <td data-label="Fecha">{formatDate(payment.paymentDate)}</td>
                     <td data-label="Método">{getMethodLabel(payment.paymentMethod)}</td>
-                    <td data-label="Estado"><Badge status={payment.status} /></td>
+                    <td data-label="Estado">
+                      {esEstado(payment, 'cancelled')
+                        ? <Badge status="cancelled" label="Anulado" />
+                        : <Badge status={payment.status} />}
+                    </td>
                     <td data-label="Período">
                       {payment.periodStart && payment.periodEnd ? (
                         `${formatDate(payment.periodStart)} - ${formatDate(payment.periodEnd)}`
@@ -521,14 +582,19 @@ export default function PaymentsPage() {
                             <Icon name="check" />
                           </button>
                         )}
-                        <button className="action-btn-quick action-btn-payment"
-                          onClick={() => openEditModal(payment)} title="Editar">
-                          <Icon name="edit" />
-                        </button>
-                        <button className="action-btn-quick action-btn-delete"
-                          onClick={() => deleteDialog.open(payment.id)} title="Eliminar">
-                          <Icon name="trash" />
-                        </button>
+                        {/* Un anulado ya no se toca: si la plata entró, se registra un cobro nuevo. */}
+                        {!esEstado(payment, 'cancelled') && (
+                          <>
+                            <button className="action-btn-quick action-btn-payment"
+                              onClick={() => openEditModal(payment)} title="Editar">
+                              <Icon name="edit" />
+                            </button>
+                            <button className="action-btn-quick action-btn-delete"
+                              onClick={() => pedirAnulacion(payment)} title="Anular">
+                              <Icon name="trash" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -546,6 +612,14 @@ export default function PaymentsPage() {
         title={modal.isEditing ? 'Editar Pago' : 'Registrar Pago'}
       >
         <form onSubmit={handleSave} noValidate>
+          {/* Ya lo contó un cierre de caja: corregirlo se puede, y la diferencia entra en el
+              próximo cierre a la vista. Que quien edita lo sepa antes de tocar el monto. */}
+          {modal.isEditing && payments.find((p) => p.id === modal.editingId)?.cerradoEnCaja && (
+            <p className="pago-aviso-cerrado">
+              Este cobro ya entró en un cierre de caja. Si cambiás el monto o la forma de pago, la
+              diferencia aparece como corrección en el próximo cierre.
+            </p>
+          )}
           <div className="modal-form">
             <div className="form-group full-width">
               <label className="form-label">Socio *</label>
@@ -681,16 +755,33 @@ export default function PaymentsPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={deleteDialog.isOpen}
-        title="Eliminar Pago"
-        message="¿Estás seguro de eliminar este pago? Esta acción no se puede deshacer."
-        icon="trash"
-        confirmText="Eliminar"
-        confirmClass="btn-danger"
-        onConfirm={handleDelete}
-        onCancel={deleteDialog.close}
-      />
+      {/* ─── ANULAR UN COBRO ───
+          No se borra: queda tachado y deja de sumar. El motivo es obligatorio. */}
+      <Modal isOpen={!!anulando} onClose={() => setAnulando(null)} title="Anular cobro">
+        <form onSubmit={confirmarAnulacion} noValidate>
+          {anulando && (
+            <div className="modal-form">
+              <p className="full-width">
+                <strong>{nombreDelCobro(anulando)}</strong> · {formatCurrency(anulando.amount)} ·{' '}
+                {getMethodLabel(anulando.paymentMethod)} · {formatDate(anulando.paymentDate)}
+              </p>
+              <p className="full-width text-muted">
+                El cobro queda en la lista, tachado, y deja de sumar en los ingresos.
+                {anulando.cerradoEnCaja && ' Ya entró en un cierre de caja: el próximo cierre lo descuenta.'}
+                {' '}Si este cobro fue el que le corrió el vencimiento al socio, vuelve a vencer cuando vencía antes.
+              </p>
+              <div className="form-group full-width">
+                <label className="form-label" htmlFor="motivo-anulacion">¿Por qué se anula? *</label>
+                <textarea id="motivo-anulacion" className="form-textarea" rows="2" value={motivoAnulacion}
+                  onChange={(e) => setMotivoAnulacion(e.target.value)}
+                  placeholder="Se cargó dos veces, era de otro socio, se devolvió la plata…" />
+              </div>
+            </div>
+          )}
+          <ModalActions onCancel={() => setAnulando(null)} saving={guardandoAnulacion}
+            submitText="Anular cobro" submitClass="btn-danger" />
+        </form>
+      </Modal>
     </div>
   );
 }

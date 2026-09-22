@@ -1407,3 +1407,26 @@
   .sidebar-footer .update-indicator-dot { display: none; }
   .sidebar-footer .update-indicator { padding: 0.35rem; }
 }
+
+/* ─── Pagos: el cobro anulado ───
+   No se borra (V88): queda en la lista, tachado y apagado, con quién y por qué. */
+.pago-anulado td { color: var(--text-muted); }
+.pago-anulado .pago-monto {
+  text-decoration: line-through;
+  color: var(--text-muted) !important;
+}
+.pago-anulado-motivo {
+  display: block;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Editar un cobro que ya contó un cierre de caja: la diferencia va a entrar como corrección. */
+.pago-aviso-cerrado {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--warning-500);
+  background: color-mix(in srgb, var(--warning-500) 10%, transparent);
+  font-size: var(--font-size-sm);
+}

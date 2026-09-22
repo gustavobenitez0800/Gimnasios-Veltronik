@@ -61,12 +61,20 @@ public record DashboardResumenDTO(
      *                                 entero (que el día 1 daba siempre "bajaron 95%").
      * @param primerCobro              cuándo cobró el gimnasio por primera vez. Si fue avanzado
      *                                 el mes, ese primer mes está incompleto.
+     * @param otrosIngresosDelMes      las ventas y otros ingresos de la caja del mes en curso. Ya
+     *                                 están dentro de {@code delMes}: viajan aparte para decirlo.
+     * @param historialDelMes          lo importado del sistema anterior en el mes en curso (idem).
      */
     public record Ingresos(BigDecimal delMes, BigDecimal delMesAnterior, List<MesConTotal> serieMensual,
-                           BigDecimal delMismoPeriodoAnterior, java.time.LocalDateTime primerCobro) {}
+                           BigDecimal delMismoPeriodoAnterior, java.time.LocalDateTime primerCobro,
+                           BigDecimal otrosIngresosDelMes, BigDecimal historialDelMes) {}
 
-    /** @param mes el primer día del mes, para que el cliente lo formatee como quiera. */
-    public record MesConTotal(LocalDateTime mes, BigDecimal total) {}
+    /**
+     * @param mes   el primer día del mes, para que el cliente lo formatee como quiera.
+     * @param total todo lo que entró ese mes (LibroDeIngresos): cuotas + historial + otros ingresos.
+     */
+    public record MesConTotal(LocalDateTime mes, BigDecimal total, BigDecimal cuotas, BigDecimal historial,
+                              BigDecimal otrosIngresos) {}
 
     /**
      * @param estaSemana cuántos vencen en los próximos 7 días (no incluye a los ya vencidos)

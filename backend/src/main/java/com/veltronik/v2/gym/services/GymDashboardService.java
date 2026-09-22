@@ -6,7 +6,6 @@ import com.veltronik.v2.gym.dto.GymMemberDTO;
 import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.mappers.GymMemberMapper;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
-import com.veltronik.v2.gym.repositories.GymPaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +37,9 @@ public class GymDashboardService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final GymMemberRepository memberRepository;
-    private final GymPaymentRepository paymentRepository;
     private final GymMemberMapper memberMapper;
+    /** ⭐ La única cuenta de la plata que entró: la misma del Pagos, la caja y el Excel. */
+    private final LibroDeIngresos libro;
     private final com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy;
 
     /**
@@ -55,8 +55,8 @@ public class GymDashboardService {
         // "Mes actual" en hora de Argentina, y SOLO el mes actual: un cobro fechado en el
         // futuro por error no es plata de este mes.
         YearMonth esteMes = YearMonth.from(now);
-        BigDecimal monthlyRevenue = paymentRepository.sumarCobradoEntre(tenantId,
-                esteMes.atDay(1).atStartOfDay(), esteMes.plusMonths(1).atDay(1).atStartOfDay());
+        BigDecimal monthlyRevenue = libro.entre(tenantId,
+                esteMes.atDay(1).atStartOfDay(), esteMes.plusMonths(1).atDay(1).atStartOfDay()).total();
 
         long expiringMembers = memberRepository.contarPorVencer(tenantId, now, now.plusDays(7));
         long expiredMembers = padron.vencidos();
@@ -101,27 +101,35 @@ public class GymDashboardService {
                 0,                             // ver el comentario del record
                 padron.sinFecha());
 
-        // ── Los ingresos, agrupados por mes en Postgres, hasta el mes en curso ──
+        // ── Los ingresos, del libro de ingresos, agrupados por mes hasta el mes en curso ──
+        //
+        // ⚠️ Solo hasta el mes en curso: un cobro con la fecha mal tipeada en el futuro ("2027"
+        // en vez de "2026") estiraba la serie hasta ese mes, y la predicción rellenaba con ceros
+        // los meses del medio y anunciaba un derrumbe que no existía.
         YearMonth esteMes = YearMonth.from(ahora);
         LocalDateTime inicioDelMes = esteMes.atDay(1).atStartOfDay();
-        List<DashboardResumenDTO.MesConTotal> serie = paymentRepository
-                .ingresosPorMes(tenantId, esteMes.plusMonths(1).atDay(1).atStartOfDay()).stream()
-                .map(fila -> new DashboardResumenDTO.MesConTotal(
-                        ((java.sql.Timestamp) fila[0]).toLocalDateTime(),
-                        (BigDecimal) fila[1]))
+        var porMes = libro.porMes(tenantId, LibroDeIngresos.DESDE_SIEMPRE, esteMes.plusMonths(1).atDay(1).atStartOfDay());
+        List<DashboardResumenDTO.MesConTotal> serie = porMes.entrySet().stream()
+                .map(e -> new DashboardResumenDTO.MesConTotal(
+                        e.getKey().atDay(1).atStartOfDay(),
+                        e.getValue().total(), e.getValue().cuotas(), e.getValue().historial(),
+                        e.getValue().otrosIngresos()))
                 .toList();
 
         // El mismo tramo del mes pasado: del 1° hasta este mismo día y hora. minusMonths
         // recorta solo al último día que exista (el 31 de marzo compara hasta el 28 de febrero).
-        BigDecimal delMismoPeriodoAnterior = paymentRepository.sumarCobradoEntre(tenantId,
-                inicioDelMes.minusMonths(1), ahora.minusMonths(1));
+        BigDecimal delMismoPeriodoAnterior = libro.entre(tenantId,
+                inicioDelMes.minusMonths(1), ahora.minusMonths(1)).total();
 
+        LibroDeIngresos.Totales delMes = porMes.getOrDefault(esteMes, LibroDeIngresos.Totales.VACIO);
         DashboardResumenDTO.Ingresos ingresos = new DashboardResumenDTO.Ingresos(
                 totalDelMes(serie, esteMes),
                 totalDelMes(serie, esteMes.minusMonths(1)),
                 serie,
                 delMismoPeriodoAnterior,
-                paymentRepository.primerCobro(tenantId));
+                libro.primerIngreso(tenantId),
+                delMes.otrosIngresos(),
+                delMes.historial());
 
         // ── Quiénes necesitan atención: vencidos y los que vencen en 7 días ──
         LocalDateTime en7Dias = ahora.plusDays(7);
