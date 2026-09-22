@@ -95,8 +95,10 @@ export default function Icon({ name, className = 'icon', size, style, ...props }
     ...style,
   };
 
+  // `data-icon` deja que el CSS le dé a cada ícono su propio movimiento (layout.css,
+  // "Micro-animaciones del menú") sin que el componente sepa nada de animaciones.
   return (
-    <span className={className} style={mergedStyle} {...props}>
+    <span className={className} style={mergedStyle} data-icon={name} {...props}>
       {icon}
     </span>
   );
