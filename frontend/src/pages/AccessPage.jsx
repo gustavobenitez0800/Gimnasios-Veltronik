@@ -23,10 +23,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
-import { getInitials, getRelativeTime, debounce } from '../lib/utils';
+import { getInitials, debounce } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
+import QrParaEscanear from '../components/QrParaEscanear';
 import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
 import { resumenDeCola, sociosConCobroPendiente } from '../lib/colaAccesos';
 import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
@@ -34,7 +35,6 @@ import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
 import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
-import { GYM } from '../lib/gym';
 import Icon from '../components/Icon';
 import { sonarVencido } from '../lib/alertaSonora';
 
@@ -45,9 +45,6 @@ const SALIDA_DEL_AVISO_MS = 200;
 const SITUACIONES_QUE_SUENAN = new Set(['VENCIDO', 'EN_GRACIA', 'INACTIVO']);
 
 export default function AccessPage() {
-  const orgLabel = GYM.placeLabel;
-  const orgLabelCap = GYM.placeLabelCap;
-
   const { showToast } = useToast();
   const { orgRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,9 +54,12 @@ export default function AccessPage() {
   // El campo del DNI. Es el centro de la pantalla y el foco vuelve siempre acá.
   const buscadorRef = useRef(null);
 
-  // El cartel del QR se imprime UNA vez y se pega en la puerta: no es de uso diario. Vive
-  // detrás de un botón para no comerse media pantalla del mostrador.
+  // El cartel para IMPRIMIR (descargarlo, generar uno nuevo) vive detrás de un botón: se usa
+  // una vez. El QR para ESCANEAR está a la vista, al lado del buscador (QrParaEscanear).
   const [qrAbierto, setQrAbierto] = useState(false);
+  // Sube al cerrar el cartel: si el dueño generó uno nuevo, el QR de la pantalla se vuelve a
+  // pedir. Si no, seguiría mostrando el viejo, que ya no funciona.
+  const [versionQr, setVersionQr] = useState(0);
   const puedeAdministrarQr = ['owner', 'admin'].includes(orgRole);
 
   // ─── Los avisos de entrada, apilados al costado ───
@@ -97,7 +97,7 @@ export default function AccessPage() {
   //
   // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
   // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, loading, invalidate, isFetching } = useQueryCache(
+  const { data, invalidate, isFetching } = useQueryCache(
     'mostrador',
     () => accessService.getMostrador(),
     { staleTime: 10000 },
@@ -457,35 +457,9 @@ export default function AccessPage() {
     [checkedIn],
   );
 
-  // Sacar a alguien desde la lista de "quién está adentro".
-  //
-  // Está acá y no solo en "En el gimnasio" porque el pedido vino del mostrador: cuando el
-  // socio se va y avisa, la recepcionista tiene que poder marcarlo SIN cambiar de pantalla.
-  // Es el mismo endpoint y el mismo dato: las dos pantallas comparten la clave de caché, así
-  // que marcar la salida acá también actualiza la otra.
-  const handleCheckOut = async (logId, memberName, memberId) => {
-    try {
-      const r = await accessService.checkOut(logId, memberId, memberName);
-      // Sin conexión no se anuncia "salió": eso lo confirma el servidor. Lo único cierto
-      // acá es que quedó guardado, igual que con las entradas.
-      showToast(
-        r?.encolado ? `Salida de ${memberName} guardada sin conexión` : `${memberName} salió`,
-        r?.encolado ? 'warning' : 'success',
-      );
-      contarPendientes();
-      loadData();
-    } catch (error) {
-      // ⚠️ "Network Error" en inglés era lo que veía la recepcionista, y no dice ni qué pasó
-      // ni qué hacer. Sin respuesta del servidor es un problema de conexión; con respuesta,
-      // es un rechazo real y se muestra tal cual.
-      showToast(
-        error?.response
-          ? errorService.getMessage(error)
-          : 'Sin conexión: la salida NO se registró. Anotala a mano.',
-        'error',
-      );
-    }
-  };
+  // (La salida desde la lista de "quién está adentro" se fue con la lista: ahora se marca
+  // buscando al socio, que dice "Adentro desde" y ofrece "Registrar salida", o desde la
+  // pantalla "En el gimnasio".)
 
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
@@ -660,9 +634,9 @@ export default function AccessPage() {
       <AvisosMostrador avisos={avisos} onAtendido={loadData} />
 
       {/* ─── EL CUERPO: DOS COLUMNAS QUE ENTRAN EN UNA PANTALLA ───
-          Izquierda el molinete (teclear, Enter, el que sigue). Derecha quién está adentro,
-          para marcar salidas sin moverse de acá. Cada una scrollea por dentro si hace falta:
-          la PÁGINA no se mueve, que es lo que se pidió. */}
+          Izquierda el molinete (teclear, Enter, el que sigue). Derecha el QR, para que el
+          socio marque desde el celular. El buscador scrollea por dentro si hace falta: la
+          PÁGINA no se mueve, que es lo que se pidió. */}
       <div className="access-cuerpo">
         <section className="checkin-section">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
@@ -764,57 +738,16 @@ export default function AccessPage() {
           )}
         </section>
 
-        {/* ─── QUIÉN ESTÁ ADENTRO, AL LADO DEL BUSCADOR ───
-            Pedido del mostrador: cuando el socio se va y avisa, hay que poder marcarle la
-            salida SIN cambiar de módulo. La misma lista vive también en "En el gimnasio",
-            que es la pantalla para mirar; esta es la de trabajar. Comparten el pedido y la
-            caché, así que marcar acá deja la otra al día sola. */}
-        <aside className="card access-adentro">
-          <div className="table-header">
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon name="barbell" size="1.2em" />
-              En el {orgLabelCap} ahora
-            </h3>
-            <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
-          </div>
-          <div className="checked-in-list">
-            {/* ⚠️ SIN RED NO SE GIRA EL SPINNER, SE DICE LA VERDAD.
-                Quién está adentro es lo ÚNICO de esta pantalla que el terminal no puede
-                saber por su cuenta: la dirección la decide el servidor, y sin él no hay
-                respuesta posible. Un spinner ahí promete algo que no va a llegar, y quien
-                atiende se queda esperando en vez de resolver por otro lado. */}
-            {!enLinea && checkedIn.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}>
-                Sin conexión · no se puede saber quién está adentro
-              </div>
-            ) : loading ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
-            ) : checkedIn.length === 0 ? (
-              <div className="text-center text-muted" style={{ padding: '2rem' }}>Nadie en el {orgLabel}</div>
-            ) : checkedIn.map(log => {
-              const member = log.member;
-              const memberName = member?.fullName || 'Socio';
-              return (
-                <div key={log.id} className="checked-in-item">
-                  <div className="member-avatar">{getInitials(memberName)}</div>
-                  <div className="member-info">
-                    <div className="member-name">{memberName}</div>
-                    <div className="checkin-time">Entrada: {getRelativeTime(log.checkInAt)}</div>
-                  </div>
-                  {/* El id del socio va sí o sí: sin él, sin conexión no hay a quién encolarle
-                      la salida y el botón vuelve a no hacer nada. */}
-                  <button className="checkout-btn" onClick={() => handleCheckOut(log.id, memberName, member?.id)}>
-                    <Icon name="doorExit" size="1em" /> Salida
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
+        {/* ─── EL QR, AL LADO DEL BUSCADOR ───
+            Pedido del dueño (2026-09-22): que el socio escanee desde la pantalla, sin que nadie
+            abra el botón del cartel. Ocupa el lugar de "En el gimnasio ahora": esa lista sigue
+            en su propia pantalla ("En el gimnasio"), y para marcar la salida de alguien alcanza
+            con buscarlo acá — la búsqueda dice "Adentro desde" y ofrece "Registrar salida". */}
+        <QrParaEscanear key={versionQr} puedeCrear={puedeAdministrarQr} />
       </div>
 
       {/* El cartel del QR, sin ocupar la pantalla mientras no se lo pide. */}
-      <Modal isOpen={qrAbierto} onClose={() => setQrAbierto(false)} title="Cartel de entrada">
+      <Modal isOpen={qrAbierto} onClose={() => { setQrAbierto(false); setVersionQr((v) => v + 1); }} title="Cartel de entrada">
         <CheckinQrPanel puedeAdministrar={puedeAdministrarQr} />
       </Modal>
 

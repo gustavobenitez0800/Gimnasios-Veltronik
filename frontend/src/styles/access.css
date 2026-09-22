@@ -288,19 +288,51 @@
     left: 0.75rem; right: 0.75rem;
     top: auto; bottom: 1rem;
   }
+  /* ⚠️ UNA GRILLA Y NO UNA FILA DE FLEX. Era una fila con el pie en flex-basis 100% y sin
+     flex-wrap: el pie reclamaba todo el ancho, no podía bajar de renglón, y aplastaba al
+     nombre hasta dejarlo en cero. Quedaban las iniciales con el número ENCIMA ("JP" y un "2"
+     montado) y el nombre invisible. Ahora cada cosa tiene su lugar:
+
+         [JP]  Juan Pérez                    2
+               Entrada registrada     días vencido                                        */
   .acceso-aviso {
     /* Abajo, y apilados hacia arriba: el más nuevo pegado al borde. */
     top: auto; bottom: 0; right: 0;
     transform: translateY(calc(var(--i, 0) * (-100% - 0.6rem)));
     width: auto; height: auto;
-    flex-direction: row; align-items: center; gap: 0.85rem;
-    padding: 0.9rem 1.1rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "cabecera cifra" "pie cifra";
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.3rem;
+    padding: 0.85rem 1rem;
   }
-  .acceso-aviso-cabecera { flex: 1; }
-  .acceso-aviso-cifra { flex: 0 0 auto; flex-direction: row; align-items: baseline; gap: 0.35rem; }
-  .acceso-aviso-cifra strong { font-size: 2rem; }
-  .acceso-aviso-cifra span { margin-top: 0; font-size: var(--font-size-xs); }
-  .acceso-aviso-pie { border-top: 0; padding-top: 0; flex-basis: 100%; }
+  .acceso-aviso-cabecera { grid-area: cabecera; }
+  .acceso-aviso-cifra {
+    grid-area: cifra;
+    flex: none;
+    min-width: 4.5rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border-color);
+  }
+  .acceso-aviso-cifra strong { font-size: 2.25rem; }
+  .acceso-aviso-cifra span { margin-top: 0.15rem; font-size: var(--font-size-xs); white-space: nowrap; }
+  .acceso-aviso-cifra span.sin-numero { font-size: 1rem; white-space: normal; max-width: 7.5rem; }
+  /* El pie arranca donde el nombre, no debajo de las iniciales. */
+  .acceso-aviso-pie { grid-area: pie; border-top: 0; padding-top: 0; padding-left: calc(38px + 0.65rem); }
+
+  /* Sin número (una salida, un rebote): nombre y pie en una sola columna, alineados a la
+     izquierda. La regla del cuadrado los centraba en vertical, que acá no tiene sentido. */
+  .acceso-aviso:not(:has(.acceso-aviso-cifra)) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "cabecera" "pie";
+  }
+  .acceso-aviso:not(:has(.acceso-aviso-cifra)) .acceso-aviso-cabecera {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -347,7 +379,15 @@
   gap: 1rem;
   flex-wrap: wrap;
 }
-.access-barra .page-header { margin-bottom: 0; }
+/* Esta pantalla no scrollea: el título no necesita quedar fijo arriba. Sin esto se veía un
+   rectángulo con su propia línea abajo detrás de "Control de Acceso", del ancho del texto. */
+.access-barra .page-header {
+  margin-bottom: 0;
+  position: static;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
 
 .access-cuerpo {
   display: grid;
@@ -368,28 +408,50 @@
   max-height: none;   /* el tope de 300px lo pone la altura real de la pantalla */
 }
 
-/* Quién está adentro, al lado del buscador: la cabecera fija y la lista con su
-   propio scroll. Con veinte personas adentro, la página sigue quieta. */
-.access-adentro {
+/* ─── El QR para escanear, al lado del buscador (2026-09-22) ───
+   Reemplaza a "En el gimnasio ahora". Lo más grande que entre: el socio lo escanea con el
+   celular desde el otro lado del mostrador. Blanco alrededor, siempre — un QR sobre fondo
+   oscuro no lo lee ninguna cámara. */
+.access-qr {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
   min-height: 0;
-  padding: 0;
+  padding: 1.5rem;
+  text-align: center;
 }
-.access-adentro .table-header {
+.access-qr-titulo {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1rem 0.75rem;
+  gap: 0.5rem;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
 }
-.access-adentro .checked-in-list {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-  padding: 0 1rem 1rem;
+.access-qr-codigo {
+  /* Lo más grande que entre de ancho y de alto, sin pasarse de 340px: más grande no se lee
+     mejor, y en una notebook de 768px de alto no dejaría lugar al título. */
+  width: min(100%, 340px, 52vh);
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  padding: 10px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
+.access-qr-codigo svg { display: block; width: 100%; height: 100%; }
+.access-qr-ayuda { margin: 0; font-size: var(--font-size-sm); color: var(--text-muted); }
+.access-qr-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--text-muted);
+}
+.access-qr-vacio p { margin: 0; }
 
 /* ⚠️ En pantallas chicas NO se fuerza nada: dos columnas apiladas dentro de una
    altura fija dejarían dos ventanitas de cuatro centímetros con scroll cada una,
@@ -400,7 +462,6 @@
   .access-page { display: block; }
   .access-cuerpo { grid-template-columns: 1fr; }
   .access-page .search-results { max-height: 300px; }
-  .access-adentro .checked-in-list { max-height: 320px; }
   .access-barra { margin-bottom: 1rem; }
   .access-cuerpo { margin-top: 1rem; }
 }

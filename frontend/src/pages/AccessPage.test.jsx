@@ -81,6 +81,11 @@ vi.mock('../hooks', async () => {
 vi.mock('../components/EstadoCopiaLocal', () => ({ default: () => null }));
 vi.mock('../components/AvisosMostrador', () => ({ default: () => null }));
 vi.mock('../components/CheckinQrPanel', () => ({ default: () => null }));
+// El QR para escanear pide su propio dato al servidor: acá solo importa DÓNDE está y a quién
+// se le ofrece crearlo.
+vi.mock('../components/QrParaEscanear', () => ({
+  default: ({ puedeCrear }) => <aside className="access-qr qr-falso" data-puede-crear={String(!!puedeCrear)} />,
+}));
 vi.mock('../components/Layout', () => ({ PageHeader: () => null }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
 
@@ -481,124 +486,66 @@ describe('el mostrador se entera solo de lo que pasa en la puerta', () => {
   });
 });
 
-describe('quién está adentro, sin salir del mostrador', () => {
+describe('⭐ el QR en la pantalla, en lugar de quién está adentro (22/09)', () => {
 
-  const visitaAbierta = (id, nombre) => ({
+  const visitaAbierta = (id, nombre, memberId) => ({
     id,
-    member: { id: 'm-' + id, fullName: nombre, dni: '30111222' },
+    member: { id: memberId, fullName: nombre, dni: '30111222' },
     checkInAt: new Date(Date.now() - 20 * 60000).toISOString(),
     checkOutAt: null,
   });
 
   /**
-   * ⭐ EL PEDIDO DEL DUEÑO, TAL CUAL: "esta sección también tiene que estar en accesos, para
-   * que recepción pueda dar de baja a los alumnos sin tener que desplazarse por todos lados".
-   *
-   * La misma lista vive en "En el gimnasio" —la pantalla para MIRAR— y acá, que es la de
-   * TRABAJAR. Comparten el pedido y la caché, así que marcar de un lado deja el otro al día.
+   * ⭐ EL PEDIDO DEL DUEÑO: "que saques 'en el gimnasio ahora' y en su lugar pongas el QR para
+   * que escaneen sin que haya que entrar al botón del cartel".
    */
-  it('⭐ la lista de quién está adentro está en Acceso', async () => {
-    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
-
-    const texto = (await pintar()).textContent;
-
-    expect(texto).toContain('Matias Benitez');
-    expect(texto).toContain('En el Gimnasio ahora');
-  });
-
-  it('y se le puede marcar la salida desde ahí mismo', async () => {
-    accessService.checkOut.mockResolvedValue({});
-    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+  it('el QR ocupa el lugar de la lista, al lado del buscador', async () => {
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez', 'm9')] };
     await pintar();
 
-    const salida = container.querySelector('.checkout-btn');
-    expect(salida, 'el botón de salida tiene que estar en el mostrador').toBeTruthy();
-    await act(async () => {
-      salida.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    // ⚠️ Y CON EL ID DEL SOCIO. Sin él, sin conexión no hay a quién encolarle la salida y el
-    // botón vuelve a no hacer nada — que es justo lo que reportó el dueño: "si me doy salida
-    // no responde y tira network error".
-    expect(accessService.checkOut).toHaveBeenCalledWith('a1', 'm-a1', 'Matias Benitez');
+    const cuerpo = container.querySelector('.access-cuerpo');
+    expect(cuerpo.querySelector('.checkin-section'), 'el molinete').toBeTruthy();
+    expect(cuerpo.querySelector('.access-qr'), 'el QR, en la misma fila').toBeTruthy();
+    expect(cuerpo.querySelector('.access-adentro'), 'la lista se fue').toBeNull();
+    expect(container.textContent).not.toContain('En el Gimnasio ahora');
   });
 
-  it('sin conexión la salida se guarda, y el cartel no dice "salió"', async () => {
-    // "Salió" lo confirma el servidor. Sin conexión lo único cierto es que quedó guardado.
-    accessService.checkOut.mockResolvedValue({ encolado: true, clientRef: 'x' });
-    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+  it('⚠️ recepción lo ve (atiende el mostrador), pero no se le ofrece crearlo', async () => {
     await pintar();
-
-    await act(async () => {
-      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
-    expect(mensaje).toContain('guardada sin conexión');
-    expect(mensaje).not.toContain('salió');
-    expect(tipo).toBe('warning');
+    expect(container.querySelector('.qr-falso').dataset.puedeCrear).toBe('false');
   });
 
-  it('y si falla de verdad, el error se entiende: nada de "Network Error"', async () => {
-    const corte = new Error('Network Error'); // sin `response`: no contestó el servidor
-    accessService.checkOut.mockRejectedValue(corte);
-    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
-    await pintar();
-
-    await act(async () => {
-      container.querySelector('.checkout-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const [mensaje, tipo] = toastEstable.showToast.mock.calls.at(-1);
-    expect(mensaje).toContain('Sin conexión');
-    expect(mensaje, 'y dice qué hacer').toContain('Anotala a mano');
-    expect(mensaje).not.toContain('Network Error');
-    expect(tipo).toBe('error');
-  });
-
-  it('sin nadie adentro lo dice, en vez de dejar un hueco', async () => {
-    const texto = (await pintar()).textContent;
-
-    expect(texto).toContain('Nadie en el gimnasio');
-  });
-
-  /**
-   * La pantalla tiene que entrar de una: es la que se usa parada y con gente esperando.
-   * El cartel del QR se imprime UNA vez y se pega en la puerta, así que vive detrás de un
-   * botón en vez de ocupar media pantalla todos los días.
-   */
-  it('el cartel del QR no ocupa la pantalla: está detrás de un botón', async () => {
+  it('el dueño sí puede crearlo, y sigue teniendo el botón del cartel para imprimir', async () => {
     authEstable.orgRole = 'owner';
     try {
       await pintar();
-
+      expect(container.querySelector('.qr-falso').dataset.puedeCrear).toBe('true');
       const botones = [...container.querySelectorAll('button')].map((b) => b.textContent);
-      expect(botones.some((t) => t.includes('Cartel de entrada'))).toBe(true);
+      expect(botones.some((x) => x.includes('Cartel de entrada'))).toBe(true);
     } finally {
       authEstable.orgRole = 'reception';
     }
   });
 
-  it('y a recepción ni siquiera se le ofrece: no es cosa suya', async () => {
+  it('y a recepción no se le ofrece el cartel para imprimir: no es cosa suya', async () => {
     await pintar();
 
     const botones = [...container.querySelectorAll('button')].map((b) => b.textContent);
-    expect(botones.some((t) => t.includes('Cartel de entrada'))).toBe(false);
+    expect(botones.some((x) => x.includes('Cartel de entrada'))).toBe(false);
   });
 
-  /**
-   * ⚠️ La estructura de dos columnas es lo que sostiene "una sola pantalla": el molinete a
-   * la izquierda, quién está adentro a la derecha, y cada lista con su scroll interno. Si
-   * alguien vuelve a apilar todo en una columna, la página vuelve a scrollear.
-   */
-  it('⚠️ el mostrador y la lista comparten fila (es lo que evita el scroll de página)', async () => {
-    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Matias Benitez')] };
+  it('⭐ la salida se sigue marcando sin moverse: se busca al socio y dice "Adentro desde"', async () => {
+    // Dos resultados, para que Enter no registre por nadie y la lista quede a la vista.
+    memberService.searchForAccess.mockResolvedValue([SOCIO, OTRO]);
+    mostrador.datos = { ...mostrador.datos, adentro: [visitaAbierta('a1', 'Lurdes Rollet', 'm1')] };
     await pintar();
+    await tipear('Lurdes');
+    await apretar('Enter');
 
-    const cuerpo = container.querySelector('.access-cuerpo');
-    expect(cuerpo, 'el contenedor de las dos columnas').toBeTruthy();
-    expect(cuerpo.querySelector('.checkin-section'), 'el molinete').toBeTruthy();
-    expect(cuerpo.querySelector('.access-adentro'), 'quién está adentro').toBeTruthy();
+    const fila = [...container.querySelectorAll('.search-result-item')]
+      .find((f) => f.textContent.includes('Lurdes Rollet'));
+    expect(fila.textContent).toContain('Adentro desde');
+    expect(fila.textContent).toContain('Registrar salida');
   });
 });
 
@@ -720,7 +667,7 @@ describe('⭐ sin conexión el cartel MUESTRA los días', () => {
   });
 });
 
-describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para siempre', () => {
+describe('⚠️ sin red, el mostrador no apila pedidos condenados a fallar', () => {
   // LO REPORTÓ EL DUEÑO: apagó el wifi con la app ya cargada y la lista quedó en "Cargando…"
   // hasta que volvió a prenderlo.
   //
@@ -738,17 +685,6 @@ describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para s
   }
 
   afterEach(() => sinRed(true));
-
-  it('lo dice, en vez de dejar el spinner girando', async () => {
-    sinRed(false);
-    accessService.getMostrador.mockImplementation(() => new Promise(() => {})); // nunca contesta
-
-    await pintar();
-
-    const lista = container.querySelector('.checked-in-list');
-    expect(lista.textContent).toContain('Sin conexión');
-    expect(lista.querySelector('.spinner'), 'un spinner promete algo que no va a llegar').toBeNull();
-  });
 
   it('y deja de insistir: no apila pedidos condenados a fallar', async () => {
     // ⚠️ SE MIDE EL LATIDO, NO EL SERVICIO. La caché está mockeada y nunca llama al servicio
@@ -782,19 +718,6 @@ describe('⚠️ sin red, "quién está adentro" dice la verdad y no gira para s
     });
 
     expect(mostrador.refrescos).toBeGreaterThan(alPrincipio);
-  });
-
-  it('con red vuelve a mostrar la lista normal', async () => {
-    mostrador.datos = {
-      adentro: [{ id: 'a1', member: { fullName: 'Lurdes Rollet' }, checkInAt: new Date().toISOString() }],
-      hoy: [], avisos: [], ingresos: [], hoyTotal: 0, hoyPromedioMin: null,
-    };
-
-    await pintar();
-
-    const lista = container.querySelector('.checked-in-list');
-    expect(lista.textContent).toContain('Lurdes Rollet');
-    expect(lista.textContent).not.toContain('Sin conexión');
   });
 });
 
