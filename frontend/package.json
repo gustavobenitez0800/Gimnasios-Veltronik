@@ -1,6 +1,6 @@
 {
   "name": "gimnasio-veltronik",
-  "version": "2.6.36",
+  "version": "2.6.37",
   "description": "Veltronik - Plataforma de Gestión para Gimnasios",
   "main": "electron/main.cjs",
   "private": true,
