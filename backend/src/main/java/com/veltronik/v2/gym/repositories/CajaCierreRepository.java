@@ -29,4 +29,8 @@ public interface CajaCierreRepository extends JpaRepository<CajaCierre, UUID> {
 
     /** El historial que mira el dueño, del más reciente al más viejo. */
     List<CajaCierre> findByTenantIdOrderByHastaDesc(UUID tenantId, Pageable pageable);
+
+    /** Los cierres hechos en un rango de días: van en el Excel del contador. */
+    List<CajaCierre> findByTenantIdAndHastaBetweenOrderByHastaAsc(UUID tenantId, java.time.LocalDateTime desde,
+                                                                 java.time.LocalDateTime hasta);
 }

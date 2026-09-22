@@ -27,9 +27,12 @@ import java.util.Map;
 public class CajaController {
 
     private final CajaService cajaService;
+    private final com.veltronik.v2.gym.services.CajaReporteService reporteService;
 
-    public CajaController(CajaService cajaService) {
+    public CajaController(CajaService cajaService,
+                          com.veltronik.v2.gym.services.CajaReporteService reporteService) {
         this.cajaService = cajaService;
+        this.reporteService = reporteService;
     }
 
     /**
@@ -284,10 +287,20 @@ public class CajaController {
      * y esto sigue diciendo lo de hoy.</p>
      */
     @GetMapping("/balance")
-    public ResponseEntity<Map<String, Object>> balance(@RequestParam(defaultValue = "hoy") String periodo) {
-        CajaService.Resumen r = cajaService.balance("mes".equalsIgnoreCase(periodo));
+    public ResponseEntity<Map<String, Object>> balance(
+            @RequestParam(defaultValue = "hoy") String periodo,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate desde,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate hasta) {
+        // Con las dos fechas, el rango que eligió el dueño en el selector. Sin ellas, "hoy" o
+        // "mes" como antes: los escritorios que todavía no actualizaron siguen pidiendo así.
+        boolean conRango = desde != null || hasta != null;
+        CajaService.Resumen r = conRango
+                ? cajaService.balance(desde, hasta)
+                : cajaService.balance("mes".equalsIgnoreCase(periodo));
         Map<String, Object> body = new java.util.HashMap<>();
-        body.put("periodo", "mes".equalsIgnoreCase(periodo) ? "mes" : "hoy");
+        body.put("periodo", conRango ? "rango" : "mes".equalsIgnoreCase(periodo) ? "mes" : "hoy");
         body.put("desde", r.desde());
         body.put("hasta", r.hasta());
         body.put("efectivo", r.efectivo());
@@ -312,6 +325,22 @@ public class CajaController {
     @PatchMapping("/cierre/{id}/nota")
     public ResponseEntity<CajaCierre> explicar(@PathVariable java.util.UUID id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(cajaService.explicar(id, body.get("nota")));
+    }
+
+    /**
+     * Todo lo de un rango de días —cobros, gastos, cierres y totales—, para el Excel que el
+     * dueño le manda al contador. Con {@code desde = hasta} es el de un día.
+     *
+     * <p>Solo dueño/admin, como el historial: son días pasados, con quién cobró cada peso.</p>
+     */
+    @GetMapping("/reporte")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ResponseEntity<com.veltronik.v2.gym.services.CajaReporteService.Reporte> reporte(
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate desde,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate hasta) {
+        return ResponseEntity.ok(reporteService.reporte(desde, hasta));
     }
 
     /** El historial. Solo dueño/admin: es donde se ve el patrón por persona. */

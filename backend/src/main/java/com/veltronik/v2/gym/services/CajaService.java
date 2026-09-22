@@ -304,6 +304,49 @@ public class CajaService {
         return contar(desde, ahora);
     }
 
+    /** El tope de un rango: un año y un poco. Más que eso es un pedido que nadie hizo a mano. */
+    public static final int DIAS_MAXIMOS_DEL_RANGO = 400;
+
+    /**
+     * Balance de un rango de días de CALENDARIO, con los dos extremos adentro. Es el que elige
+     * el dueño con el selector (Hoy, Semana, Mes, Año o dos fechas a mano).
+     *
+     * <p>Misma cuenta que el balance de hoy y que el cierre ({@link #contar}): lo que entró a
+     * este cajón, sin el historial importado (ADR-014).</p>
+     */
+    @Transactional(readOnly = true)
+    public Resumen balance(java.time.LocalDate desde, java.time.LocalDate hasta) {
+        validarRango(desde, hasta);
+        return contar(desde.atStartOfDay(), finDelDia(hasta));
+    }
+
+    /** Un rango que se pueda pedir: las dos puntas, en orden, y no más largo que el tope. */
+    public static void validarRango(java.time.LocalDate desde, java.time.LocalDate hasta) {
+        if (desde == null || hasta == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Elegí las dos fechas.");
+        }
+        if (hasta.isBefore(desde)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "La fecha «hasta» es anterior a «desde».");
+        }
+        if (java.time.temporal.ChronoUnit.DAYS.between(desde, hasta) > DIAS_MAXIMOS_DEL_RANGO) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Elegí un rango de hasta un año.");
+        }
+    }
+
+    /**
+     * El último instante de un día, con MICROsegundos y no nanos.
+     *
+     * <p>⚠️ No {@code LocalTime.MAX}: son 23:59:59.999999999, y Postgres guarda microsegundos.
+     * Al mandarlo, redondea hacia arriba y cae en las 00:00:00 del día siguiente — un cobro
+     * hecho justo a medianoche entraría en dos días a la vez. Ya pasó con los cierres de visitas.</p>
+     */
+    public static LocalDateTime finDelDia(java.time.LocalDate dia) {
+        return dia.atTime(23, 59, 59, 999_999_000);
+    }
+
     /** Lo que lleva acumulado el período abierto, sin cerrarlo. */
     @Transactional(readOnly = true)
     public Resumen resumenAbierto() {
