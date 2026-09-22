@@ -654,7 +654,9 @@ export default function MembersPage() {
 
       {/* Table */}
       <div className="card">
-        <div className="table-container">
+        {/* tabla-socios: la tabla esconde columnas según SU ancho, no el de la ventana (ver
+            responsive.css, "la tabla de socios mira su propio ancho"). */}
+        <div className="table-container tabla-socios">
           <table className="table">
             <thead>
               <tr>
@@ -673,13 +675,13 @@ export default function MembersPage() {
                   </th>
                 )}
                 <th>Nombre</th>
-                <th>DNI</th>
+                <th className="col-dni">DNI</th>
                 {/* Encabezados cortos A PROPÓSITO: a 1366px son ellos (y el select de Arancel) los que
                     marcan el ancho mínimo de la tabla, no los datos. Medido el 2026-09-19: con los
                     largos, la tabla pedía 1071px en 1012 y la columna que quedaba afuera era la
                     de Acciones — el botón de Cobrar. Ver responsive.css, "el aire cede". */}
-                <th>Tel.</th>
-                <th>Estado</th>
+                <th className="col-tel">Tel.</th>
+                <th className="col-estado">Estado</th>
                 {hayAranceles && <th>Arancel</th>}
                 <th className="col-asistencia">Asistencia</th>
                 <th>Días</th>
@@ -739,12 +741,12 @@ export default function MembersPage() {
                         </td>
                       )}
                       <td data-label="Nombre"><strong>{member.fullName}</strong></td>
-                      <td data-label="DNI">{member.dni || '-'}</td>
-                      <td data-label="Teléfono">{member.phone || '-'}</td>
+                      <td data-label="DNI" className="col-dni">{member.dni || '-'}</td>
+                      <td data-label="Teléfono" className="col-tel">{member.phone || '-'}</td>
                       {/* ⭐ El chip decía ACTIVO para alguien que nunca pagó, y el estado es lo
                           primero que se mira: un socio recién cargado se veía idéntico a uno al
                           día. Ámbar y no rojo — no debe nada, todavía no se le cobró. */}
-                      <td data-label="Estado">
+                      <td data-label="Estado" className="col-estado">
                         {sinCuota
                           ? <Badge status="active" label="Sin cuota" className="badge-warning" />
                           : <Badge status={member.status} />}

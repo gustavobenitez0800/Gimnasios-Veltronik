@@ -102,30 +102,59 @@ button, a, input, select, textarea, [role="button"] {
   .card:has(> .table-container) { padding: 1rem; }
 }
 
-/* Y SI EL AIRE NO ALCANZA, SE VAN COLUMNAS — en ese orden, como decía arriba.
+/* ── LA TABLA DE SOCIOS MIRA SU PROPIO ANCHO, NO EL DE LA VENTANA (2026-09-22) ──
 
-   Medido el 2026-09-19 con el peor caso real: el dueño (casilla de selección), aranceles de
-   nombre largo y los seis botones, con la cámara del molinete. Después de acortar los
-   encabezados y ponerle tope al select de Arancel, la tabla pide como mínimo:
+   Antes las columnas se escondían según el ancho de la VENTANA, con números medidos a mano
+   (1449px, 1339px). Pero lo que importa es el lugar que le queda a la tabla, y eso depende
+   de otras cosas: el menú abierto o en riel, el relleno de la página, y sobre todo el tope de
+   1400px del contenido. Medido el 2026-09-22 con la tabla de verdad: a 1366px pedía 1067px y
+   tenía 1023; a 1536px (1920 al 125%, lo más común en una notebook) pedía 1177 y tenía 1152.
+   En las dos aparecía la barra horizontal que vio el dueño.
 
-     · con todas las columnas ........ ~1060px
-     · sin Asistencia ................ ~950px
-     · sin Asistencia ni Vence ....... ~840px
+   Ahora la tabla es un CONTENEDOR (container queries) y cada columna se va cuando la tabla
+   —no la ventana— ya no tiene lugar. Los umbrales son el ancho mínimo medido de la tabla con
+   ese juego de columnas, más ~15px de margen (datos de prueba del peor caso: DNI de 11
+   dígitos, teléfono de 13, "101d vencido", aranceles de nombre largo, los seis botones):
 
-   y el contenedor mide el ancho de la ventana menos ~354px. Antes, a 1366px, pedía 1071 en
-   1012: la barra horizontal escondía la columna de Acciones — el botón de Cobrar.
+     todo, con los botones en un renglón ........ 1284   →  desde 1300
+     todo, botones en dos renglones .............. 1177   →  desde 1190
+     sin Asistencia .............................. 1066   →  desde 1080
+     sin Asistencia ni Tel. ........................ 921   →  desde 935
+     sin Asistencia, Tel. ni Vence ................. 811   →  desde 825
+     … ni DNI ...................................... 684   →  desde 700
+     … ni Estado (Días ya dice "vencido") .......... 571
 
    Qué se va primero y por qué:
-     1. Asistencia: los días de la semana que viene el socio. Es lo que menos se mira
-        recorriendo la lista, y está en la ficha.
-     2. Vence: la fecha. La columna Días ("12d") dice lo mismo y es la que marca la
-        urgencia; la fecha exacta está en la ficha.
-   Lo que NUNCA se va es Acciones. */
-@media (min-width: 769px) and (max-width: 1449px) {
-  .col-asistencia { display: none; }
-}
-@media (min-width: 769px) and (max-width: 1339px) {
-  .col-vence { display: none; }
+     1. Asistencia: es lo que menos se mira recorriendo la lista, y está en la ficha.
+     2. Tel.: se usa desde el botón de WhatsApp de la misma fila, que sigue ahí.
+     3. Vence: la columna Días ("12d") dice lo mismo y es la que marca la urgencia.
+     4. DNI: se busca por DNI igual; se ve en la ficha.
+     5. Estado: el chip de Días ya dice "vencido" y tiene el color.
+   Lo que NUNCA se va: el nombre, el arancel, los días y Acciones (el botón de Cobrar).
+
+   Solo en modo tabla (desde 769px): en el celular la tabla pasa a tarjetas y ahí se ve todo. */
+.tabla-socios { container: socios / inline-size; }
+
+@media (min-width: 769px) {
+  .tabla-socios .table .table-actions { grid-template-columns: repeat(3, 30px); }
+  @container socios (min-width: 1300px) {
+    .tabla-socios .table .table-actions { grid-template-columns: repeat(6, 30px); }
+  }
+  @container socios (max-width: 1189px) {
+    .tabla-socios .col-asistencia { display: none; }
+  }
+  @container socios (max-width: 1079px) {
+    .tabla-socios .col-tel { display: none; }
+  }
+  @container socios (max-width: 934px) {
+    .tabla-socios .col-vence { display: none; }
+  }
+  @container socios (max-width: 824px) {
+    .tabla-socios .col-dni { display: none; }
+  }
+  @container socios (max-width: 699px) {
+    .tabla-socios .col-estado { display: none; }
+  }
 }
 
 /* Scroll horizontal de tablas con inercia nativa en iOS */
