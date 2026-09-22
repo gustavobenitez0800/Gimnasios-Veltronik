@@ -160,11 +160,19 @@
   to { opacity: 0; translate: -10px 0; }
 }
 
-/* Quien pidió menos movimiento en Windows no recibe ninguno: aparece y se va, sin deslizarse. */
+/* ⚠️ MENOS MOVIMIENTO: un FUNDIDO, no nada. Windows en "mejor rendimiento" (lo tienen muchas
+   PC de mostrador, y la del dueño) le pide al navegador reducir movimiento, y base.css le baja
+   la duración a toda animación. Pero no la DEMORA: con los 500ms de antes, en esas PC el
+   cartel quedaba medio segundo invisible y aparecía de golpe, que es exactamente "se traba".
+   Acá no se desliza ni se agranda (eso es movimiento), pero aparece y se va fundiéndose: un
+   cambio de opacidad no es movimiento, y sin él el cartel salta a la vista.
+   El !important le gana al de base.css por ser más específico (una clase contra `*`). */
 @media (prefers-reduced-motion: reduce) {
-  .acceso-aviso { animation: none; transition: none; }
-  .acceso-aviso.saliendo { animation: none; opacity: 0; }
+  .acceso-aviso { animation: avisoFunde 180ms ease-out both !important; transition: none; }
+  .acceso-aviso.saliendo { animation: avisoFundeSale 180ms ease-in both !important; }
 }
+@keyframes avisoFunde { from { opacity: 0; } to { opacity: 1; } }
+@keyframes avisoFundeSale { to { opacity: 0; } }
 
 .acceso-aviso.warning { border-left-color: var(--warning-500); }
 .acceso-aviso.error   { border-left-color: var(--error-500); }
