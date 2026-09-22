@@ -39,7 +39,13 @@ export function usePaymentController({ dateFrom, dateTo, search, method, status 
       status: (dto.status || 'PAID').toLowerCase(),
       notes: dto.notes || '',
       periodStart: dto.periodStart ? dto.periodStart.split('T')[0] : null,
-      periodEnd: dto.periodEnd ? dto.periodEnd.split('T')[0] : null
+      periodEnd: dto.periodEnd ? dto.periodEnd.split('T')[0] : null,
+      // ⚠️ FALTABA, y la pantalla lo preguntaba igual: sin esto "Historial importado" no se
+      // mostró nunca, y un cobro de ControlFit se veía idéntico a uno hecho acá.
+      importado: !!dto.importado,
+      // El período ESTIMADO de un cobro importado (V87). Aparte del de verdad: no es cobertura.
+      periodoImportadoDesde: dto.periodoImportadoDesde || null,
+      periodoImportadoHasta: dto.periodoImportadoHasta || null,
     };
   }, []);
 

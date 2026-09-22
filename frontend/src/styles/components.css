@@ -415,3 +415,32 @@
   color: var(--text-muted);
   padding: 3rem 1rem;
 }
+
+/* ─── Desde / Hasta + Hoy · Semana · Mes · Año ───
+   El mismo selector en Pagos y en la Caja (SelectorDeFechas). Parte en renglones cuando no
+   entra: primero bajan los atajos, y en un celular cada fecha ocupa su renglón entero. */
+.selector-fechas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+.selector-fechas-campo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+.selector-fechas-campo > span {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.selector-fechas-campo .form-input { width: auto; min-width: 10rem; }
+.selector-fechas-atajos { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .selector-fechas-campo { flex: 1 1 100%; }
+  .selector-fechas-campo > span { min-width: 3.2rem; }
+  .selector-fechas-campo .form-input { flex: 1; min-width: 0; }
+}

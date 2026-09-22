@@ -10,7 +10,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
-import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, getQuickDates, addOneMonth } from '../lib/utils';
+import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
 import { useModal, useConfirmDialog, invalidateQueries } from '../hooks';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,8 @@ import { StatCard, FilterBar, Badge } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import ImportarHistorialCaja from '../components/ImportarHistorialCaja';
+import SelectorDeFechas from '../components/SelectorDeFechas';
+import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
 
 /**
  * Compara el estado de un pago sin depender de mayúsculas.
@@ -84,9 +86,9 @@ export default function PaymentsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
-  const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
-  const [activePeriod, setActivePeriod] = useState('month');
+  // Desde/Hasta y el atajo puesto: el mismo selector que la Caja (useRangoDeFechas).
+  const rango = useRangoDeFechas('month');
+  const { desde: dateFrom, hasta: dateTo } = rango;
 
   // Debounce search input
   useEffect(() => {
@@ -96,37 +98,7 @@ export default function PaymentsPage() {
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  const setQuickDate = (period) => {
-    const { from, to } = getQuickDates(period);
-    setDateFrom(from);
-    setDateTo(to);
-    setActivePeriod(period);
-  };
-
-  // ─── "Hasta" tiene que seguir siendo HOY, no el día en que se abrió la pantalla ───
-  //
-  // El rango se calcula UNA vez, al montar. En una PC que se apaga todos los días eso no
-  // se nota; en el terminal de un gimnasio —que arranca con Windows y queda prendido—
-  // pasada la medianoche "Hasta" se quedaba en AYER, y los cobros del día no aparecían
-  // por ningún lado. La recepcionista ve una pantalla que dice que hoy no cobró nada.
-  //
-  // Solo con un período rápido activo (Hoy/Semana/Mes/Año): si el usuario escribió las
-  // fechas a mano, son suyas y no se le tocan.
-  useEffect(() => {
-    if (!activePeriod) return undefined;
-    const resincronizar = () => {
-      if (document.visibilityState !== 'visible') return;
-      const { from, to } = getQuickDates(activePeriod);
-      setDateFrom(from);
-      setDateTo(to);
-    };
-    document.addEventListener('visibilitychange', resincronizar);
-    window.addEventListener('focus', resincronizar);
-    return () => {
-      document.removeEventListener('visibilitychange', resincronizar);
-      window.removeEventListener('focus', resincronizar);
-    };
-  }, [activePeriod]);
+  // (El "Hasta" que se quedaba en ayer pasada la medianoche lo resuelve useRangoDeFechas.)
 
   // Member search in modal
   const [memberSearch, setMemberSearch] = useState('');
@@ -402,26 +374,9 @@ export default function PaymentsPage() {
         }
       />
 
-      {/* Date Range */}
+      {/* El rango de fechas: el mismo selector que la Caja. */}
       <div className="card mb-3" style={{ padding: '1.25rem' }}>
-        <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-          <div className="flex gap-1 items-center">
-            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Desde</label>
-            <input type="date" className="form-input" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
-          </div>
-          <div className="flex gap-1 items-center">
-            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Hasta</label>
-            <input type="date" className="form-input" value={dateTo} onChange={e => { setDateTo(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
-          </div>
-          <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
-            {['today', 'week', 'month', 'year'].map(p => (
-              <button key={p} className={`btn btn-sm ${activePeriod === p ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setQuickDate(p)}>
-                {{ today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' }[p]}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SelectorDeFechas rango={rango} />
       </div>
 
       {/* ─── Cuando el pedido falla, hay que decirlo ───
@@ -547,9 +502,16 @@ export default function PaymentsPage() {
                     <td data-label="Método">{getMethodLabel(payment.paymentMethod)}</td>
                     <td data-label="Estado"><Badge status={payment.status} /></td>
                     <td data-label="Período">
-                      {payment.periodStart && payment.periodEnd
-                        ? `${formatDate(payment.periodStart)} - ${formatDate(payment.periodEnd)}`
-                        : '-'}
+                      {payment.periodStart && payment.periodEnd ? (
+                        `${formatDate(payment.periodStart)} - ${formatDate(payment.periodEnd)}`
+                      ) : payment.periodoImportadoDesde && payment.periodoImportadoHasta ? (
+                        /* El del historial importado lo reconstruye el sistema con el
+                           vencimiento que traía el anterior (V87): se ve igual, y el cartelito
+                           dice de dónde sale. No mueve ningún vencimiento. */
+                        <span title="Calculado con el vencimiento que traía el sistema anterior. No mueve ningún vencimiento.">
+                          {formatDate(payment.periodoImportadoDesde)} - {formatDate(payment.periodoImportadoHasta)}
+                        </span>
+                      ) : '-'}
                     </td>
                     <td data-label="Acciones">
                       <div className="table-actions">
