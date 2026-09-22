@@ -1390,3 +1390,20 @@
   .qr-panel-actions { align-self: stretch; }
   .qr-panel-actions .btn { flex: 1 1 12rem; justify-content: center; }
 }
+
+/* ─── La versión nueva, en el pie del menú ───
+   El menú es angosto: el aviso va a lo ancho y en renglones, con el botón abajo. En el riel
+   de íconos (769-1080px) queda solo el botón. */
+.sidebar-footer .update-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  white-space: normal;
+  margin-bottom: 0.6rem;
+}
+.sidebar-footer .update-indicator .btn { width: 100%; justify-content: center; }
+@media (min-width: 769px) and (max-width: 1080px) {
+  .sidebar-footer .update-indicator-text,
+  .sidebar-footer .update-indicator-dot { display: none; }
+  .sidebar-footer .update-indicator { padding: 0.35rem; }
+}

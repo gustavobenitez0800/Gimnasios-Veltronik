@@ -16,6 +16,26 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
+const { crearInstaladorSolo } = require('./instalarSola.cjs');
+
+// Cuándo abrió la app: la versión que ya estaba bajada se instala en los primeros minutos.
+const ARRANCO_EN = Date.now();
+let instaladorSolo = null;
+
+/** El que instala solo, en un momento que no molesta (ver instalarSola.cjs). */
+function elInstaladorSolo() {
+    if (!instaladorSolo) {
+        const { powerMonitor } = require('electron');
+        instaladorSolo = crearInstaladorSolo({
+            powerMonitor,
+            carpeta: app.getPath('userData'),
+            arrancoEn: ARRANCO_EN,
+            instalar: () => autoUpdater.quitAndInstall(true, true),
+            avisar: (m) => log.info(m),
+        });
+    }
+    return instaladorSolo;
+}
 
 // Logo de Veltronik para las notificaciones nativas (aparece a la izquierda del texto).
 // Se carga con nativeImage (bytes en memoria) y NO como ruta: el toast nativo de Windows
@@ -268,6 +288,10 @@ autoUpdater.on('update-downloaded', (info) => {
             releaseNotes: info.releaseNotes
         });
     }
+
+    // ⭐ Y SE INSTALA SOLA, sin esperar a que alguien cierre la app (en un mostrador no la
+    // cierra nadie): al abrir, o cuando la PC lleva un rato sin usar.
+    try { elInstaladorSolo().listo(info.version); } catch (e) { log.warn('Instalación automática:', e.message); }
 });
 
 module.exports = {

@@ -15,6 +15,7 @@ import { useWorkspace } from '../hooks/useWorkspace';
 import Icon from './Icon';
 import CONFIG from '../lib/config';
 import GymLogo from './GymLogo';
+import UpdateIndicator from './UpdateIndicator';
 
 // Navegación del sistema. Antes vivía en el registry de verticales, que la generaba
 // por rubro; con un solo rubro esa indirección solo escondía la lista. Es estática y
@@ -244,6 +245,10 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Footer - User */}
         <div className="sidebar-footer">
+          {/* ⭐ La versión nueva, a la vista desde CUALQUIER pantalla. El aviso vivía solo en el
+              Lobby, y un mostrador no vuelve al Lobby en todo el día: la versión nueva quedaba
+              bajada y sin instalar. */}
+          {CONFIG.IS_DESKTOP && <UpdateIndicator soloAvisos />}
           <div className="sidebar-user">
             <div className="avatar">{initials}</div>
             <div className="sidebar-user-info">

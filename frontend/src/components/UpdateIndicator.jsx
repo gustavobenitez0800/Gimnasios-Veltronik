@@ -20,7 +20,11 @@ const STATE = {
   ERROR: 'error',
 };
 
-export default function UpdateIndicator() {
+/**
+ * @param {boolean} [soloAvisos]  En el menú: solo aparece cuando hay algo que decir (bajando o
+ *                                lista). "Al día" es para el Lobby, no para todas las pantallas.
+ */
+export default function UpdateIndicator({ soloAvisos = false }) {
   // Web: la versión ya se conoce en build-time (Vite define __APP_VERSION__) →
   // nace como estado inicial, sin pasar por un effect. Electron la resuelve
   // async (IPC) en el effect de abajo.
@@ -79,6 +83,7 @@ export default function UpdateIndicator() {
 
   // No renderizar nada si no hay versión que mostrar.
   if (!version && state === STATE.IDLE) return null;
+  if (soloAvisos && state !== STATE.READY && state !== STATE.DOWNLOADING) return null;
 
   // ─── Estado: lista para instalar → banner de acción ───
   if (state === STATE.READY) {
@@ -87,7 +92,9 @@ export default function UpdateIndicator() {
         <span className="update-indicator-dot" />
         <div className="update-indicator-text">
           <span className="update-indicator-title">Actualización lista</span>
-          <span className="update-indicator-sub">Versión {newVersion} disponible para instalar</span>
+          {/* Se instala sola (al abrir la app, o con la PC un rato sin usar): el botón es para
+              no esperar. Ver electron/instalarSola.cjs. */}
+          <span className="update-indicator-sub">Versión {newVersion}. Se instala sola cuando la PC quede sin usar.</span>
         </div>
         <button className="btn btn-sm btn-primary" onClick={handleInstall} disabled={restarting}>
           {restarting ? <><span className="spinner" /> Instalando</> : <><Icon name="rotateCw" size="0.9em" /> Actualizar ahora</>}
