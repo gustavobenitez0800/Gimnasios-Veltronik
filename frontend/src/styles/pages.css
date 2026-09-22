@@ -175,13 +175,16 @@
   padding: 1.5rem 0;
   border-bottom: 1px solid var(--border-color);
   
-  /* Sticky Glass Effect */
+  /* Queda arriba al scrollear.
+     ⚠️ OPACO Y DEL MISMO COLOR QUE LA PÁGINA. Era vidrio: negro al 80% más un desenfoque.
+     Donde el desenfoque no se dibuja (Windows en "mejor rendimiento", algunas placas de video)
+     el contenido se LEÍA por debajo del título: en la Caja, "Distribución del efectivo"
+     aparecía montado sobre "Cierre de caja". Y el negro no era el del fondo, así que en Accesos
+     se veía un rectángulo oscuro detrás del título. Opaco no depende de la placa de video. */
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(5, 5, 7, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-primary);
 }
 
 .page-header-info {

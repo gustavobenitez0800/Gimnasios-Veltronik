@@ -281,6 +281,24 @@ class CajaService {
     return data;
   }
 
+  /**
+   * Balance de un rango de días de calendario, con las dos puntas adentro: el que se elige con
+   * el selector (Hoy, Semana, Mes, Año o dos fechas a mano). Fechas en AAAA-MM-DD.
+   */
+  async balanceDeRango(desde, hasta) {
+    const { data } = await apiClient.get('/gym/caja/balance', { params: { desde, hasta } });
+    return data;
+  }
+
+  /**
+   * Todo lo de un rango de días —cobros, gastos, cierres y totales— para el Excel que el dueño
+   * le manda al contador. Solo dueño/admin. Un mes entero son cientos de cobros: más plazo.
+   */
+  async reporte(desde, hasta) {
+    const { data } = await apiClient.get('/gym/caja/reporte', { params: { desde, hasta }, timeout: 30000 });
+    return data;
+  }
+
   /** Explica una diferencia. Se puede una sola vez. */
   async explicar(cierreId, nota) {
     const { data } = await apiClient.patch(`/gym/caja/cierre/${cierreId}/nota`, { nota });

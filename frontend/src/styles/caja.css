@@ -147,9 +147,7 @@
   color: var(--success);
 }
 
-.caja-movimientos {
-  margin-top: 1rem;
-}
+/* (Tenía margin-top: con la tarjeta de arriba ya separando, quedaba el doble de aire.) */
 
 .caja-movimientos .table {
   margin-top: 0.5rem;
@@ -261,11 +259,6 @@
 }
 .caja-cerrar { width: 100%; justify-content: center; }
 
-.caja-cobros .table-header {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem; padding: 1.25rem 1.25rem 0.75rem;
-}
-.caja-cobros .table-header h3 { margin: 0; }
 .caja-monto-celda { font-variant-numeric: tabular-nums; font-weight: 600; }
 
 /* La forma de pago se lee de un vistazo: es lo que se está separando. */
@@ -316,3 +309,65 @@
   color: var(--text-muted);
 }
 .caja-sin-conexion strong { color: var(--warning-500); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EL CIERRE COMO UN RELOJ (2026-09-22)
+   Cada tarjeta con su cabecera: el título a la izquierda y lo que se hace ahí a la derecha.
+   Los botones de "Anotar un gasto" vivían sueltos entre dos tarjetas y quedaban pegados a
+   la de abajo; ahora son de su tarjeta.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.caja-card-cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem 1rem; flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.caja-page .caja-card-cabecera h3 { margin: 0; }
+.caja-card-total {
+  font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.caja-cobros, .caja-movimientos { padding: 1.25rem; }
+.caja-acciones { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+.caja-cargando, .caja-vacio { margin: 0; padding: 0.25rem 0 0.5rem; }
+.caja-hora { font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; }
+/* Los montos a la derecha: se recorren con la vista y se comparan por las cifras. */
+.table .caja-col-monto { text-align: right; }
+
+.caja-balance-fechas { margin-bottom: 1rem; }
+.caja-desde { margin: -0.5rem 0 0.9rem; color: var(--text-muted); }
+.caja-aviso-retiro { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 1rem; }
+
+/* ─── El Excel del día, en el título ───
+   El título queda fijo al scrollear: el dueño lo tiene a mano desde cualquier parte. */
+.caja-excel { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.caja-excel-dia { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.caja-excel-dia > span { font-weight: 600; font-size: var(--font-size-sm); color: var(--text-primary); }
+.caja-excel-dia .form-input { width: auto; }
+@media (max-width: 768px) {
+  .caja-excel, .caja-excel-dia { width: 100%; }
+  .caja-excel-dia .form-input { flex: 1; }
+  .caja-excel .btn { width: 100%; justify-content: center; }
+}
+
+/* Un ingreso es plata que ENTRA: verde. En ámbar (caja-sobra) parecía una advertencia. */
+.caja-entra { color: var(--success-500, #22c55e); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ─── Los cierres anteriores: ocho columnas de plata ───
+   Medido: a 1100px pedía 819px y tenía 746, con barra horizontal. Los encabezados
+   ("QUEDÓ EN CAJA", "TRANSF. Y MP") parten en dos renglones antes de pedir lugar, y si
+   igual no entra se va primero Gastos, que también está en el Excel del día. */
+.caja-historial .table-container { container: historial / inline-size; }
+.caja-historial .table th { white-space: normal; }
+@media (min-width: 769px) {
+  @container historial (max-width: 740px) {
+    .caja-historial .col-gastos { display: none; }
+  }
+  /* Más angosto todavía (una tablet apaisada): el botón de cada fila, solo con el ícono. */
+  @container historial (max-width: 660px) {
+    .caja-historial .caja-excel-texto { display: none; }
+    .caja-historial .table th,
+    .caja-historial .table td { padding-left: 0.5rem; padding-right: 0.5rem; }
+  }
+}

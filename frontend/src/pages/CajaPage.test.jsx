@@ -32,7 +32,8 @@ const cajaService = {
   pendiente: vi.fn(),
   abierto: vi.fn(),
   historial: vi.fn(),
-  balance: vi.fn(),
+  balanceDeRango: vi.fn(),
+  reporte: vi.fn(),
   // Los COBROS del período.
   movimientos: vi.fn(),
   // Los MOVIMIENTOS DE CAJA: gastos y entradas que no son cobros. Nombres parecidos y cosas
@@ -61,6 +62,11 @@ vi.mock('../contexts/AuthContext', () => ({
 }));
 const turnoEstable = { name: 'Carla' };
 vi.mock('../lib/shift', () => ({ getShift: () => turnoEstable }));
+// El Excel se arma aparte (lib/excelDeCaja, con sus tests); acá solo importa que se pida bien.
+const excel = vi.hoisted(() => ({ descargarExcelDeCaja: vi.fn() }));
+vi.mock('../lib/excelDeCaja', () => excel);
+
+const { toLocalDateString } = await import('../lib/utils');
 
 const { default: CajaPage } = await import('./CajaPage');
 
@@ -142,9 +148,11 @@ beforeEach(() => {
   cajaService.movimientos.mockResolvedValue(COBROS);
   cajaService.movimientosDeCaja.mockResolvedValue([]);
   cajaService.historial.mockResolvedValue([]);
-  cajaService.balance.mockResolvedValue({
-    periodo: 'hoy', efectivo: 40000, digital: 105000, total: 145000, cantidadCobros: 3,
+  cajaService.balanceDeRango.mockResolvedValue({
+    periodo: 'rango', efectivo: 40000, digital: 105000, total: 145000, cantidadCobros: 3,
   });
+  cajaService.reporte.mockResolvedValue({ gimnasio: 'Gimnasio', cobros: [], movimientos: [], cierres: [] });
+  excel.descargarExcelDeCaja.mockResolvedValue(undefined);
   cajaService.cerrar.mockResolvedValue({
     id: 'c1', esperadoEfectivo: 40000, esperadoTransferencia: 45000, esperadoMercadopago: 60000,
     retiroEfectivo: 30000, quedaEnCaja: 20000,
@@ -302,27 +310,38 @@ describe('el balance de ingresos', () => {
 
   it('arranca mostrando el día', async () => {
     const texto = await pintar();
+    const hoy = toLocalDateString(new Date());
 
     expect(texto).toContain('Balance de ingresos');
     expect(texto).toContain('Total de hoy');
-    expect(cajaService.balance).toHaveBeenCalledWith('hoy');
+    expect(cajaService.balanceDeRango).toHaveBeenCalledWith(hoy, hoy);
+  });
+
+  it('⭐ tiene el mismo selector que Pagos: Hoy, Semana, Mes y Año', async () => {
+    await pintar();
+    const atajos = [...container.querySelectorAll('.caja-balance .selector-fechas-atajos button')]
+      .map((b) => b.textContent);
+    expect(atajos).toEqual(['Hoy', 'Semana', 'Mes', 'Año']);
+    expect(container.querySelectorAll('.caja-balance input[type="date"]')).toHaveLength(2);
   });
 
   it('se puede pasar al mes', async () => {
     await pintar();
-    cajaService.balance.mockResolvedValue({
-      periodo: 'mes', efectivo: 400000, digital: 900000, total: 1300000, cantidadCobros: 31,
+    cajaService.balanceDeRango.mockResolvedValue({
+      periodo: 'rango', efectivo: 400000, digital: 900000, total: 1300000, cantidadCobros: 31,
     });
 
     await clic(boton('Mes'));
 
-    expect(cajaService.balance).toHaveBeenCalledWith('mes');
+    const ahora = new Date();
+    const primero = toLocalDateString(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
+    expect(cajaService.balanceDeRango).toHaveBeenLastCalledWith(primero, toLocalDateString(ahora));
     expect(container.textContent).toContain('Total del mes');
   });
 
   /** Un backend que todavía no tiene el balance no puede dejar sin cerrar la caja. */
   it('⚠️ si el backend no conoce el balance, la caja se cierra igual', async () => {
-    cajaService.balance.mockRejectedValue(new Error('404'));
+    cajaService.balanceDeRango.mockRejectedValue(new Error('404'));
 
     const texto = await pintar();
 
@@ -489,5 +508,95 @@ describe('🔴 una llamada que falla NO puede llevarse puesta la pantalla', () =
 
     expect(texto).toContain('Cerrar caja diaria');
     expect(boton('Cerrar caja diaria').disabled).toBe(false);
+  });
+});
+
+describe('⭐ el Excel para el contador', () => {
+
+  it('el del día arranca en hoy y se baja con un clic', async () => {
+    await pintar();
+    const hoy = toLocalDateString(new Date());
+
+    await clic(boton('Excel del día'));
+
+    expect(cajaService.reporte).toHaveBeenCalledWith(hoy, hoy);
+    expect(excel.descargarExcelDeCaja).toHaveBeenCalledWith(
+      expect.objectContaining({ gimnasio: 'Gimnasio' }));
+    expect(toastEstable.showToast).toHaveBeenCalledWith('Excel descargado.', 'success');
+  });
+
+  it('se puede elegir otro día', async () => {
+    await pintar();
+    const input = container.querySelector('.caja-excel input[type="date"]');
+    await act(async () => {
+      setValorNativo.call(input, '2026-09-15');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    await clic(boton('Excel del día'));
+
+    expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-15', '2026-09-15');
+  });
+
+  it('cada cierre anterior baja el Excel de SU día', async () => {
+    cajaService.historial.mockResolvedValue([
+      { id: 'h1', hasta: '2026-09-21T21:54:00', cerradoPorNombre: 'Orlando', esperadoEfectivo: 119000,
+        esperadoTransferencia: 62000, esperadoMercadopago: 0, retiroEfectivo: 119000, quedaEnCaja: 0 },
+    ]);
+    await pintar();
+
+    await clic(container.querySelector('.caja-historial button'));
+
+    expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-21', '2026-09-21');
+  });
+
+  it('el del período baja el rango que está puesto en el balance', async () => {
+    await pintar();
+    await clic(boton('Mes'));
+    await clic(boton('Excel de este período'));
+
+    const ahora = new Date();
+    const primero = toLocalDateString(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
+    expect(cajaService.reporte).toHaveBeenCalledWith(primero, toLocalDateString(ahora));
+  });
+
+  it('si falla, lo dice y no promete nada', async () => {
+    cajaService.reporte.mockRejectedValue(new Error('sin conexión'));
+    await pintar();
+
+    await clic(boton('Excel del día'));
+
+    expect(excel.descargarExcelDeCaja).not.toHaveBeenCalled();
+    expect(toastEstable.showToast).toHaveBeenCalledWith('sin conexión', 'error');
+  });
+
+  it('⚠️ recepción no lo ve: son los números de días pasados, con quién cobró cada peso', async () => {
+    rolActual = 'reception';
+    await pintar();
+
+    expect(boton('Excel del día')).toBeFalsy();
+    expect(boton('Excel de este período')).toBeFalsy();
+  });
+});
+
+describe('los botones de gastos e ingresos', () => {
+
+  it('viven en su tarjeta, y se ofrecen aunque todavía no haya ninguno', async () => {
+    await pintar();
+    const tarjeta = container.querySelector('.caja-movimientos');
+
+    expect(tarjeta).toBeTruthy();
+    expect(tarjeta.textContent).toContain('Anotar un gasto');
+    expect(tarjeta.textContent).toContain('Anotar un ingreso');
+    expect(tarjeta.textContent).toContain('Todavía no se anotó ningún gasto');
+  });
+});
+
+describe('la hora, como se lee en el mostrador', () => {
+
+  it('cada cobro con su hora de 24, sin "p. m."', async () => {
+    const texto = await pintar();
+    expect(texto).toContain('18:05');
+    expect(texto).not.toMatch(/p\.\s?m\./);
   });
 });

@@ -33,15 +33,27 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cajaService } from '../services/CajaService';
 import { errorService } from '../services';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, formatDate, toLocalDateString } from '../lib/utils';
 import { getShift } from '../lib/shift';
+import { descargarExcelDeCaja } from '../lib/excelDeCaja';
+import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
 import { PageHeader, EmptyState } from '../components/Layout';
+import SelectorDeFechas from '../components/SelectorDeFechas';
 import Modal, { ModalActions } from '../components/ui/Modal';
 import Icon from '../components/Icon';
 
+/** "21/09, 21:54": día y hora de 24, como se lee en un mostrador argentino (no "09:54 p. m."). */
 const fecha = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', {
-  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }) : '—');
+
+/** Solo la hora de un cobro del período: la fecha es la del período, que ya se dice arriba. */
+const horaDe = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-AR', {
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+}) : '');
+
+/** El título del total según el atajo del selector. */
+const TOTAL_DEL = { today: 'Total de hoy', week: 'Total de la semana', month: 'Total del mes', year: 'Total del año' };
 
 const diasDesde = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
 
@@ -97,14 +109,23 @@ export default function CajaPage() {
   const [fallo, setFallo] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  // ─── El balance de ingresos: hoy y el mes ───
+  // ─── El balance de ingresos: el rango que elige el dueño ───
   //
   // Es una pregunta DISTINTA de "¿qué hay sin cerrar?". Si nadie cerró ayer, el período
   // abierto arrastra dos días y esto sigue diciendo lo de hoy. Por eso son dos pedidos y no
-  // una resta sobre el mismo número.
-  const [periodo, setPeriodo] = useState('hoy');
+  // una resta sobre el mismo número. El selector es el mismo de Pagos (Hoy, Semana, Mes, Año
+  // o dos fechas a mano).
+  const rango = useRangoDeFechas('today');
+  const { desde: balanceDesde, hasta: balanceHasta } = rango;
   const [balance, setBalance] = useState(null);
   const [hayBalance, setHayBalance] = useState(true);
+
+  // ─── El Excel para el contador ───
+  // Un día elegido (arranca en hoy), o el rango del balance. Lo que se baja es lo que dice el
+  // servidor: la misma cuenta que esta pantalla y que el cierre.
+  const hoy = toLocalDateString(new Date());
+  const [diaExcel, setDiaExcel] = useState(hoy);
+  const [exportando, setExportando] = useState(false);
 
   // Lo único que se declara al cerrar.
   const [retiro, setRetiro] = useState('');
@@ -126,16 +147,34 @@ export default function CajaPage() {
   const [movMonto, setMovMonto] = useState('');
   const [movMetodo, setMovMetodo] = useState('CASH');
 
-  const cargarBalance = useCallback(async (cual) => {
+  const cargarBalance = useCallback(async (desde, hasta) => {
+    // Una fecha a medio escribir, o el "hasta" antes del "desde": no se pregunta nada.
+    if (!desde || !hasta || desde > hasta) return;
     try {
-      setBalance(await cajaService.balance(cual));
+      setBalance(await cajaService.balanceDeRango(desde, hasta));
       setHayBalance(true);
     } catch {
-      // Backend viejo: el bloque se esconde y el cierre sigue funcionando.
+      // Backend viejo o sin conexión: el bloque se esconde y el cierre sigue funcionando.
       setBalance(null);
       setHayBalance(false);
     }
   }, []);
+
+  const exportar = async (desde, hasta) => {
+    if (!desde || !hasta || desde > hasta) {
+      showToast('Elegí un día válido para el Excel.', 'error');
+      return;
+    }
+    setExportando(true);
+    try {
+      await descargarExcelDeCaja(await cajaService.reporte(desde, hasta));
+      showToast('Excel descargado.', 'success');
+    } catch (err) {
+      showToast(errorService.getMessage(err), 'error');
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -195,7 +234,7 @@ export default function CajaPage() {
   }, [esDueno, showToast]);
 
   useEffect(() => { cargar(); }, [cargar]);
-  useEffect(() => { cargarBalance(periodo); }, [cargarBalance, periodo]);
+  useEffect(() => { cargarBalance(balanceDesde, balanceHasta); }, [cargarBalance, balanceDesde, balanceHasta]);
 
   // ─── La cuenta del cajón, en un solo lugar ───
   //
@@ -260,7 +299,7 @@ export default function CajaPage() {
         'success',
       );
       cargar();
-      cargarBalance(periodo);
+      cargarBalance(balanceDesde, balanceHasta);
     } catch (err) {
       showToast(errorService.getMessage(err), 'error');
     } finally {
@@ -327,7 +366,7 @@ export default function CajaPage() {
         showToast('Caja cerrada. Se manda sola cuando vuelva internet.', 'success');
       }
       cargar();
-      cargarBalance(periodo);
+      cargarBalance(balanceDesde, balanceHasta);
     } catch (err) {
       showToast(errorService.getMessage(err), 'error');
     } finally {
@@ -345,6 +384,29 @@ export default function CajaPage() {
         title="Cierre de caja"
         subtitle="El sistema cuenta lo que entró; vos decidís cuánto se retira"
         icon="receipt"
+        actions={esDueno && (
+          /* ─── EL EXCEL DEL DÍA, SIEMPRE A MANO ───
+             Es lo que el dueño le manda al contador todos los días. Arriba y en el título,
+             que queda fijo al scrollear: se elige el día (arranca en hoy) y se baja. */
+          <form
+            className="caja-excel"
+            onSubmit={(e) => { e.preventDefault(); exportar(diaExcel, diaExcel); }}
+          >
+            <label className="caja-excel-dia">
+              <span>Día</span>
+              <input
+                type="date" className="form-input" value={diaExcel} max={hoy}
+                aria-label="Día del Excel"
+                onChange={(e) => setDiaExcel(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={exportando || !diaExcel}>
+              {exportando
+                ? <><span className="spinner" /> Armando…</>
+                : <><Icon name="download" size="1em" /> Excel del día</>}
+            </button>
+          </form>
+        )}
       />
 
       {/* La forma más fácil de esconder algo no es mentir en el cierre: es no cerrar. */}
@@ -362,36 +424,37 @@ export default function CajaPage() {
         </div>
       )}
 
-      {/* ─── BALANCE DE INGRESOS: HOY Y EL MES ─── */}
+      {/* ─── BALANCE DE INGRESOS: EL RANGO QUE SE ELIJA ─── */}
       {hayBalance && (
         <div className="card caja-balance">
           <div className="caja-balance-cabecera">
             <h3><Icon name="trendingUp" size="1em" /> Balance de ingresos</h3>
-            <div className="caja-tabs">
+            {esDueno && (
               <button
-                className={`btn btn-sm ${periodo === 'hoy' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setPeriodo('hoy')}
-              >Hoy</button>
-              <button
-                className={`btn btn-sm ${periodo === 'mes' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setPeriodo('mes')}
-              >Mes</button>
-            </div>
+                type="button" className="btn btn-sm btn-secondary"
+                disabled={exportando}
+                onClick={() => exportar(balanceDesde, balanceHasta)}
+              >
+                <Icon name="download" size="1em" /> Excel de este período
+              </button>
+            )}
           </div>
+          <SelectorDeFechas rango={rango} className="caja-balance-fechas" />
           <div className="caja-balance-cifras">
             <div className="caja-cifra">
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.total))}</span>
               <span className="caja-cifra-label">
-                Total {periodo === 'hoy' ? 'de hoy' : 'del mes'}
+                {TOTAL_DEL[rango.periodo]
+                  || `Total del ${formatDate(balanceDesde)} al ${formatDate(balanceHasta)}`}
               </span>
             </div>
-            <div className="caja-cifra">
+            <div className="caja-cifra es-efectivo">
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.efectivo))}</span>
               <span className="caja-cifra-label">Efectivo</span>
             </div>
-            <div className="caja-cifra">
+            <div className="caja-cifra es-digital">
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.digital))}</span>
-              <span className="caja-cifra-label">Transferencia y MP</span>
+              <span className="caja-cifra-label">Transferencia y Mercado Pago</span>
             </div>
             <div className="caja-cifra">
               <span className="caja-cifra-valor">{numero(balance?.cantidadCobros)}</span>
@@ -405,33 +468,36 @@ export default function CajaPage() {
            Un total que no se puede abrir es un número en el que hay que creer. Acá está cada
            cobro que lo forma. Lo ve quien cierra, que ahora también es recepción. */}
       <div className="card caja-cobros">
-        <div className="table-header">
+        <div className="caja-card-cabecera">
           <h3><Icon name="list" size="1em" /> Cobros a cerrar ({cobros.length})</h3>
-          <span className="text-muted">{formatCurrency(totalCobrado)}</span>
+          <span className="caja-card-total">{formatCurrency(totalCobrado)}</span>
         </div>
         {cargando ? (
-          <p className="text-muted" style={{ padding: '1rem' }}><span className="spinner" /> Cargando...</p>
+          <p className="text-muted caja-cargando"><span className="spinner" /> Cargando...</p>
         ) : !cobros.length ? (
           <EmptyState icon="cash" title="Todavía no se cobró nada" description="Los cobros del día aparecen acá a medida que se registran." />
         ) : (
-          <table className="table">
-            <thead>
-              <tr><th>Socio</th><th>Forma de pago</th><th>Monto</th></tr>
-            </thead>
-            <tbody>
-              {cobros.map((m) => (
-                <tr key={m.id}>
-                  <td data-label="Socio">{m.socio || <span className="text-muted">—</span>}</td>
-                  <td data-label="Forma de pago">
-                    <span className={`caja-metodo ${ES_EFECTIVO(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
-                      {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}
-                    </span>
-                  </td>
-                  <td data-label="Monto" className="caja-monto-celda">{formatCurrency(m.monto)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr><th>Hora</th><th>Socio</th><th>Forma de pago</th><th className="caja-col-monto">Monto</th></tr>
+              </thead>
+              <tbody>
+                {cobros.map((m) => (
+                  <tr key={m.id}>
+                    <td data-label="Hora" className="caja-hora">{horaDe(m.fecha)}</td>
+                    <td data-label="Socio">{m.socio || <span className="text-muted">Sin socio</span>}</td>
+                    <td data-label="Forma de pago">
+                      <span className={`caja-metodo ${ES_EFECTIVO(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
+                        {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || 'Sin dato'}
+                      </span>
+                    </td>
+                    <td data-label="Monto" className="caja-monto-celda caja-col-monto">{formatCurrency(m.monto)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -459,10 +525,99 @@ export default function CajaPage() {
         </div>
       </div>
 
+      {/* ─── LO QUE SALE Y ENTRA SIN SER UN COBRO ───
+           Antes de la distribución, porque la cambia: un gasto pagado del cajón es plata que
+           ya no está. Los botones viven en la cabecera de su propia tarjeta; sueltos entre dos
+           tarjetas quedaban pegados a la de abajo. */}
+      {hayMovimientos && (
+        <div className="card caja-movimientos">
+          <div className="caja-card-cabecera">
+            <h3><Icon name="receipt" size="1em" /> Gastos e ingresos ({movsCaja.length})</h3>
+            <div className="caja-acciones">
+              <button className="btn btn-sm btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
+                <Icon name="trendingDown" size="1em" /> Anotar un gasto
+              </button>
+              <button className="btn btn-sm btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
+                <Icon name="trendingUp" size="1em" /> Anotar un ingreso
+              </button>
+            </div>
+          </div>
+          {/* ⚠️ Los anulados quedan TACHADOS, no desaparecen. Un egreso que se puede hacer
+               desaparecer de la lista es justamente lo que no queremos que se pueda hacer. */}
+          {!movsCaja.length ? (
+            <p className="text-muted caja-vacio">
+              Todavía no se anotó ningún gasto ni ingreso. Si se pagó algo con plata del cajón,
+              anotalo: si no, la cuenta de abajo espera esa plata.
+            </p>
+          ) : (
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr><th>Qué</th><th className="caja-col-monto">Monto</th><th>Forma</th><th>Quién</th><th>Cuándo</th><th aria-label="Acciones" /></tr>
+                </thead>
+                <tbody>
+                  {movsCaja.map((m) => {
+                    const anulado = !!m.anuladoAt;
+                    const egreso = m.tipo === 'EGRESO';
+                    return (
+                      <tr key={m.id} className={anulado ? 'caja-mov-anulado' : ''}>
+                        <td data-label="Qué">
+                          <strong>{m.categoria}</strong>
+                          {m.detalle && <div className="form-hint">{m.detalle}</div>}
+                          {/* ⭐ El que se anotó sin internet SE VE IGUAL, con su aclaración. Que no
+                              apareciera era el agujero: quien lo cargó no lo veía en la lista y lo
+                              cargaba otra vez, y el arqueo terminaba con un faltante inventado. */}
+                          {m.sinSubir && (
+                            <div className="form-hint">Guardado sin conexión · sube solo</div>
+                          )}
+                          {anulado && (
+                            <div className="form-hint">
+                              Anulado por {m.anuladoPorNombre || 'alguien sin identificar'}
+                              {m.motivoAnulacion ? ` · ${m.motivoAnulacion}` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td data-label="Monto" className="caja-monto-celda caja-col-monto">
+                          <span className={egreso ? 'caja-falta' : 'caja-entra'}>
+                            {egreso ? '−' : '+'}{formatCurrency(m.monto)}
+                          </span>
+                        </td>
+                        <td data-label="Forma">
+                          {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || 'Sin dato'}
+                          {/* Lo que no pasa por el cajón se anota pero NO mueve la cuenta. */}
+                          {!ES_EFECTIVO(m.metodo) && <div className="form-hint">no toca el cajón</div>}
+                        </td>
+                        <td data-label="Quién">{m.hechoPorNombre || 'Sin identificar'}</td>
+                        <td data-label="Cuándo">{fecha(m.fecha)}</td>
+                        <td data-label="Acciones">
+                          {/* ⚠️ Lo que todavía no subió NO se puede anular, y fue una decisión
+                              tomada a propósito (decisión 2 de docs/FASE3-CAMINOS.md): anular es
+                              un pedido contra una fila que del otro lado no existe. */}
+                          {!anulado && !m.sinSubir && (
+                            <button className="btn btn-sm btn-secondary" onClick={() => pedirAnulacion(m)}>
+                              Anular
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─── DISTRIBUCIÓN DEL EFECTIVO EN CAJA ───
            La única decisión del cierre. Todo lo de arriba lo calculó el sistema. */}
       <div className="card caja-distribucion">
         <h3><Icon name="cash" size="1em" /> Distribución del efectivo en caja</h3>
+        {/* Desde cuándo cuenta: si nadie cerró ayer, el período arrastra dos días y hay que
+            saberlo antes de retirar. */}
+        {abierto?.ultimoCierre && (
+          <p className="form-hint caja-desde">Desde el cierre del {fecha(abierto.ultimoCierre)}.</p>
+        )}
 
         {/* ⭐ REGLA 6 DE LA FASE 3: ningún total se muestra como si fuera completo cuando no
             lo es. Sin conexión estos números salen de lo último que bajó más lo que este
@@ -485,8 +640,8 @@ export default function CajaPage() {
 
         {/* La cuenta a la vista: sin esto, "en el cajón" es un número que hay que creer. */}
         <ul className="caja-cuenta">
-          <li><span>Quedó de ayer en el cajón</span><strong>{formatCurrency(numero(abierto?.fondo))}</strong></li>
-          <li><span>Cobrado hoy en efectivo</span><strong>+ {formatCurrency(numero(abierto?.efectivo))}</strong></li>
+          <li><span>Quedó del cierre anterior</span><strong>{formatCurrency(numero(abierto?.fondo))}</strong></li>
+          <li><span>Cobrado en efectivo</span><strong>+ {formatCurrency(numero(abierto?.efectivo))}</strong></li>
           {numero(abierto?.ingresosManuales) > 0 && (
             <li><span>Otros ingresos en efectivo</span><strong>+ {formatCurrency(numero(abierto?.ingresosManuales))}</strong></li>
           )}
@@ -496,115 +651,52 @@ export default function CajaPage() {
           <li className="caja-cuenta-total"><span>Hay en el cajón</span><strong>{formatCurrency(enElCajon)}</strong></li>
         </ul>
 
-        <div className="caja-reparto">
-          <div className="form-group">
-            <label className="form-label">Retiro en efectivo</label>
-            <input
-              type="number" inputMode="decimal" min="0"
-              className="form-input caja-monto"
-              value={retiro} placeholder="0"
-              onChange={(e) => setRetiro(e.target.value)}
-            />
-            <small className="form-hint">
-              Lo que te llevás del cajón. Si no retirás nada, dejalo en 0.
-            </small>
-          </div>
-
-          <div className="caja-queda">
-            <span className="caja-cifra-label">Queda en caja</span>
-            <span className="caja-cifra-valor">{formatCurrency(quedaEnCaja)}</span>
-            <small className="form-hint">Es el cambio con el que arranca mañana.</small>
-          </div>
-        </div>
-
-        {retiroExcedido && (
-          <p className="caja-falta">
-            <Icon name="alertTriangle" size="0.9em" /> No podés retirar más de lo que hay en el
-            cajón. Lo cobrado por transferencia está en el banco, no acá.
-          </p>
-        )}
-
-        <button
-          className="btn btn-primary caja-cerrar"
-          onClick={() => setConfirmando(true)}
-          disabled={guardando || cargando || fallo || retiroExcedido}
+        {/* Un form, para que Enter en el retiro lleve a confirmar como el botón. */}
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!(guardando || cargando || fallo || retiroExcedido)) setConfirmando(true);
+          }}
         >
-          <Icon name="checkCircle" size="1em" /> Cerrar caja diaria
-        </button>
+          <div className="caja-reparto">
+            <div className="form-group">
+              <label className="form-label" htmlFor="caja-retiro">Retiro en efectivo</label>
+              <input
+                id="caja-retiro"
+                type="number" inputMode="decimal" min="0" step="any"
+                className="form-input caja-monto"
+                value={retiro} placeholder="0"
+                onChange={(e) => setRetiro(e.target.value)}
+              />
+              <small className="form-hint">
+                Lo que te llevás del cajón. Si no retirás nada, dejalo en 0.
+              </small>
+            </div>
+
+            <div className="caja-queda">
+              <span className="caja-cifra-label">Queda en caja</span>
+              <span className="caja-cifra-valor">{formatCurrency(quedaEnCaja)}</span>
+              <small className="form-hint">Es el cambio con el que arranca mañana.</small>
+            </div>
+          </div>
+
+          {retiroExcedido && (
+            <p className="caja-falta caja-aviso-retiro">
+              <Icon name="alertTriangle" size="0.9em" /> No podés retirar más de lo que hay en el
+              cajón. Lo cobrado por transferencia está en el banco, no acá.
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-primary caja-cerrar"
+            disabled={guardando || cargando || fallo || retiroExcedido}
+          >
+            <Icon name="checkCircle" size="1em" /> Cerrar caja diaria
+          </button>
+        </form>
       </div>
-
-      {/* ─── LO QUE SALE Y ENTRA SIN SER UN COBRO ─── */}
-      {hayMovimientos && (
-        <div className="caja-acciones">
-          <button className="btn btn-secondary" onClick={() => pedirMovimiento('EGRESO')} disabled={guardando}>
-            <Icon name="trendingDown" size="1em" /> Anotar un gasto
-          </button>
-          <button className="btn btn-secondary" onClick={() => pedirMovimiento('INGRESO')} disabled={guardando}>
-            <Icon name="trendingUp" size="1em" /> Anotar un ingreso
-          </button>
-        </div>
-      )}
-
-      {/* ⚠️ Los anulados quedan TACHADOS, no desaparecen. Un egreso que se puede hacer
-           desaparecer de la lista es justamente lo que no queremos que se pueda hacer. */}
-      {movsCaja.length > 0 && (
-        <div className="card caja-movimientos">
-          <h3><Icon name="receipt" size="1em" /> Movimientos de caja ({movsCaja.length})</h3>
-          <table className="table">
-            <thead>
-              <tr><th>Qué</th><th>Monto</th><th>Método</th><th>Quién</th><th>Cuándo</th><th /></tr>
-            </thead>
-            <tbody>
-              {movsCaja.map((m) => {
-                const anulado = !!m.anuladoAt;
-                const egreso = m.tipo === 'EGRESO';
-                return (
-                  <tr key={m.id} className={anulado ? 'caja-mov-anulado' : ''}>
-                    <td data-label="Qué">
-                      <strong>{m.categoria}</strong>
-                      {m.detalle && <div className="form-hint">{m.detalle}</div>}
-                      {/* ⭐ El que se anotó sin internet SE VE IGUAL, con su aclaración. Que no
-                          apareciera era el agujero: quien lo cargó no lo veía en la lista y lo
-                          cargaba otra vez, y el arqueo terminaba con un faltante inventado. */}
-                      {m.sinSubir && (
-                        <div className="form-hint">Guardado sin conexión · sube solo</div>
-                      )}
-                      {anulado && (
-                        <div className="form-hint">
-                          Anulado por {m.anuladoPorNombre || '—'}
-                          {m.motivoAnulacion ? ` · ${m.motivoAnulacion}` : ''}
-                        </div>
-                      )}
-                    </td>
-                    <td data-label="Monto" className="caja-monto-celda">
-                      <span className={egreso ? 'caja-falta' : 'caja-sobra'}>
-                        {egreso ? '−' : '+'}{formatCurrency(m.monto)}
-                      </span>
-                    </td>
-                    <td data-label="Método">
-                      {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || '—'}
-                      {/* Lo que no pasa por el cajón se anota pero NO mueve la cuenta. */}
-                      {!ES_EFECTIVO(m.metodo) && <div className="form-hint">no toca el cajón</div>}
-                    </td>
-                    <td data-label="Quién">{m.hechoPorNombre || '—'}</td>
-                    <td data-label="Cuándo">{fecha(m.fecha)}</td>
-                    <td>
-                      {/* ⚠️ Lo que todavía no subió NO se puede anular, y fue una decisión
-                          tomada a propósito (decisión 2 de docs/FASE3-CAMINOS.md): anular es
-                          un pedido contra una fila que del otro lado no existe. */}
-                      {!anulado && !m.sinSubir && (
-                        <button className="btn btn-sm btn-secondary" onClick={() => pedirAnulacion(m)}>
-                          Anular
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* ─── EL HISTORIAL: solo el dueño, y es donde está el valor ─── */}
       {esDueno && (
@@ -613,39 +705,61 @@ export default function CajaPage() {
           {!historial.length ? (
             <EmptyState icon="fileText" title="Todavía no se cerró ninguna caja" description="Cuando cierres el primer día, el historial queda acá." />
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Cuándo</th><th>Quién</th><th>Efectivo</th><th>Transf. y MP</th>
-                  <th>Retiro</th><th>Quedó en caja</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historial.map((c) => (
-                  <tr key={c.id}>
-                    <td data-label="Cuándo">{fecha(c.hasta)}</td>
-                    <td data-label="Quién">{c.cerradoPorNombre || '—'}</td>
-                    <td data-label="Efectivo">{formatCurrency(c.esperadoEfectivo)}</td>
-                    <td data-label="Transf. y MP">
-                      {formatCurrency(numero(c.esperadoTransferencia) + numero(c.esperadoMercadopago))}
-                    </td>
-                    {/* Los cierres viejos son de la época del arqueo a ciegas: no tienen
-                        retiro. Se muestran igual, con el guion, en vez de un cero que
-                        diría que ese día no se retiró nada. */}
-                    <td data-label="Retiro">
-                      {c.retiroEfectivo == null
-                        ? <span className="text-muted">—</span>
-                        : formatCurrency(c.retiroEfectivo)}
-                    </td>
-                    <td data-label="Quedó en caja">
-                      {c.quedaEnCaja == null
-                        ? <span className="text-muted">—</span>
-                        : formatCurrency(c.quedaEnCaja)}
-                    </td>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Cuándo</th><th>Quién</th><th>Efectivo</th><th>Transf. y MP</th>
+                    <th className="col-gastos">Gastos</th><th>Retiro</th><th>Quedó en caja</th><th aria-label="Excel del día" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {historial.map((c) => {
+                    const dia = c.hasta ? toLocalDateString(new Date(c.hasta)) : null;
+                    return (
+                      <tr key={c.id}>
+                        <td data-label="Cuándo">{fecha(c.hasta)}</td>
+                        <td data-label="Quién">{c.cerradoPorNombre || 'Sin identificar'}</td>
+                        <td data-label="Efectivo">{formatCurrency(c.esperadoEfectivo)}</td>
+                        <td data-label="Transf. y MP">
+                          {formatCurrency(numero(c.esperadoTransferencia) + numero(c.esperadoMercadopago))}
+                        </td>
+                        <td data-label="Gastos" className="col-gastos">
+                          {numero(c.egresosEfectivo) > 0
+                            ? <span className="caja-falta">− {formatCurrency(c.egresosEfectivo)}</span>
+                            : formatCurrency(0)}
+                        </td>
+                        {/* Los cierres viejos son de la época del arqueo a ciegas: no tienen
+                            retiro. Se muestran igual, con el guion, en vez de un cero que
+                            diría que ese día no se retiró nada. */}
+                        <td data-label="Retiro">
+                          {c.retiroEfectivo == null
+                            ? <span className="text-muted">—</span>
+                            : formatCurrency(c.retiroEfectivo)}
+                        </td>
+                        <td data-label="Quedó en caja">
+                          {c.quedaEnCaja == null
+                            ? <span className="text-muted">—</span>
+                            : formatCurrency(c.quedaEnCaja)}
+                        </td>
+                        <td data-label="Excel">
+                          {dia && (
+                            <button
+                              type="button" className="btn btn-sm btn-secondary"
+                              disabled={exportando}
+                              title={`Bajar el Excel del ${formatDate(dia)}`}
+                              onClick={() => exportar(dia, dia)}
+                            >
+                              <Icon name="download" size="0.9em" /> <span className="caja-excel-texto">Excel</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
