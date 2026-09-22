@@ -18,18 +18,34 @@ import java.util.UUID;
 /**
  * El cartel del check-in, del lado del gimnasio: verlo, imprimirlo, rotarlo.
  *
- * <p>Solo dueño y administrador: el token que sale de acá es lo que autoriza a marcar entradas
- * en este gimnasio. Quien lo tenga puede registrar accesos, así que no es un dato de mostrador.</p>
+ * <p>Crear y rotar: solo dueño y administrador. <b>Verlo</b> lo puede cualquiera del equipo
+ * ({@link #activo()}), porque desde el 2026-09-22 el QR se muestra en la pantalla de Accesos
+ * para que los socios lo escaneen desde el mostrador. Es el mismo código que está pegado en la
+ * pared de la entrada: lo ve todo el que entra al gimnasio. Lo que se protege es poder
+ * CAMBIARLO, que es lo que deja a todos sin marcar.</p>
  */
 @RestController
 @RequestMapping("/api/gym/checkin-points")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('OWNER','ADMIN')")
 public class CheckinPointController {
 
     private final CheckinService checkinService;
 
+    /**
+     * El cartel vigente, solo para mostrarlo en el mostrador. 204 si el gimnasio todavía no
+     * tiene uno: lo crea el dueño.
+     */
+    @GetMapping("/activo")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> activo() {
+        return checkinService.puntosActivos().stream()
+                .findFirst()
+                .map(p -> ResponseEntity.ok(Map.<String, Object>of("token", p.getToken())))
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> listar() {
         List<Map<String, Object>> body = checkinService.puntosActivos().stream()
                 .map(CheckinPointController::toMap)
@@ -43,6 +59,7 @@ public class CheckinPointController {
      * y empieza a marcar entradas desde su casa.
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<Map<String, Object>> crear(@RequestBody(required = false) Map<String, String> body) {
         String nombre = body == null ? null : body.get("nombre");
         String reemplazarRaw = body == null ? null : body.get("reemplazar");
