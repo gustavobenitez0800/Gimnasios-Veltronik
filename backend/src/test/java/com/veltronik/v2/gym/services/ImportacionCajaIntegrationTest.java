@@ -431,6 +431,108 @@ class ImportacionCajaIntegrationTest extends EmbeddedPostgresTest {
         }
     }
 
+    @Nested
+    @DisplayName("el período de cada cobro, para Pagos (V87)")
+    class ElPeriodo {
+
+        @Autowired private PeriodosDelHistorialService periodos;
+        @Autowired private com.veltronik.v2.gym.repositories.GymPaymentRepository repoPagos;
+        @Autowired private com.veltronik.v2.gym.mappers.GymPaymentMapper mapper;
+
+        @Test
+        @DisplayName("⭐ cada cuota muestra su mes, y la cobertura sigue vacía")
+        void cadaCuotaSuMes() {
+            LocalDateTime vence = LocalDateTime.of(2026, 9, 15, 23, 59, 59);
+            UUID ana = crearSocio(gym, "Ana", "30111222", vence, true);
+
+            importador.importar(pedido(
+                    cobro(2, "17/07/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000"),
+                    cobro(3, "16/08/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000"),
+                    cobro(4, "20/08/2026", "18:00", "ANA", "30111222", "Pase por día", "Efectivo", "11000"),
+                    cobro(5, "03/08/2026", "10:00", "PEREZ JUAN", "30999888", "Cuota", "Transferencia", "34000"),
+                    cobro(6, "04/08/2026", "11:00", "", "", "Nueva actividad", "Efectivo", "5000")));
+
+            assertThat(periodoDe("2026-07-17")).containsExactly("2026-07-15", "2026-08-15");
+            assertThat(periodoDe("2026-08-16")).as("pagó un día tarde y le corrió desde el 15")
+                    .containsExactly("2026-08-15", "2026-09-15");
+            assertThat(periodoDe("2026-08-20")).as("el pase cubre ese día").containsExactly("2026-08-20", "2026-08-21");
+            assertThat(periodoDe("2026-08-03")).as("un ex-socio: desde el día que pagó")
+                    .containsExactly("2026-08-03", "2026-09-03");
+            assertThat(periodoDe("2026-08-04")).as("lo que no es una cuota no inventa un período").containsExactly(null, null);
+
+            // ⭐ ADR-014 intacto: ni cobertura en los cobros ni un solo día de vencimiento corrido.
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM gym_payment WHERE tenant_id = ? "
+                    + "AND (period_start IS NOT NULL OR period_end IS NOT NULL)", Integer.class, gym)).isZero();
+            assertThat(socio(ana).get("membership_end")).isEqualTo(Timestamp.valueOf(vence));
+            assertThat(jdbc.queryForObject("SELECT periodos_at FROM gym_payment_import WHERE tenant_id = ?",
+                    Timestamp.class, gym)).isNotNull();
+        }
+
+        @Test
+        @DisplayName("llega a la pantalla en el DTO, aparte del período de verdad")
+        void llegaAlDto() {
+            crearSocio(gym, "Ana", "30111222", LocalDateTime.of(2026, 9, 15, 23, 59, 59), true);
+            importador.importar(pedido(cobro(2, "16/08/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000")));
+
+            UUID id = jdbc.queryForObject("SELECT id FROM gym_payment WHERE tenant_id = ?", UUID.class, gym);
+            var dto = mapper.toDto(repoPagos.findById(id).orElseThrow());
+
+            assertThat(dto.getPeriodoImportadoDesde()).hasToString("2026-08-15");
+            assertThat(dto.getPeriodoImportadoHasta()).hasToString("2026-09-15");
+            assertThat(dto.getPeriodStart()).isNull();
+            assertThat(dto.isImportado()).isTrue();
+        }
+
+        @Test
+        @DisplayName("⭐ calcular los períodos no bloquea el deshacer")
+        void noBloqueaElDeshacer() {
+            crearSocio(gym, "Ana", "30111222", LocalDateTime.of(2026, 9, 15, 23, 59, 59), true);
+            Resultado r = importador.importar(pedido(cobro(2, "16/08/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000")));
+            periodos.calcular(r.importacionId(), gym);
+
+            assertThat(importador.ultima()).get().extracting(Ultima::sePuedeDeshacer).isEqualTo(true);
+        }
+
+        @Test
+        @DisplayName("si ya se le cobró en Veltronik, la cadena termina donde arrancó ese cobro")
+        void conUnCobroNuevo() {
+            // El padrón decía 15/09; se le cobró en Veltronik y el vencimiento pasó al 15/10.
+            UUID ana = crearSocio(gym, "Ana", "30111222", LocalDateTime.of(2026, 10, 15, 23, 59, 59), true);
+            jdbc.update("INSERT INTO gym_payment (id, created_at, updated_at, tenant_id, member_id, amount, "
+                            + "payment_method, payment_date, status, period_start, period_end) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    UUID.randomUUID(), LocalDateTime.now(), LocalDateTime.now(), gym, ana, new BigDecimal("34000"), "cash",
+                    LocalDateTime.of(2026, 9, 16, 10, 0), "paid",
+                    LocalDateTime.of(2026, 9, 15, 0, 0), LocalDateTime.of(2026, 10, 15, 0, 0));
+
+            importador.importar(pedido(cobro(2, "16/08/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000")));
+
+            assertThat(periodoDe("2026-08-16")).containsExactly("2026-08-15", "2026-09-15");
+        }
+
+        @Test
+        @DisplayName("⭐ lo importado antes de esta versión se completa solo al arrancar")
+        void seCompletaAlArrancar() {
+            crearSocio(gym, "Ana", "30111222", LocalDateTime.of(2026, 9, 15, 23, 59, 59), true);
+            importador.importar(pedido(cobro(2, "16/08/2026", "08:00", "ANA", "30111222", "Cuota", "Efectivo", "34000")));
+            // Como quedó en producción la importación del 21/09: sin períodos y sin la marca.
+            jdbc.update("UPDATE gym_payment SET periodo_importado_desde = NULL, periodo_importado_hasta = NULL WHERE tenant_id = ?", gym);
+            jdbc.update("UPDATE gym_payment_import SET periodos_at = NULL WHERE tenant_id = ?", gym);
+
+            periodos.completarLasPendientes();
+
+            assertThat(periodoDe("2026-08-16")).containsExactly("2026-08-15", "2026-09-15");
+        }
+
+        /** El período estimado del cobro de ese día, como texto: [desde, hasta]. */
+        private List<String> periodoDe(String dia) {
+            Map<String, Object> f = jdbc.queryForMap("SELECT periodo_importado_desde, periodo_importado_hasta "
+                    + "FROM gym_payment WHERE tenant_id = ? AND CAST(payment_date AS date) = CAST(? AS date)", gym, dia);
+            return java.util.Arrays.asList(
+                    f.get("periodo_importado_desde") == null ? null : f.get("periodo_importado_desde").toString(),
+                    f.get("periodo_importado_hasta") == null ? null : f.get("periodo_importado_hasta").toString());
+        }
+    }
+
     // ── Siembra y ayudas ───────────────────────────────────────────────────────
 
     private UUID crearGimnasio() {

@@ -108,15 +108,18 @@ public class ImportacionCajaService {
     private final GymPaymentRepository pagos;
     private final CajaMovimientoRepository movimientos;
     private final GymPaymentImportRepository importaciones;
+    private final PeriodosDelHistorialService periodos;
     private final EntityManager em;
 
     public ImportacionCajaService(GymMemberRepository socios, GymPaymentRepository pagos,
                                   CajaMovimientoRepository movimientos,
-                                  GymPaymentImportRepository importaciones, EntityManager em) {
+                                  GymPaymentImportRepository importaciones,
+                                  PeriodosDelHistorialService periodos, EntityManager em) {
         this.socios = socios;
         this.pagos = pagos;
         this.movimientos = movimientos;
         this.importaciones = importaciones;
+        this.periodos = periodos;
         this.em = em;
     }
 
@@ -179,6 +182,9 @@ public class ImportacionCajaService {
 
         // La línea que separa "lo que puso la importación" de "lo que se editó después".
         pagos.flush();
+        // El período estimado de cada cobro, para que Pagos no lo muestre vacío (V87). No toca
+        // updated_at, así que no cuenta como edición para el deshacer.
+        periodos.calcular(lote.getId(), tenantId);
         lote.setAplicadaAt(LocalDateTime.now());
         importaciones.save(lote);
 

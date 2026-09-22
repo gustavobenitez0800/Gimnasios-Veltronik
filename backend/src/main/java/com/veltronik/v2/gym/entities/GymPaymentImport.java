@@ -52,6 +52,10 @@ public class GymPaymentImport extends TenantAwareEntity {
     @Column(name = "deshecha_at")
     private LocalDateTime deshechaAt;
 
+    /** Cuándo se reconstruyeron los períodos de sus cobros (V87). NULL = pendiente. */
+    @Column(name = "periodos_at", insertable = false, updatable = false)
+    private LocalDateTime periodosAt;
+
     @Column(name = "deshecha_por")
     private UUID deshechaPor;
 

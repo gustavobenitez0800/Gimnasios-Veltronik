@@ -40,4 +40,11 @@ public class GymPaymentDTO {
      * cobro hecho acá.
      */
     private boolean importado;
+
+    /**
+     * El período ESTIMADO de un cobro importado (V87), para la columna Período de Pagos. Un
+     * cobro de Veltronik no lo tiene: el suyo es periodStart/periodEnd, y es de verdad.
+     */
+    private java.time.LocalDate periodoImportadoDesde;
+    private java.time.LocalDate periodoImportadoHasta;
 }

@@ -111,6 +111,21 @@ public class GymPayment extends TenantAwareEntity {
     @Column(name = "import_clave", length = 64, updatable = false)
     private String importClave;
 
+    /**
+     * El período que <b>probablemente</b> cubrió un cobro importado, solo para mostrarlo (V87).
+     *
+     * <p>⚠️ <b>No es cobertura.</b> La cobertura vive en {@link #periodStart}/{@link #periodEnd},
+     * que un cobro importado no puede tener (V86). Esto lo reconstruye
+     * {@code PeriodosDelHistorialService} con el vencimiento que traía el sistema anterior, y
+     * ninguna cuenta de vencimientos lo mira. {@code insertable/updatable = false}: lo escribe
+     * ese servicio con un UPDATE directo, y ni guardar ni editar un cobro lo pisa.</p>
+     */
+    @Column(name = "periodo_importado_desde", insertable = false, updatable = false)
+    private java.time.LocalDate periodoImportadoDesde;
+
+    @Column(name = "periodo_importado_hasta", insertable = false, updatable = false)
+    private java.time.LocalDate periodoImportadoHasta;
+
     /** ¿Es historia importada de otro sistema? */
     public boolean esImportado() {
         return importId != null;
