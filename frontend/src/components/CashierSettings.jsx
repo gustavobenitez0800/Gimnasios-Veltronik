@@ -167,7 +167,7 @@ export default function CashierSettings() {
 
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem', lineHeight: 1.5 }}>
         Dar de baja no borra a nadie: sus movimientos viejos siguen diciendo que fueron suyos.
-        Y el PIN no se puede consultar — si alguien lo olvida, se le pone uno nuevo.
+        Y el PIN no se puede consultar: si alguien lo olvida, se le pone uno nuevo.
       </p>
     </div>
   );

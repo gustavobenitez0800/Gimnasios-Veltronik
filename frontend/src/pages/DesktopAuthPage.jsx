@@ -71,7 +71,7 @@ export default function DesktopAuthPage() {
             <Icon name="checkCircle" size="3rem" />
           </div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.75rem' }}>
-            Listo — volvé a Veltronik
+            Listo. Volvé a Veltronik
           </h1>
           <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
             {sent

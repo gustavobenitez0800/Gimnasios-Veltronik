@@ -110,7 +110,7 @@ function GymDashboard({ gym }) {
           title: (items) => {
             const i = items[0]?.dataIndex;
             return esEnCurso(i)
-              ? `${items[0].label} — en curso, al día ${revenueChartData.dia}`
+              ? `${items[0].label} (en curso, al día ${revenueChartData.dia})`
               : items[0]?.label;
           },
           label: (ctx) => formatCurrency(ctx.raw),

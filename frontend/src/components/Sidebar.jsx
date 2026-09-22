@@ -257,7 +257,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <button
                 className="sidebar-logout"
                 onClick={() => window.dispatchEvent(new Event('veltronik-cambiar-turno'))}
-                title={`En el turno: ${turno.name} — tocá para cambiar`}
+                title={`En el turno: ${turno.name}. Tocá para cambiar.`}
               >
                 <Icon name="idBadge" />
               </button>
@@ -280,7 +280,7 @@ export default function Sidebar({ isOpen, onClose }) {
         open={confirmarSalida}
         title="¿Cerrar la sesión de este terminal?"
         message={turno
-          ? `Vas a necesitar usuario y contraseña para volver a operar. Si lo que querés es que atienda otra persona, usá el cambio de turno — ahora está ${turno.name}.`
+          ? `Vas a necesitar usuario y contraseña para volver a operar. Si lo que querés es que atienda otra persona, usá el cambio de turno (ahora está ${turno.name}).`
           : 'Vas a necesitar usuario y contraseña para volver a operar en esta computadora.'}
         icon="logout"
         confirmText="Sí, cerrar sesión"

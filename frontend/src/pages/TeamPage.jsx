@@ -145,7 +145,7 @@ export default function TeamPage() {
               <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Sumar al equipo</h3>
               <p className="text-muted mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
                 Poné su nombre y su email. Si todavía no tiene cuenta en Veltronik, se la creamos
-                acá mismo y te damos una contraseña para pasarle — no necesita registrarse por su cuenta.
+                acá mismo y te damos una contraseña para pasarle. No necesita registrarse por su cuenta.
               </p>
               <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
                 <input type="text" className="form-input" placeholder="Nombre y apellido"
@@ -287,7 +287,7 @@ export default function TeamPage() {
               color: '#fbbf24', fontSize: 'var(--font-size-sm)', lineHeight: 1.5, marginBottom: '1.25rem',
             }}>
               <Icon name="alertTriangle" size="1.1em" />
-              <span>Esta contraseña no se vuelve a mostrar. Copiala antes de cerrar — si se pierde, hay que generar una nueva.</span>
+              <span>Esta contraseña no se vuelve a mostrar. Copiala antes de cerrar: si se pierde, hay que generar una nueva.</span>
             </div>
 
             <div className="flex gap-1">
@@ -297,7 +297,7 @@ export default function TeamPage() {
                 onClick={() => {
                   navigator.clipboard?.writeText(`Usuario: ${nuevaCuenta.email}\nContraseña: ${nuevaCuenta.password}`)
                     .then(() => showToast('Copiado', 'success'))
-                    .catch(() => showToast('No se pudo copiar — anotala a mano', 'error'));
+                    .catch(() => showToast('No se pudo copiar. Anotala a mano', 'error'));
                 }}
               >
                 <Icon name="fileText" size="1em" /> Copiar
@@ -320,9 +320,9 @@ export default function TeamPage() {
             <p className="text-muted mb-2">Cambiar rol de: {roleTarget.fullName || roleTarget.email}</p>
             <div className="form-group mb-2">
               <select className="form-select" value={newRole} onChange={e => setNewRole(e.target.value)}>
-                <option value="admin">Administrador — Acceso completo</option>
-                <option value="staff">Empleado — Acceso operativo</option>
-                <option value="reception">Recepción — Solo acceso/check-in</option>
+                <option value="admin">Administrador (acceso completo)</option>
+                <option value="staff">Empleado (acceso operativo)</option>
+                <option value="reception">Recepción (solo acceso y check-in)</option>
               </select>
             </div>
             <div className="modal-actions">

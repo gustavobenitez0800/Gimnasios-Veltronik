@@ -79,7 +79,7 @@ export default function MissionControlPage() {
       {/* Rollout por anillos */}
       <div className="settings-section">
         <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name="refresh" size="1.1em" /> Rollout — versión objetivo por anillo
+          <Icon name="refresh" size="1.1em" /> Rollout: versión objetivo por anillo
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '1rem' }}>
           Publicá una versión anillo por anillo (Piloto → Amigos → Todos). Cada equipo solo se

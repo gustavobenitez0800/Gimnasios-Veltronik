@@ -247,7 +247,7 @@ export default function CheckinPage() {
         ok: false,
         titulo: 'Seguimos sin conexión',
         detalle: 'Estuvimos intentando un rato y no hubo caso. Pedile al mostrador que te '
-               + 'marque la entrada — la va a poder cargar a mano.',
+               + 'marque la entrada. La va a poder cargar a mano.',
       });
     } finally {
       setEnviando(false);
@@ -321,7 +321,7 @@ export default function CheckinPage() {
                   colgó, y que puede irse al mostrador sin esperar a que esto termine. */}
               {reintentando && (
                 <p className="checkin-espera" role="status">
-                  Sin señal. Seguimos intentando — si tenés apuro, pedile al mostrador que te
+                  Sin señal. Seguimos intentando. Si tenés apuro, pedile al mostrador que te
                   marque la entrada.
                 </p>
               )}
@@ -329,7 +329,7 @@ export default function CheckinPage() {
 
             {recordado && (
               <button className="checkin-link" type="button" onClick={olvidar}>
-                No soy yo — usar otro documento
+                No soy yo, usar otro documento
               </button>
             )}
           </>

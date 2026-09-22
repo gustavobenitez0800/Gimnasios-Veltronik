@@ -650,7 +650,7 @@ export default function PaymentsPage() {
                   <option value="">Sin arancel (importe suelto)</option>
                   {aranceles.map(a => (
                     <option key={a.id} value={a.id}>
-                      {a.name} — {formatCurrency(a.price)}{describirArancel(a)}
+                      {a.name} · {formatCurrency(a.price)}{describirArancel(a)}
                     </option>
                   ))}
                 </select>
@@ -696,7 +696,7 @@ export default function PaymentsPage() {
                 onChange={(e) => handleFormChange('periodEnd', e.target.value)} />
               <small className="form-hint">
                 Qué tramo cubre este pago. Al guardarlo, el socio queda habilitado hasta
-                esta fecha — nunca menos de lo que ya tenía.
+                esta fecha, nunca menos de lo que ya tenía.
               </small>
             </div>
             <div className="form-group full-width">

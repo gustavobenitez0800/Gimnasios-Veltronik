@@ -78,7 +78,7 @@ export default function BlockedPage() {
         </h1>
 
         <p style={{ color: '#d1d5db', marginBottom: '1.5rem', lineHeight: '1.6', fontSize: '0.98rem' }}>
-          Ingresá tu tarjeta y listo — el cobro es mensual de <b style={{ color: '#fff' }}>${precio} ARS</b> y
+          Ingresá tu tarjeta y listo. El cobro es mensual de <b style={{ color: '#fff' }}>${precio} ARS</b> y
           tus sucursales y socios siguen intactos. Pago seguro procesado por Mercado Pago.
         </p>
 

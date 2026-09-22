@@ -262,11 +262,11 @@ public class CheckinService {
             switch (v.status()) {
                 case EN_GRACIA -> {
                     detalle = "Entrada registrada. Tu cuota venció hace " + v.diasVencido()
-                            + (v.diasVencido() == 1 ? " día" : " días") + " — pasá por el mostrador cuando puedas.";
+                            + (v.diasVencido() == 1 ? " día" : " días") + ". Pasá por el mostrador cuando puedas.";
                     avisar = true; sonar = true;
                 }
                 case VENCIDO -> {
-                    detalle = "Entrada registrada. Tu cuota está vencida — acercate al mostrador, por favor.";
+                    detalle = "Entrada registrada. Tu cuota está vencida. Acercate al mostrador, por favor.";
                     avisar = true; sonar = true;
                 }
                 case INACTIVO -> {

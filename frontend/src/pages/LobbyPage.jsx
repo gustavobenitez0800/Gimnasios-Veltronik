@@ -59,7 +59,7 @@ const BLOCK_MESSAGES = {
   },
   additional_branch: {
     title: 'Activá esta sucursal',
-    message: 'Las sucursales adicionales no incluyen período de prueba. Activá tu suscripción para empezar a usar esta sucursal — se cobra el mismo precio mensual por cada una.',
+    message: 'Las sucursales adicionales no incluyen período de prueba. Activá tu suscripción para empezar a usar esta sucursal. Se cobra el mismo precio mensual por cada una.',
     showUpdateCard: false,
   },
   no_subscription: {

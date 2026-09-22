@@ -206,7 +206,7 @@ async function decideAndDownload(availableVersion) {
 
     try {
         const notification = new Notification({
-            title: 'Veltronik — Actualización disponible',
+            title: 'Veltronik: actualización disponible',
             body: `Descargando la versión ${availableVersion} en segundo plano...`,
             icon: VELTRONIK_ICON,
             silent: true,
@@ -249,7 +249,7 @@ autoUpdater.on('update-downloaded', (info) => {
     // Notificación nativa (sin emojis — identidad corporativa Veltronik).
     try {
         const notification = new Notification({
-            title: 'Veltronik — Actualización lista',
+            title: 'Veltronik: actualización lista',
             body: `La versión ${info.version} está lista para instalar.`,
             icon: VELTRONIK_ICON,
             silent: true

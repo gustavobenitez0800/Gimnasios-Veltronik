@@ -78,7 +78,7 @@ export default function LogoPicker({ logoUrl, logoEmoji, name = '', onChange, on
             </button>
           )}
 
-          <p className="logo-picker-hint">Opcional. PNG o JPG — lo recortamos cuadrado solos.</p>
+          <p className="logo-picker-hint">Opcional, en PNG o JPG. Lo recortamos en cuadrado automáticamente.</p>
         </div>
       </div>
 

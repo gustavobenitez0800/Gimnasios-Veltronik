@@ -642,7 +642,7 @@ export default function MembersPage() {
           >
             <option value="">Asignarles un arancel…</option>
             {aranceles.map((a) => (
-              <option key={a.id} value={a.id}>{a.name} — {formatCurrency(a.price)}</option>
+              <option key={a.id} value={a.id}>{a.name} · {formatCurrency(a.price)}</option>
             ))}
             <option value={SACAR_ARANCEL}>Sacarles el arancel</option>
           </select>
@@ -870,7 +870,7 @@ export default function MembersPage() {
                 <label className="form-label">Arancel</label>
                 <select className="form-select" value={modal.form.planId || ''}
                   onChange={(e) => modal.handleChange('planId', e.target.value)}>
-                  <option value="">Sin arancel — se cobra escribiendo el monto</option>
+                  <option value="">Sin arancel (se cobra escribiendo el monto)</option>
                   {/* Igual que en la lista: si el suyo se dio de baja, se muestra igual para
                       no borrárselo sin querer al primer guardado. */}
                   {modal.form.planId && !aranceles.some((a) => a.id === modal.form.planId) && (
@@ -878,7 +878,7 @@ export default function MembersPage() {
                   )}
                   {aranceles.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} — {formatCurrency(a.price)}
+                      {a.name} · {formatCurrency(a.price)}
                     </option>
                   ))}
                 </select>
@@ -896,7 +896,7 @@ export default function MembersPage() {
           {!mostrarMasDatos && (
             <button type="button" className="form-more-toggle" onClick={() => setMasDatos(true)}>
               <Icon name="chevronRight" size="1em" /> Más datos
-              <span className="text-muted"> — email, nacimiento, fechas, notas, días</span>
+              <span className="text-muted">: email, nacimiento, fechas, notas, días</span>
             </button>
           )}
           {mostrarMasDatos && (

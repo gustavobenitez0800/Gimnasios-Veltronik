@@ -47,7 +47,7 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
     try {
       const { data } = await apiClient.post('/gym/checkin-points', reemplazar ? { reemplazar } : {});
       setPunto(data);
-      showToast(reemplazar ? 'Cartel nuevo listo — imprimilo y reemplazá el viejo' : 'Cartel creado', 'success');
+      showToast(reemplazar ? 'Cartel nuevo listo: imprimilo y reemplazá el viejo' : 'Cartel creado', 'success');
     } catch (e) {
       showToast(e.response?.data?.error || 'No pudimos crear el cartel', 'error');
     } finally {

@@ -116,7 +116,7 @@ export default function ArancelesSettings() {
       </h2>
       <p className="text-muted" style={{ fontSize: '.9rem', marginTop: '-.5rem' }}>
         Lo que vende el gimnasio. Al cobrar se elige uno y el sistema aplica solo los días
-        que corresponden — sin escribir fechas a mano.
+        que corresponden, sin escribir fechas a mano.
       </p>
 
       <form onSubmit={guardar} style={{ marginTop: '1rem' }}>

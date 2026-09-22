@@ -201,7 +201,7 @@ export default function ImportarHistorialCaja({ abierto, onCerrar, onImportado }
     return (
       <div className="importar-ultima">
         <div>
-          <strong>Última importación:</strong> {formatDate(ultima.cuando)} — {ultima.archivo || 'archivo'}
+          <strong>Última importación:</strong> {ultima.archivo || 'archivo'}, el {formatDate(ultima.cuando)}
           {' '}({plural(ultima.cobros, 'cobro', 'cobros')} por {formatCurrency(ultima.totalCobros)}
           {ultima.desde && ultima.hasta && `, del ${formatDate(ultima.desde)} al ${formatDate(ultima.hasta)}`})
           {!ultima.sePuedeDeshacer && ultima.porQueNo && (
@@ -232,7 +232,7 @@ export default function ImportarHistorialCaja({ abierto, onCerrar, onImportado }
     return (
       <div className="importar">
         <p className="text-muted" style={{ marginTop: 0 }}>
-          <strong>{lectura.archivo}</strong> — {plural(a.total, 'movimiento', 'movimientos')}
+          <strong>{lectura.archivo}</strong>: {plural(a.total, 'movimiento', 'movimientos')}
           {a.desde && a.hasta && <> del {formatDate(a.desde)} al {formatDate(a.hasta)}</>}. Todavía no se guardó nada.
         </p>
 

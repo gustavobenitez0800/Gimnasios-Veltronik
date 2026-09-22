@@ -156,7 +156,7 @@ export default function OwnerInsightsPage() {
                 {metrica === 'churned' && (
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginTop: '0.5rem', lineHeight: 1.5 }}>
                     Una baja se cuenta cuando pasaron <strong>{data.graceDays} días</strong> del vencimiento sin que la
-                    persona pague. Si no, todo el que se atrasa una semana figuraría como que se fue — por eso los meses
+                    persona pague. Si no, todo el que se atrasa una semana figuraría como que se fue. Por eso los meses
                     marcados con <em>·</em> todavía pueden subir.
                   </p>
                 )}

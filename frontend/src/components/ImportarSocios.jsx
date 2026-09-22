@@ -189,7 +189,7 @@ export default function ImportarSocios({ abierto, onCerrar, onImportado }) {
     return (
       <div className="importar-ultima">
         <div>
-          <strong>Última importación:</strong> {formatDate(ultima.cuando)} — {ultima.archivo || 'archivo'}
+          <strong>Última importación:</strong> {ultima.archivo || 'archivo'}, el {formatDate(ultima.cuando)}
           {' '}({plural(ultima.creados, 'nuevo', 'nuevos')}, {plural(ultima.actualizados, 'actualizado', 'actualizados')})
           {!ultima.sePuedeDeshacer && ultima.porQueNo && (
             <div className="text-muted importar-chico">Ya no se puede deshacer: {ultima.porQueNo}</div>
@@ -220,7 +220,7 @@ export default function ImportarSocios({ abierto, onCerrar, onImportado }) {
     return (
       <div className="importar">
         <p className="text-muted" style={{ marginTop: 0 }}>
-          <strong>{lectura.archivo}</strong> — {plural(a.total, 'socio', 'socios')} en el archivo. Todavía no se guardó nada.
+          <strong>{lectura.archivo}</strong>: {plural(a.total, 'socio', 'socios')} en el archivo. Todavía no se guardó nada.
         </p>
 
         <div className="importar-numeros">

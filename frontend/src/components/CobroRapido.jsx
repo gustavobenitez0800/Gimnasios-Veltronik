@@ -104,7 +104,7 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
                cierto en este momento es que la plata entró y que el cobro está guardado. */
             <p className="cobro-hecho-vence" style={{ color: 'var(--warning-500)' }}>
               La plata quedó anotada. <strong>El vencimiento se actualiza cuando vuelva
-              internet</strong> — el cobro se manda solo.
+              internet</strong>. El cobro se manda solo.
             </p>
           ) : resultado.membershipEnd ? (
             <p className="cobro-hecho-vence">
@@ -124,7 +124,7 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
     <Modal
       isOpen={abierto}
       onClose={onCerrar}
-      title={`Cobrar cuota — ${socio.fullName}`}
+      title={`Cobrar cuota: ${socio.fullName}`}
     >
       {/* ⚠️ LOS BOTONES VAN ADENTRO DEL <form>.
           El Modal dibuja la ranura `actions` como hermana del contenido, o sea FUERA del
@@ -149,7 +149,7 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
             <option value="">Sin arancel (monto a mano)</option>
             {(aranceles || []).map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} — {formatCurrency(a.price)}
+                {a.name} · {formatCurrency(a.price)}
               </option>
             ))}
           </select>

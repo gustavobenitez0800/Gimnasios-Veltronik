@@ -213,7 +213,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
           <strong>Tu pago se está confirmando…</strong>
           <p style={pMuted}>
             Mercado Pago está procesando el cobro (puede tardar unos minutos). Cuando se confirme,
-            tu cuenta se activa sola — podés cerrar y volver en un rato.
+            tu cuenta se activa sola. Podés cerrar y volver en un rato.
           </p>
           <button className="btn btn-secondary" onClick={startPolling} style={{ marginTop: '0.5rem' }}>Volver a verificar</button>
         </div>

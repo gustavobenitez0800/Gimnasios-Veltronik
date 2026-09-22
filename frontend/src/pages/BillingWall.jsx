@@ -94,7 +94,7 @@ export default function BillingWall() {
         <p style={{ color: '#d1d5db', marginBottom: '1.5rem', lineHeight: '1.6', fontSize: '0.98rem' }}>
           {canPay ? (
             <>
-              El cobro se hace desde el portal web, en tu navegador — más seguro y con todos
+              El cobro se hace desde el portal web, en tu navegador: más seguro y con todos
               los medios de pago. Son <b style={{ color: '#fff' }}>${precio} ARS</b> por
               mes. Tus socios, cuotas y accesos quedan intactos mientras tanto.
             </>

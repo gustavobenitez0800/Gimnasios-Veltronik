@@ -444,11 +444,11 @@ export default function CajaPage() {
         <div className="caja-resumen-grid">
           <div className="caja-cifra es-efectivo">
             <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.efectivo))}</span>
-            <span className="caja-cifra-label">Efectivo — está en el cajón</span>
+            <span className="caja-cifra-label">Efectivo (está en el cajón)</span>
           </div>
           <div className="caja-cifra es-digital">
             <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.digital))}</span>
-            <span className="caja-cifra-label">Transferencia y Mercado Pago — está en el banco</span>
+            <span className="caja-cifra-label">Transferencia y Mercado Pago (está en el banco)</span>
           </div>
           <div className="caja-cifra">
             <span className="caja-cifra-valor">{formatCurrency(totalCobrado)}</span>
@@ -793,7 +793,7 @@ export default function CajaPage() {
                 salió de ahí, y restarlo daría un faltante inventado. */}
             {movMetodo !== 'CASH' && (
               <small className="form-hint">
-                Esto no cambia la cuenta del cajón — no salió plata de ahí. Queda anotado igual.
+                Esto no cambia la cuenta del cajón: no salió plata de ahí. Queda anotado igual.
               </small>
             )}
           </div>

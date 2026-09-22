@@ -120,7 +120,7 @@ export default function MolineteSettings() {
         <p style={{ marginTop: '0.75rem', fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
           Contesta. Serie {equipo.serie}
           {equipo.sinClave
-            ? ' — falta la clave para poder cargarle socios.'
+            ? '. Falta la clave para poder cargarle socios.'
             : ` · ${equipo.personas} socios cargados, ${equipo.caras} con la cara tomada.`}
         </p>
       )}
