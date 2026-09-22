@@ -258,6 +258,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // pregunta nada — decide solo y después avisa. Lo único que necesita de nosotros es la
     // lista de socios al día.
 
+    // ============================================
+    // SONIDO DEL MOSTRADOR
+    // ============================================
+
+    audio: {
+        /**
+         * Baja un momento el volumen de los OTROS programas (la música del gimnasio) para que
+         * se oiga el aviso de un socio vencido, y lo devuelve solo. Ver atenuador.cjs.
+         * @returns {Promise<boolean>} false si el ayudante todavía no está listo
+         */
+        bajarMusica: (ms) => ipcRenderer.invoke('audio:bajar-musica', ms),
+    },
+
     molinete: {
         /** IP y clave del equipo. Son de esta máquina, no de la cuenta. */
         getConfig: () => ipcRenderer.invoke('molinete:config-get'),

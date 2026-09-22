@@ -15,6 +15,7 @@ const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
 const molinete = require('./molinete.cjs');
+const { crearAtenuador } = require('./atenuador.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
 const espejo = require('./nucleo/espejo.cjs');
 const boveda = require('./nucleo/boveda.cjs');
@@ -127,6 +128,20 @@ function deliverDeepLink(url) {
         queue(url); // se entrega en did-finish-load (arranque en frío)
     }
 }
+
+// ⭐ El aviso de un socio vencido tiene que SONAR aunque nadie haya tocado la pantalla: la
+// entrada por QR o el molinete llegan solos. Chromium no deja que una página haga sonido sin
+// un gesto del usuario, y en el mostrador ese gesto puede no existir en toda la mañana.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+// El que baja la música un momento para que se oiga el aviso (ver atenuador.cjs). Se crea
+// acá y se levanta después de abrir la ventana: compilarlo tarda un segundo y el arranque no
+// tiene por qué esperarlo.
+const atenuador = crearAtenuador({
+    spawn: require('child_process').spawn,
+    carpeta: app.getPath('userData'),
+    propios: path.parse(process.execPath).name,
+});
 
 // ¿Somos la instancia que manda? Si no, otra ya tenía el candado y acaba de recibir
 // nuestros argumentos (con el deep link adentro): nos vamos.
@@ -293,6 +308,8 @@ if (IS_PRIMARY_INSTANCE) app.whenReady().then(() => {
     // Inicio). Así el sistema operativo y la app no se contradicen.
     aplicarArranqueAutomatico(store.get('openAtLogin'));
 
+    setTimeout(() => atenuador.iniciar(), 4000);
+
     // macOS: recrear ventana al hacer clic en el dock
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -384,6 +401,8 @@ ipcMain.handle('terminal-settings:set', (_event, changes) => {
 //
 // La pantalla NO le habla al equipo. Baja el padrón —que es donde vive el veredicto de cada
 // socio— y se lo pasa por acá; el proceso principal solo traduce eso a pedidos LAN.
+
+ipcMain.handle('audio:bajar-musica', (_event, ms) => atenuador.bajar(ms));
 
 ipcMain.handle('molinete:config-get', () => molinete.config());
 
@@ -486,5 +505,7 @@ ipcMain.handle('nucleo:cola-olvidar', () => cola.olvidar());
 // después de un cierre limpio no tiene por qué pagar ese trabajo.
 app.on('will-quit', () => {
     nucleoDb.cerrar();
+    // Si la música estaba baja, que vuelva antes de irnos.
+    atenuador.detener();
 });
 
