@@ -92,6 +92,11 @@ vi.mock('../lib/colaAccesos', () => ({
   sociosConCobroPendiente: async () => [...colaFalsa.sociosConCobro],
 }));
 
+// La X del socio vencido: se verifica CUÁNDO se pide, no el sonido en sí (en un DOM de prueba
+// no hay placa de audio). El sonido y la música se prueban en lib/alertaSonora.test.js.
+const sonido = vi.hoisted(() => ({ sonarVencido: vi.fn() }));
+vi.mock('../lib/alertaSonora', () => sonido);
+
 const { default: AccessPage } = await import('./AccessPage');
 
 const SOCIO = {
@@ -907,5 +912,104 @@ describe('⭐ el socio que pagó sin conexión no queda como moroso a secas', ()
     await apretar('Enter');
 
     expect(container.querySelector('.search-result-item').textContent).not.toContain('Pagó recién');
+  });
+});
+
+describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
+
+  const VENCIDO = { ...SOCIO, situacion: 'VENCIDO', diasVencido: 5, diasRestantes: 0 };
+
+  async function llegaRefresco(datos) {
+    mostrador.datos = { ...mostrador.datos, ...datos };
+    await act(async () => { root.render(<AccessPage />); });
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => { await Promise.resolve(); });
+    }
+  }
+
+  it('entra a mano con la cuota vencida: suena', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO]);
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(sonido.sonarVencido).toHaveBeenCalledTimes(1);
+  });
+
+  it('el que está al día entra en silencio', async () => {
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+  });
+
+  it('al que SALE no le suena: ya entrenó, no se le reclama nada', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO]);
+    accessService.checkIn.mockResolvedValue({ direccion: 'SALIDA' });
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+  });
+
+  it('⭐ al que acaba de pagar (el cobro todavía no subió) no le suena: sería una falsa alarma', async () => {
+    memberService.searchForAccess.mockResolvedValue([VENCIDO]);
+    colaFalsa.sociosConCobro = ['m1'];
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+  });
+
+  it('entra por QR con la cuota vencida: suena', async () => {
+    await pintar();
+    await llegaRefresco({
+      ingresos: [{ accesoId: 'qr9', socioId: 'm9', nombre: 'Juan Bautista', situacion: 'EN_GRACIA', diasVencido: 1, diasRestantes: 0, hora: '2026-09-21T23:24:00' }],
+    });
+
+    expect(sonido.sonarVencido).toHaveBeenCalledTimes(1);
+  });
+
+  it('⭐ el molinete frena a un vencido: suena; lo que ya estaba al abrir la pantalla, no', async () => {
+    const rechazo = (accesoId, estado) => ({ accesoId, socioId: 'm7', nombre: 'Ana Paz', estado, diasVencido: 9, hora: '2026-09-21T10:00:00' });
+    mostrador.datos = { ...mostrador.datos, rechazos: [rechazo('viejo', 'VENCIDO')] };
+    await pintar();
+    expect(sonido.sonarVencido, 'abrir la pantalla no dispara los rechazos de antes').not.toHaveBeenCalled();
+
+    await llegaRefresco({ rechazos: [rechazo('nuevo', 'VENCIDO'), rechazo('viejo', 'VENCIDO')] });
+    expect(sonido.sonarVencido).toHaveBeenCalledTimes(1);
+
+    await llegaRefresco({ rechazos: [rechazo('pagó', 'AL_DIA'), rechazo('nuevo', 'VENCIDO')] });
+    expect(sonido.sonarVencido, 'el que ya está al día no suena').toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('el cartel', () => {
+
+  it('sin fecha cargada dice la palabra, no un "—" gigante', async () => {
+    memberService.searchForAccess.mockResolvedValue([{ ...SOCIO, situacion: 'SIN_DATOS', diasRestantes: null }]);
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const cifra = container.querySelector('.acceso-aviso-cifra');
+    expect(cifra.textContent).toBe('Sin fecha cargada');
+    expect(cifra.querySelector('strong')).toBeNull();
+  });
+
+  it('cada cartel sabe su lugar en la pila, para acomodarse sin saltos', async () => {
+    await pintar();
+    await tipear('24732531');
+    await apretar('Enter');
+    await tipear('24732531');
+    await apretar('Enter');
+
+    const carteles = [...container.querySelectorAll('.acceso-aviso')];
+    expect(carteles).toHaveLength(2);
+    expect(carteles.map((c) => c.style.getPropertyValue('--i'))).toEqual(['0', '1']);
+    expect(carteles.every((c) => c.style.getPropertyValue('--n') === '2')).toBe(true);
   });
 });

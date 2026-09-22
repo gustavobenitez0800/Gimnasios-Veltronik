@@ -36,6 +36,13 @@ import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import { GYM } from '../lib/gym';
 import Icon from '../components/Icon';
+import { sonarVencido } from '../lib/alertaSonora';
+
+/** Cuánto dura el desvanecimiento del cartel al irse. El mismo número que en access.css. */
+const SALIDA_DEL_AVISO_MS = 200;
+
+/** Las situaciones del socio que hacen sonar la X cuando el molinete lo frena. */
+const SITUACIONES_QUE_SUENAN = new Set(['VENCIDO', 'EN_GRACIA', 'INACTIVO']);
 
 export default function AccessPage() {
   const orgLabel = GYM.placeLabel;
@@ -67,7 +74,11 @@ export default function AccessPage() {
 
   const mostrarAviso = useCallback((aviso, duracionMs = 4000) => {
     const id = proximoAvisoId.current++;
-    setAvisosDeEntrada((previos) => [{ ...aviso, id }, ...previos].slice(0, 3));
+    setAvisosDeEntrada((previos) => [{ ...aviso, id, saliendo: false }, ...previos].slice(0, 3));
+    // Se va desvaneciéndose, no de golpe: primero se marca y un momento después se saca.
+    setTimeout(() => {
+      setAvisosDeEntrada((previos) => previos.map((a) => (a.id === id ? { ...a, saliendo: true } : a)));
+    }, duracionMs - SALIDA_DEL_AVISO_MS);
     setTimeout(() => {
       setAvisosDeEntrada((previos) => previos.filter((a) => a.id !== id));
     }, duracionMs);
@@ -336,10 +347,11 @@ export default function AccessPage() {
   const getDaysInfo = useCallback((member) => {
     const { situacion, diasVencido, diasRestantes } = member || {};
     if (!situacion || situacion === 'SIN_DATOS') {
-      return { label: 'Sin fecha', type: 'unknown', valor: '—', unidad: 'sin fecha cargada' };
+      // Sin número: un "—" gigante en el cartel no le dice nada a nadie. Se dice con palabras.
+      return { label: 'Sin fecha', type: 'unknown', valor: null, unidad: 'Sin fecha cargada' };
     }
     if (situacion === 'INACTIVO') {
-      return { label: 'Dado de baja', type: 'expired', valor: '—', unidad: 'dado de baja' };
+      return { label: 'Dado de baja', type: 'expired', valor: null, unidad: 'Dado de baja' };
     }
 
     if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
@@ -410,7 +422,25 @@ export default function AccessPage() {
       // Más tiempo que el manual: al que registra la recepcionista ya le habló una persona;
       // el que escaneó solo tiene esta pantalla para enterarse de cuánto le queda.
     }, 6000);
+    // Entró por QR con la cuota vencida: la X suena igual que si lo hubieran marcado a mano.
+    if (info.type === 'expired') sonarVencido();
   }, [data, ingresosQr, getDaysInfo, mostrarAviso]);
+
+  // ─── El molinete frenó a un vencido: que suene también ───
+  //
+  // Es la misma situación con otra puerta: alguien con la cuota vencida quiso entrar. Se usa la
+  // misma siembra que los ingresos por QR: lo que ya estaba al abrir la pantalla no suena.
+  const rechazosVistos = useRef(null);
+  useEffect(() => {
+    if (!data) return;
+    if (rechazosVistos.current === null) {
+      rechazosVistos.current = new Set(rechazos.map((r) => r.accesoId));
+      return;
+    }
+    const nuevos = rechazos.filter((r) => !rechazosVistos.current.has(r.accesoId));
+    nuevos.forEach((r) => rechazosVistos.current.add(r.accesoId));
+    if (nuevos.some((r) => SITUACIONES_QUE_SUENAN.has(r.estado))) sonarVencido();
+  }, [data, rechazos]);
 
   // ─── ¿Este socio está adentro AHORA? ───
   //
@@ -496,6 +526,9 @@ export default function AccessPage() {
           detalle: 'Se manda solo cuando vuelva internet',
           initials: getInitials(member.fullName),
         });
+        // Sin internet también suena: justo ahí el servidor no puede avisar nada. Salvo que
+        // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe.
+        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido();
         setSearchQuery('');
         setSearchResults([]);
         contarPendientes();
@@ -532,6 +565,9 @@ export default function AccessPage() {
           : (r?.recuperado && !salio && !rebote ? 'La vez anterior se fue sin marcar salida' : ''),
         initials: getInitials(member.fullName),
       });
+      // La X, solo al que ENTRA vencido. Al que sale no se le reclama nada, y al que acaba de
+      // pagar (el cobro todavía no subió) sonarle sería una falsa alarma.
+      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido();
 
       setSearchQuery('');
       setSearchResults([]);
@@ -793,8 +829,14 @@ export default function AccessPage() {
           del mouse. Se apila para que un socio no le borre el aviso al anterior. */}
       {avisosDeEntrada.length > 0 && (
         <div className="acceso-avisos" aria-live="polite">
-          {avisosDeEntrada.map((aviso) => (
-            <div key={aviso.id} className={`acceso-aviso ${aviso.type}`}>
+          {/* Cada cartel sabe su lugar en la pila (--i) y cuántos hay (--n): así, cuando entra
+              uno nuevo, los otros se DESLIZAN a su lugar en vez de saltar. */}
+          {avisosDeEntrada.map((aviso, i) => (
+            <div
+              key={aviso.id}
+              className={`acceso-aviso ${aviso.type}${aviso.saliendo ? ' saliendo' : ''}`}
+              style={{ '--i': i, '--n': avisosDeEntrada.length }}
+            >
               <div className="acceso-aviso-cabecera">
                 <div className="acceso-aviso-inicial">{aviso.initials}</div>
                 <div className="acceso-aviso-nombre">{aviso.name}</div>
@@ -803,10 +845,11 @@ export default function AccessPage() {
               {/* ⭐ EL NÚMERO ES EL CARTEL. Esta pantalla está a la vista de todo el
                   mostrador, y lo que el socio quiere saber al pasar es una sola cosa:
                   cuánto le queda. Tiene que leerse de lejos, sin acercarse ni preguntar. */}
-              {aviso.valor != null && (
+              {(aviso.valor != null || aviso.unidad) && (
                 <div className="acceso-aviso-cifra">
-                  <strong>{aviso.valor}</strong>
-                  <span>{aviso.unidad}</span>
+                  {aviso.valor != null && <strong>{aviso.valor}</strong>}
+                  {/* Sin número (sin fecha, dado de baja), la palabra ocupa su lugar. */}
+                  {aviso.unidad && <span className={aviso.valor == null ? 'sin-numero' : undefined}>{aviso.unidad}</span>}
                 </div>
               )}
 

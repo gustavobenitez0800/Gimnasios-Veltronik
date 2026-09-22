@@ -104,12 +104,10 @@
   /* Pegado al borde del contenido, no al de la pantalla: si no, se monta sobre el sidebar. */
   left: calc(var(--sidebar-width) + 1.5rem);
   top: 50%;
-  transform: translateY(-50%);
   z-index: 900;              /* debajo de los diálogos: nunca compite con un modal abierto */
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   pointer-events: none;
+  /* Cuánto baja cada cartel de la pila: su lado más el espacio entre dos. */
+  --aviso-paso: calc(var(--aviso-lado) + 0.75rem);
 }
 
 .acceso-aviso {
@@ -126,15 +124,47 @@
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--success-500);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   color: var(--text-primary);
-  /* Entra desde la izquierda: de donde viene, se entiende sin leerlo. */
-  transform: translateX(-120%);
-  animation: avisoEntra 0.35s var(--transition-bounce) forwards;
+
+  /* ⭐ LA PILA, SIN SALTOS. Antes los carteles iban en una columna centrada con flex: cada
+     cartel nuevo cambiaba el alto de la columna, la columna se recentraba y los que ya
+     estaban pegaban un salto. Ahora cada uno se ubica solo, según su lugar (--i) y cuántos
+     hay (--n), y cuando eso cambia se DESLIZA hasta su lugar nuevo. */
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateY(calc((var(--i, 0) - (var(--n, 1) - 1) / 2) * var(--aviso-paso) - var(--aviso-lado) / 2));
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ⭐ LA ENTRADA, LIVIANA. Se trababa por tres cosas, y ninguna era el cartel en sí:
+       · `animation: … var(--transition-bounce)` — esa variable vale "500ms cubic-bezier(…)",
+         y en esa posición los 500ms se leen como DEMORA: el cartel quedaba medio segundo
+         invisible fuera de pantalla y después entraba de golpe, rebotando.
+       · `backdrop-filter: blur(16px)` sobre algo que se mueve obliga a recalcular el
+         desenfoque del fondo en cada cuadro. Y el fondo del cartel es opaco: no se veía.
+       · Recorría 288px en 350ms con rebote, justo mientras la pantalla refresca los datos.
+     Ahora aparece sin demora, se desliza 16px y se funde en 240ms. Anima solo `translate` y
+     `opacity`, que la placa de video mueve sola sin esperar a la pantalla. */
+  animation: avisoEntra 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
 }
 
-@keyframes avisoEntra { to { transform: translateX(0); } }
+@keyframes avisoEntra {
+  from { opacity: 0; translate: -16px 0; scale: 0.97; }
+  to   { opacity: 1; translate: 0 0;     scale: 1; }
+}
+
+/* Se va desvaneciéndose, no de golpe (el mismo tiempo que SALIDA_DEL_AVISO_MS). */
+.acceso-aviso.saliendo { animation: avisoSale 200ms ease-in both; }
+@keyframes avisoSale {
+  to { opacity: 0; translate: -10px 0; }
+}
+
+/* Quien pidió menos movimiento en Windows no recibe ninguno: aparece y se va, sin deslizarse. */
+@media (prefers-reduced-motion: reduce) {
+  .acceso-aviso { animation: none; transition: none; }
+  .acceso-aviso.saliendo { animation: none; opacity: 0; }
+}
 
 .acceso-aviso.warning { border-left-color: var(--warning-500); }
 .acceso-aviso.error   { border-left-color: var(--error-500); }
@@ -191,6 +221,15 @@
 .acceso-aviso.warning .acceso-aviso-cifra strong { color: var(--warning-500); }
 .acceso-aviso.error   .acceso-aviso-cifra strong { color: var(--error-500); }
 
+/* Sin número (sin fecha cargada, dado de baja): la palabra ocupa el centro, no un "—". */
+.acceso-aviso-cifra span.sin-numero {
+  margin-top: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.acceso-aviso.error .acceso-aviso-cifra span.sin-numero { color: var(--error-500); }
+
 /* ─── Abajo: qué quedó registrado ─── */
 .acceso-aviso-pie {
   border-top: 1px solid var(--border-color);
@@ -240,9 +279,11 @@
   .acceso-avisos {
     left: 0.75rem; right: 0.75rem;
     top: auto; bottom: 1rem;
-    transform: none;
   }
   .acceso-aviso {
+    /* Abajo, y apilados hacia arriba: el más nuevo pegado al borde. */
+    top: auto; bottom: 0; right: 0;
+    transform: translateY(calc(var(--i, 0) * (-100% - 0.6rem)));
     width: auto; height: auto;
     flex-direction: row; align-items: center; gap: 0.85rem;
     padding: 0.9rem 1.1rem;

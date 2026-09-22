@@ -22,7 +22,7 @@ import Icon from './Icon';
 
 /** Qué decirle a la recepcionista, según la situación del socio. */
 const TEXTO = {
-  VENCIDO: (a) => `tiene la cuota vencida hace ${a.diasVencido} días`,
+  VENCIDO: (a) => `tiene la cuota vencida hace ${a.diasVencido === 1 ? '1 día' : `${a.diasVencido} días`}`,
   EN_GRACIA: (a) => `se le venció la cuota hace ${a.diasVencido === 1 ? '1 día' : `${a.diasVencido} días`}`,
   INACTIVO: () => 'figura dado de baja',
   SIN_DATOS: () => 'no tiene fecha de vencimiento cargada en su ficha',
@@ -45,7 +45,7 @@ function hora(iso) {
  */
 const TEXTO_RECHAZO = {
   ...TEXTO,
-  AL_DIA: () => 'y ya está al día — si acaba de pagar, avisale que puede volver a pasar',
+  AL_DIA: () => 'ya está al día. Si acaba de pagar, avisale que puede volver a pasar',
 };
 
 /**
@@ -66,7 +66,7 @@ const VARIANTES = {
     titulo: (n) => (n === 1 ? 'La puerta frenó a un socio' : `La puerta frenó a ${n} socios`),
     marcar: (id) => accessService.marcarRechazoVisto(id),
     // Al rechazado la puerta NO lo dejó pasar, así que el texto es sobre por qué se lo frenó.
-    frase: (a) => ` quiso entrar por el molinete y no pudo — ${(TEXTO_RECHAZO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
+    frase: (a) => ` quiso entrar por el molinete y no pudo: ${(TEXTO_RECHAZO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
   },
 };
 
@@ -122,7 +122,7 @@ export default function AvisosMostrador({ avisos = [], onAtendido, variante = 'e
               onClick={() => atender(a)}
               disabled={ocultando === a.accesoId}
             >
-              Ya lo hablé
+              OK
             </button>
           </li>
         ))}
