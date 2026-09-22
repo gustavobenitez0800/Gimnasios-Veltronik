@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 import CONFIG from '../lib/config';
 import { errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
@@ -131,7 +132,7 @@ export default function RegisterPage() {
             type={showPassword ? 'text' : 'password'}
             id="confirmPassword"
             className="form-input"
-            placeholder="Repite tu contraseña"
+            placeholder="Repetí tu contraseña"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -143,7 +144,7 @@ export default function RegisterPage() {
           {submitting ? (
             <><span className="spinner" /> Registrando...</>
           ) : (
-            'Crear Cuenta'
+            'Crear cuenta'
           )}
         </button>
       </form>
@@ -169,5 +170,5 @@ async function getRegisterErrorMessage(error) {
     return errorService.messageForDiagnosis(diagnosis);
   }
 
-  return 'Error al crear la cuenta. Intenta de nuevo.';
+  return 'No pudimos crear la cuenta. Probá de nuevo.';
 }

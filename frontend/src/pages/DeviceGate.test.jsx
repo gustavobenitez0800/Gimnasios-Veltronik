@@ -46,7 +46,7 @@ vi.mock('../lib/config', () => ({
   default: { ROUTES: { DASHBOARD: '/dashboard', ACCESS: '/access', LOBBY: '/lobby' } },
 }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
-vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
+vi.mock('../assets/marca-veltronik.svg', () => ({ default: 'logo.svg' }));
 
 const { default: DeviceGate } = await import('./DeviceGate');
 

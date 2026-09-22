@@ -68,12 +68,19 @@ export default function ClassesPage() {
     });
   }, [weekStart]);
 
+  // "21 al 27 de septiembre", o "29 de septiembre al 5 de octubre" cuando cruza de mes.
   const weekLabel = useMemo(() => {
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
+      'septiembre', 'octubre', 'noviembre', 'diciembre'];
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
-    return `${weekStart.getDate()} ${months[weekStart.getMonth()]} - ${end.getDate()} ${months[end.getMonth()]}`;
+    const mismoMes = end.getMonth() === weekStart.getMonth();
+    return mismoMes
+      ? `${weekStart.getDate()} al ${end.getDate()} de ${months[end.getMonth()]}`
+      : `${weekStart.getDate()} de ${months[weekStart.getMonth()]} al ${end.getDate()} de ${months[end.getMonth()]}`;
   }, [weekStart]);
+
+  const hayClasesActivas = classes.some((c) => c.status === 'active');
 
   const changeWeek = (dir) => {
     setWeekStart(prev => {
@@ -159,16 +166,20 @@ export default function ClassesPage() {
 
   return (
     <div className="classes-page">
-      <PageHeader title="Clases y Actividades" subtitle="Gestión de horarios y clases" icon="calendarEvent"
-        actions={<button className="btn btn-primary" onClick={openNew}><Icon name="plus" /> Nueva Clase</button>} />
+      <PageHeader title="Clases y actividades" subtitle="Los horarios fijos de cada semana" icon="calendarEvent"
+        actions={<button className="btn btn-primary" onClick={openNew}><Icon name="plus" /> Nueva clase</button>} />
 
-      {/* Calendar Navigation */}
-      <div className="card mb-3">
+      {/* La barra de la semana: como la de filtros, el encabezado ES la tarjeta. */}
+      <div className="card card-barra mb-3">
         <div className="table-header">
           <div className="calendar-nav">
-            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(-1)}>← Anterior</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(-1)} aria-label="Semana anterior" title="Semana anterior">
+              <Icon name="chevronLeft" size="1em" />
+            </button>
             <span className="current-week">{weekLabel}</span>
-            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(1)}>Siguiente →</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(1)} aria-label="Semana siguiente" title="Semana siguiente">
+              <Icon name="chevronRight" size="1em" />
+            </button>
           </div>
           <div className="view-toggle">
             <button className={`btn btn-sm ${view === 'calendar' ? 'btn-primary' : 'btn-secondary'}`}
@@ -181,6 +192,14 @@ export default function ClassesPage() {
 
       {isFetching ? (
         <div className="dashboard-loading"><span className="spinner" /> Cargando clases...</div>
+      ) : view === 'calendar' && !hayClasesActivas ? (
+        /* Sin ninguna clase: UN cartel que dice qué hacer, no siete columnas que dicen "Sin
+           clases" cada una. */
+        <div className="card">
+          <EmptyState icon="calendarEvent" title="Todavía no hay clases"
+            description="Creá la primera y aparece en el calendario de la semana."
+            action={<button className="btn btn-primary" onClick={openNew}><Icon name="plus" /> Nueva clase</button>} />
+        </div>
       ) : view === 'calendar' ? (
         /* Weekly Calendar */
         <div className="card">
@@ -219,7 +238,7 @@ export default function ClassesPage() {
           <div className="table-container">
             <table className="table">
               <thead>
-                <tr><th>Clase</th><th>Instructor</th><th>Día</th><th>Horario</th><th>Cupos</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th>Clase</th><th>Instructor</th><th>Día</th><th>Horario</th><th>Cupos</th><th>Estado</th><th aria-label="Acciones" /></tr>
               </thead>
               <tbody>
                 {classes.length === 0 ? (
@@ -237,9 +256,9 @@ export default function ClassesPage() {
                     <td data-label="Estado"><span className={`badge ${cls.status === 'active' ? 'badge-success' : 'badge-neutral'}`}>
                       {cls.status === 'active' ? 'Activa' : 'Inactiva'}</span></td>
                     <td data-label="Acciones"><div className="table-actions">
-                      <button className="action-btn-quick action-btn-payment" onClick={() => openEdit(cls)} title="Editar"><Icon name="edit" /></button>
+                      <button className="action-btn-quick action-btn-payment" onClick={() => openEdit(cls)} title="Editar" aria-label={`Editar ${cls.name}`}><Icon name="edit" /></button>
                       <button className="action-btn-quick action-btn-delete"
-                        onClick={() => setDeleteId(cls.id)} title="Eliminar"><Icon name="trash" /></button>
+                        onClick={() => setDeleteId(cls.id)} title="Eliminar" aria-label={`Eliminar ${cls.name}`}><Icon name="trash" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -253,7 +272,7 @@ export default function ClassesPage() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? 'Editar Clase' : 'Nueva Clase'}
+        title={editingId ? 'Editar clase' : 'Nueva clase'}
       >
         <form onSubmit={handleSave}>
           <div className="modal-form">
@@ -362,7 +381,7 @@ export default function ClassesPage() {
         )}
       </Modal>
 
-      <ConfirmDialog open={!!deleteId} title="Eliminar Clase" message="¿Estás seguro de eliminar esta clase?"
+      <ConfirmDialog open={!!deleteId} title="Eliminar clase" message="¿Estás seguro de eliminar esta clase?"
         icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
     </div>
   );

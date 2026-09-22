@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 776" role="img" aria-label="Veltronik">
+  <!-- La marca de Veltronik (el Logotipo Secundario) en vector y en el azul de la app. El PNG
+       original es azul marino #07324F: sobre el fondo oscuro de la app casi no se veía. -->
+  <defs>
+    <linearGradient id="veltronik-marca" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#93bbfd"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#veltronik-marca)" d="M17 115 L367 2 L45 776 L72 347 L0 368 Z M345 170 L598 88 L98 735 Z"/>
+</svg>

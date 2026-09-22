@@ -23,7 +23,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { memberService, accessService, errorService } from '../services';
-import { getInitials, debounce } from '../lib/utils';
+import { getInitials, debounce, horaDe } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
@@ -625,7 +625,7 @@ export default function AccessPage() {
           vez y se pega en la puerta: tenerlo desplegado todo el día costaba media pantalla
           del mostrador, que es donde se trabaja. */}
       <div className="access-barra">
-        <PageHeader title="Control de Acceso" subtitle="Registro de entradas y salidas" icon="doorEnter" />
+        <PageHeader title="Control de acceso" subtitle="Registro de entradas y salidas" icon="doorEnter" />
         {puedeAdministrarQr && (
           <button className="btn btn-secondary" onClick={() => setQrAbierto(true)}>
             <Icon name="qrCode" size="1em" /> Cartel de entrada
@@ -646,7 +646,7 @@ export default function AccessPage() {
           PÁGINA no se mueve, que es lo que se pidió. */}
       <div className="access-cuerpo">
         <section className="checkin-section">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar Entrada</h3>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="checkCircle" size="1em" /> Registrar entrada</h3>
           <div className="search-box">
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
                 `enterKeyHint` le pide al teclado del celular que la tecla diga "Enter" y no
@@ -708,7 +708,7 @@ export default function AccessPage() {
                       </span>
                       {adentro && (
                         <span className="member-access-status is-inside">
-                          Adentro desde {new Date(visita.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                          Adentro desde {horaDe(visita.checkInAt)}
                         </span>
                       )}
                       {/* ⭐ PAGÓ, PERO EL SERVIDOR NO SE ENTERÓ TODAVÍA.

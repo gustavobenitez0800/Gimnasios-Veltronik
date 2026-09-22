@@ -318,8 +318,8 @@ export function insightsDelDia(resumen) {
     insights.push({
       icon: 'clock',
       type: 'warning',
-      title: 'Membresías por vencer',
-      message: `${porVencer} socio${porVencer > 1 ? 's' : ''} con membresía próxima a vencer esta semana`,
+      title: 'Vencen esta semana',
+      message: `${porVencer === 1 ? '1 socio vence' : `${porVencer} socios vencen`} en los próximos 7 días`,
     });
   }
 

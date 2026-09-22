@@ -15,7 +15,9 @@ export default function FilterBar({
   children = null,
 }) {
   return (
-    <div className="card mb-3">
+    // card-barra: la tarjeta sin su relleno propio. El de .table-header ya separa del borde; los
+    // dos juntos hacían una tarjeta del triple de alto que los controles que tiene adentro.
+    <div className="card card-barra mb-3">
       <div className="table-header">
         <div className="table-filters">
           {onSearch && (

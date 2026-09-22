@@ -3,11 +3,12 @@
 // ============================================
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { authService, errorService } from '../services';
 import CONFIG from '../lib/config';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 import Icon from '../components/Icon';
 
 export default function ResetPasswordPage() {
@@ -72,32 +73,28 @@ export default function ResetPasswordPage() {
 
   if (!sessionReady) {
     return (
-      <div className="auth-wrapper">
-        <div className="auth-container">
-          <div className="auth-card" style={{ textAlign: 'center' }}>
-            <span className="spinner" style={{ width: 32, height: 32 }} />
-            <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Verificando enlace...</p>
-          </div>
-        </div>
+      <div className="auth-card" style={{ textAlign: 'center' }}>
+        <span className="spinner" style={{ width: 32, height: 32 }} />
+        <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Verificando enlace…</p>
       </div>
     );
   }
 
+  // Sin marco propio: el AuthLayout de la ruta ya pone el fondo y el ancho. Con los dos, la
+  // tarjeta quedaba 64 px más angosta que la del login.
   return (
-    <div className="auth-wrapper">
-      <div className="auth-container">
         <div className="auth-card">
           <div className="auth-logo">
             <img src={logoSrc} alt="Veltronik" className="auth-logo-img" />
             <h1 className="auth-logo-text">Veltronik</h1>
           </div>
 
-          <h2 className="auth-title">Restablecer Contraseña</h2>
+          <h2 className="auth-title">Restablecer contraseña</h2>
           <p className="auth-subtitle">Ingresá tu nueva contraseña</p>
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Nueva Contraseña</label>
+              <label className="form-label">Nueva contraseña</label>
               <div className="password-wrapper">
                 <input type={showPassword ? 'text' : 'password'} className="form-input"
                   placeholder="Mínimo 6 caracteres" value={password}
@@ -110,7 +107,7 @@ export default function ResetPasswordPage() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Confirmar Contraseña</label>
+              <label className="form-label">Confirmar contraseña</label>
               <div className="password-wrapper">
                 <input type={showPassword ? 'text' : 'password'} className="form-input"
                   placeholder="Repetí tu contraseña" value={confirmPassword}
@@ -119,15 +116,13 @@ export default function ResetPasswordPage() {
             </div>
 
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? <><span className="spinner" /> Cambiando...</> : 'Cambiar Contraseña'}
+              {submitting ? <><span className="spinner" /> Cambiando...</> : 'Cambiar contraseña'}
             </button>
           </form>
 
           <p className="auth-links">
-            <a href="#/login">Volver al inicio de sesión</a>
+            <Link to={CONFIG.ROUTES.LOGIN}>Volver al inicio de sesión</Link>
           </p>
         </div>
-      </div>
-    </div>
   );
 }

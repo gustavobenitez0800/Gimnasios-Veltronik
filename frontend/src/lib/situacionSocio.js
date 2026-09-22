@@ -165,3 +165,37 @@ export function conSituacionAlDia(socio, ahora = new Date()) {
   if (!socio) return socio;
   return { ...socio, ...situacionDe(socio, ahora) };
 }
+
+/**
+ * ⭐ Los cuatro estados que ve el dueño, con UN solo nombre en toda la app.
+ *
+ * <p>Hasta el 2026-09-22 cada pantalla traducía a su manera: Socios decía "Activo" (con una
+ * excepción para "Sin cuota"), el tablero decía "Activo" también al que nunca pagó, el CSV y los
+ * reportes tenían su propia cuenta. Y el gráfico decía "Al día". Ahora todas preguntan acá.</p>
+ *
+ * <p>Parten la lista entera sin huecos: todo socio está en uno y solo uno.</p>
+ */
+export const ESTADOS_DEL_SOCIO = Object.freeze({
+  al_dia: { texto: 'Al día', plural: 'Al día', clase: 'badge-success' },
+  vencido: { texto: 'Vencido', plural: 'Vencidos', clase: 'badge-error' },
+  // Ámbar y no rojo: no debe nada, todavía no se le cobró (ADR-013: el alta no regala un mes).
+  sin_cuota: { texto: 'Sin cuota', plural: 'Sin cuota', clase: 'badge-warning' },
+  baja: { texto: 'Baja', plural: 'Bajas', clase: 'badge-neutral' },
+});
+
+/**
+ * En cuál de los cuatro está un socio. Manda la situación que calculó el servidor
+ * (`MemberAccessPolicy`); si no viene (un socio dado de alta sin conexión), la de acá.
+ *
+ * @returns {'al_dia'|'vencido'|'sin_cuota'|'baja'}
+ */
+export function estadoDelSocio(socio, ahora = new Date()) {
+  if (!socio) return 'baja';
+  // La baja por cualquiera de los dos nombres: la ficha local dice status, el DTO del servidor active.
+  if (socio.status === 'inactive' || socio.active === false) return 'baja';
+  const situacion = socio.situacion || situacionDe(socio, ahora).situacion;
+  if (situacion === 'INACTIVO') return 'baja';
+  if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') return 'vencido';
+  if (situacion === 'SIN_DATOS') return 'sin_cuota';
+  return 'al_dia';
+}

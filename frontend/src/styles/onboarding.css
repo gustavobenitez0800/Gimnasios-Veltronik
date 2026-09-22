@@ -157,7 +157,7 @@
     radial-gradient(circle at 85% 30%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
   color: #fff;
   position: relative;
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: var(--font-family);
   box-sizing: border-box;
 }
 
@@ -879,7 +879,7 @@
   justify-content: center;
   position: relative;
   overflow: hidden;
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: var(--font-family);
   padding: 2rem;
 }
 
@@ -1188,3 +1188,8 @@
   .actions-card { padding: 1.5rem; }
 }
 
+
+/* El onboarding pide 560 px (el formulario tiene dos columnas); el marco del login mide 440.
+   Hasta el 2026-09-22 la página ponía un segundo marco adentro del de la ruta y el formulario
+   quedaba en ~376 px. */
+.auth-container:has(> .onboarding-card) { max-width: 560px; }

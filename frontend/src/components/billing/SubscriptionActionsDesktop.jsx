@@ -61,12 +61,12 @@ export default function SubscriptionActionsDesktop({ verifying, onVerify }) {
           disabled={verifying}
           style={{ flex: '1', minWidth: '200px' }}
         >
-          {verifying ? (<><span className="spinner" /> Verificando...</>) : ('Verificar Estado con MP')}
+          {verifying ? (<><span className="spinner" /> Verificando...</>) : ('Verificar el estado en Mercado Pago')}
         </button>
       </div>
 
       <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem', lineHeight: 1.5 }}>
-        Si ya pagaste y esta máquina todavía no lo refleja, usá "Verificar Estado con MP" para
+        Si ya pagaste y esta máquina todavía no lo refleja, usá "Verificar el estado en Mercado Pago" para
         sincronizar. No muestra ni cobra nada: solo vuelve a preguntar.
       </p>
 

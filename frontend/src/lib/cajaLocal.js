@@ -23,6 +23,7 @@
 // vez de fingir que sabe todo. Es la regla 6 de la fase 3: ningún total se muestra como si
 // fuera completo cuando no lo es.
 
+import { codigoDeForma, esEfectivo } from './formasDePago';
 import { pendientes, disponible } from './colaAccesos';
 
 const KEY = 'veltronik_caja_espejo';
@@ -158,14 +159,14 @@ export async function resumenSegunElTerminal(tenantId) {
       if (desde && String(item.ocurridoEn || '') <= desde) continue;
 
       if (item.tipo === 'COBRO') {
-        const donde = METODOS[String(item.paymentMethod || '').toUpperCase()] || 'otros';
+        const donde = METODOS[codigoDeForma(item.paymentMethod)] || 'otros';
         base[donde] = num(base[donde]) + num(item.amount);
         base.cantidadCobros = num(base.cantidadCobros) + 1;
         enCola++;
       } else if (item.tipo === 'EGRESO') {
         // ⚠️ Solo el efectivo mueve el cajón. Un gasto pagado por transferencia salió de la
         // cuenta, no del cajón, y restarlo acá inventaría un faltante.
-        if (String(item.metodo || 'CASH').toUpperCase() !== 'CASH') continue;
+        if (!esEfectivo(item.metodo || 'CASH')) continue;
         const esIngreso = String(item.movimientoTipo || 'EGRESO').toUpperCase() === 'INGRESO';
         if (esIngreso) {
           base.ingresosManuales = num(base.ingresosManuales) + num(item.monto);

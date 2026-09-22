@@ -1,5 +1,5 @@
 ﻿
-/* â”€â”€â”€ Reset & Base â”€â”€â”€ */
+/* ─── Reset & Base ─── */
 *,
 *::before,
 *::after {
@@ -28,6 +28,20 @@ body {
   overflow-x: hidden;
 }
 
+/* Los controles de formulario NO heredan la tipografía: el navegador les pone la suya. Sin
+   esto, todo botón o campo sin .btn / .form-input salía en Arial (el QR del socio, los menús). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-feature-settings: inherit;
+}
+/* Y el botón tampoco hereda el COLOR: el navegador le pone negro. Una tarjeta que es un botón
+   (el resumen del dueño) mostraba sus números en negro sobre el fondo oscuro. Los .btn ponen
+   el suyo. (El select no: en Windows su lista se abre sobre blanco.) */
+button { color: inherit; }
+
 /* ─── Tabular numbers ─── */
 /* Cifras de ancho fijo: importante en una app de dinero/datos. Montos, fechas,
    contadores y métricas alinean verticalmente y no "saltan" al actualizarse. */
@@ -45,7 +59,7 @@ table td,
   font-feature-settings: 'tnum' 1, 'cv05' 1, 'cv11' 1;
 }
 
-/* â”€â”€â”€ Scrollbar â”€â”€â”€ */
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -69,7 +83,7 @@ table td,
   scrollbar-color: var(--gray-600) transparent;
 }
 
-/* â”€â”€â”€ Typography â”€â”€â”€ */
+/* ─── Typography ─── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-weight: 600;

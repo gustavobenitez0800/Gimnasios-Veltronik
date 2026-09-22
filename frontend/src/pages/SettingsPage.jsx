@@ -11,12 +11,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { gymService, errorService, deviceService } from '../services';
-import { formatCurrency, timeAgo } from '../lib/utils';
+import { formatCurrency, formatDate, timeAgo } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
+import { obtenerPlanes, planDe } from '../lib/planes';
 import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
 import Icon from '../components/Icon';
@@ -54,7 +55,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
-    plan: 'Veltronik Pro', status: 'active', nextPayment: '--', amount: '--',
+    plan: 'Veltronik', status: 'active', nextPayment: '--', amount: '--',
     hasSubscription: false
   });
 
@@ -100,6 +101,7 @@ export default function SettingsPage({ SubscriptionActions }) {
       // Subscription info
       let nextPaymentText = '--';
       let hasSubscription = false;
+      let suscripcion = null;
 
       // En el ESCRITORIO no se consulta siquiera: esta pantalla no muestra plata del
       // dueño (ver la sección de suscripción más abajo), así que traer el estado de
@@ -112,11 +114,17 @@ export default function SettingsPage({ SubscriptionActions }) {
             const subRes = await apiClient.get(`/tenants/${tenantId}/subscription`);
             if (subRes.status === 200 && subRes.data) {
               hasSubscription = true;
+              suscripcion = subRes.data;
             }
           }
         } catch {
           // Sin suscripción MP activa — puede estar en trial
         }
+      }
+
+      // Con suscripción, el próximo cobro es el fin del período pago (decía "--" siempre).
+      if (suscripcion?.currentPeriodEnd) {
+        nextPaymentText = formatDate(String(suscripcion.currentPeriodEnd).slice(0, 10));
       }
 
       // Sin suscripción de MP, el "próximo cobro" es el fin de la prueba gratis.
@@ -132,13 +140,17 @@ export default function SettingsPage({ SubscriptionActions }) {
       // El precio lo dice el BACKEND, que es quien le pasa el monto a Mercado Pago.
       // (Antes esto era CONFIG.SUBSCRIPTION_PRICE, horneado en el build: un instalador
       // viejo mostraba para siempre el precio con el que se compiló.)
-      const amount = (await getPaymentConfig()).monthlyPrice;
+      // ⭐ El plan y el precio de ESTA sucursal. Decía "Veltronik Pro" con el precio del básico
+      // a todos, aunque la sucursal pagara Premium.
+      const [config, planes] = await Promise.all([getPaymentConfig(), obtenerPlanes()]);
+      const plan = planDe(planes, suscripcion?.planCode);
+      const amount = Number(plan?.price) > 0 ? Number(plan.price) : config.monthlyPrice;
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
       // de visualización desde la fuente real para no depender de un campo inexistente.
       const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
-        plan: 'Veltronik Pro',
+        plan: plan?.name || 'Veltronik',
         status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
@@ -381,13 +393,13 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   return (
     <div className="settings-page">
-      <PageHeader title="Configuración" subtitle={`Gestión de tu ${orgLabel} y cuenta`} icon="settings" />
+      <PageHeader title="Ajustes" subtitle={`Los datos del ${orgLabel}, tu cuenta y las computadoras`} icon="settings" />
 
       <div className="settings-grid">
         {/* Gym Info - Solo visible/editable para admin/owner */}
         <div className="settings-section">
           <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon name="settings" size="1.2em" /> Información del {orgLabelCap}
+            <Icon name="settings" size="1.2em" /> Información del {orgLabel}
           </h2>
 
           {(currentRole === 'owner' || currentRole === 'admin') ? (
@@ -435,7 +447,7 @@ export default function SettingsPage({ SubscriptionActions }) {
                 )}
               </div>
               <button type="submit" className="btn btn-primary" disabled={saving} style={{ marginTop: '1rem' }}>
-                {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar Cambios'}
+                {saving ? <><span className="spinner" /> Guardando...</> : 'Guardar cambios'}
               </button>
             </form>
           ) : (
@@ -494,7 +506,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
         {/* Account */}
         <div className="settings-section">
-          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size="1.1em" /> Mi Cuenta</h2>
+          <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size="1.1em" /> Mi cuenta</h2>
           <div className="info-row">
             <span className="info-label">Email</span>
             <span className="info-value">{accountEmail}</span>
@@ -618,7 +630,7 @@ export default function SettingsPage({ SubscriptionActions }) {
         {/* Danger Zone */}
         <div className="danger-zone-container">
           <div className="danger-header">
-            <h2 className="danger-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="alertTriangle" size="1.1em" /> Zona de Peligro</h2>
+            <h2 className="danger-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="alertTriangle" size="1.1em" /> Zona de peligro</h2>
           </div>
           <div className="danger-content">
             {/* Dar de baja la suscripción es una decisión de cuenta, y de las caras: no
@@ -627,21 +639,21 @@ export default function SettingsPage({ SubscriptionActions }) {
             {currentRole === 'owner' && !CONFIG.IS_DESKTOP && (
               <div className="danger-item">
                 <div className="danger-info">
-                  <h3>Cancelar Suscripción</h3>
+                  <h3>Cancelar suscripción</h3>
                   <p>Se corta el cobro automático. Seguís usando el sistema hasta que termine el período que ya pagaste, y <strong>tus datos quedan intactos</strong>. Podés volver a suscribirte cuando quieras.</p>
                 </div>
-                <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar Suscripción</button>
+                <button className="btn-outline-danger" onClick={() => setConfirmCancel(true)}>Cancelar suscripción</button>
               </div>
             )}
             <div className="danger-item">
               <div className="danger-info">
-                <h3>Cerrar Sesión</h3>
+                <h3>Cerrar sesión</h3>
                 <p>Salís de tu cuenta en esta computadora. No se borra nada y podés volver a entrar cuando quieras.</p>
               </div>
-              <button className="btn-outline-secondary" onClick={() => setConfirmLogout(true)}>Cerrar Sesión</button>
+              <button className="btn-outline-secondary" onClick={() => setConfirmLogout(true)}>Cerrar sesión</button>
             </div>
             {/* Cerrar en TODOS es una acción aparte y explícita, nunca el efecto de salir. Antes
-                "Cerrar Sesión" decía "en esta computadora" y cerraba en todas: el mostrador caía
+                "Cerrar sesión" decía "en esta computadora" y cerraba en todas: el mostrador caía
                 al login una hora después de que el dueño saliera desde el celular. */}
             <div className="danger-item">
               <div className="danger-info">
@@ -656,14 +668,14 @@ export default function SettingsPage({ SubscriptionActions }) {
       </div>
 
       {/* Confirm Dialogs */}
-      <ConfirmDialog open={confirmCancel} title="Cancelar Suscripción"
+      <ConfirmDialog open={confirmCancel} title="Cancelar suscripción"
         message="Se corta el cobro automático en Mercado Pago. Vas a poder usar el sistema hasta que termine el período que ya pagaste, y tus datos quedan intactos. Para volver vas a tener que cargar la tarjeta de nuevo."
         icon="alertTriangle" confirmText={cancellingSubscription ? 'Cancelando...' : 'Sí, cancelar'} confirmClass="btn-danger"
         onConfirm={handleCancelSubscription} onCancel={() => setConfirmCancel(false)} />
 
-      <ConfirmDialog open={confirmLogout} title="Cerrar Sesión"
+      <ConfirmDialog open={confirmLogout} title="Cerrar sesión"
         message="¿Estás seguro de cerrar tu sesión?"
-        icon="logout" confirmText="Cerrar Sesión" confirmClass="btn-danger"
+        icon="logout" confirmText="Cerrar sesión" confirmClass="btn-danger"
         onConfirm={handleLogout} onCancel={() => setConfirmLogout(false)} />
 
       <ConfirmDialog open={confirmLogoutAll} title="Cerrar sesión en todos los dispositivos"

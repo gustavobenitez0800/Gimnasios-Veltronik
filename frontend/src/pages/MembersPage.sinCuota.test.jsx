@@ -23,7 +23,7 @@ const SOCIOS = [
   { id: 's1', fullName: 'Jose Luis Benitez', dni: '30111222', phone: '', status: 'active',
     situacion: 'SIN_DATOS', diasRestantes: 0, diasVencido: 0, membershipEnd: null,
     planId: '', attendanceDays: [] },
-  // Al día: tiene que seguir diciendo Activo y sus días.
+  // Al día: tiene que seguir diciendo Al día y sus días.
   { id: 's2', fullName: 'LURDES ROLLET', dni: '44646377', phone: '', status: 'active',
     situacion: 'AL_DIA', diasRestantes: 12, diasVencido: 0, membershipEnd: '2026-09-20',
     planId: '', attendanceDays: [] },
@@ -70,11 +70,11 @@ const { default: MembersPage } = await import('./MembersPage');
 let root;
 let container;
 
-async function pintar() {
+async function pintar(url = '/') {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  await act(async () => { root.render(<MemoryRouter><MembersPage /></MemoryRouter>); });
+  await act(async () => { root.render(<MemoryRouter initialEntries={[url]}><MembersPage /></MemoryRouter>); });
   for (let i = 0; i < 4; i++) {
     await act(async () => { await Promise.resolve(); });
   }
@@ -123,7 +123,7 @@ describe('el socio sin cuota en la lista', () => {
     await pintar();
 
     const fila = filaDe('LURDES ROLLET');
-    expect(fila).toContain('Activo');
+    expect(fila).toContain('Al día');
     expect(fila).toContain('12d');
     expect(fila).not.toContain('Sin cuota');
   });
@@ -134,7 +134,7 @@ describe('el socio sin cuota en la lista', () => {
     await pintar();
 
     const fila = filaDe('CAROLINA ARRUA');
-    expect(fila).toContain('Inactivo');
+    expect(fila).toContain('Baja');
     expect(fila).toContain('baja');
     expect(fila).not.toContain('Sin cuota');
   });
@@ -161,15 +161,31 @@ describe('el filtro "Sin cuota"', () => {
     expect(texto).not.toContain('CAROLINA ARRUA');
   });
 
-  it('"Activos" lo sigue incluyendo — activo es "no está dado de baja"', async () => {
-    // Decidido a propósito: si se lo sacara de Activos, un socio recién cargado no aparecería
-    // en NINGÚN filtro hasta que se le cobre.
+  it('⭐ cada socio está en UN filtro de estado, y ninguno queda afuera de todos', async () => {
+    // Antes "Activos" incluía al sin cuota para que un socio recién cargado apareciera en
+    // algún filtro. Ahora los cuatro estados son los de la pantalla (Al día, Vencidos, Sin
+    // cuota, Bajas): el recién cargado está en "Sin cuota", y en ningún otro.
     await pintar();
-    await filtrar('active');
+    const en = {};
+    for (const estado of ['al_dia', 'vencido', 'sin_cuota', 'baja']) {
+      await filtrar(estado);
+      en[estado] = filas().join(' | ');
+    }
+    expect(en.al_dia).toContain('LURDES ROLLET');
+    expect(en.al_dia).not.toContain('Jose Luis Benitez');
+    expect(en.sin_cuota).toContain('Jose Luis Benitez');
+    expect(en.baja).toContain('CAROLINA ARRUA');
+    expect(en.baja).not.toContain('LURDES ROLLET');
+  });
 
+  it('un enlace viejo con ?estado=inactive sigue abriendo el filtro que corresponde', async () => {
+    // El "Ver vencidos" del tablero mandaba ?estado=expired; un marcador guardado no se rompe.
+    await pintar('/?estado=inactive');
+    const select = [...container.querySelectorAll('select')]
+      .find((s) => [...s.options].some((o) => o.value === 'sin_cuota'));
+    expect(select.value).toBe('baja');
     const texto = filas().join(' | ');
-    expect(texto).toContain('Jose Luis Benitez');
-    expect(texto).toContain('LURDES ROLLET');
-    expect(texto).not.toContain('CAROLINA ARRUA');
+    expect(texto).toContain('CAROLINA ARRUA');
+    expect(texto).not.toContain('LURDES ROLLET');
   });
 });

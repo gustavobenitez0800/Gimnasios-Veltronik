@@ -14,9 +14,11 @@ public interface SubscriptionMapper {
 
     @Mapping(target = "tenant", ignore = true)
     @Mapping(target = "mpSubscriptionId", ignore = true)
+    @Mapping(target = "planCode", ignore = true)
     Subscription toEntity(SubscriptionDTO dto);
 
     @Mapping(target = "tenant", ignore = true)
     @Mapping(target = "mpSubscriptionId", ignore = true)
+    @Mapping(target = "planCode", ignore = true)
     void updateEntityFromDto(SubscriptionDTO dto, @MappingTarget Subscription entity);
 }

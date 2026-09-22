@@ -17,6 +17,7 @@ import { ownerInsightsService, errorService } from '../services';
 import { formatCurrency } from '../lib/utils';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
+import { claseDelValor } from '../components/ui/StatCard';
 
 /** Las tres métricas, con lo justo para dibujarlas. */
 const METRICAS = [
@@ -123,9 +124,11 @@ export default function OwnerInsightsPage() {
         {!cargando && !error && data?.branches?.length > 0 && (
           <>
             {/* Titulares del mes en curso: lo primero que mira alguien el día 1. */}
-            <div className="stats-grid mb-3">
+            {/* Tres tarjetas: tres columnas (la grilla de cuatro las partía en dos y una sola). */}
+            <div className="stats-grid stats-grid-3 mb-3">
               {METRICAS.map((m) => {
                 const fila = data.totals.find((t) => t.month === ultimoMes);
+                const valor = m.formato(fila ? fila[m.key] : 0);
                 return (
                   <button
                     key={m.key}
@@ -138,7 +141,8 @@ export default function OwnerInsightsPage() {
                   >
                     <div className="stat-icon stat-icon-success"><Icon name={m.icon} /></div>
                     <div className="stat-content">
-                      <div className="stat-value">{m.formato(fila ? fila[m.key] : 0)}</div>
+                      {/* El mismo tamaño que un StatCard: un monto largo se achica, no se corta. */}
+                      <div className={`stat-value ${claseDelValor(valor)}`} title={valor}>{valor}</div>
                       <div className="stat-label">{m.label} · {nombreMes(ultimoMes)}</div>
                     </div>
                   </button>
@@ -192,7 +196,8 @@ export default function OwnerInsightsPage() {
             </div>
 
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '1rem', lineHeight: 1.6 }}>
-              "Plata cobrada" son las cuotas que cobró cada gimnasio, no lo que pagás por Veltronik.
+              "Plata cobrada" es todo lo que entró en cada gimnasio (cuotas, ventas y otros ingresos, lo
+              mismo que dice su tablero), no lo que pagás por Veltronik.
               Si ves bajas que no reconocés, mirá en Ajustes si hay socios que pagaron y quedaron figurando vencidos.
             </p>
           </>
