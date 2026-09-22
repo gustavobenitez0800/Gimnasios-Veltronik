@@ -17,6 +17,15 @@ import CONFIG from './config';
 
 /** Dos avisos seguidos en menos de esto suenan una sola vez: en la puerta entra uno atrás del otro. */
 const PAUSA_MINIMA_MS = 1500;
+/**
+ * ⭐ EL MISMO SOCIO NO SUENA DOS VECES SEGUIDAS. Reportado por el dueño: con el QR, la X sonaba
+ * dos veces. La misma entrada puede llegar a esta pantalla por más de un camino (el refresco
+ * de la puerta, un segundo pedido que la vuelve a traer) y separados por más que la pausa de
+ * arriba. Por persona y con una ventana larga, sonar dos veces por el mismo vencido es
+ * imposible por construcción, venga por donde venga.
+ */
+const MISMO_SOCIO_MS = 90_000;
+const ultimaPorSocio = new Map();
 /** Cuánto queda baja la música: lo que dura la X, con margen para que no se pise. */
 const MUSICA_BAJA_MS = 900;
 /** Cuánto se espera a que la música baje antes de sonar (el ayudante baja en ~100 ms). */
@@ -28,11 +37,19 @@ let contexto = null;
 /**
  * Suena la X del socio vencido (y baja la música un momento).
  *
+ * @param {string|null} quien  el socio (o la entrada). Con él, el mismo no suena dos veces seguidas.
  * @returns {boolean} true si sonó; false si no correspondía (web, o sonó hace un instante)
  */
-export function sonarVencido(ahora = Date.now()) {
+export function sonarVencido(quien = null, ahora = Date.now()) {
   if (!CONFIG.IS_DESKTOP) return false;
   if (ahora - ultimaVez < PAUSA_MINIMA_MS) return false;
+  if (quien != null) {
+    const antes = ultimaPorSocio.get(quien);
+    if (antes != null && ahora - antes < MISMO_SOCIO_MS) return false;
+    ultimaPorSocio.set(quien, ahora);
+    // Que la memoria no crezca todo el día: se olvida lo que ya no puede repetirse.
+    for (const [k, t] of ultimaPorSocio) if (ahora - t >= MISMO_SOCIO_MS) ultimaPorSocio.delete(k);
+  }
   ultimaVez = ahora;
 
   // Si el ayudante no está (no es Windows, lo frenó un antivirus, todavía está arrancando) la
@@ -87,4 +104,5 @@ function tocarX() {
 export function _reiniciarParaTests() {
   ultimaVez = -Infinity;
   contexto = null;
+  ultimaPorSocio.clear();
 }

@@ -32,7 +32,7 @@ import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMember
 import { resumenDeCola, sociosConCobroPendiente } from '../lib/colaAccesos';
 import { recordarGraceDays, compararConElServidor } from '../lib/situacionSocio';
 import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
-import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea } from '../hooks';
+import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea, useNovedadesDeLaPuerta } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import Icon from '../components/Icon';
@@ -149,6 +149,11 @@ export default function AccessPage() {
   // no hay nada que preguntar. Al volver, el `online` actualiza esto y el latido sigue solo.
   const enLinea = useEstaEnLinea();
   useRefrescoAutomatico(loadData, isFetching || !enLinea);
+
+  // ⭐ Y ADEMÁS, AL INSTANTE. El latido de arriba sigue de red de seguridad, pero sin foco
+  // pregunta cada 15 segundos y con la ventana tapada no pregunta: el QR llegaba tarde. Esto
+  // pregunta una marca liviana cada 2 segundos, siempre, y pide el mostrador solo si cambió.
+  useNovedadesDeLaPuerta(loadData, enLinea);
 
   // ⭐ Y AL VOLVER LA RED SE REFRESCA EN EL ACTO, sin esperar el próximo latido.
   //
@@ -423,7 +428,8 @@ export default function AccessPage() {
       // el que escaneó solo tiene esta pantalla para enterarse de cuánto le queda.
     }, 6000);
     // Entró por QR con la cuota vencida: la X suena igual que si lo hubieran marcado a mano.
-    if (info.type === 'expired') sonarVencido();
+    // Con quién es: la misma entrada no puede sonar dos veces, venga por el camino que venga.
+    if (info.type === 'expired') sonarVencido(ultimo.socioId || ultimo.accesoId);
   }, [data, ingresosQr, getDaysInfo, mostrarAviso]);
 
   // ─── El molinete frenó a un vencido: que suene también ───
@@ -439,7 +445,8 @@ export default function AccessPage() {
     }
     const nuevos = rechazos.filter((r) => !rechazosVistos.current.has(r.accesoId));
     nuevos.forEach((r) => rechazosVistos.current.add(r.accesoId));
-    if (nuevos.some((r) => SITUACIONES_QUE_SUENAN.has(r.estado))) sonarVencido();
+    const frenado = nuevos.find((r) => SITUACIONES_QUE_SUENAN.has(r.estado));
+    if (frenado) sonarVencido(frenado.socioId || frenado.accesoId);
   }, [data, rechazos]);
 
   // ─── ¿Este socio está adentro AHORA? ───
@@ -502,7 +509,7 @@ export default function AccessPage() {
         });
         // Sin internet también suena: justo ahí el servidor no puede avisar nada. Salvo que
         // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe.
-        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido();
+        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
         setSearchQuery('');
         setSearchResults([]);
         contarPendientes();
@@ -541,7 +548,7 @@ export default function AccessPage() {
       });
       // La X, solo al que ENTRA vencido. Al que sale no se le reclama nada, y al que acaba de
       // pagar (el cobro todavía no subió) sonarle sería una falsa alarma.
-      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido();
+      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
 
       setSearchQuery('');
       setSearchResults([]);

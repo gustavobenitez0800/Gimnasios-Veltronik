@@ -67,6 +67,8 @@ vi.mock('../hooks', async () => {
   return {
     useRefrescoAutomatico,
     useEstaEnLinea,
+    // La escucha rápida de la puerta tiene sus propios tests (useNovedadesDeLaPuerta.test).
+    useNovedadesDeLaPuerta: () => {},
     useQueryCache: () => ({
       data: mostrador.datos,
       loading: false,

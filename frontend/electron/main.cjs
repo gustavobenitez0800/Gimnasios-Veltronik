@@ -167,7 +167,12 @@ const WINDOW_CONFIG = {
         preload: path.join(__dirname, 'preload.cjs'),
         // Seguridad
         enableRemoteModule: false,
-        sandbox: false
+        sandbox: false,
+        // ⭐ EL MOSTRADOR ESCUCHA AUNQUE LA VENTANA ESTÉ TAPADA. Sin esto, con Veltronik detrás
+        // de la música o minimizado, Chromium frena los temporizadores de la página (hasta uno
+        // por minuto) y la entrada por QR, su cartel y la X llegaban tarde. El gimnasio no
+        // mira esta ventana todo el tiempo: justamente por eso tiene que avisar.
+        backgroundThrottling: false
     }
 };
 
