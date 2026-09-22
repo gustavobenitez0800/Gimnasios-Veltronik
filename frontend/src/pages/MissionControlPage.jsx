@@ -126,7 +126,7 @@ export default function MissionControlPage() {
               </thead>
               <tbody>
                 {fleet.map((d) => (
-                  <tr key={d.id} style={{ borderTop: '1px solid var(--border)', opacity: d.status === 'REVOKED' ? 0.5 : 1 }}>
+                  <tr key={d.id} style={{ borderTop: '1px solid var(--border-color)', opacity: d.status === 'REVOKED' ? 0.5 : 1 }}>
                     <td style={{ padding: '6px 8px' }}>{d.tenantName}</td>
                     <td style={{ padding: '6px 8px' }}>{d.displayName || `Equipo ${String(d.id).slice(0, 8)}`}</td>
                     <td style={{ padding: '6px 8px' }}>{d.role === 'ENCARGADO' ? 'Caja Madre' : d.role === 'CAJA' ? 'Caja' : '—'}</td>

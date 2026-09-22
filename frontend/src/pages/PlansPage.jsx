@@ -21,6 +21,7 @@ import CONFIG from '../lib/config';
 import { hasAccess } from '../lib/access';
 import { GYM } from '../lib/gym';
 import apiClient from '../lib/apiClient';
+import { obtenerPlanes } from '../lib/planes';
 import Icon from '../components/Icon';
 import CardCheckout from '../components/CardCheckout';
 import { useMonthlyPrice } from '../hooks/useMonthlyPrice';
@@ -39,13 +40,8 @@ export default function PlansPage() {
 
   useEffect(() => {
     let vigente = true;
-    apiClient.get('/public/plans')
-      .then((res) => {
-        const lista = Array.isArray(res.data) ? res.data : [];
-        if (vigente && lista.length > 0) setPlanes(lista);
-        else if (vigente) setPlanes([]); // respondió, pero sin planes → usamos el respaldo
-      })
-      .catch(() => { if (vigente) setPlanes([]); });
+    // Sin planes (no respondió, o respondió vacío) → [] y abajo se usa el respaldo.
+    obtenerPlanes().then((lista) => { if (vigente) setPlanes(lista); });
     return () => { vigente = false; };
   }, []);
 
@@ -74,6 +70,7 @@ export default function PlansPage() {
   // Si ya está al día se lo decimos y que entre haciendo click; el riesgo de equivocarse
   // ahora es "un cliente al día ve la página de pago", no "un moroso entra sin pagar".
   const alDia = hasAccess(gym, subscription);
+  const [verPlanes, setVerPlanes] = useState(false);
 
   // Sin sucursal elegida no hay a quién cobrarle: el backend resuelve el tenant del header
   // X-Tenant-ID y respondería "No hay gimnasio en la sesión" DESPUÉS de que el cliente cargó
@@ -121,7 +118,7 @@ export default function PlansPage() {
 
         {/* Hero */}
         <div className="plans-hero">
-          <h1 className="plans-hero-title">Activá tu {GYM.placeLabel}</h1>
+          <h1 className="plans-hero-title">{alDia ? 'Tu plan' : `Activá tu ${GYM.placeLabel}`}</h1>
           <p className="plans-hero-subtitle">Suscripción mensual para acceso completo al sistema</p>
         </div>
 
@@ -140,10 +137,19 @@ export default function PlansPage() {
               onClick={() => navigate(CONFIG.ROUTES.DASHBOARD)}>
               Entrar al sistema <Icon name="arrowRight" size="1em" />
             </button>
+            {/* Los planes quedan plegados: con el pago del mes hecho, un formulario de tarjeta
+                abierto abajo invitaba a pagar otra vez. Se abren para cambiar de plan (el
+                backend cancela la suscripción anterior al crear la nueva). */}
+            {!verPlanes && (
+              <button className="btn btn-ghost" style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => setVerPlanes(true)}>
+                Ver los planes para cambiar de plan
+              </button>
+            )}
           </div>
         )}
 
-        {planesAMostrar.map((plan) => (
+        {(!alDia || verPlanes) && planesAMostrar.map((plan) => (
           <div className="plans-card" key={plan.code}>
             {/* El nombre va una sola vez, en el título. (Antes la chapita y el título decían
                 los dos "Veltronik Premium"; con el nombre del plan servido por el backend la

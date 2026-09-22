@@ -33,7 +33,9 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cajaService } from '../services/CajaService';
 import { errorService } from '../services';
-import { formatCurrency, formatDate, toLocalDateString, sumarPlata } from '../lib/utils';
+import { formatCurrency, formatDate, toLocalDateString, sumarPlata, horaDe } from '../lib/utils';
+// Los nombres de las formas de pago y qué pasa por el cajón: los mismos de Pagos y del Excel.
+import { nombreDeForma, esEfectivo } from '../lib/formasDePago';
 import { getShift } from '../lib/shift';
 import { descargarExcelDeCaja } from '../lib/excelDeCaja';
 import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
@@ -46,11 +48,6 @@ import Icon from '../components/Icon';
 const fecha = (iso) => (iso ? new Date(iso).toLocaleString('es-AR', {
   day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }) : '—');
-
-/** Solo la hora de un cobro del período: la fecha es la del período, que ya se dice arriba. */
-const horaDe = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-AR', {
-  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-}) : '');
 
 /**
  * La hora si el cobro es de hoy; día y hora si es de otro día.
@@ -69,16 +66,6 @@ const TOTAL_DEL = { today: 'Total de hoy', week: 'Total de la semana', month: 'T
 
 const diasDesde = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
 
-/** Los mismos nombres que muestra la pantalla de Pagos: si difieren, parecen cosas distintas. */
-const NOMBRE_METODO = {
-  cash: 'Efectivo',
-  transfer: 'Transferencia',
-  mercadopago: 'Mercado Pago',
-  card: 'Tarjeta',
-};
-
-/** Lo que va al cajón contra lo que va al banco: es la separación que ordena la pantalla. */
-const ES_EFECTIVO = (metodo) => String(metodo || '').toUpperCase() === 'CASH';
 
 /**
  * En qué se gasta la plata de un gimnasio.
@@ -95,20 +82,6 @@ const ES_DE_FONDOS = (rubro) => ['aporte', 'retiro'].includes(String(rubro || ''
 
 const numero = (v) => Number(v || 0);
 
-/**
- * La hora de un momento, para decir "según los datos de las 15:04".
- *
- * <p>Solo la hora y no la fecha: sin conexión el espejo es siempre del mismo día de trabajo,
- * y una fecha completa ahí ocupa lugar sin agregar nada. Si algo saliera mal al leerlo,
- * devuelve vacío en vez de romper la pantalla de la caja.</p>
- */
-const horaCorta = (iso) => {
-  try {
-    return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
-};
 
 export default function CajaPage() {
   const { showToast } = useToast();
@@ -397,7 +370,7 @@ export default function CajaPage() {
     <div className="caja-page">
       <PageHeader
         title="Cierre de caja"
-        subtitle="El sistema cuenta lo que entró; vos decidís cuánto se retira"
+        subtitle="El sistema cuenta; vos decidís cuánto se retira"
         icon="receipt"
         actions={esDueno && (
           /* ─── EL EXCEL DEL DÍA, SIEMPRE A MANO ───
@@ -460,11 +433,15 @@ export default function CajaPage() {
               22/09 esto dejaba afuera el historial, y el año de un gimnasio recién migrado
               decía una fracción de lo que decía el tablero. */}
           <div className="caja-balance-cifras">
-            <div className="caja-cifra">
+            {/* La cantidad de cobros va con el total, en su aclaración: sola en su casillero
+                quedaba huérfana en un segundo renglón, al lado de nada. */}
+            <div className="caja-cifra es-total">
               <span className="caja-cifra-valor">{formatCurrency(numero(balance?.total))}</span>
               <span className="caja-cifra-label">
                 {TOTAL_DEL[rango.periodo]
                   || `Total del ${formatDate(balanceDesde)} al ${formatDate(balanceHasta)}`}
+                {' · '}
+                {numero(balance?.cantidadCobros) === 1 ? '1 cobro' : `${numero(balance?.cantidadCobros)} cobros`}
               </span>
             </div>
             <div className="caja-cifra es-efectivo">
@@ -483,10 +460,7 @@ export default function CajaPage() {
                 <span className="caja-cifra-label">Tarjeta y otros medios</span>
               </div>
             )}
-            <div className="caja-cifra">
-              <span className="caja-cifra-valor">{numero(balance?.cantidadCobros)}</span>
-              <span className="caja-cifra-label">Cobros</span>
-            </div>
+
           </div>
           {/* De dónde salió el total. Las tres partes suman exactamente el total de arriba. */}
           {balance && (
@@ -536,8 +510,8 @@ export default function CajaPage() {
                     <td data-label="Hora" className="caja-hora">{cuandoDe(m.fecha)}</td>
                     <td data-label="Socio">{m.socio || <span className="text-muted">Sin socio</span>}</td>
                     <td data-label="Forma de pago">
-                      <span className={`caja-metodo ${ES_EFECTIVO(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
-                        {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || 'Sin dato'}
+                      <span className={`caja-metodo ${esEfectivo(m.metodo) ? 'es-efectivo' : 'es-digital'}`}>
+                        {nombreDeForma(m.metodo) || 'Sin dato'}
                       </span>
                     </td>
                     <td data-label="Monto" className="caja-monto-celda caja-col-monto">{formatCurrency(m.monto)}</td>
@@ -555,7 +529,14 @@ export default function CajaPage() {
            cuántos en efectivo. */}
       <div className="card caja-resumen">
         <h3><Icon name="cash" size="1em" /> Resumen por forma de pago</h3>
+        {/* En el mismo orden que el balance de arriba: el total, y después de dónde está. */}
         <div className="caja-resumen-grid">
+          <div className="caja-cifra es-total">
+            <span className="caja-cifra-valor">{formatCurrency(totalCobrado)}</span>
+            <span className="caja-cifra-label">
+              Total del período · {numero(abierto?.cantidadCobros) === 1 ? '1 cobro' : `${numero(abierto?.cantidadCobros)} cobros`}
+            </span>
+          </div>
           <div className="caja-cifra es-efectivo">
             <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.efectivo))}</span>
             <span className="caja-cifra-label">Efectivo (está en el cajón)</span>
@@ -564,12 +545,13 @@ export default function CajaPage() {
             <span className="caja-cifra-valor">{formatCurrency(numero(abierto?.digital))}</span>
             <span className="caja-cifra-label">Transferencia y Mercado Pago (está en el banco)</span>
           </div>
-          <div className="caja-cifra">
-            <span className="caja-cifra-valor">{formatCurrency(totalCobrado)}</span>
-            <span className="caja-cifra-label">
-              Total del período · {numero(abierto?.cantidadCobros)} cobros
-            </span>
-          </div>
+          {/* Como en el balance: sin este casillero, efectivo + digital no daba el total. */}
+          {sumarPlata([abierto?.tarjeta, abierto?.otros]) > 0 && (
+            <div className="caja-cifra">
+              <span className="caja-cifra-valor">{formatCurrency(sumarPlata([abierto?.tarjeta, abierto?.otros]))}</span>
+              <span className="caja-cifra-label">Tarjeta y otros medios</span>
+            </div>
+          )}
         </div>
         {/* Una venta por transferencia no toca el cajón, pero es plata que entró en el período. */}
         {numero(abierto?.ingresosOtrosMedios) > 0 && (
@@ -597,7 +579,7 @@ export default function CajaPage() {
               <tbody>
                 {abierto.correcciones.map((c) => {
                   const diferencia = sumarPlata([c.montoDespues, -numero(c.montoAntes)]);
-                  const metodo = (m) => NOMBRE_METODO[String(m || '').toLowerCase()] || m || '';
+                  const metodo = nombreDeForma;
                   const mismoMedio = String(c.metodoAntes) === String(c.metodoDespues);
                   return (
                     <tr key={c.pagoId}>
@@ -681,9 +663,9 @@ export default function CajaPage() {
                           </span>
                         </td>
                         <td data-label="Forma">
-                          {NOMBRE_METODO[String(m.metodo || '').toLowerCase()] || m.metodo || 'Sin dato'}
+                          {nombreDeForma(m.metodo) || 'Sin dato'}
                           {/* Lo que no pasa por el cajón se anota pero NO mueve la cuenta. */}
-                          {!ES_EFECTIVO(m.metodo) && <div className="form-hint">no toca el cajón</div>}
+                          {!esEfectivo(m.metodo) && <div className="form-hint">no toca el cajón</div>}
                         </td>
                         <td data-label="Quién">{m.hechoPorNombre || 'Sin identificar'}</td>
                         <td data-label="Cuándo">{fecha(m.fecha)}</td>
@@ -729,7 +711,8 @@ export default function CajaPage() {
         {abierto?.incompleto && (
           <p className="form-hint caja-sin-conexion">
             Sin conexión: la cuenta sale de los datos de{' '}
-            <strong>{horaCorta(abierto.bajadoEn)}</strong>
+            {/* Solo la hora: sin conexión el espejo es siempre del mismo día de trabajo. */}
+            <strong>{horaDe(abierto.bajadoEn)}</strong>
             {abierto.enCola > 0 && <> más {abierto.enCola} movimiento{abierto.enCola === 1 ? '' : 's'} de este equipo</>}
             . El efectivo del cajón está completo; puede faltar lo que haya entrado por el
             portal o por Mercado Pago. Se puede cerrar igual.
@@ -738,7 +721,7 @@ export default function CajaPage() {
 
         {/* La cuenta a la vista: sin esto, "en el cajón" es un número que hay que creer. */}
         <ul className="caja-cuenta">
-          <li><span>Quedó del cierre anterior</span><strong>{formatCurrency(numero(abierto?.fondo))}</strong></li>
+          <li><span>Quedó del cierre anterior</span><strong className={numero(abierto?.fondo) < 0 ? 'caja-falta' : undefined}>{formatCurrency(numero(abierto?.fondo))}</strong></li>
           <li><span>Cobrado en efectivo</span><strong>+ {formatCurrency(numero(abierto?.efectivo))}</strong></li>
           {numero(abierto?.ingresosManuales) > 0 && (
             <li><span>Otros ingresos en efectivo</span><strong>+ {formatCurrency(numero(abierto?.ingresosManuales))}</strong></li>
@@ -756,7 +739,9 @@ export default function CajaPage() {
               </strong>
             </li>
           )}
-          <li className="caja-cuenta-total"><span>Hay en el cajón</span><strong>{formatCurrency(enElCajon)}</strong></li>
+          {/* En rojo si da negativo: se anotaron más gastos que la plata que había. No se
+              esconde ni se redondea a cero: es lo primero que hay que mirar. */}
+          <li className="caja-cuenta-total"><span>Hay en el cajón</span><strong className={enElCajon < 0 ? 'caja-falta' : undefined}>{formatCurrency(enElCajon)}</strong></li>
         </ul>
 
         {/* Un form, para que Enter en el retiro lleve a confirmar como el botón. */}
@@ -855,7 +840,7 @@ export default function CajaPage() {
                         <td data-label="Quedó en caja">
                           {c.quedaEnCaja == null
                             ? <span className="text-muted">—</span>
-                            : formatCurrency(c.quedaEnCaja)}
+                            : <span className={numero(c.quedaEnCaja) < 0 ? 'caja-falta' : undefined}>{formatCurrency(c.quedaEnCaja)}</span>}
                         </td>
                         <td data-label="Excel">
                           {dia && (
@@ -863,6 +848,7 @@ export default function CajaPage() {
                               type="button" className="btn btn-sm btn-secondary"
                               disabled={exportando}
                               title={`Bajar el Excel del ${formatDate(dia)}`}
+                              aria-label={`Bajar el Excel del ${formatDate(dia)}`}
                               onClick={() => exportar(dia, dia)}
                             >
                               <Icon name="download" size="0.9em" /> <span className="caja-excel-texto">Excel</span>

@@ -1,0 +1,81 @@
+/* ============================================
+   VELTRONIK - LA TIPOGRAFÍA, ADENTRO DE LA APP
+   ============================================
+   Inter (rsms/inter, licencia SIL OFL 1.1: ver assets/fonts/inter/OFL.txt), empaquetada con
+   la app en vez de pedida a Google Fonts.
+
+   Por qué adentro:
+   · SIN INTERNET el escritorio seguía funcionando pero perdía la tipografía: la pedía a
+     fonts.googleapis.com, no llegaba, y todo caía a la del sistema. El mostrador sin red se
+     veía como otra aplicación.
+   · El @import de Google dentro del CSS frenaba el primer dibujo de cada pantalla, y se pedía
+     dos veces (acá y en index.html), con dos familias que ninguna pantalla usaba.
+   · Cada pedido a Google le cuenta a un tercero qué gimnasio abrió la app y cuándo.
+
+   Recortada al alfabeto latino (castellano completo, signos, flechas, monedas): ~27 KB por
+   peso contra 310 KB del archivo original. El navegador baja solo los pesos que usa la
+   pantalla. Los números tabulares (`tabular-nums`) están intactos: la plata se alinea.
+
+   Si hace falta un carácter que no está (otro alfabeto), el navegador lo toma de la fuente del
+   sistema para ese carácter solo; no se rompe nada.
+   ============================================ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-400.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-500.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-600.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-700.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-800.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../assets/fonts/inter/inter-900.woff2') format('woff2');
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20A0-20BF, U+2122, U+2190-2199, U+2212, U+2215, U+2713, U+2715, U+FEFF, U+FFFD;
+}

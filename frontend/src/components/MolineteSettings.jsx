@@ -126,7 +126,7 @@ export default function MolineteSettings() {
       )}
 
       <p style={{ margin: '1rem 0', padding: '0.85rem 1rem', borderRadius: '8px', background: 'var(--surface-2, rgba(255,255,255,0.03))', color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', lineHeight: 1.6 }}>
-        <strong style={{ color: 'var(--text)' }}>El sistema mantiene la lista al día solo.</strong>{' '}
+        <strong style={{ color: 'var(--text-primary)' }}>El sistema mantiene la lista al día solo.</strong>{' '}
         Cuando se cobra una cuota, el equipo se entera en el momento; además se revisa cada
         pocos minutos, porque hay socios que se vencen sin que nadie toque nada. En el mostrador
         no hay que hacer nada.

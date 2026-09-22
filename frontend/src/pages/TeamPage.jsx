@@ -125,7 +125,7 @@ export default function TeamPage() {
 
   return (
     <div className="team-page">
-      <PageHeader title="Equipo" subtitle="Gestión de miembros del equipo" icon="idBadge" />
+      <PageHeader title="Equipo" subtitle="Quién trabaja en el gimnasio y qué puede hacer" icon="idBadge" />
 
       {/* Tabs */}
       <div className="team-tabs">
@@ -189,20 +189,22 @@ export default function TeamPage() {
                       </div>
                       <div className="member-info">
                         <h4 style={{ margin: 0, fontSize: '0.95rem' }}>
-                          {m.fullName || 'Sin nombre'} {isMe && <span style={{ color: 'var(--primary-400)', fontSize: '0.7rem' }}>(Tú)</span>}
+                          {m.fullName || 'Sin nombre'} {isMe && <span style={{ color: 'var(--primary-400)', fontSize: '0.7rem' }}>(vos)</span>}
                         </h4>
                         <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{m.email || ''}</p>
                       </div>
                     </div>
                     <div className="member-card-body">
-                      <span className={`role-badge role-${m.role}`}>{ROLE_LABELS[m.role] || m.role}</span>
+                      {/* El dueño lleva la corona EN su etiqueta: antes decía "Dueño" dos veces en
+                          la misma tarjeta, en la etiqueta y en un texto suelto al lado. */}
+                      <span className={`role-badge role-${m.role}`}>
+                        {m.role === 'owner' && <Icon name="crown" size="1em" />} {ROLE_LABELS[m.role] || m.role}
+                      </span>
                       {isOwner && !isMe && m.role !== 'owner' ? (
                         <div className="member-actions">
                           <button onClick={() => openRoleModal(m)} title="Cambiar rol"><Icon name="edit" size="0.9em" /> Rol</button>
                           <button className="btn-remove" onClick={() => setDeleteTarget(m)} title="Eliminar"><Icon name="trash" size="0.9em" /></button>
                         </div>
-                      ) : m.role === 'owner' ? (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Icon name="crown" size="1em" /> Dueño</span>
                       ) : null}
                     </div>
                   </div>
@@ -215,7 +217,7 @@ export default function TeamPage() {
         /* Activity Tab */
         <div className="card">
           <div className="table-header">
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Historial de Actividad</h3>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Historial de actividad</h3>
           </div>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
             {activityLoading ? (
@@ -314,7 +316,7 @@ export default function TeamPage() {
         <div className="modal-overlay modal-show" onClick={() => setRoleModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>Cambiar Rol</h2>
+              <h2 className="modal-title" style={{ margin: 0 }}>Cambiar rol</h2>
               <button type="button" onClick={() => setRoleModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
             </div>
             <p className="text-muted mb-2">Cambiar rol de: {roleTarget.fullName || roleTarget.email}</p>
@@ -334,7 +336,7 @@ export default function TeamPage() {
       )}
 
       {/* Delete Confirmation */}
-      <ConfirmDialog open={!!deleteTarget} title="Eliminar del Equipo"
+      <ConfirmDialog open={!!deleteTarget} title="Eliminar del equipo"
         message={`¿Eliminar a "${deleteTarget?.fullName || deleteTarget?.email}" del equipo?`}
         icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleRemove} onCancel={() => setDeleteTarget(null)} />
     </div>

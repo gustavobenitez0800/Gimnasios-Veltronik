@@ -99,13 +99,13 @@ export default function OnboardingPage() {
     }
   };
 
+  // Sin marco propio: lo pone el AuthLayout de la ruta. Con los dos, el formulario quedaba en
+  // ~376 px aunque pedía 560 (ver .auth-container:has(> .onboarding-card) en onboarding.css).
   return (
-    <div className="auth-wrapper">
-      <div className="auth-container">
         <div className="auth-card onboarding-card" style={{ maxWidth: 560 }}>
           <div className="step-container">
             <div className="welcome-text">
-              <h2><Icon name="sparkles" size="1em" /> {isFirstBranch ? 'Registrá tu Gimnasio' : 'Nueva sucursal'}</h2>
+              <h2><Icon name="sparkles" size="1em" /> {isFirstBranch ? 'Registrá tu gimnasio' : 'Nueva sucursal'}</h2>
               <p style={{ color: 'var(--text-muted)' }}>Completá la información básica. Podés modificarla después.</p>
             </div>
 
@@ -183,7 +183,5 @@ export default function OnboardingPage() {
             </p>
           </div>
         </div>
-      </div>
-    </div>
   );
 }

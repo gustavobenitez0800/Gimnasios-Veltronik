@@ -16,11 +16,13 @@
 // no hay servidor que resuelva rutas.
 // ============================================
 
+import { useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import VaciadorDeCola from './components/VaciadorDeCola';
+import { frenarRuedaEnNumeros } from './lib/ruedaEnNumeros';
 
 import './index.css';
 
@@ -34,6 +36,9 @@ const queryClient = new QueryClient({
 });
 
 export default function App({ routes }) {
+  // La rueda del mouse no le cambia el valor a un monto enfocado (lib/ruedaEnNumeros).
+  useEffect(() => frenarRuedaEnNumeros(), []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <HashRouter>

@@ -17,10 +17,18 @@
   border: 1px solid var(--border-color);
   padding: 1.5rem;
   transition: all var(--transition-fast);
+  /* En columna: los botones quedan abajo, a la misma altura en las cuatro tarjetas. */
+  display: flex; flex-direction: column;
 }
 .report-card:hover { border-color: var(--primary-500); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(14,165,233,0.15); }
 .report-title { font-size: var(--font-size-lg); font-weight: 600; margin-bottom: 0.5rem; }
-.report-description { font-size: var(--font-size-sm); color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.5; }
+.report-description { font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+.report-icon {
+  width: 56px; height: 56px; border-radius: 12px; margin-bottom: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.report-botones { display: flex; gap: 0.5rem; margin-top: auto; padding-top: 1.25rem; }
+.report-botones .btn { flex: 1; justify-content: center; }
 
 /* ============================================
    PHASE 3: TEAM PAGE
@@ -50,7 +58,7 @@
 .member-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
 .member-card-body { display: flex; align-items: center; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--border-color); }
 
-.role-badge { padding: 4px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.role-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 4px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .role-owner { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .role-admin { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
 .role-staff { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }

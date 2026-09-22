@@ -364,7 +364,7 @@ export default function CheckinPage() {
           <>
             <div className="checkin-brand">Veltronik</div>
             <h1 className="checkin-title">
-              {!recordado ? 'Bienvenido'
+              {!recordado ? 'Hola'
                 : adentro === null ? 'Hola de nuevo'
                 : vaASalir ? (confirmandoSalida ? '¿Ya te vas?' : 'Estás adentro')
                 : 'Marcá tu entrada'}

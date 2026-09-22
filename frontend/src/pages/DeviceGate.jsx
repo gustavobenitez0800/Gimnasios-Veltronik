@@ -28,7 +28,8 @@ import { useToast } from '../contexts/ToastContext';
 import { gymService, deviceService, errorService } from '../services';
 import CONFIG from '../lib/config';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 
 /** Roles que pueden activar un terminal (los mismos que gestionan equipos en el backend). */
 const PUEDEN_ACTIVAR = ['owner', 'admin'];

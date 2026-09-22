@@ -20,7 +20,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { INITIAL_URL } from '../lib/supabase';
 import { readAuthCode, readAuthError } from '../lib/authCode';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 
 /** Arma el enlace que despierta a la app de escritorio. */
 function buildDeepLink(code) {

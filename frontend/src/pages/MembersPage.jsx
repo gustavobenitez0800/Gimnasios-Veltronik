@@ -23,6 +23,10 @@ import ImportarSocios from '../components/ImportarSocios';
 import { planService } from '../services/PlanService';
 import { getInitialMemberForm, mapMemberToForm } from '../controllers/formSocio';
 import { useAuth } from '../contexts/AuthContext';
+import EstadoDelSocio from '../components/EstadoDelSocio';
+import MenuDeAcciones from '../components/MenuDeAcciones';
+import { ESTADOS_DEL_SOCIO, estadoDelSocio } from '../lib/situacionSocio';
+import { enlaceDeWhatsApp } from '../lib/whatsapp';
 
 const PAGE_SIZE = 25;
 // Cuando se filtra por estado traemos el set completo (suficiente para PyMEs) para evaluar
@@ -43,19 +47,22 @@ const MEMBER_MAP_FN = mapMemberToForm;
  *  indistinguible de la opción de texto que encabeza la lista. */
 const SACAR_ARANCEL = '__sin__';
 
+// Los cuatro estados parten la lista sin huecos (lib/situacionSocio: estadoDelSocio): todo socio
+// está en uno solo. "Sin cuota" son los que nunca pagaron: desde que el alta dejó de regalar un
+// mes (ADR-013) es el estado de todo socio recién cargado, y es la lista de a quién cobrarle.
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Todos los estados' },
-  { value: 'active', label: 'Activos' },
-  { value: 'inactive', label: 'Inactivos' },
-  { value: 'expired', label: 'Vencidos' },
-  // ⭐ Los que nunca pagaron. Desde que el alta dejó de regalar un mes (ADR-013) este es el
-  // estado de todo socio recién cargado, y sin filtro la única forma de encontrarlos es
-  // recorrer la lista a ojo. Es, literalmente, la lista de a quién falta cobrarle.
-  { value: 'sin_cuota', label: 'Sin cuota' },
+  { value: 'al_dia', label: ESTADOS_DEL_SOCIO.al_dia.plural },
+  { value: 'vencido', label: ESTADOS_DEL_SOCIO.vencido.plural },
+  { value: 'sin_cuota', label: ESTADOS_DEL_SOCIO.sin_cuota.plural },
+  { value: 'baja', label: ESTADOS_DEL_SOCIO.baja.plural },
   // El dueño acaba de cargar sus aranceles y tiene cientos de socios sin ninguno. Este
   // filtro es la diferencia entre "asignarlos" y "recorrer la lista entera a ojo".
   { value: 'sin_arancel', label: 'Sin arancel' },
 ];
+
+/** Los valores del filtro hasta el 2026-09-22 → los de ahora. */
+const ESTADO_DE_ANTES = { active: 'al_dia', expired: 'vencido', inactive: 'baja' };
 
 /**
  * ⭐ EL SOCIO QUE NO TIENE NINGUNA COBERTURA — ni vigente ni vencida.
@@ -97,10 +104,12 @@ export default function MembersPage() {
     deleteMember
   } = useMemberController(PAGE_SIZE);
 
-  // Filters. El estado puede venir en la URL (?estado=expired): el "Ver vencidos" del
-  // Dashboard llega con el filtro ya puesto. Solo se aceptan los que existen en el menú.
+  // Filters. El estado puede venir en la URL (?estado=vencido): el "Ver vencidos" del
+  // Dashboard llega con el filtro ya puesto. Solo se aceptan los que existen en el menú, más
+  // los nombres de antes (un enlace guardado con ?estado=expired sigue andando).
   const [statusFilter, setStatusFilter] = useState(() => {
-    const pedido = searchParams.get('estado') || '';
+    const crudo = searchParams.get('estado') || '';
+    const pedido = ESTADO_DE_ANTES[crudo] || crudo;
     return STATUS_FILTER_OPTIONS.some((o) => o.value === pedido) ? pedido : '';
   });
 
@@ -181,20 +190,13 @@ export default function MembersPage() {
   const filteredMembers = useMemo(() => {
     if (!statusFilter) return controllerMembers;
     return controllerMembers.filter((m) => {
-      // 'Vencido' lo dice el backend, igual que la columna de días. Comparar fechas acá
-      // volvía a abrir la misma grieta: la del navegador contra la del servidor.
-      if (statusFilter === 'expired') {
-        return m.situacion === 'VENCIDO' || m.situacion === 'EN_GRACIA';
-      }
       // ⭐ El filtro que hace usable la función el primer día: el dueño acaba de cargar sus
       // aranceles y tiene 383 socios sin ninguno. Sin una forma de encontrarlos, la única
       // opción es recorrer la lista entera a ojo.
       if (statusFilter === 'sin_arancel') return !m.planId;
-      if (statusFilter === 'sin_cuota') return esSinCuota(m);
-      // ⚠️ "Activos" SIGUE INCLUYENDO a los que no tienen cuota, y no es un descuido: activo
-      // acá significa "no está dado de baja", que es lo único que el servidor guarda. Sacarlos
-      // haría que un socio no apareciera en ningún filtro hasta que se le cobre.
-      return m.status === statusFilter;
+      // El estado lo dice el servidor (la situación), igual que la columna de días. Comparar
+      // fechas acá volvía a abrir la grieta del reloj del navegador contra el del servidor.
+      return estadoDelSocio(m) === statusFilter;
     });
   }, [controllerMembers, statusFilter]);
 
@@ -499,15 +501,14 @@ export default function MembersPage() {
       showToast('No hay datos para exportar', 'warning');
       return;
     }
-    const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio', 'Vencimiento', 'Días de Asistencia'];
+    const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio', 'Vencimiento', 'Días de asistencia'];
     const rows = filteredMembers.map((m) => {
       const days = Array.isArray(m.attendanceDays) ? m.attendanceDays.map(d => DAY_NAMES[d]).join(', ') : '';
       return [
         m.fullName, m.dni || '', m.phone || '', m.email || '',
         // El CSV dice lo mismo que la pantalla. Un export que contradice la tabla que se está
         // mirando es peor que no exportar nada.
-        esSinCuota(m) ? 'Sin cuota'
-          : m.status === 'active' ? 'Activo' : m.status === 'inactive' ? 'Inactivo' : m.status === 'expired' ? 'Vencido' : 'Suspendido',
+        ESTADOS_DEL_SOCIO[estadoDelSocio(m)].texto,
         m.membershipStart || '', m.membershipEnd || '', days,
       ];
     });
@@ -528,8 +529,12 @@ export default function MembersPage() {
       showToast(`Este ${memberLabel.toLowerCase()} no tiene teléfono registrado`, 'warning');
       return;
     }
-    const phone = member.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/54${phone}`, '_blank');
+    const enlace = enlaceDeWhatsApp(member.phone);
+    if (!enlace) {
+      showToast(`El teléfono de la ficha (${member.phone}) no parece un número completo`, 'warning');
+      return;
+    }
+    window.open(enlace, '_blank', 'noopener');
   };
 
   // ─── DÍAS: lo dice el BACKEND, acá solo se pinta ───
@@ -568,8 +573,9 @@ export default function MembersPage() {
     }
     // Días y nada más: el cupo de clases se dio de baja (2026-09-02). Se paga el mes y se
     // entra; se vence y hay que renovar.
+    // Rojo es SOLO para el vencido: un socio al día con los días en rojo parecía moroso. El que
+    // vence esta semana va en ámbar, que es "atención", no "debe".
     const d = diasRestantes ?? 0;
-    if (d <= 3) return { text: `${d}d`, className: 'days-danger' };
     if (d <= 7) return { text: `${d}d`, className: 'days-warning' };
     return { text: `${d}d`, className: 'days-ok' };
   };
@@ -600,7 +606,7 @@ export default function MembersPage() {
               <Icon name="download" /> Exportar
             </button>
             <button className="btn btn-primary" onClick={() => modal.open()}>
-              <Icon name="plus" /> Nuevo {memberLabel}
+              <Icon name="plus" /> Nuevo {memberLabel.toLowerCase()}
             </button>
           </div>
         }
@@ -727,7 +733,6 @@ export default function MembersPage() {
               ) : (
                 pagedMembers.map((member) => {
                   const daysInfo = getDaysInfo(member);
-                  const sinCuota = esSinCuota(member);
                   return (
                     <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
                       {puedeAsignarMasivo && (
@@ -747,9 +752,7 @@ export default function MembersPage() {
                           primero que se mira: un socio recién cargado se veía idéntico a uno al
                           día. Ámbar y no rojo — no debe nada, todavía no se le cobró. */}
                       <td data-label="Estado" className="col-estado">
-                        {sinCuota
-                          ? <Badge status="active" label="Sin cuota" className="badge-warning" />
-                          : <Badge status={member.status} />}
+                        <EstadoDelSocio socio={member} />
                       </td>
                       {hayAranceles && (
                         /* ⭐ El arancel se elige acá mismo, sin abrir la ficha. Con 383
@@ -796,37 +799,35 @@ export default function MembersPage() {
                             onClick={() => setCobrando(member)}
                             title="Cobrar cuota"
                           ><Icon name="cash" size="1em" /></button>
-                          {member.phone && (
+                          <button
+                            className="action-btn-quick action-btn-payment"
+                            onClick={() => modal.open(member, MEMBER_MAP_FN)}
+                            title="Editar"
+                          ><Icon name="edit" size="1em" /></button>
+                          {/* Sin teléfono queda el hueco, no se corre la fila: los botones
+                              de todas las filas quedan uno debajo del otro. */}
+                          {member.phone ? (
                             <button
                               className="action-btn-quick action-btn-whatsapp"
                               onClick={() => openWhatsApp(member)}
                               title="WhatsApp"
                             ><Icon name="messageCircle" size="1em" /></button>
-                          )}
-                          <button
-                            className="action-btn-quick action-btn-history"
-                            onClick={() => openPaymentsHistory(member)}
-                            title="Historial de pagos"
-                          ><Icon name="creditCard" size="1em" /></button>
-                          {molinete.disponible && (
-                            <button
-                              className="action-btn-quick action-btn-history"
-                              onClick={() => tomarFoto(member)}
-                              title="Tomar la foto en el molinete"
-                            ><Icon name="camera" size="1em" /></button>
-                          )}
-                          <button
-                            className="action-btn-quick action-btn-payment"
-                            onClick={() => modal.open(member, MEMBER_MAP_FN)}
-                            title="Editar"
-                          ><Icon name="edit" /></button>
-                          {canDelete && (
-                            <button
-                              className="action-btn-quick action-btn-delete"
-                              onClick={() => deleteDialog.open(member.id, member.fullName)}
-                              title="Eliminar"
-                            ><Icon name="trash" /></button>
-                          )}
+                          ) : <span className="action-btn-hueco" aria-hidden="true" />}
+                          {/* Lo que se usa poco, o no tiene vuelta atrás, va en el menú. Con
+                              cinco botones de colores la fila medía 94 px y "Eliminar" quedaba
+                              a un dedo de "Cobrar". */}
+                          <MenuDeAcciones
+                            titulo={`Más acciones para ${member.fullName}`}
+                            acciones={[
+                              { etiqueta: 'Historial de pagos', icono: 'creditCard', onClick: () => openPaymentsHistory(member) },
+                              ...(molinete.disponible
+                                ? [{ etiqueta: 'Tomar la foto en el molinete', icono: 'camera', onClick: () => tomarFoto(member) }]
+                                : []),
+                              ...(canDelete
+                                ? [{ etiqueta: 'Eliminar', icono: 'trash', peligro: true, onClick: () => deleteDialog.open(member.id, member.fullName) }]
+                                : []),
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -845,7 +846,7 @@ export default function MembersPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.isEditing ? `Editar ${memberLabel}` : `Nuevo ${memberLabel}`}
+        title={modal.isEditing ? `Editar ${memberLabel.toLowerCase()}` : `Nuevo ${memberLabel.toLowerCase()}`}
       >
         <form onSubmit={handleSave} noValidate>
           {/* ─── LO ESENCIAL: con esto el socio ya puede pagar y entrar ─── */}
@@ -943,7 +944,7 @@ export default function MembersPage() {
                   value={modal.form.notes} onChange={(e) => modal.handleChange('notes', e.target.value)} />
               </div>
               <div className="form-group full-width">
-                <label className="form-label">Días de Asistencia</label>
+                <label className="form-label">Días de asistencia</label>
                 <DaySelector
                   selectedDays={modal.form.attendanceDays}
                   onChange={(days) => modal.handleChange('attendanceDays', days)}
@@ -959,7 +960,7 @@ export default function MembersPage() {
       <Modal
         isOpen={paymentsModal}
         onClose={() => setPaymentsModal(false)}
-        title="Historial de Pagos"
+        title="Historial de pagos"
         actions={
           <button className="btn btn-secondary" onClick={() => setPaymentsModal(false)}>Cerrar</button>
         }

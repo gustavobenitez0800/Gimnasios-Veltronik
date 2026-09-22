@@ -1,46 +1,10 @@
-/* ─── CIERRE DE CAJA ─── */
+/* ─── CIERRE DE CAJA ───
+   (Las reglas del arqueo a ciegas —conteo, resultado, líneas— se fueron el 2026-09-22: el
+   cierre diario las reemplazó el 2026-09-02 y ninguna pantalla las usaba.) */
 
-.caja-grid {
-  display: grid;
-  grid-template-columns: minmax(300px, 380px) 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-@media (max-width: 900px) { .caja-grid { grid-template-columns: 1fr; } }
+.caja-historial { padding: 1.25rem; }
 
-.caja-abierto, .caja-historial { padding: 1.25rem; }
-.caja-abierto h3, .caja-historial h3 {
-  display: flex; align-items: center; gap: 0.5rem;
-  margin: 0 0 1rem; color: var(--text-primary); font-size: var(--font-size-base);
-}
-
-.caja-desde { color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: 1rem; }
-
-.caja-metodos { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
-.caja-metodos > div {
-  display: flex; justify-content: space-between; align-items: baseline;
-  padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);
-}
-.caja-metodos span { color: var(--text-muted); font-size: var(--font-size-sm); }
-.caja-metodos strong { font-variant-numeric: tabular-nums; }
-
-.caja-acciones { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-
-/* La forma más fácil de esconder algo no es mentir en el cierre: es no cerrar. */
-.caja-alarma {
-  display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.8rem 1rem; margin-bottom: 1.25rem;
-  border-radius: var(--radius-md, 10px);
-  background: color-mix(in srgb, var(--warning-500) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning-500) 32%, transparent);
-  color: var(--text-primary); font-size: var(--font-size-sm); font-weight: 600;
-}
-
-/* ─── El conteo ─── */
-
-.caja-aviso { margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 0.4rem; }
-
-/* El campo del conteo: grande, porque es el unico numero que se escribe acá. */
+/* El campo del retiro: grande, porque es el único número que se escribe acá. */
 .caja-monto {
   font-size: 1.6rem;
   font-weight: 700;
@@ -49,105 +13,11 @@
   padding: 0.9rem 1rem;
 }
 
-/* Su propia cuenta, no la del sistema: el número del sistema no aparece hasta confirmar. */
-.caja-total-contado {
-  display: flex; justify-content: space-between; align-items: baseline;
-  margin-top: 1.25rem; padding: 0.9rem 1rem;
-  border-radius: var(--radius-md, 10px);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-}
-.caja-total-contado span { color: var(--text-muted); font-size: var(--font-size-sm); }
-.caja-total-contado strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
-
-/* ─── El resultado ─── */
-
-.caja-resultado-cifra {
-  text-align: center; font-size: 1.5rem; font-weight: 800;
-  padding: 1.1rem; border-radius: var(--radius-md, 10px); margin-bottom: 1.25rem;
-}
-.caja-resultado-cifra.ok {
-  background: color-mix(in srgb, var(--success-500, #22c55e) 14%, transparent);
-  color: var(--success-500, #22c55e);
-}
-.caja-resultado-cifra.falta {
-  background: color-mix(in srgb, var(--error-500) 14%, transparent); color: var(--error-500);
-}
-.caja-resultado-cifra.sobra {
-  background: color-mix(in srgb, var(--warning-500) 14%, transparent); color: var(--warning-500);
-}
-
-.caja-ok    { color: var(--success-500, #22c55e); font-weight: 600; }
 .caja-falta { color: var(--error-500); font-weight: 700; font-variant-numeric: tabular-nums; }
-.caja-sobra { color: var(--warning-500); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* Cuando no se pudo consultar el período. Un pedido que falló NO es un período vacío:
-   mostrar "0 cobros" haría que alguien cierre una caja creyendo que no entró nada. */
-.caja-fallo {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  padding: 0.9rem 1rem;
-  border-radius: var(--radius-md, 10px);
-  background: color-mix(in srgb, var(--warning-500) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning-500) 28%, transparent);
-  font-size: var(--font-size-sm);
-}
-.caja-fallo > div { flex: 1; }
-.caja-fallo div div { color: var(--text-muted); margin-top: 0.2rem; }
-
-/* ─── El resultado, línea por línea ───
-   Efectivo y digital se muestran separados y NUNCA sumados: un faltante de efectivo y un
-   sobrante digital son dos hechos distintos, y sumarlos los borra a los dos. */
-.caja-linea {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  margin-top: 0.85rem;
-}
-
-.caja-linea-titulo {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  margin-bottom: 0.6rem;
-}
-
-.caja-linea-titulo > span {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.caja-linea-titulo > strong {
-  font-variant-numeric: tabular-nums;
-}
-
-.caja-linea-titulo > strong.ok { color: var(--success); }
-.caja-linea-titulo > strong.falta { color: var(--danger); }
-.caja-linea-titulo > strong.sobra { color: var(--warning); }
-
-/* El total del período: cierra la lista de métodos, separado por una línea. */
-.caja-metodos-total {
-  border-top: 1px solid var(--border);
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  font-weight: 700;
-}
-
-/* La caja cerrada: es un estado normal, no un error. */
-.caja-cerrada {
-  padding: 0.5rem 0 0;
-}
-
-/* Los montos de la lista de cobros, alineados para poder recorrerlos con la vista. */
-.caja-monto-celda {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--success);
-}
-
-/* (Tenía margin-top: con la tarjeta de arriba ya separando, quedaba el doble de aire.) */
+/* Los montos de las listas, alineados para recorrerlos con la vista. Blancos: el color lo
+   pone el signo (caja-falta / caja-entra), no la celda. */
+.caja-monto-celda { font-variant-numeric: tabular-nums; font-weight: 600; }
 
 .caja-movimientos .table {
   margin-top: 0.5rem;
@@ -159,11 +29,7 @@
 
 /* Los rubros sugeridos, como fichas. Un select escondería las seis opciones detrás de un
    clic, y esto se usa con un socio esperando del otro lado del mostrador. */
-.caja-rubros {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
+.caja-rubros { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
 /* ⚠️ El anulado se TACHA, no desaparece. Un egreso que se puede hacer desaparecer de la
    lista es exactamente lo que este módulo existe para impedir: queda a la vista, con quién
@@ -171,6 +37,7 @@
 .caja-mov-anulado {
   opacity: 0.55;
 }
+/* Se tacha QUÉ fue y el monto. "Anulado por … · motivo" queda legible: es lo que explica. */
 .caja-mov-anulado td:first-child strong,
 .caja-mov-anulado .caja-monto-celda {
   text-decoration: line-through;
@@ -204,7 +71,6 @@
   gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
 }
 .caja-balance-cabecera h3 { margin: 0; }
-.caja-tabs { display: flex; gap: 0.4rem; }
 
 .caja-balance-cifras, .caja-resumen-grid {
   display: grid; gap: 1rem;
@@ -227,6 +93,8 @@
    toda la pantalla, y por eso se distingue con color y no solo con texto. */
 .caja-cifra.es-efectivo { border-left: 3px solid var(--success-500, #22c55e); }
 .caja-cifra.es-digital  { border-left: 3px solid var(--primary-500); }
+/* El total, con el mismo borde en neutro: las tres cifras arrancan a la misma altura. */
+.caja-cifra.es-total    { border-left: 3px solid var(--border-color); }
 
 .caja-resumen { padding: 1.25rem; }
 
@@ -259,8 +127,6 @@
 }
 .caja-cerrar { width: 100%; justify-content: center; }
 
-.caja-monto-celda { font-variant-numeric: tabular-nums; font-weight: 600; }
-
 /* La forma de pago se lee de un vistazo: es lo que se está separando. */
 .caja-metodo {
   display: inline-block; padding: 0.15rem 0.55rem;
@@ -292,8 +158,6 @@
 }
 .caja-no:hover:not(:disabled) { background: var(--error-600); }
 
-.caja-rubros { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.caja-mov-anulado { opacity: 0.55; text-decoration: line-through; }
 
 /* ─── "Estos números salen de lo último que bajó" ───
    Ámbar y no rojo a propósito: es el estado de la CASA (no hay internet), no un problema con
@@ -303,7 +167,7 @@
 .caja-sin-conexion {
   margin: 0 0 0.9rem;
   padding: 0.7rem 0.85rem;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--border-radius-md);
   background: color-mix(in srgb, var(--warning-500) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--warning-500) 28%, transparent);
   color: var(--text-muted);
@@ -356,17 +220,25 @@
 
 /* ─── Los cierres anteriores: ocho columnas de plata ───
    Medido: a 1100px pedía 819px y tenía 746, con barra horizontal. Los encabezados
-   ("QUEDÓ EN CAJA", "TRANSF. Y MP") parten en dos renglones antes de pedir lugar, y si
-   igual no entra se va primero Gastos, que también está en el Excel del día. */
+   ("QUEDÓ EN CAJA", "TRANSF. Y MP") parten en dos renglones antes de pedir lugar; si igual
+   no entra, el botón del Excel se queda con el ícono, y recién después se va Gastos (que
+   también está en el Excel del día). */
 .caja-historial .table-container { container: historial / inline-size; }
 .caja-historial .table th { white-space: normal; }
+/* La fecha y la plata, en un renglón: "21/9," arriba y "21:30" abajo, o el signo "−" solo
+   arriba del monto, se leían como dos datos. Lo que sí parte es la aclaración de correcciones. */
+.caja-historial .table td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.caja-historial .table td .form-hint { white-space: normal; }
 @media (min-width: 769px) {
-  @container historial (max-width: 740px) {
+  /* Primero el botón de cada fila queda solo con el ícono (tiene su título al pasar el
+     mouse): así Gastos, que es plata, aguanta más. Medido a 1118 px: 785 contra 764. */
+  @container historial (max-width: 820px) {
+    .caja-historial .caja-excel-texto { display: none; }
+  }
+  @container historial (max-width: 700px) {
     .caja-historial .col-gastos { display: none; }
   }
-  /* Más angosto todavía (una tablet apaisada): el botón de cada fila, solo con el ícono. */
-  @container historial (max-width: 660px) {
-    .caja-historial .caja-excel-texto { display: none; }
+  @container historial (max-width: 640px) {
     .caja-historial .table th,
     .caja-historial .table td { padding-left: 0.5rem; padding-right: 0.5rem; }
   }

@@ -8,7 +8,7 @@
 // los MISMOS nombres de ruta a propósito (ver la nota ahí).
 // ============================================
 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import CONFIG from '../lib/config';
 import { AppLayout, AuthLayout } from '../components/Layout';
 
@@ -84,8 +84,10 @@ export default function WebRoutes() {
         <Route path={CONFIG.ROUTES.MISSION_CONTROL} element={<MissionControlPage />} />
       </Route>
 
-      {/* Fallback: redirige rutas desconocidas al login */}
-      <Route path="*" element={<LoginPage />} />
+      {/* Una ruta desconocida (un enlace viejo, una letra de más) va AL login, con su marco. Antes
+          pintaba el login acá mismo, sin el AuthLayout: la tarjeta estirada a todo el ancho y sin
+          el fondo. El login ya manda al Lobby a quien tiene sesión. */}
+      <Route path="*" element={<Navigate to={CONFIG.ROUTES.LOGIN} replace />} />
     </Routes>
   );
 }

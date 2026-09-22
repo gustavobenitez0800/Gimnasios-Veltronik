@@ -75,7 +75,7 @@ export default function SubscriptionActionsWeb({
               onClick={() => setShowCardForm(v => !v)}
               style={{ flex: '1', minWidth: '200px' }}
             >
-              <Icon name="creditCard" size="1em" /> {showCardForm ? 'Cerrar' : 'Cambiar Tarjeta / Método de Pago'}
+              <Icon name="creditCard" size="1em" /> {showCardForm ? 'Cerrar' : 'Cambiar la tarjeta'}
             </button>
             <button
               className="btn btn-ghost"
@@ -83,13 +83,13 @@ export default function SubscriptionActionsWeb({
               disabled={verifying}
               style={{ flex: '1', minWidth: '200px' }}
             >
-              {verifying ? (<><span className="spinner" /> Verificando...</>) : ('Verificar Estado con MP')}
+              {verifying ? (<><span className="spinner" /> Verificando...</>) : ('Verificar el estado en Mercado Pago')}
             </button>
           </div>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
-            Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar Tarjeta".
-            Si pagaste y el sistema no lo reconoce, usá "Verificar Estado con MP" para sincronizar.
+            Si tu tarjeta fue rechazada o querés cambiar el método de pago, presioná "Cambiar la tarjeta".
+            Si pagaste y el sistema no lo reconoce, usá "Verificar el estado en Mercado Pago" para sincronizar.
           </p>
 
           {/* Formulario de tarjeta (Brick MP): cambiar método de pago sin redirección ni link */}

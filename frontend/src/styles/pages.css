@@ -1430,3 +1430,20 @@
   background: color-mix(in srgb, var(--warning-500) 10%, transparent);
   font-size: var(--font-size-sm);
 }
+
+/* ─── La tarjeta del Lobby: un botón que la cubre entera ───
+   La tarjeta no es un <button> porque adentro va el de borrar (un botón dentro de otro es HTML
+   inválido). El que abre el gimnasio la tapa de punta a punta; el de borrar queda por encima. */
+.lobby-card-abrir {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.lobby-card-abrir:focus-visible {
+  outline: 2px solid var(--primary-400);
+  outline-offset: -3px;
+}

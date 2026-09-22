@@ -136,23 +136,22 @@ button, a, input, select, textarea, [role="button"] {
 .tabla-socios { container: socios / inline-size; }
 
 @media (min-width: 769px) {
-  .tabla-socios .table .table-actions { grid-template-columns: repeat(3, 30px); }
-  @container socios (min-width: 1300px) {
-    .tabla-socios .table .table-actions { grid-template-columns: repeat(6, 30px); }
-  }
-  @container socios (max-width: 1189px) {
+  /* Cuatro botones en UN renglón (cobrar, editar, WhatsApp y el menú ⋯): la fila mide lo que
+     su texto, no 94 px. Los cortes de abajo se corrieron ~40 px por el ancho de esta celda. */
+  .tabla-socios .table .table-actions { display: flex; flex-wrap: nowrap; }
+  @container socios (max-width: 1229px) {
     .tabla-socios .col-asistencia { display: none; }
   }
-  @container socios (max-width: 1079px) {
+  @container socios (max-width: 1119px) {
     .tabla-socios .col-tel { display: none; }
   }
-  @container socios (max-width: 934px) {
+  @container socios (max-width: 974px) {
     .tabla-socios .col-vence { display: none; }
   }
-  @container socios (max-width: 824px) {
+  @container socios (max-width: 864px) {
     .tabla-socios .col-dni { display: none; }
   }
-  @container socios (max-width: 699px) {
+  @container socios (max-width: 739px) {
     .tabla-socios .col-estado { display: none; }
   }
 }
@@ -752,3 +751,26 @@ button, a, input, select, textarea, [role="button"] {
   .auth-wrapper::after { animation: none; }
   .stats-grid > *, .dashboard-grid > *, .dashboard-grid-3 > * { animation: none; }
 }
+
+/* ─── La tabla de Pagos: un renglón por cobro ───
+   Como la de Socios: nada se parte en dos renglones (el nombre largo se corta con "…" y tiene el
+   nombre entero en el tooltip), y lo menos importante se esconde según el ancho de LA TABLA. Antes
+   cada fila medía ~80 px: nombre, "DNI:" y período en dos y tres renglones. */
+.celda-una-linea {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tabla-pagos { container: pagos / inline-size; }
+.tabla-pagos .col-socio { max-width: 220px; }
+@media (min-width: 769px) {
+  @container pagos (max-width: 820px) {
+    .tabla-pagos .col-fecha { display: none; }
+  }
+  @container pagos (max-width: 700px) {
+    .tabla-pagos .col-periodo { display: none; }
+  }
+}
+.tabla-pagos .table .table-actions { display: flex; flex-wrap: nowrap; }
+.pago-estado { margin-top: 0.25rem; }

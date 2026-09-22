@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import Icon from '../components/Icon';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 import CONFIG from '../lib/config';
 import { openPortal } from '../lib/portal';
 import { canUseBrowserSignIn } from '../lib/desktopAuth';
@@ -94,8 +95,8 @@ export default function LoginPage() {
       </div>
 
       {/* Title */}
-      <h2 className="auth-title">Bienvenido de nuevo</h2>
-      <p className="auth-subtitle">Ingresa tus credenciales para acceder</p>
+      <h2 className="auth-title">Hola de nuevo</h2>
+      <p className="auth-subtitle">Entrá con tu cuenta</p>
 
       {/* Login Form */}
       <form className="auth-form" onSubmit={handleSubmit}>
@@ -147,7 +148,7 @@ export default function LoginPage() {
           {submitting ? (
             <><span className="spinner" /> Ingresando...</>
           ) : (
-            'Iniciar Sesión'
+            'Iniciar sesión'
           )}
         </button>
       </form>
@@ -155,7 +156,7 @@ export default function LoginPage() {
       {/* Google: web con redirect, escritorio por navegador + veltronik:// */}
       {SHOW_GOOGLE && (<>
       {/* Divider */}
-      <div className="auth-divider">o continúa con</div>
+      <div className="auth-divider">o entrá con</div>
 
       {/* Google Login */}
       <div className="auth-social">
@@ -192,7 +193,7 @@ async function getAuthErrorMessage(error) {
 
   // Rate limiting specific check
   if (message.includes('Too many requests') || message.includes('rate limit')) {
-    return 'Demasiados intentos. Por favor espera unos minutos e intenta de nuevo.';
+    return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
   }
 
   if (message.includes('Invalid login credentials')) return 'Email o contraseña incorrectos';

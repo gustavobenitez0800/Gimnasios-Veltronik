@@ -30,6 +30,10 @@ const ALLOWED_ORIGINS = [
   // al de arriba. Se deja en la lista igual porque el origen es nuestro: si algún día
   // se despliega bajo ese nombre, la app no queda muda esperando un release.
   'https://gimnasio-veltronik-veltroniks-projects.vercel.app',
+  // WhatsApp, para el botón de escribirle al socio (Socios, Retención). Sin esto el
+  // setWindowOpenHandler lo negaba y en el mostrador el botón no hacía NADA: ni abría ni
+  // avisaba. Es un origen fijo de WhatsApp por https: no abre otra cosa que un chat.
+  'https://wa.me',
 ];
 
 /**

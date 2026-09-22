@@ -186,7 +186,7 @@
   height: 56px;
   object-fit: contain;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 4px 14px rgba(59, 130, 246, 0.35));
 }
 
 .auth-logo-text {

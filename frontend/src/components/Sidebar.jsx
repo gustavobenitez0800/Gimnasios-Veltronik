@@ -31,7 +31,7 @@ const NAV_SECTIONS = [
       { to: CONFIG.ROUTES.ACCESS, icon: 'doorEnter', label: 'Acceso', module: 'access' },
       // Va PEGADO a Acceso: son la misma puerta vista de dos maneras — en Acceso se
       // registra el paso de la gente, acá se mira quién quedó adentro.
-      { to: CONFIG.ROUTES.ADENTRO, icon: 'barbell', label: `En el ${GYM.placeLabelCap}`, module: 'adentro' },
+      { to: CONFIG.ROUTES.ADENTRO, icon: 'barbell', label: `En el ${GYM.placeLabel}`, module: 'adentro' },
       { to: CONFIG.ROUTES.RETENTION, icon: 'heartHandshake', label: 'Retención', module: 'retention' },
       { to: CONFIG.ROUTES.REPORTS, icon: 'chart', label: 'Reportes', module: 'reports' },
     ],
@@ -47,7 +47,7 @@ const NAV_SECTIONS = [
   {
     title: 'Plataforma',
     items: [
-      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar Sucursal', module: 'lobby' },
+      { to: CONFIG.ROUTES.LOBBY, icon: 'switchSystem', label: 'Cambiar sucursal', module: 'lobby' },
     ],
   },
 ];

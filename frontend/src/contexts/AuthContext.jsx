@@ -19,7 +19,8 @@ import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 
 // Se exporta el Context crudo (no solo el Provider) para poder proveer un valor mínimo
 // sin Supabase: lo usaba el shell del modo local del POS, y hoy lo usan los tests que
