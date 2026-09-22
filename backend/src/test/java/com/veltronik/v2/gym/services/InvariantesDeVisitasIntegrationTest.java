@@ -297,9 +297,10 @@ class InvariantesDeVisitasIntegrationTest extends EmbeddedPostgresTest {
 
         em.flush();
         em.clear();
-        LocalDateTime salida = accessLogService.getTodayAccesses().stream()
-                .filter(a -> a.getId().equals(visita.log().getId()))
-                .findFirst().orElseThrow().getCheckOutAt();
+        // Se lee la fila por su id y no con getTodayAccesses(): esa filtra por DÍA, y entre las
+        // 00:00 y las 02:59 "hace tres horas" es ayer. El test se caía solo cada madrugada.
+        LocalDateTime salida = em.find(com.veltronik.v2.gym.entities.AccessLog.class, visita.log().getId())
+                .getCheckOutAt();
 
         // Un minuto de tolerancia: lo que se defiende es que NO sea "ahora". Sellarla con el
         // reloj del servidor dejaría una visita de tres horas donde hubo una de una.

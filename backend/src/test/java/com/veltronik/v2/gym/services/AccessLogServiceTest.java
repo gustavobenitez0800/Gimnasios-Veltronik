@@ -424,10 +424,14 @@ class AccessLogServiceTest {
             // Además de verse mal, INFLA las visitas del mes, que es el número con el que el
             // dueño decide a quién llamar. La visita que abre este acceso termina donde empieza
             // la siguiente: es lo que habría pasado si hubieran llegado en orden.
-            LocalDateTime entroDespues = LocalDateTime.now().minusMinutes(10);
+            //
+            // Fechas de calendario de AYER a propósito: las dos visitas tienen que ser del mismo
+            // día, porque si no el cierre se acota a la medianoche (el test de abajo). Con
+            // "hace 45 y hace 10 minutos" se caía solo entre las 00:00 y las 00:44.
+            LocalDateTime entroDespues = java.time.LocalDate.now().minusDays(1).atTime(18, 35);
             AccessLog posterior = visitaAbiertaDesde(entroDespues);
             visitaPosteriorAbierta(posterior, entroDespues);
-            LocalDateTime accesoViejo = LocalDateTime.now().minusMinutes(45);
+            LocalDateTime accesoViejo = entroDespues.minusMinutes(35);
 
             var r = service.registerScan(MEMBER, "manual", null, null, UUID.randomUUID(), accesoViejo);
 
