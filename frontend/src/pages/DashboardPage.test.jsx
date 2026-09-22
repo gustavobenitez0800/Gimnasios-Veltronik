@@ -130,7 +130,26 @@ describe('el Dashboard', () => {
     // Junio, julio y agosto suben de a 20.000: octubre, 180.000. Septiembre a medias no entra.
     expect(texto()).toContain('Predicción de octubre');
     expect(texto()).toContain(formatCurrency(180000));
-    expect(texto()).toContain('promedio de 3 meses cerrados');
+    expect(texto()).toContain('+50% vs el promedio de 3 meses cerrados');
+  });
+
+  it('el porcentaje de la predicción va con coma, como se escribe acá', async () => {
+    servidor.getResumen.mockResolvedValue(resumen({
+      ingresos: {
+        delMes: 30000, delMesAnterior: 125000, delMismoPeriodoAnterior: 25000, primerCobro: '2026-06-02T09:00:00',
+        serieMensual: [
+          { mes: '2026-06-01T00:00:00', total: 100000 },
+          { mes: '2026-07-01T00:00:00', total: 110000 },
+          { mes: '2026-08-01T00:00:00', total: 125000 },
+          { mes: '2026-09-01T00:00:00', total: 30000 },
+        ],
+      },
+    }));
+    await pintar();
+
+    // 100.000, 110.000, 125.000: octubre ≈ 149.167, un 33,6% arriba del promedio (111.667).
+    expect(texto()).toContain('33,6%');
+    expect(texto()).not.toContain('33.6%');
   });
 
   it('sin dos meses cerrados no inventa un número', async () => {

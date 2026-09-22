@@ -82,6 +82,10 @@ function GymDashboard({ gym }) {
         borderWidth: 3,
         fill: true,
         tension: 0.4,
+        // "monotone": la curva pasa POR los puntos sin inventar picos entre ellos. Con el spline
+        // común, entre marzo y abril dibujaba una cresta más alta que los dos meses, un récord
+        // que nunca existió.
+        cubicInterpolationMode: 'monotone',
         segment: { borderDash: (ctx) => (esEnCurso(ctx.p1DataIndex) ? [6, 6] : undefined) },
         pointBackgroundColor: revenueChartData.data.map((_, i) => (esEnCurso(i) ? '#0F172A' : '#0EA5E9')),
         pointBorderColor: revenueChartData.data.map((_, i) => (esEnCurso(i) ? '#0EA5E9' : '#fff')),
@@ -117,7 +121,10 @@ function GymDashboard({ gym }) {
       x: { grid: { display: false }, ticks: { color: '#94A3B8' } },
       // "$8,5 M" y "$850 mil", no "$8500.0k": un gimnasio que factura millones leía cuatro
       // cifras con un punto y una "k" en inglés.
+      // Desde CERO: con el eje arrancando en $5 M, pasar de $5,4 M a $5,3 M se veía como un
+      // derrumbe. La altura de cada punto tiene que ser proporcional a la plata.
       y: {
+        beginAtZero: true,
         grid: { color: 'rgba(148, 163, 184, 0.1)' },
         ticks: { color: '#94A3B8', callback: montoCorto },
       },
@@ -261,7 +268,9 @@ function GymDashboard({ gym }) {
                 <div className="prediction-trend">
                   <span className={`trend-${prediction.trend}`}>
                     <Icon name={prediction.trend === 'up' ? 'trendingUp' : prediction.trend === 'down' ? 'trendingDown' : 'arrowRight'} size="1em" />
-                    {' '}{parseFloat(prediction.percentChange) > 0 ? '+' : ''}{prediction.percentChange}% vs el promedio de {prediction.mesesCerrados} meses cerrados
+                    {' '}{parseFloat(prediction.percentChange) > 0 ? '+' : ''}
+                    {/* Con coma, como se escribe acá: decía "-10.1%". */}
+                    {Number(prediction.percentChange).toLocaleString('es-AR', { maximumFractionDigits: 1 })}% vs el promedio de {prediction.mesesCerrados} meses cerrados
                   </span>
                 </div>
               </>
