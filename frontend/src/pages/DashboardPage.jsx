@@ -18,6 +18,7 @@ import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardController } from '../controllers/useDashboardController';
 import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
+import { montoCorto } from '../lib/resumenDashboard';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
 import { StatCard } from '../components/ui';
@@ -26,6 +27,9 @@ import CONFIG from '../lib/config';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Filler, Tooltip, Legend);
+
+/** Cuántas alertas entran en el panel antes de "y N más". */
+const ALERTAS_VISIBLES = 8;
 
 export default function DashboardPage() {
   const { gym, orgRole } = useAuth();
@@ -47,16 +51,26 @@ function GymDashboard({ gym }) {
 
   const {
     dashboardStats,
+    comparacion,
     prediction,
     alerts,
+    alertsTotal,
     insights,
     revenueChartData,
     membersChartData,
     recentMembers,
     loading,
+    error,
+    reintentar,
   } = useDashboardController(gym);
 
   // ─── CHART CONFIGS ───
+  //
+  // ⭐ El último punto es el MES EN CURSO: se dibuja hueco y con el tramo que llega a él
+  // punteado. Sin eso, el día 5 el gráfico mostraba un derrumbe que no existía — un mes de
+  // cinco días al lado de meses enteros, dibujado igual que ellos.
+  const { enCurso } = revenueChartData;
+  const esEnCurso = (i) => i === enCurso;
   const revenueChart = {
     labels: revenueChartData.labels,
     datasets: [
@@ -68,8 +82,9 @@ function GymDashboard({ gym }) {
         borderWidth: 3,
         fill: true,
         tension: 0.4,
-        pointBackgroundColor: '#0EA5E9',
-        pointBorderColor: '#fff',
+        segment: { borderDash: (ctx) => (esEnCurso(ctx.p1DataIndex) ? [6, 6] : undefined) },
+        pointBackgroundColor: revenueChartData.data.map((_, i) => (esEnCurso(i) ? '#0F172A' : '#0EA5E9')),
+        pointBorderColor: revenueChartData.data.map((_, i) => (esEnCurso(i) ? '#0EA5E9' : '#fff')),
         pointBorderWidth: 2,
         pointRadius: 5,
         pointHoverRadius: 7,
@@ -88,18 +103,23 @@ function GymDashboard({ gym }) {
         bodyFont: { size: 14 },
         padding: 12,
         callbacks: {
+          title: (items) => {
+            const i = items[0]?.dataIndex;
+            return esEnCurso(i)
+              ? `${items[0].label} — en curso, al día ${revenueChartData.dia}`
+              : items[0]?.label;
+          },
           label: (ctx) => formatCurrency(ctx.raw),
         },
       },
     },
     scales: {
       x: { grid: { display: false }, ticks: { color: '#94A3B8' } },
+      // "$8,5 M" y "$850 mil", no "$8500.0k": un gimnasio que factura millones leía cuatro
+      // cifras con un punto y una "k" en inglés.
       y: {
         grid: { color: 'rgba(148, 163, 184, 0.1)' },
-        ticks: {
-          color: '#94A3B8',
-          callback: (v) => v >= 1000 ? '$' + (v / 1000).toFixed(1) + 'k' : '$' + Math.round(v),
-        },
+        ticks: { color: '#94A3B8', callback: montoCorto },
       },
     },
   };
@@ -152,6 +172,31 @@ function GymDashboard({ gym }) {
     );
   }
 
+  // ⚠️ Sin datos no se pintan ceros. "0 socios al día" y "$0 de ingresos" son afirmaciones, y
+  // el día que el servidor no contestaba el dueño leía que su gimnasio estaba vacío.
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="Dashboard" subtitle="Vista general de tu gimnasio" icon="layoutDashboard" />
+        <div className="card dashboard-error" role="alert">
+          <strong>No se pudo cargar el panel.</strong>
+          <span className="text-muted">
+            Puede ser la conexión o el servidor. Tus datos están bien: es solo esta pantalla.
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={reintentar}>
+            <Icon name="rotateCw" size="1em" /> Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Cómo viene el mes, frente al mismo tramo del mes pasado.
+  const detalleDelMes = comparacion && comparacion.cambio !== null
+    ? `${comparacion.cambio > 0 ? '+' : ''}${comparacion.cambio}% frente al 1 al ${comparacion.dia} de ${comparacion.mesAnterior}`
+    : null;
+  const tonoDelMes = comparacion?.cambio > 0 ? 'up' : comparacion?.cambio < 0 ? 'down' : undefined;
+
   return (
     <div className="dashboard">
       {/* Sin badge "Activo" ni botón de recargar.
@@ -180,7 +225,8 @@ function GymDashboard({ gym }) {
                 contando solo a los que pagaron: dos números para la misma palabra, en la
                 misma pantalla. */}
             <StatCard icon="users" label={`${membersLabel} al día`} value={dashboardStats.alDia} color="primary" />
-            <StatCard icon="cash" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)} color="success" />
+            <StatCard icon="cash" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)}
+              color="success" detail={detalleDelMes} detailTone={tonoDelMes} />
           </>
         )}
         {/* Cuenta SOCIOS con la cuota vencida, no pagos: se llamaba "Pagos Vencidos" y no
@@ -200,23 +246,41 @@ function GymDashboard({ gym }) {
 
         <div className="dashboard-grid-3">
           {/* Prediction Card */}
+          {/* ⭐ Con meses CERRADOS. El mes en curso no entra: a mitad de mes es un mes a medias,
+              y con él la predicción se desplomaba el día 1 y se recuperaba a fin de mes. */}
           <div className="prediction-card">
             <div className="prediction-header">
-              <span className="prediction-label"><Icon name="chart" size="1em" /> Predicción Próximo Mes</span>
-              <span className="prediction-confidence"><Icon name="target" size="1em" /> {prediction.confidence}% confianza</span>
+              <span className="prediction-label"><Icon name="chart" size="1em" /> Predicción de {prediction.mes}</span>
+              {prediction.suficiente && (
+                <span className="prediction-confidence"><Icon name="target" size="1em" /> {prediction.confidence}% confianza</span>
+              )}
             </div>
-            <div className="prediction-value">{formatCurrency(prediction.predicted)}</div>
-            <div className="prediction-trend">
-              <span className={`trend-${prediction.trend}`}>
-                <Icon name={prediction.trend === 'up' ? 'trendingUp' : prediction.trend === 'down' ? 'trendingDown' : 'arrowRight'} size="1em" />
-                {' '}{parseFloat(prediction.percentChange) > 0 ? '+' : ''}{prediction.percentChange}% vs promedio
-              </span>
-            </div>
+            {prediction.suficiente ? (
+              <>
+                <div className="prediction-value">{formatCurrency(prediction.predicted)}</div>
+                <div className="prediction-trend">
+                  <span className={`trend-${prediction.trend}`}>
+                    <Icon name={prediction.trend === 'up' ? 'trendingUp' : prediction.trend === 'down' ? 'trendingDown' : 'arrowRight'} size="1em" />
+                    {' '}{parseFloat(prediction.percentChange) > 0 ? '+' : ''}{prediction.percentChange}% vs el promedio de {prediction.mesesCerrados} meses cerrados
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="prediction-pendiente">
+                Se calcula con dos meses cerrados.{' '}
+                {prediction.mesesCerrados === 1
+                  ? 'Falta que cierre este mes.'
+                  : 'Van a hacer falta este mes y el que viene.'}
+              </p>
+            )}
           </div>
 
           {/* Revenue Chart */}
           <div className="card chart-card">
-            <h4 className="chart-title"><Icon name="trendingUp" size="1em" /> Ingresos Mensuales</h4>
+            <h4 className="chart-title">
+              <Icon name="trendingUp" size="1em" /> Ingresos Mensuales
+              <span className="chart-subtitle">· {revenueChartData.mesEnCurso} en curso, al día {revenueChartData.dia}</span>
+            </h4>
             <div className="chart-container">
               <Line data={revenueChart} options={revenueChartOptions} />
             </div>
@@ -293,15 +357,29 @@ function GymDashboard({ gym }) {
                 <span className="alert-text">¡Excelente! No hay vencimientos próximos</span>
               </div>
             ) : (
-              alerts.slice(0, 8).map((alert) => {
-                const dotColor = alert.type === 'expired' ? 'var(--error-500)' : alert.type === 'urgent' ? 'var(--warning-500)' : 'var(--info-500)';
-                return (
-                  <div key={`${alert.type}-${alert.message}`} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
-                    <span className="alert-dot" style={{ background: dotColor, boxShadow: `0 0 0 3px color-mix(in srgb, ${dotColor} 18%, transparent)` }} />
-                    <span className="alert-text">{alert.message}</span>
+              <>
+                {/* La clave es el socio: con el nombre, dos "Juan Pérez" repetían clave y React
+                    podía dejar pegada la alerta de uno en el renglón del otro. */}
+                {alerts.slice(0, ALERTAS_VISIBLES).map((alert) => {
+                  const dotColor = alert.type === 'expired' ? 'var(--error-500)' : alert.type === 'urgent' ? 'var(--warning-500)' : 'var(--info-500)';
+                  return (
+                    <div key={alert.id} className={`alert-item ${alert.priority === 'medium' ? 'medium' : ''}`}>
+                      <span className="alert-dot" style={{ background: dotColor, boxShadow: `0 0 0 3px color-mix(in srgb, ${dotColor} 18%, transparent)` }} />
+                      <span className="alert-text">{alert.message}</span>
+                    </div>
+                  );
+                })}
+                {/* Se muestran los más cercanos a hoy. El resto se cuenta y se llega con un clic:
+                    antes la lista cortaba en 8 sin decir que había 170 más. */}
+                {alertsTotal > Math.min(alerts.length, ALERTAS_VISIBLES) && (
+                  <div className="alerts-mas">
+                    <span>y {alertsTotal - Math.min(alerts.length, ALERTAS_VISIBLES)} más</span>
+                    <Link to={`${CONFIG.ROUTES.MEMBERS}?estado=expired`} className="btn btn-sm btn-ghost">
+                      Ver vencidos →
+                    </Link>
                   </div>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         </div>

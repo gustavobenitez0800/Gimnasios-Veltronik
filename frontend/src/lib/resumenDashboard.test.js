@@ -1,52 +1,29 @@
 // ============================================
 // VELTRONIK - Tests del resumen del Dashboard
 // ============================================
-// ⭐ LO QUE SE DEFIENDE ACÁ NO ES QUE "FUNCIONE": es que los números sean LOS MISMOS que
-// mostraba la pantalla cuando hacía las cuentas sobre el padrón completo.
+// ⭐ LO QUE SE DEFIENDE ACÁ: que el MES EN CURSO se trate como lo que es —un mes que todavía
+// no terminó— y que el panel cuente con las mismas palabras y criterios que el resto del
+// sistema. Cada test lleva la fecha de HOY escrita (`hoy`), la que manda el servidor: así no
+// dependen del día en que se corren, que es la trampa de los tests que fallaban a medianoche.
 //
-// El Dashboard se traía todos los socios y todos los pagos y calculaba en el navegador. Ahora
-// el servidor manda series y conteos. Si al mudar la cuenta un total cambiara, el dueño vería
-// que "el sistema empezó a decir otra cosa" y no habría forma de saber cuál de las dos
-// versiones tenía razón — por eso varios de estos tests corren la fórmula vieja
-// (InsightsService, sobre datos crudos) y la nueva (sobre el resumen) y exigen que coincidan.
+// Los montos son inventados: el repo es público.
 
 import { describe, it, expect } from 'vitest';
 import {
-  graficoDeIngresos, prediccionDeIngresos, alertasDeVencimiento, graficoDeSocios, insightsDelDia,
+  graficoDeIngresos, prediccionDeIngresos, comparacionDelMes, alertasDeVencimiento,
+  graficoDeSocios, insightsDelDia, montoCorto, fechaDeHoy,
 } from './resumenDashboard';
-import InsightsService from '../services/InsightsService';
 
-const insights = new InsightsService();
-
-/** El primer día de un mes, N meses atrás. */
+/** El primer día de un mes, N meses atrás de HOY (para los tests que usan el reloj de la PC). */
 const mesAtras = (n) => {
   const hoy = new Date();
   return new Date(hoy.getFullYear(), hoy.getMonth() - n, 1);
 };
 
-/** Un pago como lo devolvía el backend, ya normalizado por el controlador viejo. */
-const pago = (fecha, monto) => ({ paymentDate: fecha.toISOString(), amount: monto, status: 'paid' });
+/** Un renglón de la serie como lo manda el servidor: "2026-06-01T00:00:00". */
+const mes = (clave, total) => ({ mes: `${clave}-01T00:00:00`, total });
 
 describe('el gráfico de ingresos', () => {
-
-  it('⭐ da lo mismo que calculando sobre los pagos crudos', () => {
-    const pagos = [
-      pago(mesAtras(0), 25000), pago(mesAtras(0), 15000),
-      pago(mesAtras(1), 40000),
-      pago(mesAtras(3), 12000),
-    ];
-    const serie = [
-      { mes: mesAtras(3).toISOString(), total: 12000 },
-      { mes: mesAtras(1).toISOString(), total: 40000 },
-      { mes: mesAtras(0).toISOString(), total: 40000 },
-    ];
-
-    const viejo = insights.getMonthlyRevenueChartData(pagos, 6);
-    const nuevo = graficoDeIngresos(serie, 6);
-
-    expect(nuevo.labels).toEqual(viejo.labels);
-    expect(nuevo.data).toEqual(viejo.data);
-  });
 
   it('un mes sin cobros vale 0 y aparece igual', () => {
     const { labels, data } = graficoDeIngresos([{ mes: mesAtras(0).toISOString(), total: 5000 }], 6);
@@ -79,124 +56,188 @@ describe('el gráfico de ingresos', () => {
     const nuevo = [{ mes: mesAtras(1).toISOString(), total: 5000 }];
     expect(graficoDeIngresos(nuevo, 6, 12).data).toHaveLength(6);
   });
+
+  it('⭐ el último punto es el mes en curso, y dice en qué día va', () => {
+    const r = graficoDeIngresos([mes('2026-08', 100000), mes('2026-09', 30000)], 6, 12, '2026-09-21');
+
+    expect(r.enCurso).toBe(r.data.length - 1);
+    expect(r.data[r.enCurso]).toBe(30000);
+    expect(r.mesEnCurso).toBe('septiembre');
+    expect(r.dia).toBe(21);
+  });
+
+  it('⭐ el mes en curso lo dice el SERVIDOR, no el reloj de la PC', () => {
+    // Una PC con la zona mal puesta, a las 22:00 del 31 de enero, ya está en febrero.
+    const r = graficoDeIngresos([mes('2027-01', 50000)], 6, 12, '2027-01-31');
+
+    expect(r.mesEnCurso).toBe('enero');
+    expect(r.data[r.enCurso]).toBe(50000);
+  });
 });
 
 describe('la predicción de ingresos', () => {
 
-  it('⭐ da EXACTAMENTE lo mismo que la fórmula vieja sobre los pagos', () => {
-    const pagos = [
-      pago(mesAtras(2), 100000),
-      pago(mesAtras(1), 120000),
-      pago(mesAtras(0), 140000),
-    ];
-    const serie = [
-      { mes: mesAtras(2).toISOString(), total: 100000 },
-      { mes: mesAtras(1).toISOString(), total: 120000 },
-      { mes: mesAtras(0).toISOString(), total: 140000 },
-    ];
+  it('⭐ el mes en curso NO entra: todavía no terminó', () => {
+    const serie = [mes('2026-06', 100000), mes('2026-07', 120000), mes('2026-08', 140000), mes('2026-09', 30000)];
 
-    const viejo = insights.predictNextMonthRevenue(pagos);
-    const nuevo = prediccionDeIngresos(serie);
+    const r = prediccionDeIngresos(serie, { hoy: '2026-09-21' });
 
-    expect(nuevo.predicted).toBe(viejo.predicted);
-    expect(nuevo.confidence).toBe(viejo.confidence);
-    expect(nuevo.trend).toBe(viejo.trend);
-    expect(nuevo.percentChange).toBe(viejo.percentChange);
+    // Con septiembre a medias (30.000 al día 21) la línea se doblaba para abajo. Sin él, la
+    // tendencia es la de los meses cerrados: +20.000 por mes → octubre, 180.000.
+    expect(r.suficiente).toBe(true);
+    expect(r.mes).toBe('octubre');
+    expect(r.mesesCerrados).toBe(3);
+    expect(r.trend).toBe('up');
+    expect(r.predicted).toBe(180000);
+  });
+
+  it('⭐ no cambia según el día del mes: el 2 y el 29 dicen lo mismo', () => {
+    const cerrados = [mes('2026-06', 100000), mes('2026-07', 120000), mes('2026-08', 140000)];
+
+    const alPrincipio = prediccionDeIngresos([...cerrados, mes('2026-09', 4000)], { hoy: '2026-09-02' });
+    const alFinal = prediccionDeIngresos([...cerrados, mes('2026-09', 150000)], { hoy: '2026-09-29' });
+
+    expect(alPrincipio.predicted).toBe(alFinal.predicted);
   });
 
   /**
    * ⭐ EL ARREGLO DEL 2026-09-03. La serie solo trae meses CON cobros: si el gimnasio cobró
-   * en junio, julio y septiembre, agosto no venía y la regresión tomaba julio y septiembre
-   * como consecutivos. El mes malo desaparecía de la cuenta en vez de pesar, y la tendencia
-   * salía mejor de lo que fue — justo el mes que hay que ver.
+   * en mayo, junio y agosto, julio no venía y la regresión tomaba junio y agosto como
+   * consecutivos. El mes malo desaparecía de la cuenta en vez de pesar.
    */
   it('⭐ un mes SIN cobros pesa como cero, no se saltea', () => {
-    const conHueco = [
-      { mes: mesAtras(3).toISOString(), total: 90000 },
-      { mes: mesAtras(2).toISOString(), total: 90000 },
-      // mesAtras(1) no está: ese mes no se cobró nada
-      { mes: mesAtras(0).toISOString(), total: 90000 },
-    ];
+    const conHueco = [mes('2026-05', 90000), mes('2026-06', 90000), mes('2026-08', 90000)];
 
-    const r = prediccionDeIngresos(conHueco);
+    const r = prediccionDeIngresos(conHueco, { hoy: '2026-09-10' });
 
-    // Con el hueco relleno la serie es [90k, 90k, 0, 90k]: hubo un derrumbe y la tendencia
-    // no puede ser "estable". Salteándolo daban tres meses planos y tendencia neutral.
+    expect(r.mesesCerrados).toBe(4);
     expect(r.trend, 'un mes en cero tiene que arrastrar la tendencia').toBe('down');
     expect(r.confidence, 'y bajar la confianza: la serie es irregular').toBeLessThan(95);
   });
 
-  it('sin huecos, la predicción no cambia', () => {
-    const serie = [
-      { mes: mesAtras(2).toISOString(), total: 100000 },
-      { mes: mesAtras(1).toISOString(), total: 120000 },
-      { mes: mesAtras(0).toISOString(), total: 140000 },
-    ];
+  it('los meses sin cobros cuentan hasta el mes pasado: el que dejó de cobrar no se ve estable', () => {
+    const r = prediccionDeIngresos([mes('2026-06', 100000)], { hoy: '2026-09-10' });
 
-    const r = prediccionDeIngresos(serie);
-
-    expect(r.trend).toBe('up');
-    expect(r.predicted).toBe(160000);
+    expect(r.mesesCerrados, 'junio, julio y agosto').toBe(3);
+    expect(r.trend).toBe('down');
   });
 
-  it('con un solo mes no se inventa una tendencia', () => {
-    const r = prediccionDeIngresos([{ mes: mesAtras(0).toISOString(), total: 50000 }]);
+  it('⭐ el primer mes, si se empezó a cobrar avanzado el mes, no cuenta', () => {
+    // Empezó a cobrar el 20 de junio: diez días de junio al lado de meses enteros inventaban
+    // un crecimiento que no pasó.
+    const serie = [mes('2026-06', 20000), mes('2026-07', 100000), mes('2026-08', 100000)];
 
-    expect(r.predicted).toBe(50000);
-    expect(r.confidence, 'poca confianza con un solo dato').toBe(30);
+    const r = prediccionDeIngresos(serie, { hoy: '2026-09-10', primerCobro: '2026-06-20T10:00:00' });
+
+    expect(r.mesesCerrados).toBe(2);
     expect(r.trend).toBe('neutral');
+    expect(r.predicted).toBe(100000);
+  });
+
+  it('el primer mes que arrancó en los primeros días sí cuenta', () => {
+    const serie = [mes('2026-06', 90000), mes('2026-07', 100000), mes('2026-08', 110000)];
+
+    const r = prediccionDeIngresos(serie, { hoy: '2026-09-10', primerCobro: '2026-06-05T07:17:00' });
+
+    expect(r.mesesCerrados).toBe(3);
+  });
+
+  it('con un solo mes cerrado no se inventa una predicción', () => {
+    const r = prediccionDeIngresos([mes('2026-08', 50000), mes('2026-09', 10000)], { hoy: '2026-09-10' });
+
+    expect(r.suficiente).toBe(false);
+    expect(r.mesesCerrados).toBe(1);
+    expect(r.predicted).toBe(0);
   });
 
   it('sin datos no predice nada', () => {
-    expect(prediccionDeIngresos([]).predicted).toBe(0);
-    expect(prediccionDeIngresos(null).confidence).toBe(0);
+    expect(prediccionDeIngresos([], { hoy: '2026-09-10' }).suficiente).toBe(false);
+    expect(prediccionDeIngresos(null).mesesCerrados).toBe(0);
   });
 
   it('detecta que los ingresos bajan', () => {
-    const r = prediccionDeIngresos([
-      { mes: mesAtras(2).toISOString(), total: 150000 },
-      { mes: mesAtras(1).toISOString(), total: 100000 },
-      { mes: mesAtras(0).toISOString(), total: 50000 },
-    ]);
+    const r = prediccionDeIngresos(
+      [mes('2026-06', 150000), mes('2026-07', 100000), mes('2026-08', 50000)], { hoy: '2026-09-10' });
 
     expect(r.trend).toBe('down');
+  });
+
+  it('cruza el año: en enero predice febrero con los meses de diciembre para atrás', () => {
+    const r = prediccionDeIngresos(
+      [mes('2026-10', 100000), mes('2026-11', 100000), mes('2026-12', 100000), mes('2027-01', 5000)],
+      { hoy: '2027-01-10' });
+
+    expect(r.mes).toBe('febrero');
+    expect(r.mesesCerrados).toBe(3);
+    expect(r.predicted).toBe(100000);
+  });
+});
+
+describe('cómo viene el mes', () => {
+
+  it('⭐ se compara contra el MISMO tramo del mes pasado', () => {
+    const r = comparacionDelMes({ delMes: 30000, delMismoPeriodoAnterior: 25000 }, '2026-09-21');
+
+    expect(r.cambio).toBe(20);
+    expect(r.dia).toBe(21);
+    expect(r.mesAnterior).toBe('agosto');
+  });
+
+  it('el 31 de marzo compara hasta el 28 de febrero, como el servidor', () => {
+    expect(comparacionDelMes({ delMes: 1, delMismoPeriodoAnterior: 1 }, '2026-03-31').dia).toBe(28);
+  });
+
+  it('sin el tramo anterior no compara contra el mes entero: no compara', () => {
+    expect(comparacionDelMes({ delMes: 30000, delMesAnterior: 90000 }, '2026-09-21')).toBeNull();
+  });
+
+  it('sin cobros el mes pasado no hay porcentaje', () => {
+    expect(comparacionDelMes({ delMes: 30000, delMismoPeriodoAnterior: 0 }, '2026-09-21').cambio).toBeNull();
   });
 });
 
 describe('las alertas de vencimiento', () => {
 
-  it('⭐ el texto y el tipo son los mismos que armaba la pantalla', () => {
-    const hoy = new Date();
-    const enDias = (d) => new Date(hoy.getTime() + d * 86400000).toISOString();
-    const socios = [
-      { fullName: 'Rocío Delgado', membershipEnd: enDias(-5) },
-      { fullName: 'Lucas Romero', membershipEnd: enDias(2) },
-      { fullName: 'María Paz', membershipEnd: enDias(6) },
-    ];
-    const vencimientos = {
+  it('⭐ dicen CUÁNDO: el que venció ayer no es lo mismo que el que venció hace meses', () => {
+    const [ayer, hoy, hace] = alertasDeVencimiento({
       primeros: [
-        { nombre: 'Rocío Delgado', diasRestantes: -5 },
-        { nombre: 'Lucas Romero', diasRestantes: 2 },
-        { nombre: 'María Paz', diasRestantes: 6 },
+        { socioId: 'a', nombre: 'Rocío Delgado', diasRestantes: -1 },
+        { socioId: 'b', nombre: 'Lucas Romero', diasRestantes: 0 },
+        { socioId: 'c', nombre: 'María Paz', diasRestantes: -90 },
       ],
-    };
-
-    const viejo = insights.getPaymentAlerts(socios);
-    const nuevo = alertasDeVencimiento(vencimientos);
-
-    expect(nuevo.map((a) => a.type)).toEqual(viejo.map((a) => a.type));
-    expect(nuevo.map((a) => a.message)).toEqual(viejo.map((a) => a.message));
-    expect(nuevo.map((a) => a.priority)).toEqual(viejo.map((a) => a.priority));
-  });
-
-  it('el singular y el plural de los días están cuidados', () => {
-    const [uno, dos] = alertasDeVencimiento({
-      primeros: [{ nombre: 'Ana', diasRestantes: 1 }, { nombre: 'Beto', diasRestantes: 2 }],
     });
 
-    expect(uno.message).toContain('Vence en 1 día');
-    expect(uno.message).not.toContain('1 días');
-    expect(dos.message).toContain('Vence en 2 días');
+    expect(ayer.message).toBe('Rocío Delgado - Venció hace 1 día');
+    expect(hoy.message).toBe('Lucas Romero - Venció hoy');
+    expect(hace.message).toBe('María Paz - Venció hace 90 días');
+    expect([ayer, hoy, hace].every((a) => a.type === 'expired' && a.priority === 'high')).toBe(true);
+  });
+
+  it('los umbrales de siempre: hasta 3 días es urgente, hasta 7 es aviso', () => {
+    const [uno, tres, seis] = alertasDeVencimiento({
+      primeros: [
+        { socioId: 'a', nombre: 'Ana', diasRestantes: 1 },
+        { socioId: 'b', nombre: 'Beto', diasRestantes: 3 },
+        { socioId: 'c', nombre: 'Carla', diasRestantes: 6 },
+      ],
+    });
+
+    expect(uno.message).toBe('Ana - Vence en 1 día');
+    expect(uno.type).toBe('urgent');
+    expect(tres.type).toBe('urgent');
+    expect(seis.type).toBe('warning');
+    expect(seis.priority).toBe('medium');
+  });
+
+  it('⭐ cada alerta es de un socio: dos con el mismo nombre no comparten clave', () => {
+    const [a, b] = alertasDeVencimiento({
+      primeros: [
+        { socioId: 's1', nombre: 'Juan Pérez', diasRestantes: -2 },
+        { socioId: 's2', nombre: 'Juan Pérez', diasRestantes: -2 },
+      ],
+    });
+
+    expect(a.id).not.toBe(b.id);
   });
 
   it('sin vencimientos no inventa alertas', () => {
@@ -207,29 +248,23 @@ describe('las alertas de vencimiento', () => {
 
 describe('la torta de socios', () => {
 
-  it('⭐ cuenta igual que la fórmula vieja sobre el padrón', () => {
-    const hoy = new Date();
-    const enDias = (d) => new Date(hoy.getTime() + d * 86400000).toISOString();
-    const padron = [
-      { status: 'active', membershipEnd: enDias(20) },
-      { status: 'active', membershipEnd: enDias(10) },
-      { status: 'active', membershipEnd: enDias(-3) },   // vencido por fecha
-      { status: 'inactive', membershipEnd: enDias(20) },
-    ];
+  it('⭐ habla como la tarjeta y como Socios, y los cuatro pedazos suman el total', () => {
+    const socios = { total: 10, activos: 5, vencidos: 2, sinFecha: 1, inactivos: 2, suspendidos: 0 };
 
-    const viejo = insights.getMemberStatusChartData(padron);
-    const nuevo = graficoDeSocios({ activos: 2, inactivos: 1, vencidos: 1, suspendidos: 0 });
+    const t = graficoDeSocios(socios);
 
-    expect(nuevo.data).toEqual(viejo.data);
-    expect(nuevo.labels).toEqual(viejo.labels);
+    expect(t.labels).toEqual(['Al día', 'Vencidos', 'Sin cuota', 'Bajas']);
+    expect(t.data).toEqual([5, 2, 1, 2]);
+    expect(t.data.reduce((a, b) => a + b, 0)).toBe(socios.total);
   });
 });
 
 describe('los insights del día', () => {
 
   const resumenBase = {
-    socios: { total: 10, activos: 7, inactivos: 1, vencidos: 2 },
-    ingresos: { delMes: 120000, delMesAnterior: 100000 },
+    hoy: '2026-09-21',
+    socios: { total: 10, activos: 7, inactivos: 1, vencidos: 2, sinFecha: 0 },
+    ingresos: { delMes: 120000, delMesAnterior: 300000, delMismoPeriodoAnterior: 100000 },
     vencimientos: { estaSemana: 2 },
     cumplenHoy: [],
   };
@@ -241,34 +276,37 @@ describe('los insights del día', () => {
     expect(primero.message).toContain('2 socios');
   });
 
-  /**
-   * ⚠️ EL MISMO VOCABULARIO QUE LA TARJETA DE ARRIBA. La pantalla decía "9 Socios Activos"
-   * arriba y "6 de 10 activos" abajo: no se contradicen (una cuenta a los dados de alta y la
-   * otra a los que pagaron) pero son dos números para la misma palabra, en la misma pantalla.
-   */
-  it('habla de socios "al día", igual que la tarjeta', () => {
+  it('⭐ "al día" sobre los que SIGUEN siendo socios, no sobre los dados de baja', () => {
     const tasa = insightsDelDia(resumenBase).find((i) => i.title === 'Socios al día');
 
-    expect(tasa.message).toBe('70% de tus socios están al día (7 de 10)');
+    expect(tasa.message).toBe('78% de tus socios están al día (7 de 9)');
   });
 
-  it('compara contra el mes anterior y dice si subió o bajó', () => {
+  it('⭐ compara contra el mismo tramo del mes pasado, no contra el mes entero', () => {
+    // Contra agosto entero (300.000) diría "bajaron 60%"; contra el 1 al 21 de agosto, subieron.
     const subio = insightsDelDia(resumenBase).find((i) => i.title === 'Comparativa mensual');
-    expect(subio.message).toBe('Ingresos subieron 20% vs mes anterior');
+    expect(subio.message).toBe('Ingresos subieron 20% frente al 1 al 21 de agosto');
     expect(subio.type).toBe('success');
 
     const bajo = insightsDelDia({
-      ...resumenBase, ingresos: { delMes: 80000, delMesAnterior: 100000 },
+      ...resumenBase, ingresos: { delMes: 80000, delMismoPeriodoAnterior: 100000 },
     }).find((i) => i.title === 'Comparativa mensual');
-    expect(bajo.message).toBe('Ingresos bajaron 20% vs mes anterior');
+    expect(bajo.message).toBe('Ingresos bajaron 20% frente al 1 al 21 de agosto');
     expect(bajo.type).toBe('warning');
   });
 
   /** Sin mes anterior no hay con qué comparar: mejor no decir nada que decir "subió 100%". */
   it('el primer mes del gimnasio no muestra comparativa', () => {
-    const r = insightsDelDia({ ...resumenBase, ingresos: { delMes: 50000, delMesAnterior: 0 } });
+    const r = insightsDelDia({ ...resumenBase, ingresos: { delMes: 50000, delMismoPeriodoAnterior: 0 } });
 
     expect(r.find((i) => i.title === 'Comparativa mensual')).toBeUndefined();
+  });
+
+  it('avisa de los socios sin cuota cargada', () => {
+    const r = insightsDelDia({ ...resumenBase, socios: { ...resumenBase.socios, sinFecha: 3 } });
+    const aviso = r.find((i) => i.title === 'Socios sin cuota');
+
+    expect(aviso.message).toContain('3 socios no tienen vencimiento cargado');
   });
 
   it('los cumpleaños del día aparecen con los nombres', () => {
@@ -280,10 +318,35 @@ describe('los insights del día', () => {
 
   it('un gimnasio recién abierto no muestra insights vacíos', () => {
     const r = insightsDelDia({
-      socios: { total: 0, activos: 0 }, ingresos: { delMes: 0, delMesAnterior: 0 },
+      socios: { total: 0, activos: 0 }, ingresos: { delMes: 0, delMismoPeriodoAnterior: 0 },
       vencimientos: { estaSemana: 0 }, cumplenHoy: [],
     });
 
     expect(r).toEqual([]);
+  });
+});
+
+describe('los montos del eje', () => {
+
+  it('en castellano y cortos', () => {
+    expect(montoCorto(8500000)).toBe('$8,5 M');
+    expect(montoCorto(5000000)).toBe('$5 M');
+    expect(montoCorto(850000)).toBe('$850 mil');
+    expect(montoCorto(900)).toBe('$900');
+    expect(montoCorto(0)).toBe('$0');
+  });
+});
+
+describe('la fecha de hoy', () => {
+
+  it('la del servidor, leída como fecha local (no como medianoche UTC)', () => {
+    const f = fechaDeHoy('2026-09-01');
+
+    expect(f.getDate()).toBe(1);
+    expect(f.getMonth()).toBe(8);
+  });
+
+  it('sin la del servidor, la de la PC', () => {
+    expect(fechaDeHoy(undefined).getFullYear()).toBe(new Date().getFullYear());
   });
 });

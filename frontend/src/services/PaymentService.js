@@ -1,6 +1,7 @@
 import apiClient from '../lib/apiClient';
 import { refrescarSocios } from '../lib/localMembers';
 import { avisarCambioDeCobertura } from '../lib/molinete';
+import { invalidateQueries } from '../hooks/queryCacheStore';
 import {
   encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes,
 } from '../lib/colaAccesos';
@@ -114,6 +115,11 @@ class PaymentService {
     // los DOS caminos: el cobro directo y el que estuvo esperando en la cola. Así, un cobro
     // hecho sin internet también le avisa a la puerta cuando finalmente sube.
     avisarCambioDeCobertura();
+
+    // Y el Dashboard: "Ingresos del Mes" y los vencidos acaban de cambiar. Sin esto el cobro
+    // hecho desde Socios ("Cobrar") tardaba hasta tres minutos en verse en el panel —la caché
+    // del resumen vive tres—, y el dueño que cobraba y volvía al panel creía que no había entrado.
+    invalidateQueries('gym_dashboard');
   }
 
   async update(id, updates) {

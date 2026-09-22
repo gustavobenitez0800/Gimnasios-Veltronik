@@ -1,11 +1,6 @@
 import apiClient from '../lib/apiClient';
 
 class DashboardStatsService {
-  async getDashboardStats() {
-    const response = await apiClient.get('/gym/dashboard/stats');
-    return response.data;
-  }
-
   /**
    * Todo el Dashboard en un pedido, ya resumido por el servidor.
    *

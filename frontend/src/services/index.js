@@ -24,8 +24,6 @@ export { planService } from './PlanService';
 export { molineteService } from './MolineteService';
 
 // Analytics
-import InsightsService from './InsightsService';
-export const insightsService = new InsightsService();
 export { dashboardStatsService } from './DashboardStatsService';
 // Resumen cross-sucursal del dueño (solo portal web).
 export { ownerInsightsService } from './OwnerInsightsService';

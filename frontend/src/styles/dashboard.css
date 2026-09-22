@@ -143,6 +143,15 @@
   color: var(--text-muted);
 }
 
+/* La segunda línea opcional de una tarjeta: "+3% frente al 1 al 21 de agosto". */
+.stat-detail {
+  margin-top: 0.2rem;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.stat-detail.is-up { color: var(--success-500); }
+.stat-detail.is-down { color: var(--warning-500); }
+
 /* AI Section */
 .ai-section { margin-bottom: 2rem; }
 
@@ -208,9 +217,18 @@
 .trend-down { color: var(--error-500); }
 .trend-neutral { color: var(--text-muted); }
 
+/* Sin dos meses cerrados no hay predicción: se dice con palabras, no con un $0. */
+.prediction-pendiente {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 /* Charts */
 .chart-card { padding: 1rem; }
 .chart-title { margin-bottom: 0.75rem; font-size: var(--font-size-sm); color: var(--text-muted); }
+/* "septiembre en curso, al día 21": el último punto del gráfico no es un mes cerrado. */
+.chart-subtitle { font-weight: 400; font-size: var(--font-size-xs); margin-left: 0.4rem; }
 .chart-container { position: relative; height: 250px; }
 
 /* Estado vacío DENTRO de un gráfico: ocupa exactamente el mismo alto que el canvas,
@@ -286,6 +304,27 @@
 .alert-item.medium {
   background: rgba(245, 158, 11, 0.05);
   border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* "y 170 más": la lista trae los más cercanos a hoy, no todos. */
+.alerts-mas {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* El resumen no llegó: se dice y se ofrece reintentar, en vez de pintar ceros. */
+.dashboard-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.5rem;
 }
 
 .alert-item.success-alert {

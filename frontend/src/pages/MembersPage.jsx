@@ -97,8 +97,12 @@ export default function MembersPage() {
     deleteMember
   } = useMemberController(PAGE_SIZE);
 
-  // Filters
-  const [statusFilter, setStatusFilter] = useState('');
+  // Filters. El estado puede venir en la URL (?estado=expired): el "Ver vencidos" del
+  // Dashboard llega con el filtro ya puesto. Solo se aceptan los que existen en el menú.
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const pedido = searchParams.get('estado') || '';
+    return STATUS_FILTER_OPTIONS.some((o) => o.value === pedido) ? pedido : '';
+  });
 
   // ─── Los aranceles del gimnasio ───
   //

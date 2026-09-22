@@ -6,7 +6,11 @@
 
 import Icon from '../Icon';
 
-export default function StatCard({ icon, label, value, color = 'primary' }) {
+/**
+ * @param {string} [detail]     segunda línea opcional, más chica ("+3% frente al 1 al 21 de agosto")
+ * @param {string} [detailTone] "up" | "down": el color de esa línea
+ */
+export default function StatCard({ icon, label, value, color = 'primary', detail, detailTone }) {
   // Tamaño según longitud: montos largos ("$ 1.234.567") se achican para no desbordar
   // la card; los cortos ("221") quedan grandes. CSS: .stat-value-sm / .stat-value-xs.
   const valueStr = value == null ? '' : String(value);
@@ -22,6 +26,7 @@ export default function StatCard({ icon, label, value, color = 'primary' }) {
       <div className="stat-content">
         <div className={`stat-value ${sizeClass}`} title={valueStr}>{value}</div>
         <div className="stat-label">{label}</div>
+        {detail && <div className={`stat-detail${detailTone ? ` is-${detailTone}` : ''}`}>{detail}</div>}
       </div>
     </div>
   );

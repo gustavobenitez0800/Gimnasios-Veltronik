@@ -23,7 +23,10 @@ const STALE_MS = 60 * 1000;
 
 // El backend manda el nombre partido y la baja como booleano; la UI muestra un nombre
 // solo y un estado de tres valores (activo / inactivo / vencido).
-function fromApi(dto) {
+//
+// Exportada: el Dashboard muestra las últimas altas con el MISMO estado que la lista de
+// Socios. Leía un `status` que el backend no manda, y todas salían "Inactivo".
+export function fromApi(dto) {
   let attendanceDays = [];
   if (typeof dto.attendanceDays === 'string') {
     try { attendanceDays = JSON.parse(dto.attendanceDays); } catch { attendanceDays = []; }
