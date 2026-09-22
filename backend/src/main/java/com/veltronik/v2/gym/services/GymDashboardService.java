@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.services;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.dto.DashboardResumenDTO;
 import com.veltronik.v2.gym.dto.GymMemberDTO;
+import com.veltronik.v2.gym.entities.GymMember;
 import com.veltronik.v2.gym.mappers.GymMemberMapper;
 import com.veltronik.v2.gym.repositories.GymMemberRepository;
 import com.veltronik.v2.gym.repositories.GymPaymentRepository;
@@ -41,26 +42,30 @@ public class GymDashboardService {
     private final GymMemberMapper memberMapper;
     private final com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy;
 
+    /**
+     * El endpoint viejo, para los escritorios que todavía no piden {@code /resumen}. Cuenta con
+     * los mismos criterios que el resumen: si dos versiones de la app dijeran números distintos
+     * para el mismo gimnasio, no habría forma de saber cuál tiene razón.
+     */
     public Map<String, Object> getDashboardStats() {
         UUID tenantId = TenantContextHolder.getTenantId();
-        
-        long totalMembers = memberRepository.countByTenantIdAndDeletedAtIsNull(tenantId);
-        long activeMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(tenantId);
-
-        // "Mes actual" y "ahora" en hora de Argentina (no la del servidor UTC).
-        LocalDateTime startOfMonth = YearMonth.now(BUSINESS_ZONE).atDay(1).atStartOfDay();
-        BigDecimal monthlyRevenue = paymentRepository.sumAmountByTenantIdAndDateAfter(tenantId, startOfMonth);
-
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-        LocalDateTime in7Days = now.plusDays(7);
-        // COUNT en BD: el dashboard solo necesita el número, no las entidades.
-        long expiringMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, now, in7Days);
-        long expiredMembers = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, now);
+        Padron padron = contarPadron(tenantId, now);
+
+        // "Mes actual" en hora de Argentina, y SOLO el mes actual: un cobro fechado en el
+        // futuro por error no es plata de este mes.
+        YearMonth esteMes = YearMonth.from(now);
+        BigDecimal monthlyRevenue = paymentRepository.sumarCobradoEntre(tenantId,
+                esteMes.atDay(1).atStartOfDay(), esteMes.plusMonths(1).atDay(1).atStartOfDay());
+
+        long expiringMembers = memberRepository.contarPorVencer(tenantId, now, now.plusDays(7));
+        long expiredMembers = padron.vencidos();
+        long activeMembers = padron.total() - padron.bajas();
 
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalMembers", totalMembers);
+        stats.put("totalMembers", padron.total());
         stats.put("activeMembers", activeMembers);
-        stats.put("inactiveMembers", totalMembers - activeMembers);
+        stats.put("inactiveMembers", padron.bajas());
         stats.put("monthlyRevenue", monthlyRevenue != null ? monthlyRevenue : BigDecimal.ZERO);
         stats.put("expiringMembers", expiringMembers);
         stats.put("expiredMembers", expiredMembers);
@@ -86,36 +91,44 @@ public class GymDashboardService {
         UUID tenantId = TenantContextHolder.getTenantId();
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
 
-        // ── El padrón, contado por estado ──
-        long total = memberRepository.countByTenantIdAndDeletedAtIsNull(tenantId);
-        long activosSegunAlta = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(tenantId);
-        long vencidos = memberRepository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, ahora);
+        // ── El padrón, contado por situación (el criterio de MemberAccessPolicy) ──
+        Padron padron = contarPadron(tenantId, ahora);
         DashboardResumenDTO.Socios socios = new DashboardResumenDTO.Socios(
-                total,
-                activosSegunAlta - vencidos,   // activo Y con la cuota al día
-                total - activosSegunAlta,      // dados de baja
-                vencidos,
-                0);                            // ver el comentario del record
+                padron.total(),
+                padron.alDia(),
+                padron.bajas(),
+                padron.vencidos(),
+                0,                             // ver el comentario del record
+                padron.sinFecha());
 
-        // ── Los ingresos, agrupados por mes en Postgres ──
-        List<DashboardResumenDTO.MesConTotal> serie = paymentRepository.ingresosPorMes(tenantId).stream()
+        // ── Los ingresos, agrupados por mes en Postgres, hasta el mes en curso ──
+        YearMonth esteMes = YearMonth.from(ahora);
+        LocalDateTime inicioDelMes = esteMes.atDay(1).atStartOfDay();
+        List<DashboardResumenDTO.MesConTotal> serie = paymentRepository
+                .ingresosPorMes(tenantId, esteMes.plusMonths(1).atDay(1).atStartOfDay()).stream()
                 .map(fila -> new DashboardResumenDTO.MesConTotal(
                         ((java.sql.Timestamp) fila[0]).toLocalDateTime(),
                         (BigDecimal) fila[1]))
                 .toList();
 
-        YearMonth esteMes = YearMonth.now(BUSINESS_ZONE);
+        // El mismo tramo del mes pasado: del 1° hasta este mismo día y hora. minusMonths
+        // recorta solo al último día que exista (el 31 de marzo compara hasta el 28 de febrero).
+        BigDecimal delMismoPeriodoAnterior = paymentRepository.sumarCobradoEntre(tenantId,
+                inicioDelMes.minusMonths(1), ahora.minusMonths(1));
+
         DashboardResumenDTO.Ingresos ingresos = new DashboardResumenDTO.Ingresos(
                 totalDelMes(serie, esteMes),
                 totalDelMes(serie, esteMes.minusMonths(1)),
-                serie);
+                serie,
+                delMismoPeriodoAnterior,
+                paymentRepository.primerCobro(tenantId));
 
         // ── Quiénes necesitan atención: vencidos y los que vencen en 7 días ──
         LocalDateTime en7Dias = ahora.plusDays(7);
-        long estaSemana = memberRepository.countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, ahora, en7Dias);
+        long estaSemana = memberRepository.contarPorVencer(tenantId, ahora, en7Dias);
         long cuantosNecesitanAtencion = memberRepository.contarVencidosOPorVencer(tenantId, en7Dias);
         List<DashboardResumenDTO.Alerta> alertas = memberRepository
-                .vencidosOPorVencer(tenantId, en7Dias, org.springframework.data.domain.PageRequest.of(0, MAXIMO_ALERTAS))
+                .alertasPorCercania(tenantId, ahora, en7Dias, MAXIMO_ALERTAS)
                 .stream()
                 .map(m -> new DashboardResumenDTO.Alerta(
                         m.getId(),
@@ -127,18 +140,44 @@ public class GymDashboardService {
                 .toList();
 
         // ── Los cumpleaños de hoy y las últimas altas ──
-        List<String> cumplen = memberRepository.cumplenHoy(tenantId, String.format("%02d-%02d", ahora.getMonthValue(), ahora.getDayOfMonth()))
-                .stream()
-                .map(m -> (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim())
-                .toList();
+        List<String> cumplen = cumplenHoy(tenantId, ahora.toLocalDate());
 
         List<GymMemberDTO> ultimos = memberMapper.toDtoList(
-                memberRepository.findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId).stream().limit(5).toList(),
+                memberRepository.findTop5ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId),
                 accessPolicy);
 
         return new DashboardResumenDTO(socios, ingresos,
                 new DashboardResumenDTO.Vencimientos(estaSemana, cuantosNecesitanAtencion, alertas),
-                cumplen, ultimos);
+                cumplen, ultimos, ahora.toLocalDate());
+    }
+
+    /** El padrón contado por situación: la fila de {@code contarPorSituacion}, con nombres. */
+    record Padron(long total, long bajas, long sinFecha, long vencidos, long alDia) {}
+
+    private Padron contarPadron(UUID tenantId, LocalDateTime ahora) {
+        Object[] c = memberRepository.contarPorSituacion(tenantId, ahora).get(0);
+        return new Padron(numero(c[0]), numero(c[1]), numero(c[2]), numero(c[3]), numero(c[4]));
+    }
+
+    private static long numero(Object o) {
+        return o == null ? 0 : ((Number) o).longValue();
+    }
+
+    /**
+     * Los que cumplen años hoy, contando a los del 29 de febrero.
+     *
+     * <p>⚠️ En un año que no es bisiesto el 29 de febrero no llega nunca, y el que nació ese día
+     * se quedaba tres años de cada cuatro sin su saludo. Se lo saluda el 28.</p>
+     */
+    List<String> cumplenHoy(UUID tenantId, java.time.LocalDate hoy) {
+        List<GymMember> cumplen = new java.util.ArrayList<>(memberRepository.cumplenHoy(
+                tenantId, String.format("%02d-%02d", hoy.getMonthValue(), hoy.getDayOfMonth())));
+        if (hoy.getMonthValue() == 2 && hoy.getDayOfMonth() == 28 && !hoy.isLeapYear()) {
+            cumplen.addAll(memberRepository.cumplenHoy(tenantId, "02-29"));
+        }
+        return cumplen.stream()
+                .map(m -> (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim())
+                .toList();
     }
 
     /** Cuántos son los más urgentes que se mandan. El resto se cuenta, no se manda. */
@@ -170,8 +209,9 @@ public class GymDashboardService {
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime in7Days = now.plusDays(7);
         
-        // Expiring soon: Memberships ending between now and next 7 days
-        var expiringSoon = memberRepository.findByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(tenantId, now, in7Days);
+        // Los que vencen en los próximos 7 días, entre los que siguen siendo socios: al dado de
+        // baja no hay que recordarle que se le termina la cuota.
+        var expiringSoon = memberRepository.findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBetween(tenantId, now, in7Days);
         
         // At risk: Members who are marked active but their membership has already expired
         var atRisk = memberRepository.findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(tenantId, now);

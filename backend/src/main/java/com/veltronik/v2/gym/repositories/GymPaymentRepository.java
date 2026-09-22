@@ -50,19 +50,6 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
     List<GymPayment> findByTenantIdAndMemberId(@Param("tenantId") UUID tenantId, @Param("memberId") UUID memberId);
     
     /**
-     * Ingresos del gimnasio desde una fecha (el "cobrado este mes" del Dashboard).
-     *
-     * <p><b>UPPER(p.status) y no {@code p.status = 'PAID'}.</b> La comparación exacta que
-     * había acá estaba rota de verdad: la entidad nace con {@code "PAID"} pero el frontend
-     * guarda {@code "paid"} en minúscula, y nadie normalizaba. O sea que esta suma
-     * <b>no contaba ni un solo pago cargado desde la app</b> — el dueño miraba un número
-     * de ingresos que no incluía su facturación real.</p>
-     *
-     * <p>Desde ahora el estado se guarda normalizado (ver {@code GymPaymentService}), pero
-     * la consulta sigue siendo insensible a mayúsculas a propósito: los pagos que ya están
-     * en la base quedaron con la caja que les tocó, y tienen que contar igual.</p>
-     */
-    /**
      * Ingresos cobrados por MES, agrupados en la base.
      *
      * <p>⭐ Existe para que el Dashboard deje de traerse TODOS los pagos del gimnasio y
@@ -73,6 +60,11 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
      * <p>Nativa y no JPQL porque necesita {@code date_trunc}, que JPQL no tiene. El corte de
      * mes lo hace Postgres sobre el timestamp naive, que ya está en hora de Argentina.</p>
      *
+     * <p>⚠️ <b>Solo hasta el mes en curso</b> ({@code hasta} = el 1° del mes que viene). Un
+     * cobro con la fecha mal tipeada en el futuro —"2027" en vez de "2026"— estiraba la serie
+     * hasta ese mes, la predicción rellenaba con ceros los meses del medio y anunciaba un
+     * derrumbe que no existía.</p>
+     *
      * @return filas [mes (timestamp del día 1), total]
      */
     @Query(value = """
@@ -82,14 +74,34 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
             WHERE p.tenant_id = :tenantId
               AND LOWER(p.status) = 'paid'
               AND p.payment_date IS NOT NULL
+              AND p.payment_date < :hasta
             GROUP BY 1
             ORDER BY 1
             """, nativeQuery = true)
-    List<Object[]> ingresosPorMes(@Param("tenantId") UUID tenantId);
+    List<Object[]> ingresosPorMes(@Param("tenantId") UUID tenantId, @Param("hasta") LocalDateTime hasta);
 
+    /**
+     * Lo cobrado en {@code [desde, hasta)}. Es la mitad de la comparación honesta del mes en
+     * curso: el 21 de septiembre se compara contra el 1 al 21 de agosto, no contra agosto entero.
+     *
+     * <p><b>UPPER(p.status) y no {@code p.status = 'PAID'}.</b> Convivieron {@code "PAID"} (el
+     * default viejo de la entidad) y {@code "paid"} (lo que guarda la app), y la comparación
+     * exacta que tenía la suma vieja no contaba ni un solo cobro cargado desde la app. Hoy el
+     * estado se normaliza al guardar, pero los que ya están en la base quedaron como quedaron.</p>
+     */
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM GymPayment p WHERE p.tenant.id = :tenantId "
-            + "AND p.paymentDate >= :startDate AND UPPER(p.status) = 'PAID'")
-    BigDecimal sumAmountByTenantIdAndDateAfter(@Param("tenantId") UUID tenantId, @Param("startDate") LocalDateTime startDate);
+            + "AND p.paymentDate >= :desde AND p.paymentDate < :hasta AND UPPER(p.status) = 'PAID'")
+    BigDecimal sumarCobradoEntre(@Param("tenantId") UUID tenantId,
+                                 @Param("desde") LocalDateTime desde,
+                                 @Param("hasta") LocalDateTime hasta);
+
+    /**
+     * El primer cobro del gimnasio. Dice si su primer mes está completo: el que empezó a cobrar
+     * un 20 tiene un primer mes de diez días, y contarlo como un mes entero inventa un
+     * crecimiento que no pasó.
+     */
+    @Query("SELECT MIN(p.paymentDate) FROM GymPayment p WHERE p.tenant.id = :tenantId AND UPPER(p.status) = 'PAID'")
+    LocalDateTime primerCobro(@Param("tenantId") UUID tenantId);
 
     /**
      * Socios que PAGARON más allá de la fecha hasta la que figuran cubiertos.

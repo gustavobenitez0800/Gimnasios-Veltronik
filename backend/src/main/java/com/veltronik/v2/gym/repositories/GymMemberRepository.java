@@ -44,6 +44,9 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
 
     /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */
     List<GymMember> findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID tenantId);
+
+    /** Las cinco últimas altas, para el Dashboard: se piden cinco, no veinticinco para tirar veinte. */
+    List<GymMember> findTop5ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID tenantId);
     long countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(UUID tenantId);
 
     // ── Paginación server-side ──
@@ -105,22 +108,74 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     List<GymMember> findByDocumentoNormalizado(@Param("tenantId") UUID tenantId,
                                                @Param("documentoNormalizado") String documentoNormalizado);
 
-    // Para "Expiring Soon" (vencen en los próximos días)
-    List<GymMember> findByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
+    /**
+     * Los que vencen en los próximos días (Retención → "por vencer"). Solo los que siguen
+     * siendo socios: al dado de baja no hay que avisarle que se le termina la cuota.
+     */
+    List<GymMember> findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBetween(
+            UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
 
     /**
-     * Los socios que necesitan atención: vencidos o por vencer, del más urgente al menos.
+     * El padrón contado por situación, con el MISMO criterio que {@code MemberAccessPolicy}
+     * —la única fuente de verdad de "al día" y "vencido"— y en una sola pasada.
      *
-     * <p>Con un tope, y ese tope es el punto: un gimnasio que migró 385 socios puede tener
-     * cientos vencidos, y el Dashboard los traía TODOS para pintar una lista que nadie lee
-     * entera. Se muestran los primeros y se dice cuántos más hay.</p>
+     * <p>⚠️ Antes el Dashboard hacía su propia cuenta: "al día" era "activos menos vencidos",
+     * así que un socio <b>sin fecha de vencimiento</b> contaba como al día. La política lo
+     * marca aparte (SIN_DATOS: falta el dato, no es que pagó) y la pantalla de Socios le dice
+     * "sin cuota". Dos pantallas, dos respuestas para el mismo socio.</p>
+     *
+     * <p>Vencido incluye a los que están en gracia: deben la cuota aunque todavía entren, y es
+     * lo mismo que cuenta el filtro "Vencidos" de Socios.</p>
+     *
+     * @return una fila: [total, bajas, sinFecha, vencidos, alDia]
      */
-    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.isActive = true "
-         + "AND m.membershipEnd IS NOT NULL AND m.membershipEnd <= :hasta "
-         + "ORDER BY m.membershipEnd ASC")
-    List<GymMember> vencidosOPorVencer(@Param("tenantId") UUID tenantId,
+    @Query(value = """
+            SELECT COUNT(*)                                                         AS total,
+                   COUNT(*) FILTER (WHERE NOT m.is_active)                          AS bajas,
+                   COUNT(*) FILTER (WHERE m.is_active AND m.membership_end IS NULL) AS sin_fecha,
+                   COUNT(*) FILTER (WHERE m.is_active AND m.membership_end <= :ahora) AS vencidos,
+                   COUNT(*) FILTER (WHERE m.is_active AND m.membership_end > :ahora)  AS al_dia
+              FROM gym_member m
+             WHERE m.tenant_id = :tenantId AND m.deleted_at IS NULL
+            """, nativeQuery = true)
+    List<Object[]> contarPorSituacion(@Param("tenantId") UUID tenantId,
+                                      @Param("ahora") java.time.LocalDateTime ahora);
+
+    /**
+     * Cuántos socios vencen entre ahora y {@code hasta}. Solo los que siguen siendo socios.
+     *
+     * <p>⚠️ La consulta derivada que había no miraba {@code is_active}: un dado de baja con la
+     * cuota todavía corriendo contaba como "vence esta semana", mientras la lista de alertas
+     * de al lado —que sí filtraba— no lo mostraba. El número y la lista no coincidían.</p>
+     */
+    @Query("SELECT COUNT(m) FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL "
+         + "AND m.isActive = true AND m.membershipEnd > :ahora AND m.membershipEnd <= :hasta")
+    long contarPorVencer(@Param("tenantId") UUID tenantId,
+                         @Param("ahora") java.time.LocalDateTime ahora,
+                         @Param("hasta") java.time.LocalDateTime hasta);
+
+    /**
+     * Los socios que necesitan atención —vencidos o por vencer—, del MÁS CERCANO a hoy al más
+     * lejano, con un tope.
+     *
+     * <p>⚠️ Antes el orden era por fecha de vencimiento ascendente: primero el que venció hace
+     * más tiempo. En un gimnasio que migró con 179 vencidos, las alertas mostraban gente que
+     * no pisa el gimnasio desde hace meses, y quedaban afuera justo los que había que llamar:
+     * el que vence mañana y el que venció ayer. Lo urgente es lo que está pasando ahora.</p>
+     *
+     * <p>A igual distancia, primero el que ya venció: ese ya debe.</p>
+     */
+    @Query(value = """
+            SELECT m.* FROM gym_member m
+             WHERE m.tenant_id = :tenantId AND m.deleted_at IS NULL AND m.is_active = true
+               AND m.membership_end IS NOT NULL AND m.membership_end <= :hasta
+             ORDER BY ABS(EXTRACT(EPOCH FROM (m.membership_end - :ahora))) ASC, m.membership_end ASC
+             LIMIT :limite
+            """, nativeQuery = true)
+    List<GymMember> alertasPorCercania(@Param("tenantId") UUID tenantId,
+                                       @Param("ahora") java.time.LocalDateTime ahora,
                                        @Param("hasta") java.time.LocalDateTime hasta,
-                                       Pageable pageable);
+                                       @Param("limite") int limite);
 
     /** Cuántos son en total, para poder decir "y N más" sin traerlos. */
     @Query("SELECT COUNT(m) FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.isActive = true "
@@ -154,9 +209,6 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     // Para "At Risk" (vencidos en el pasado pero siguen marcados como activos)
     List<GymMember> findByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 
-    // Versiones COUNT (el dashboard solo necesita el número; cargar las entidades para .size() no escala)
-    long countByTenantIdAndDeletedAtIsNullAndMembershipEndBetween(UUID tenantId, java.time.LocalDateTime start, java.time.LocalDateTime end);
-    long countByTenantIdAndDeletedAtIsNullAndIsActiveTrueAndMembershipEndBefore(UUID tenantId, java.time.LocalDateTime date);
 
     /**
      * Le pone (o le saca) el arancel a muchos socios de una sola vez.
