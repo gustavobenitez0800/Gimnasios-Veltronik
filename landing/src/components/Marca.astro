@@ -1,0 +1,24 @@
+---
+// La marca de Veltronik (el Logotipo Secundario) en vector, la misma que usa la app desde el
+// 2026-09-22. Reemplaza a logo-claro.png: nítida en cualquier pantalla y sin un pedido más.
+// Los trazos se calcaron del PNG original (600x776).
+const { size = 28, id = 'marca', class: clase = '' } = Astro.props;
+const grad = `${id}-grad`;
+---
+
+<svg
+  class={clase}
+  width={Math.round(size * 600 / 776)}
+  height={size}
+  viewBox="0 0 600 776"
+  aria-hidden="true"
+  focusable="false"
+>
+  <defs>
+    <linearGradient id={grad} x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#93bbfd" />
+      <stop offset="1" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <path fill={`url(#${grad})`} d="M17 115 L367 2 L45 776 L72 347 L0 368 Z M345 170 L598 88 L98 735 Z" />
+</svg>

@@ -1,0 +1,192 @@
+---
+// ============================================
+// LA CUENTA QUE NADIE HACE
+// ============================================
+// La pregunta que más vende no es "¿querés un sistema?": es "¿cuántos entran por mes sin
+// haber pagado?". El que la contesta con un número ya hizo media cuenta. Acá la termina él:
+// pone SUS números y ve cuánto se le va por la puerta y con cuántos socios cobrados se paga
+// Veltronik.
+//
+// ⭐ Los números son del visitante, no nuestros: no hay "los gimnasios pierden un 23%"
+// inventado. Y si con sus números no le conviene por la plata, se lo decimos (ver el texto
+// de "pocos"): una calculadora que siempre da "¡comprá!" no la cree nadie.
+//
+// El precio es el del plan básico, que llega del backend en el build (lib/plans.js).
+// ============================================
+import { formatoPrecio } from '../lib/plans.js';
+
+const { precio } = Astro.props;
+const INICIAL = { socios: 6, cuota: 30000 };
+const fuga = INICIAL.socios * INICIAL.cuota;
+const alcanza = Math.ceil(precio / INICIAL.cuota);
+---
+
+<div class="calc" data-calc data-precio={precio}>
+  <div class="calc-preguntas">
+    <label class="calc-pregunta">
+      <span class="calc-label">¿Cuántos entran por mes <strong>sin haber pagado</strong>?</span>
+      <span class="calc-ayuda">El amigo del profe, el que dice "te pago mañana", el que pasa cuando no hay nadie en el mostrador.</span>
+      <span class="calc-rango">
+        <input type="range" min="0" max="40" step="1" value={INICIAL.socios} data-socios aria-describedby="calc-socios-valor" />
+        <output id="calc-socios-valor" class="calc-valor num" data-socios-valor>{INICIAL.socios}</output>
+      </span>
+    </label>
+
+    <label class="calc-pregunta">
+      <span class="calc-label">¿Cuánto sale tu cuota por mes?</span>
+      <span class="calc-plata">
+        <span aria-hidden="true">$</span>
+        {/* Texto y no number: así se escribe y se lee "30.000", con el punto de los miles, como
+            se escribe la plata acá. El script deja solo los dígitos para la cuenta. */}
+        <input type="text" inputmode="numeric" autocomplete="off" value={formatoPrecio(INICIAL.cuota)} data-cuota aria-label="Cuota mensual en pesos" />
+      </span>
+    </label>
+  </div>
+
+  <div class="calc-resultado" aria-live="polite">
+    <p class="calc-se-van">Se te van por la puerta</p>
+    <p class="calc-fuga num"><span data-fuga>$ {formatoPrecio(fuga)}</span><small>por mes</small></p>
+    <p class="calc-anio num">Son <strong data-anio>$ {formatoPrecio(fuga * 12)}</strong> en un año.</p>
+
+    <div class="calc-veredicto" data-veredicto>
+      <p data-veredicto-texto>
+        Veltronik cuesta <strong>$ {formatoPrecio(precio)}</strong> por mes. Se paga solo con
+        <strong class="calc-cuantos" data-cuantos>{alcanza} {alcanza === 1 ? 'socio' : 'socios'}</strong>
+        que cobrás en vez de dejar pasar.
+      </p>
+    </div>
+    <p class="calc-nota">La cuenta es tuya: los números los ponés vos, no nosotros.</p>
+  </div>
+</div>
+
+<script>
+  const plata = (n: number) => `$ ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n)}`;
+
+  document.querySelectorAll<HTMLElement>('[data-calc]').forEach((raiz) => {
+    const precio = Number(raiz.dataset.precio);
+    const socios = raiz.querySelector<HTMLInputElement>('[data-socios]')!;
+    const sociosValor = raiz.querySelector<HTMLElement>('[data-socios-valor]')!;
+    const cuota = raiz.querySelector<HTMLInputElement>('[data-cuota]')!;
+    const fuga = raiz.querySelector<HTMLElement>('[data-fuga]')!;
+    const anio = raiz.querySelector<HTMLElement>('[data-anio]')!;
+    const veredicto = raiz.querySelector<HTMLElement>('[data-veredicto]')!;
+    const texto = raiz.querySelector<HTMLElement>('[data-veredicto-texto]')!;
+
+    const calcular = () => {
+      const s = Math.max(0, Math.round(Number(socios.value) || 0));
+      const c = Math.min(9999999, Number(cuota.value.replace(/\D/g, '')) || 0);
+      const f = s * c;
+      sociosValor.textContent = String(s);
+      // El relleno de la barra, para que se lea cuánto se movió.
+      socios.style.setProperty('--lleno', `${(s / Number(socios.max)) * 100}%`);
+      fuga.textContent = plata(f);
+      anio.textContent = plata(f * 12);
+
+      const cuantos = c > 0 ? Math.ceil(precio / c) : 0;
+      if (c <= 0) {
+        veredicto.className = 'calc-veredicto';
+        texto.textContent = 'Poné cuánto sale tu cuota y hacemos la cuenta.';
+      } else if (f >= precio) {
+        veredicto.className = 'calc-veredicto';
+        texto.innerHTML = `Veltronik cuesta <strong>${plata(precio)}</strong> por mes. Se paga solo con
+          <strong class="calc-cuantos">${cuantos} ${cuantos === 1 ? 'socio' : 'socios'}</strong> que cobrás en vez de dejar pasar.`;
+      } else {
+        // Honesto: con estos números la plata que se escapa no alcanza a pagarlo.
+        veredicto.className = 'calc-veredicto es-pocos';
+        texto.innerHTML = s === 0
+          ? `¡Bien ahí! Si nadie entra sin pagar, tu mostrador ya funciona. Veltronik te ahorra otra cosa: la planilla, el cierre de caja y el Excel del contador.`
+          : `Con esos números, lo que se escapa no alcanza a pagar Veltronik (<strong>${plata(precio)}</strong>). Si lo querés, que sea por el orden: la caja cerrada, el contador contento y tu tiempo.`;
+      }
+    };
+
+    socios.addEventListener('input', calcular);
+    cuota.addEventListener('input', () => {
+      // Vuelve a escribir el número con sus puntos mientras se tipea.
+      const digitos = cuota.value.replace(/\D/g, '').slice(0, 7);
+      cuota.value = digitos ? new Intl.NumberFormat('es-AR').format(Number(digitos)) : '';
+      calcular();
+    });
+    calcular();
+  });
+</script>
+
+<style>
+  .calc {
+    /* minmax(0, …): sin eso el ancho natural del campo de la cuota estiraba la columna más
+       que la pantalla del celular, y el recorte de la caja lo escondía. */
+    display: grid; gap: 0; grid-template-columns: minmax(0, 1fr);
+    border: 1px solid var(--line-2); border-radius: var(--r-xl); overflow: hidden;
+    background: var(--bg-2);
+  }
+  @media (min-width: 900px) { .calc { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } }
+
+  .calc-preguntas { padding: clamp(1.4rem, 4vw, 2.4rem); display: grid; gap: 2rem; align-content: center; }
+  .calc-pregunta { display: grid; gap: .45rem; cursor: default; }
+  .calc-label { font-size: 1.15rem; font-weight: 700; color: var(--text); letter-spacing: -0.015em; }
+  .calc-label strong { color: var(--rojo-claro); font-weight: 700; }
+  .calc-ayuda { font-size: .9rem; color: var(--muted); }
+
+  .calc-rango { display: flex; align-items: center; gap: 1rem; margin-top: .4rem; }
+  .calc-rango input {
+    --lleno: 15%;
+    flex: 1; -webkit-appearance: none; appearance: none; height: 8px; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(to right, var(--rojo) 0 var(--lleno), var(--bg-4) var(--lleno) 100%);
+  }
+  .calc-rango input::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--text); border: 5px solid var(--rojo); box-shadow: 0 4px 12px rgba(0,0,0,.5);
+  }
+  .calc-rango input::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--text); border: 5px solid var(--rojo);
+  }
+  .calc-valor {
+    min-width: 3.2ch; text-align: right;
+    font-size: 2.4rem; font-weight: 900; letter-spacing: -0.04em; color: var(--text); line-height: 1;
+  }
+
+  .calc-plata {
+    display: flex; align-items: center; gap: .4rem; margin-top: .4rem;
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 0 1rem;
+    font-size: 1.6rem; font-weight: 800; color: var(--muted);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .calc-plata:focus-within { border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+  .calc-plata input {
+    flex: 1; min-width: 0; width: 100%; background: transparent; border: 0; outline: 0; padding: .6rem 0;
+    font-size: 1.6rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield;
+  }
+  .calc-plata input::-webkit-inner-spin-button, .calc-plata input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .calc-resultado {
+    padding: clamp(1.4rem, 4vw, 2.4rem);
+    background:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--rojo) 14%, transparent), transparent 60%),
+      var(--bg-3);
+    border-top: 1px solid var(--line);
+    display: grid; align-content: center;
+  }
+  @media (min-width: 900px) { .calc-resultado { border-top: 0; border-left: 1px solid var(--line); } }
+  .calc-se-van { margin: 0 0 .3rem; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--rojo-claro); }
+  .calc-fuga {
+    margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .6rem;
+    font-size: clamp(2.6rem, 7vw, 4.4rem); font-weight: 900; letter-spacing: -0.05em; line-height: 1; color: var(--text);
+  }
+  .calc-fuga small { font-size: 1rem; font-weight: 600; letter-spacing: 0; color: var(--muted); }
+  .calc-anio { margin: .6rem 0 1.6rem; color: var(--muted); }
+  .calc-anio strong { color: var(--text-2); }
+
+  .calc-veredicto {
+    padding: 1rem 1.15rem; border-radius: 14px;
+    background: color-mix(in srgb, var(--verde) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--verde) 30%, transparent);
+  }
+  .calc-veredicto p { margin: 0; color: var(--text-2); }
+  .calc-veredicto :global(.calc-cuantos) { color: var(--verde-claro); }
+  .calc-veredicto.es-pocos {
+    background: color-mix(in srgb, var(--blue-500) 10%, transparent);
+    border-color: color-mix(in srgb, var(--blue-500) 30%, transparent);
+  }
+  .calc-nota { margin: .9rem 0 0; font-size: .82rem; color: var(--dim); }
+</style>

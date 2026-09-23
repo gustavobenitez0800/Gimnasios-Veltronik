@@ -1,9 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
 import { appRoute } from '../lib/site.js';
 
 // noindex: una 404 en el índice de Google no le sirve a nadie. `follow` sí, para que el
 // buscador siga los links de acá y vuelva a las páginas que sí valen.
+//
+// El chiste es el del mostrador: esta dirección "no pasó el molinete". El cartel es el mismo
+// de la demo, en rojo, y abajo los dos caminos que sirven.
 ---
 
 <Base
@@ -12,17 +16,42 @@ import { appRoute } from '../lib/site.js';
   noindex={true}
 >
   <section class="hero">
-    <div class="wrap center">
-      <p class="eyebrow">Error 404</p>
-      <h1>Esta página no existe</h1>
+    <div class="wrap error">
+      <div class="error-cartel" aria-hidden="true">
+        <span class="error-x"><Icon name="x" size={72} /></span>
+        <div>
+          <strong>Esta página</strong>
+          <span>No pasó el molinete · 404</span>
+        </div>
+      </div>
+      <h1>Por acá <span class="marcado">no se pasa.</span></h1>
       <p class="lead">
-        Puede que el link esté viejo o que la dirección tenga un error de tipeo. Desde
-        acá volvés a lo importante.
+        El link está viejo o la dirección tiene un error de tipeo. Desde acá volvés a lo
+        que sirve.
       </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="/">Ir al inicio</a>
-        <a class="btn btn-ghost btn-lg" href={appRoute('/')}>Entrar al sistema</a>
+      <div class="botones">
+        <a class="btn btn-primario btn-grande" href="/">Ir al inicio</a>
+        <a class="btn btn-borde btn-grande" href={appRoute('/')}>Entrar al sistema</a>
       </div>
     </div>
   </section>
 </Base>
+
+<style>
+  .error { text-align: center; display: grid; justify-items: center; padding-block: clamp(1rem, 5vw, 3rem); }
+  .error .lead { margin-inline: auto; }
+  .error .botones { justify-content: center; }
+  .error-cartel {
+    display: inline-flex; align-items: center; gap: 1rem; text-align: left; margin-bottom: 2.2rem;
+    padding: .9rem 1.4rem .9rem .9rem; border-radius: 20px;
+    background: color-mix(in srgb, var(--rojo) 9%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--rojo) 32%, transparent);
+  }
+  .error-x {
+    width: 92px; aspect-ratio: 1; border-radius: 16px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--rojo) 16%, var(--bg)); color: var(--rojo-claro);
+  }
+  .error-x :global(svg) { stroke-width: 2.6; }
+  .error-cartel strong { display: block; font-size: 1.3rem; font-weight: 800; color: var(--text); }
+  .error-cartel span { font-size: .92rem; font-weight: 600; color: var(--rojo-claro); }
+</style>

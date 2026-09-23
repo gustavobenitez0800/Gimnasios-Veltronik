@@ -1,7 +1,9 @@
 ---
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import { appRoute, SITE_URL, CONTACTO } from '../lib/site.js';
+import Marca from '../components/Marca.astro';
+import { appRoute, SITE_URL, CONTACTO, waLink } from '../lib/site.js';
+import { getPlanes, formatoPrecio } from '../lib/plans.js';
 
 // Esta página existe por SEO tanto como por venta.
 //
@@ -10,11 +12,28 @@ import { appRoute, SITE_URL, CONTACTO } from '../lib/site.js';
 // competencia en español — y el que la busca ya sabe lo que quiere. Es la puerta de
 // entrada más barata que tenemos al buscador.
 //
-// OJO con lo que promete: el plan que incluye el molinete todavía NO está a la venta
-// (PlanCatalog lo tiene con available=false). Por eso acá la llamada a la acción es
-// "consultá", nunca "comprá".
+// OJO con lo que promete: el plan con control de acceso SÍ está a la venta desde el 16/09
+// (lo dice el catálogo del backend), pero el EQUIPO se cotiza caso por caso según la entrada
+// de cada gimnasio. Por eso la llamada a la acción es "contanos cómo es tu entrada", nunca
+// "comprá": un botón de comprar prometería un precio que no existe hasta ver la puerta.
 
-const asunto = 'Consulta%20por%20molinete%20con%20reconocimiento%20facial';
+const planes = await getPlanes();
+// El plan con la puerta, si está a la venta hoy. Si el backend no contesta en el build, el
+// respaldo trae solo el básico, y entonces no se publica un precio que tal vez no vale.
+const premium = planes.find((p) => p.code === 'PREMIUM') || null;
+
+const mensaje = 'Hola! Quiero cotizar el molinete con reconocimiento facial. Te cuento cómo es la entrada de mi gimnasio:';
+const wa = waLink(mensaje);
+const cotizar = wa || `mailto:${CONTACTO.email}?subject=Consulta%20por%20molinete%20con%20reconocimiento%20facial`;
+
+const cambios = [
+  { icono: 'caja', titulo: 'Se cobra lo que se debe', texto: 'El socio vencido que "después arreglo" deja de entrar gratis. La puerta no se olvida ni tiene un mal día.' },
+  { icono: 'cara', titulo: 'No se presta ni se pierde', texto: 'La tarjeta se presta al amigo y la ficha se pierde. La cara no. Cada entrada registrada es la persona que realmente entró.' },
+  { icono: 'reloj', titulo: 'Entrada sin fila', texto: 'En la hora pico nadie espera a que lo atiendan para pasar. El mostrador queda libre para vender y para atender consultas.' },
+  { icono: 'grafico', titulo: 'Tu hora pico, de verdad', texto: 'Cada paso queda registrado con su hora. Con eso decidís cuándo poner más profesores y cuándo no hace falta nadie.' },
+  { icono: 'qr', titulo: 'Cara, tarjeta o QR', texto: 'El mismo equipo acepta las tres. Y si todavía no querés invertir en hardware, el check-in por QR funciona con el celular del socio.' },
+  { icono: 'equipo', titulo: 'Un solo sistema', texto: 'El molinete no es un programa aparte: lee los mismos socios y las mismas cuotas que ya cargás en Veltronik. No hay dos listas que sincronizar.' },
+];
 
 const faq = [
   {
@@ -39,7 +58,9 @@ const faq = [
   },
   {
     q: '¿Cuánto sale?',
-    a: 'Depende de cuántas puertas querés controlar y del equipo que haya que instalar, así que se cotiza caso por caso. Escribinos contando cómo es la entrada de tu gimnasio y te pasamos el número.',
+    a: premium
+      ? `Son dos cosas. El plan ${premium.name} cuesta $${formatoPrecio(premium.price)} por mes, por sucursal. El equipo (molinete, lector facial e instalación) se cotiza aparte, según cuántas puertas querés controlar y cómo es tu entrada. Y seguís pagando el plan Veltronik hasta que el molinete esté funcionando.`
+      : 'Depende de cuántas puertas querés controlar y del equipo que haya que instalar, así que se cotiza caso por caso. Escribinos contando cómo es la entrada de tu gimnasio y te pasamos el número.',
   },
 ];
 
@@ -70,140 +91,221 @@ const schema = {
   title="Molinete con reconocimiento facial para gimnasios | Veltronik"
   description="Control de acceso biométrico para gimnasios: el molinete reconoce la cara del socio y no deja pasar al que tiene la cuota vencida. Le cobrás y la puerta se abre sola."
   schema={schema}
+  mensajeWa={mensaje}
 >
   <section class="hero">
-    <div class="wrap center">
-      <p class="eyebrow">Control de acceso</p>
-      <h1>El molinete que sabe quién pagó</h1>
-      <p class="lead">
-        Tu socio se para frente al equipo, la cámara lo reconoce y pasa. El que tiene la
-        cuota vencida no pasa, y no hay que discutirlo en el mostrador.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href={`mailto:${CONTACTO.email}?subject=${asunto}`}>
-          Pedir una cotización
-        </a>
-        <a class="btn btn-ghost btn-lg" href="/#funciones">Ver el sistema completo</a>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap split">
+    <div class="wrap mol-hero">
       <div>
-        <p class="eyebrow">Cómo funciona</p>
-        <h2>Nadie tiene que hacer de policía</h2>
+        <h1>
+          <span class="hero-kicker">Molinete con reconocimiento facial</span>
+          El molinete que <span class="marcado">sabe quién pagó.</span>
+        </h1>
         <p class="lead">
-          El problema del gimnasio no es que la gente no pague: es que el que atiende
-          tenga que mirarlo a los ojos y decirle que debe dos meses. El molinete se lo
-          saca de encima. La regla la aplica la puerta, y el mostrador solo cobra.
+          Tu socio se para frente al equipo, la cámara lo reconoce y pasa. El que tiene la
+          cuota vencida no pasa, y no hay que discutirlo en el mostrador.
         </p>
+        <div class="botones">
+          <a class="btn btn-primario btn-grande" href={cotizar} data-primer-cta>
+            <Icon name="wa" size={18} /> Contanos cómo es tu entrada
+          </a>
+          <a class="btn btn-borde btn-grande" href="/#un-dia">Ver el sistema completo</a>
+        </div>
+        <ul class="garantias">
+          <li>Sin programa aparte</li>
+          <li>Cara, tarjeta o QR</li>
+          <li>Se cotiza según tu puerta</li>
+        </ul>
       </div>
 
-      <ol class="steps">
-        <li><strong>Se carga una vez</strong>Le sacás una foto al socio desde el mostrador y queda registrado en el equipo.</li>
-        <li><strong>Entra sin hacer nada</strong>Se para frente al lector. Ni celular, ni tarjeta, ni decir el nombre.</li>
-        <li><strong>La cuota decide</strong>Al día, gira el molinete y la visita queda registrada sola.</li>
-        <li><strong>Si debe, no pasa</strong>Su nombre salta en el mostrador con lo que adeuda.</li>
-        <li><strong>Cobrás y se abre</strong>Registrás el pago en Veltronik y el molinete lo habilita en segundos. Nadie toca el equipo.</li>
-      </ol>
+      {/* El lector, dibujado: el marco de la cámara y lo que pasa en la puerta. */}
+      <div class="lector" aria-hidden="true">
+        <div class="lector-pantalla">
+          <span class="lector-esquinas"></span>
+          <span class="lector-cara"><Icon name="cara" size={96} /></span>
+          <span class="lector-linea"></span>
+        </div>
+        <div class="lector-resultado">
+          <span class="lector-punto"></span>
+          <div>
+            <strong>Martina López</strong>
+            <span>Al día · pasá</span>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="alt">
-    <div class="wrap">
-      <div class="center" style="margin-bottom:3rem">
-        <p class="eyebrow">Por qué conviene</p>
-        <h2>Lo que cambia el día que lo instalás</h2>
+    <div class="wrap mol-split">
+      <div class="cabecera">
+        <p class="rotulo">Cómo funciona</p>
+        <h2>Nadie tiene que hacer <span class="marcado">de policía</span></h2>
+        <p class="lead">
+          El problema del gimnasio no es que la gente no pague: es que el que atiende tenga
+          que mirarlo a los ojos y decirle que debe dos meses. El molinete se lo saca de
+          encima. La regla la aplica la puerta, y el mostrador solo cobra.
+        </p>
+        <ol class="estados" aria-label="Qué pasa en la puerta">
+          <li class="es-verde"><span class="estados-rotulo">Al día</span><span><strong>Gira y pasa.</strong> La entrada queda registrada sola.</span></li>
+          <li class="es-rojo"><span class="estados-rotulo">Debe</span><span><strong>No gira.</strong> Su nombre salta en el mostrador.</span></li>
+          <li class="es-azul"><span class="estados-rotulo">Cobrado</span><span><strong>Se destraba.</strong> En segundos, sin tocar el equipo.</span></li>
+        </ol>
       </div>
 
-      <div class="grid grid-3">
-        <article class="card">
-          <div class="ficon"><Icon name="caja" /></div>
-          <h3>Se cobra lo que se debe</h3>
-          <p>
-            El socio vencido que "después arreglo" deja de entrar gratis. La puerta no se
-            olvida ni tiene un mal día.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="cara" /></div>
-          <h3>No se presta ni se pierde</h3>
-          <p>
-            La tarjeta se presta al amigo y la ficha se pierde. La cara no. Cada entrada
-            registrada es la persona que realmente entró.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="reloj" /></div>
-          <h3>Entrada sin fila</h3>
-          <p>
-            En la hora pico nadie espera a que lo atiendan para pasar. El mostrador queda
-            libre para vender y para atender al que tiene una consulta.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="grafico" /></div>
-          <h3>Sabés tu hora pico de verdad</h3>
-          <p>
-            Cada paso queda registrado con su hora. Con eso decidís cuándo poner más
-            profesores y cuándo no hace falta nadie.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="qr" /></div>
-          <h3>Cara, tarjeta o QR</h3>
-          <p>
-            El mismo equipo acepta las tres. Y si todavía no querés invertir en hardware,
-            el check-in por QR funciona con el celular del socio.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="equipo" /></div>
-          <h3>Un solo sistema</h3>
-          <p>
-            El molinete no es un programa aparte: lee los mismos socios y las mismas
-            cuotas que ya cargás en Veltronik. No hay dos listas que sincronizar.
-          </p>
-        </article>
-      </div>
+      <ol class="pasos">
+        <li><div><strong>Se carga una vez</strong><p>Le sacás una foto al socio desde el mostrador y queda registrado en el equipo.</p></div></li>
+        <li><div><strong>Entra sin hacer nada</strong><p>Se para frente al lector. Ni celular, ni tarjeta, ni decir el nombre.</p></div></li>
+        <li><div><strong>La cuota decide</strong><p>Al día, gira el molinete y la visita queda registrada sola.</p></div></li>
+        <li><div><strong>Si debe, no pasa</strong><p>Su nombre salta en el mostrador con lo que adeuda.</p></div></li>
+        <li><div><strong>Cobrás y se abre</strong><p>Registrás el pago en Veltronik y el molinete lo habilita en segundos. Nadie toca el equipo.</p></div></li>
+      </ol>
     </div>
   </section>
 
   <section>
-    <div class="wrap faq">
-      <div class="center" style="margin-bottom:2.2rem">
-        <p class="eyebrow">Preguntas</p>
+    <div class="wrap">
+      <div class="cabecera">
+        <p class="rotulo es-verde">Por qué conviene</p>
+        <h2>Lo que cambia el día que <span class="marcado">lo instalás</span></h2>
+      </div>
+      <div class="columnas de-3">
+        {cambios.map((c) => (
+          <article>
+            <span class="columnas-icono"><Icon name={c.icono} size={22} /></span>
+            <h3>{c.titulo}</h3>
+            <p>{c.texto}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  {premium && (
+    <section class="alt">
+      <div class="wrap mol-precio">
+        <div>
+          <p class="rotulo es-verde">Lo que se paga</p>
+          <h2>Pagás la puerta <span class="marcado">cuando anda.</span></h2>
+          <p class="lead">
+            Seguís en el plan Veltronik mientras se instala el equipo. El plan con control de
+            acceso empieza a correr el día que el molinete está funcionando y dejando pasar gente.
+            No cuando firmás, ni cuando pagás el equipo.
+          </p>
+        </div>
+        <div class="mol-precio-caja">
+          <p class="mol-precio-nombre">{premium.name}</p>
+          <p class="mol-precio-monto num"><span>$</span>{formatoPrecio(premium.price)}<small>/ mes</small></p>
+          <p class="mol-precio-sub">Por sucursal, en pesos argentinos. El equipo y la instalación se cotizan aparte, según tu entrada.</p>
+          <a class="btn btn-wa btn-grande" href={cotizar}><Icon name="wa" size={18} /> Pedir la cotización</a>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section>
+    <div class="wrap">
+      <div class="cabecera center">
+        <p class="rotulo">Preguntas</p>
         <h2>Lo que hay que saber antes de instalarlo</h2>
       </div>
-
-      {faq.map((f) => (
-        <details>
-          <summary>{f.q}</summary>
-          <p>{f.a}</p>
-        </details>
-      ))}
+      <div class="faq">
+        {faq.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
     </div>
   </section>
 
   <section class="cierre">
     <div class="wrap">
-      <h2>Contanos cómo es tu entrada</h2>
-      <p class="lead center" style="margin-bottom:2rem">
-        Cada gimnasio tiene su puerta: molinete viejo, molinete nuevo, o una recepción sin
-        nada. Escribinos con una foto de la entrada y te decimos qué hace falta y cuánto sale.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href={`mailto:${CONTACTO.email}?subject=${asunto}`}>
-          Pedir una cotización
-        </a>
-        <a class="btn btn-ghost btn-lg" href={appRoute('/register')}>Probar el sistema gratis</a>
+      <div class="cierre-caja">
+        <Marca size={520} id="marca-cierre-mol" class="cierre-marca" />
+        <h2>Contanos cómo es <span class="marcado">tu entrada.</span></h2>
+        <p class="lead">
+          Cada gimnasio tiene su puerta: molinete viejo, molinete nuevo, o una recepción sin
+          nada. Mandanos una foto de la entrada por WhatsApp y te decimos qué hace falta y
+          cuánto sale.
+        </p>
+        <div class="botones">
+          <a class="btn btn-wa btn-grande" href={cotizar}><Icon name="wa" size={18} /> Mandar la foto por WhatsApp</a>
+          <a class="btn btn-borde btn-grande" href={appRoute('/register')}>Probar el sistema gratis</a>
+        </div>
       </div>
     </div>
   </section>
 </Base>
+
+<style>
+  .mol-hero { display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }
+  /* Medido para su columna: "El molinete que / sabe quién pagó." (más grande, "que" quedaba solo). */
+  .mol-hero h1 { font-size: clamp(2.6rem, 5.4vw, 4.7rem); }
+  @media (min-width: 960px) { .mol-hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); } }
+
+  /* ─── El lector dibujado ─── */
+  .lector {
+    justify-self: center; width: min(100%, 360px);
+    background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-xl);
+    padding: 1.2rem; box-shadow: 0 40px 80px -30px rgba(0,0,0,.8);
+  }
+  .lector-pantalla {
+    position: relative; aspect-ratio: 1; border-radius: 18px; overflow: hidden;
+    background:
+      radial-gradient(70% 60% at 50% 40%, rgba(59,130,246,.16), transparent 70%),
+      var(--bg);
+    display: grid; place-items: center; color: var(--blue-300);
+  }
+  /* Las cuatro esquinas del encuadre de la cámara. */
+  .lector-esquinas {
+    position: absolute; inset: 16%;
+    --l: 34px; --g: 3px; --col: var(--verde);
+    background:
+      linear-gradient(var(--col), var(--col)) top left / var(--l) var(--g) no-repeat,
+      linear-gradient(var(--col), var(--col)) top left / var(--g) var(--l) no-repeat,
+      linear-gradient(var(--col), var(--col)) top right / var(--l) var(--g) no-repeat,
+      linear-gradient(var(--col), var(--col)) top right / var(--g) var(--l) no-repeat,
+      linear-gradient(var(--col), var(--col)) bottom left / var(--l) var(--g) no-repeat,
+      linear-gradient(var(--col), var(--col)) bottom left / var(--g) var(--l) no-repeat,
+      linear-gradient(var(--col), var(--col)) bottom right / var(--l) var(--g) no-repeat,
+      linear-gradient(var(--col), var(--col)) bottom right / var(--g) var(--l) no-repeat;
+  }
+  .lector-cara { position: relative; opacity: .9; }
+  .lector-cara :global(svg) { stroke-width: 1.2; }
+  /* La línea que barre: con "reducir movimiento" queda quieta en el medio. */
+  .lector-linea {
+    position: absolute; left: 16%; right: 16%; top: 50%; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--verde), transparent);
+    box-shadow: 0 0 12px rgba(34,197,94,.7);
+    animation: barrer 2.6s ease-in-out infinite alternate;
+  }
+  @keyframes barrer { from { top: 20%; } to { top: 80%; } }
+  .lector-resultado {
+    display: flex; align-items: center; gap: .8rem; margin-top: 1rem;
+    padding: .85rem 1rem; border-radius: 14px;
+    background: color-mix(in srgb, var(--verde) 10%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--verde) 32%, transparent);
+  }
+  .lector-resultado strong { display: block; color: var(--text); font-weight: 800; }
+  .lector-resultado span { font-size: .88rem; color: var(--verde-claro); font-weight: 600; }
+  .lector-punto { width: 12px; height: 12px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 5px rgba(34,197,94,.2); flex: none; }
+
+  .mol-split { display: grid; gap: 2.5rem; align-items: start; }
+  @media (min-width: 960px) { .mol-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4rem; } }
+  .mol-split .cabecera { margin-bottom: 0; }
+  .mol-split .lead { margin-bottom: 1.8rem; }
+
+  .mol-precio { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 960px) { .mol-precio { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 4rem; } }
+  .mol-precio-caja {
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r-xl);
+    padding: clamp(1.6rem, 3.5vw, 2.3rem); display: grid;
+  }
+  .mol-precio-nombre { margin: 0 0 .6rem; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--blue-400); }
+  .mol-precio-monto { margin: 0; display: flex; align-items: baseline; gap: .2rem; font-size: clamp(3rem, 7vw, 4rem); font-weight: 900; letter-spacing: -0.05em; line-height: 1; color: var(--text); }
+  .mol-precio-monto span { font-size: 1.6rem; font-weight: 700; color: var(--muted); align-self: flex-start; margin-top: .5rem; }
+  .mol-precio-monto small { font-size: 1rem; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-left: .35rem; }
+  .mol-precio-sub { margin: .8rem 0 1.5rem; font-size: .9rem; color: var(--muted); }
+  .mol-precio-caja .btn { width: 100%; }
+</style>

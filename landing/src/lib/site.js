@@ -76,8 +76,15 @@ export const REDES = {
 };
 
 export const NAV = [
-  { href: '/#funciones', label: 'Funciones' },
-  { href: '/molinete-facial', label: 'Molinete facial' },
+  { href: '/#un-dia', label: 'Cómo funciona' },
   { href: '/#precios', label: 'Precios' },
+  { href: '/molinete-facial', label: 'Molinete facial' },
   { href: '/descargar', label: 'Descargar' },
 ];
+
+/**
+ * De dónde es Veltronik. No es un detalle de color: para un dueño de gimnasio de la zona,
+ * "hecho acá" es lo que lo separa de los veinte sistemas de afuera que le escriben con un
+ * link y nada más. Y es verdad, así que se dice.
+ */
+export const CIUDAD = 'Posadas, Misiones';

@@ -1,0 +1,354 @@
+---
+// ============================================
+// EL MOSTRADOR, ANDANDO — la demo del hero
+// ============================================
+// Mostrar el sistema en vez de describirlo. Es la pantalla que usa recepción todo el día,
+// reducida a lo que importa: se busca al socio, aparece el cartel con sus días (como el de
+// la app: el número enorme, leíble desde la puerta) y, si debe, se le cobra ahí mismo.
+//
+// Los tres socios son de EJEMPLO y lo dice arriba. Nada acá sale de un gimnasio real: el
+// repositorio es público y la página también.
+//
+// Sin JavaScript se ve el primer estado (Martina, al día), que ya cuenta la idea. Con
+// JavaScript se puede tocar, escribir un nombre y cobrar. Si el visitante no toca nada y no
+// pidió "reducir movimiento", la demo se muestra sola una vez: al día, vencido, cobrado,
+// vence mañana.
+// ============================================
+import Marca from './Marca.astro';
+import Icon from './Icon.astro';
+---
+
+<div class="mostrador" data-mostrador>
+  <div class="mostrador-barra">
+    <span class="mostrador-titulo"><Marca size={16} id="marca-demo" /> Mostrador · Gimnasio de ejemplo</span>
+    <span class="mostrador-red"><span class="punto"></span> En línea</span>
+  </div>
+
+  <div class="mostrador-cuerpo">
+    <form class="mostrador-buscar" data-buscar>
+      <Icon name="socios" size={18} />
+      <input
+        type="text" name="q" autocomplete="off" spellcheck="false"
+        placeholder="Nombre o DNI, y Enter"
+        aria-label="Buscá un socio de ejemplo: Martina, Tomás o Lucía"
+        data-entrada
+      />
+      <kbd>Enter</kbd>
+    </form>
+
+    <div class="mostrador-prueba" role="group" aria-label="Socios de ejemplo">
+      <span>Probá con</span>
+      <button type="button" data-socio="martina" aria-pressed="true"><i class="es-verde"></i>Martina</button>
+      <button type="button" data-socio="tomas" aria-pressed="false"><i class="es-rojo"></i>Tomás</button>
+      <button type="button" data-socio="lucia" aria-pressed="false"><i class="es-ambar"></i>Lucía</button>
+    </div>
+
+    {/* El cartel. El estado inicial va escrito en el HTML: sin JavaScript, la demo igual dice algo. */}
+    <div class="cartel es-verde" data-cartel aria-live="polite" aria-atomic="true">
+      <div class="cartel-dias">
+        <span class="cartel-n num" data-n>18</span>
+        <span class="cartel-u" data-u>días</span>
+        <span class="cartel-x" aria-hidden="true"><Icon name="x" size={64} /></span>
+      </div>
+      <div class="cartel-info">
+        <p class="cartel-nombre" data-nombre>Martina López</p>
+        <p class="cartel-estado" data-estado>Al día · Musculación</p>
+        <p class="cartel-extra" data-extra>Entrada registrada. Que entrene bien.</p>
+        <button type="button" class="cartel-cobrar" data-cobrar hidden>
+          <Icon name="caja" size={17} /> <span data-cobrar-texto>Cobrar $ 30.000</span>
+        </button>
+      </div>
+    </div>
+
+    <p class="mostrador-sonido" data-sonido hidden>
+      <Icon name="sonido" size={16} />
+      Sonó el aviso y la música del gimnasio bajó sola, para que se escuche.
+    </p>
+
+    <div class="mostrador-hoy">
+      <div class="mostrador-contador">
+        <span>Entraron hoy</span>
+        <strong class="num" data-contador>46</strong>
+      </div>
+      <ol class="mostrador-log" data-log>
+        <li><i class="es-verde"></i><span class="num">08:57</span> Julián Paredes</li>
+        <li><i class="es-verde"></i><span class="num">08:41</span> Sofía Acuña</li>
+      </ol>
+    </div>
+  </div>
+</div>
+<p class="mostrador-pie">Demo con socios de ejemplo. Es la misma pantalla que usa recepción.</p>
+
+<script>
+  type Estado = 'verde' | 'rojo' | 'ambar' | 'gris';
+  interface Socio { nombre: string; arancel: string; estado: Estado; dias?: number; vencido?: number; cuota?: number }
+
+  const SOCIOS: Record<string, Socio> = {
+    martina: { nombre: 'Martina López', arancel: 'Musculación', estado: 'verde', dias: 18 },
+    tomas: { nombre: 'Tomás Rivero', arancel: 'Funcional', estado: 'rojo', vencido: 4, cuota: 30000 },
+    lucia: { nombre: 'Lucía Benítez', arancel: 'Pase libre', estado: 'ambar', dias: 1 },
+  };
+
+  const plata = (n: number) => `$ ${new Intl.NumberFormat('es-AR').format(n)}`;
+  const hora = () => new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const fechaLarga = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+  const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  document.querySelectorAll<HTMLElement>('[data-mostrador]').forEach((raiz) => {
+    const $ = <T extends Element = HTMLElement>(sel: string) => raiz.querySelector(sel) as T;
+    const cartel = $('[data-cartel]');
+    const n = $('[data-n]');
+    const u = $('[data-u]');
+    const nombre = $('[data-nombre]');
+    const estado = $('[data-estado]');
+    const extra = $('[data-extra]');
+    const cobrar = $<HTMLButtonElement>('[data-cobrar]');
+    const cobrarTexto = $('[data-cobrar-texto]');
+    const sonido = $('[data-sonido]');
+    const contador = $('[data-contador]');
+    const log = $('[data-log]');
+    const entrada = $<HTMLInputElement>('[data-entrada]');
+    const botones = [...raiz.querySelectorAll<HTMLButtonElement>('[data-socio]')];
+
+    let entraron = Number(contador.textContent) || 46;
+    let actual: string | null = 'martina';
+    let tocado = false;
+
+    const registrar = (quien: string, color: Estado) => {
+      entraron += 1;
+      contador.textContent = String(entraron);
+      const li = document.createElement('li');
+      li.innerHTML = `<i class="es-${color}"></i><span class="num">${hora()}</span> `;
+      li.append(document.createTextNode(quien));
+      log.prepend(li);
+      while (log.children.length > 3) log.lastElementChild?.remove();
+    };
+
+    const pintar = (clave: string | null, { contar = true } = {}) => {
+      actual = clave;
+      const s = clave ? SOCIOS[clave] : null;
+      botones.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.socio === clave)));
+      cartel.className = `cartel es-${s ? s.estado : 'gris'}`;
+      // Reinicia la pequeña entrada del cartel (con "reducir movimiento" no se anima).
+      void cartel.offsetWidth;
+      cartel.classList.add('entra');
+      cobrar.hidden = true;
+      sonido.hidden = true;
+
+      if (!s) {
+        n.textContent = '?'; u.textContent = '';
+        nombre.textContent = 'No lo encontramos';
+        estado.textContent = 'En la demo están Martina, Tomás y Lucía.';
+        extra.textContent = 'En tu gimnasio, busca entre todos tus socios por nombre o DNI.';
+        return;
+      }
+      nombre.textContent = s.nombre;
+      if (s.estado === 'rojo') {
+        n.textContent = ''; u.textContent = '';
+        estado.textContent = `Cuota vencida hace ${s.vencido} días · ${s.arancel}`;
+        extra.textContent = 'No se registra la entrada hasta que pague.';
+        cobrarTexto.textContent = `Cobrar ${plata(s.cuota!)}`;
+        cobrar.hidden = false;
+        sonido.hidden = false;
+        return;
+      }
+      const vence = new Date(); vence.setDate(vence.getDate() + (s.dias || 0));
+      n.textContent = String(s.dias);
+      u.textContent = s.dias === 1 ? 'día' : 'días';
+      if (s.estado === 'ambar') {
+        estado.textContent = `Vence mañana · ${s.arancel}`;
+        extra.textContent = 'Entrada registrada. Avisale al salir que mañana le toca.';
+      } else {
+        estado.textContent = `Al día hasta el ${fechaLarga(vence)} · ${s.arancel}`;
+        extra.textContent = 'Entrada registrada. Que entrene bien.';
+      }
+      if (contar) registrar(s.nombre, s.estado);
+    };
+
+    const cobrarAhora = () => {
+      if (actual !== 'tomas') return;
+      const s = SOCIOS.tomas;
+      const vence = new Date(); vence.setMonth(vence.getMonth() + 1);
+      const dias = Math.round((vence.getTime() - Date.now()) / 86400000);
+      cartel.className = 'cartel es-verde entra';
+      n.textContent = String(dias); u.textContent = 'días';
+      estado.textContent = `Cobrado en efectivo · al día hasta el ${fechaLarga(vence)}`;
+      extra.textContent = 'El vencimiento se corrió solo. Entrada registrada.';
+      cobrar.hidden = true;
+      sonido.hidden = true;
+      registrar(s.nombre, 'verde');
+      actual = 'tomas-cobrado';
+    };
+
+    const tocar = () => { tocado = true; };
+    botones.forEach((b) => b.addEventListener('click', () => { tocar(); pintar(b.dataset.socio!); }));
+    cobrar.addEventListener('click', () => { tocar(); cobrarAhora(); });
+    $<HTMLFormElement>('[data-buscar]').addEventListener('submit', (e) => {
+      e.preventDefault(); tocar();
+      const q = sinAcentos(entrada.value);
+      if (!q) return;
+      const clave = Object.keys(SOCIOS).find((k) => sinAcentos(SOCIOS[k].nombre).includes(q)) || null;
+      pintar(clave);
+      entrada.select();
+    });
+    entrada.addEventListener('focus', tocar);
+
+    // El estado inicial, con la fecha de hoy (el HTML no la sabe: se arma en el build).
+    pintar('martina', { contar: false });
+
+    // ─── Se muestra sola, una vez ───
+    // Solo si no pidieron reducir movimiento, si está a la vista y si nadie la tocó.
+    const quieto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (quieto || !('IntersectionObserver' in window)) return;
+    const guion: Array<() => void> = [() => pintar('tomas'), cobrarAhora, () => pintar('lucia'), () => pintar('martina')];
+    let paso = 0;
+    let reloj: number | undefined;
+    const seguir = () => {
+      if (tocado || paso >= guion.length) return;
+      reloj = window.setTimeout(() => {
+        if (tocado) return;
+        guion[paso++]();
+        seguir();
+      }, paso === 0 ? 2200 : 2600);
+    };
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { if (reloj === undefined) seguir(); }
+      else { window.clearTimeout(reloj); reloj = undefined; }
+    }, { threshold: 0.5 }).observe(raiz);
+  });
+</script>
+
+<style>
+  .mostrador {
+    background: var(--bg-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-xl);
+    box-shadow:
+      0 40px 80px -30px rgba(0, 0, 0, .8),
+      0 0 0 1px rgba(255, 255, 255, .02) inset;
+    overflow: hidden;
+    text-align: left;
+  }
+  .mostrador-barra {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: .7rem 1.1rem; border-bottom: 1px solid var(--line);
+    background: var(--bg-3); font-size: .8rem; color: var(--muted);
+  }
+  .mostrador-titulo { display: inline-flex; align-items: center; gap: .5rem; font-weight: 600; color: var(--text-2); }
+  .mostrador-red { display: inline-flex; align-items: center; gap: .4rem; color: var(--verde-claro); font-weight: 600; }
+  .mostrador-red .punto { width: 7px; height: 7px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 3px rgba(34,197,94,.2); }
+
+  .mostrador-cuerpo { padding: 1.1rem; display: grid; gap: .85rem; }
+
+  .mostrador-buscar {
+    display: flex; align-items: center; gap: .6rem;
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px;
+    padding: .2rem .5rem .2rem .85rem; color: var(--dim);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .mostrador-buscar:focus-within { border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+  .mostrador-buscar input {
+    flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
+    padding: .7rem 0; font-size: 1rem; color: var(--text);
+  }
+  .mostrador-buscar input::placeholder { color: var(--dim); }
+  .mostrador-buscar kbd {
+    font: inherit; font-size: .72rem; font-weight: 600; color: var(--muted);
+    border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; padding: .12rem .45rem;
+  }
+
+  .mostrador-prueba { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: .84rem; color: var(--dim); }
+  .mostrador-prueba span { margin-right: .15rem; }
+  .mostrador-prueba button {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 999px;
+    padding: .32rem .75rem; font-size: .84rem; font-weight: 600; color: var(--text-2); cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .mostrador-prueba button:hover { border-color: #3a4357; color: var(--text); }
+  .mostrador-prueba button[aria-pressed="true"] { background: var(--bg-4); border-color: var(--blue-500); color: var(--text); }
+  /* :global porque los renglones del registro los arma el script, y esos no llevan la marca
+     de estilo del componente. */
+  .mostrador :global(i.es-verde), .mostrador :global(i.es-rojo), .mostrador :global(i.es-ambar) {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none;
+  }
+  .mostrador :global(i.es-verde) { background: var(--verde); }
+  .mostrador :global(i.es-rojo) { background: var(--rojo); }
+  .mostrador :global(i.es-ambar) { background: var(--ambar); }
+
+  /* ─── El cartel ───
+     El de la app: un cuadrado con los días en grande, leíble desde la puerta, y al lado quién
+     es y qué hacer. El color lo dice todo antes de leer. */
+  .cartel {
+    --c: var(--verde);
+    display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: center;
+    padding: 1rem; border-radius: 18px;
+    background: color-mix(in srgb, var(--c) 9%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--c) 32%, transparent);
+    transition: background .3s ease, border-color .3s ease;
+  }
+  .cartel.es-rojo { --c: var(--rojo); }
+  .cartel.es-ambar { --c: var(--ambar); }
+  .cartel.es-gris { --c: var(--dim); }
+  .cartel.entra { animation: entra .35s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes entra { from { transform: scale(.975); opacity: .6; } to { transform: none; opacity: 1; } }
+
+  .cartel-dias {
+    position: relative;
+    width: clamp(104px, 22vw, 132px); aspect-ratio: 1;
+    border-radius: 16px; display: grid; place-content: center; text-align: center;
+    background: color-mix(in srgb, var(--c) 16%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+    color: color-mix(in srgb, var(--c) 80%, white);
+    transition: background .3s ease, color .3s ease;
+  }
+  .cartel-n { font-size: clamp(3rem, 8vw, 4rem); font-weight: 900; line-height: .9; letter-spacing: -0.05em; }
+  .cartel-u { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-top: .3rem; }
+  .cartel-x { display: none; position: absolute; inset: 0; place-items: center; color: var(--rojo-claro); }
+  .cartel.es-rojo .cartel-x { display: grid; }
+  .cartel.es-rojo .cartel-x :global(svg) { stroke-width: 2.6; }
+  .cartel-info { min-width: 0; }
+  .cartel-nombre { margin: 0 0 .15rem; font-size: clamp(1.15rem, 2.4vw, 1.4rem); font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+  .cartel-estado { margin: 0 0 .35rem; font-size: .92rem; font-weight: 600; color: color-mix(in srgb, var(--c) 70%, white); }
+  .cartel-extra { margin: 0; font-size: .86rem; color: var(--muted); }
+  .cartel-cobrar {
+    margin-top: .8rem; display: inline-flex; align-items: center; gap: .45rem;
+    background: var(--verde); color: #04120a; border: 0; border-radius: 10px;
+    padding: .62rem 1.05rem; font-weight: 700; font-size: .95rem; cursor: pointer;
+    box-shadow: 0 8px 20px -8px rgba(34,197,94,.65);
+    transition: transform .15s ease, background .15s ease;
+  }
+  .cartel-cobrar:hover { background: var(--verde-claro); }
+  .cartel-cobrar:active { transform: translateY(1px); }
+  .cartel-cobrar[hidden] { display: none; }
+
+  .mostrador-sonido {
+    display: flex; align-items: center; gap: .5rem; margin: 0;
+    font-size: .84rem; color: var(--rojo-claro);
+    padding: .55rem .8rem; border-radius: 10px;
+    background: color-mix(in srgb, var(--rojo) 8%, transparent);
+  }
+  .mostrador-sonido[hidden] { display: none; }
+
+  .mostrador-hoy {
+    display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: center;
+    padding-top: .85rem; border-top: 1px solid var(--line);
+  }
+  .mostrador-contador { display: grid; line-height: 1.1; }
+  .mostrador-contador span { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); font-weight: 700; }
+  .mostrador-contador strong { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.04em; color: var(--text); }
+  .mostrador-log { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; font-size: .84rem; color: var(--muted); min-width: 0; }
+  .mostrador-log :global(li) { display: flex; align-items: center; gap: .5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mostrador-log :global(li .num) { color: var(--dim); }
+  .mostrador-log :global(li:first-child) { color: var(--text-2); }
+
+  .mostrador-pie { margin: .8rem 0 0; font-size: .82rem; color: var(--dim); text-align: center; }
+
+  @media (max-width: 420px) {
+    .mostrador-cuerpo { padding: .85rem; }
+    /* Los tres socios en un renglón: el rótulo sobra (el grupo ya se llama "Socios de ejemplo"). */
+    .mostrador-prueba span { display: none; }
+    .cartel { gap: .85rem; padding: .85rem; }
+    .mostrador-buscar kbd { display: none; }
+  }
+</style>

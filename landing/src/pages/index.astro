@@ -1,60 +1,131 @@
 ---
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import { appRoute, SITE_URL, CONTACTO, REDES, waLink } from '../lib/site.js';
+import Marca from '../components/Marca.astro';
+import MostradorDemo from '../components/MostradorDemo.astro';
+import Calculadora from '../components/Calculadora.astro';
+import { appRoute, SITE_URL, CONTACTO, REDES, CIUDAD, waLink } from '../lib/site.js';
 import { getPlanes, formatoPrecio } from '../lib/plans.js';
+
+// ============================================
+// LA PÁGINA PRINCIPAL (rehecha el 2026-09-23)
+// ============================================
+// Antes era la página de software de siempre: hero centrado, chips y nueve tarjetas iguales.
+// Ahora cuenta el gimnasio: primero lo MUESTRA (el mostrador andando), después le hace al
+// dueño la cuenta de cuánto se le va por la puerta, y después le cuenta un día entero.
+//
+// ⛔ REGLA: todo lo que dice esta página tiene que ser cierto HOY en el producto. Sin
+// testimonios inventados, sin "+500 gimnasios", sin porcentajes de estudio. El repositorio y
+// la página son públicos, y un dueño de gimnasio te lo verifica con una llamada.
+// ============================================
 
 // El precio lo trae el backend en build time. Ver src/lib/plans.js para el porqué.
 const planes = await getPlanes();
-// El plan base: lo usan el FAQ del precio y los datos estructurados. Las tarjetas de
-// precios recorren `planes` entero — ver la sección #precios.
+// El plan base: lo usan la calculadora, el FAQ del precio y los datos estructurados.
 const plan = planes[0];
+const wa = waLink();
 
-const funciones = [
+const hechos = [
+  { n: '2', u: 'clicks', t: 'para cobrar una cuota. El vencimiento se corre solo.' },
+  { n: '0', u: 'aparatos', t: 'para arrancar: el QR de la puerta usa el celular del socio.' },
+  { n: '0 %', u: 'de comisión', t: 'sobre lo que cobrás. Pagás el plan y nada más.' },
+  { n: 'Sin', u: 'internet', t: 'el mostrador sigue cobrando, registrando y cerrando la caja.' },
+];
+
+// Un día de gimnasio, de punta a punta. Cada hora es una función que existe hoy.
+const dia = [
   {
-    icon: 'socios',
-    titulo: 'Socios y cuotas',
-    texto: 'La ficha de cada socio, su arancel y hasta cuándo tiene paga la cuota. Sin límite de socios: pagás lo mismo con 40 que con 400.',
+    hora: '07:00', icono: 'monitor', titulo: 'Abrís y el sistema ya está abierto',
+    texto: 'La app de Windows arranca sola con la computadora del mostrador y se actualiza sola. A esa hora nadie busca contraseñas.',
+    chip: { clase: 'es-azul', texto: 'Listo para atender' },
   },
   {
-    icon: 'caja',
-    titulo: 'Caja y cobros',
-    texto: 'Cobrás en dos clicks y el vencimiento se corre solo. Al cierre del día ves cuánto entró por efectivo, transferencia y Mercado Pago, cuánto se retira y cuánto queda de fondo para mañana.',
+    hora: '07:12', icono: 'qr', titulo: 'El primero entra con su celular',
+    texto: 'Escanea el QR del cartel de la puerta y marca la entrada. Sin instalar nada, sin tarjeta y sin hacer fila.',
+    chip: { clase: 'es-verde', texto: 'Entrada por QR' },
   },
   {
-    icon: 'puerta',
-    titulo: 'Mostrador de entrada',
-    texto: 'El socio dice su nombre, aparece en pantalla y queda registrado. Si está vencido, el cartel lo muestra antes de que pase, sin que nadie tenga que acordarse.',
+    hora: '09:40', icono: 'sonido', titulo: 'Llega uno con la cuota vencida',
+    texto: 'Suena el aviso y la música del gimnasio baja sola para que se escuche. El mostrador ve cuánto debe, le cobra en dos clicks y el vencimiento se corre solo.',
+    chip: { clase: 'es-rojo', texto: 'Vencida hace 4 días' }, alerta: 'es-rojo',
   },
   {
-    icon: 'qr',
-    titulo: 'Check-in por QR',
-    texto: 'Un cartel en la puerta con un QR: el socio escanea con SU celular y marca la entrada. Cero hardware, cero fila en el mostrador.',
+    hora: '18:40', icono: 'sinRed', titulo: 'Se corta internet en plena hora pico',
+    texto: 'Nadie se entera. Se sigue cobrando, dando de alta y registrando entradas. Cuando vuelve la conexión, sube todo en orden y con la hora en que pasó de verdad.',
+    chip: { clase: 'es-ambar', texto: 'Sin conexión · todo sigue' }, alerta: 'es-ambar',
   },
   {
-    icon: 'monitor',
-    titulo: 'Quién está adentro',
-    texto: 'La lista de los que están en el gimnasio ahora mismo, el resumen del día y el registro de entradas. Útil para saber tus horas pico de verdad.',
+    hora: '21:30', icono: 'caja', titulo: 'Se cierra la caja en un minuto',
+    texto: 'El sistema ya sumó el efectivo, la transferencia y Mercado Pago, y descontó los gastos del cajón. El que cierra solo escribe cuánto se lleva.',
+    chip: { clase: 'es-azul', texto: 'Queda para mañana' },
   },
   {
-    icon: 'clases',
-    titulo: 'Clases y horarios',
-    texto: 'La grilla de clases con su profesor y su horario, para que el mostrador sepa qué se está dictando sin preguntar.',
+    hora: '21:31', icono: 'archivo', titulo: 'El Excel del contador, en un click',
+    texto: 'Los cobros, los gastos y el cierre del día, con fórmulas que el contador puede revisar. Nada se borra: lo anulado queda tachado y a la vista.',
+    chip: { clase: 'es-verde', texto: 'Caja del día.xlsx' },
   },
   {
-    icon: 'grafico',
-    titulo: 'Dashboard y reportes',
-    texto: 'Cuánto facturaste, cuántos socios activos tenés y cómo viene el mes. Los números del negocio sin abrir una planilla.',
+    hora: '22:15', icono: 'casa', titulo: 'Vos, desde tu casa',
+    texto: 'Mirás el tablero desde el celular: cuánto entró, quién vence esta semana y a quién escribirle por WhatsApp antes de que se vaya.',
+    chip: { clase: 'es-ambar', texto: 'Vencen esta semana: 5' },
+  },
+];
+
+const roles = [
+  {
+    quien: 'El que atiende',
+    icono: 'puerta',
+    items: [
+      'Busca al socio por nombre o DNI y ve el cartel con sus días.',
+      'Cobra en dos clicks: efectivo, transferencia, Mercado Pago o tarjeta.',
+      'Entra con su PIN: cada cobro y cada entrada quedan firmados con su nombre.',
+    ],
   },
   {
-    icon: 'reloj',
-    titulo: 'Retención',
-    texto: 'Quiénes dejaron de venir y quiénes están por vencer. La plata más barata de ganar es la del socio que ya te conoce.',
+    quien: 'Vos, el dueño',
+    icono: 'grafico',
+    items: [
+      'El mes contra el mismo tramo del mes pasado, sin abrir una planilla.',
+      'Quién vence esta semana y quién dejó de venir, con el botón de WhatsApp al lado.',
+      'Todas tus sucursales en un resumen, cada una con su caja.',
+    ],
   },
   {
-    icon: 'equipo',
-    titulo: 'Tu equipo, con nombre',
-    texto: 'Cada persona del mostrador entra con su PIN. Cada cobro y cada acceso queda firmado por quien lo hizo.',
+    quien: 'Tu contador',
+    icono: 'archivo',
+    items: [
+      'Un solo número de ingresos: el del tablero es el de la caja y el del Excel.',
+      'Cada cierre queda sellado. Si después se corrige un cobro, la diferencia aparece a la vista.',
+      'El Excel del día o de cualquier período, con fechas y montos que se pueden sumar.',
+    ],
+  },
+  {
+    quien: 'Tus socios',
+    icono: 'celular',
+    items: [
+      'Marcan la entrada con el QR desde su celular, sin bajar ninguna app.',
+      'No hacen fila en el mostrador a la hora pico.',
+      'Con el molinete facial, entran con la cara: ni tarjeta ni llavero que olvidar.',
+    ],
+  },
+];
+
+const confianza = [
+  {
+    icono: 'importar', titulo: 'Traemos tus socios',
+    texto: 'Nos pasás el Excel de tu sistema actual, o tu planilla, y los cargamos con sus vencimientos. Ya pasamos gimnasios de cientos de socios sin cargar uno a mano. Hasta el historial de caja se puede traer.',
+  },
+  {
+    icono: 'candado', titulo: 'Tus datos son tuyos',
+    texto: 'Los bajás a Excel cuando quieras. Y además del respaldo del proveedor, hacemos uno propio todos los días, probado restaurándolo de verdad.',
+  },
+  {
+    icono: 'check', titulo: 'Sin atarte a nada',
+    texto: 'Catorce días gratis sin poner la tarjeta. Sin permanencia: si te vas, te llevás tus datos. Y sin comisión sobre lo que cobrás.',
+  },
+  {
+    icono: 'wa', titulo: 'Hablás con quien lo hizo',
+    texto: `Veltronik se hace en ${CIUDAD}. Si escribís por WhatsApp te contesta una persona que conoce el sistema por dentro, no un bot.`,
   },
 ];
 
@@ -62,6 +133,10 @@ const faq = [
   {
     q: '¿Cuánto cuesta Veltronik?',
     a: `El plan Veltronik cuesta $${formatoPrecio(plan.price)} por mes, por sucursal, con socios ilimitados. Arrancás con 14 días gratis y no te pedimos tarjeta para probarlo.`,
+  },
+  {
+    q: '¿Es difícil de usar?',
+    a: 'No. La pantalla del mostrador es un buscador, el cartel del socio y un botón de cobrar: el que atiende la aprende en una tarde. Y no arrancás solo: importamos tus socios y te acompañamos por WhatsApp los primeros días.',
   },
   {
     q: '¿Sirve si mi gimnasio es chico?',
@@ -76,16 +151,20 @@ const faq = [
     a: 'Sí. Si tu sistema exporta a Excel, importamos la lista de socios y sus vencimientos. Ya lo hicimos con gimnasios que venían de otro software y migraron cientos de socios sin cargar uno por uno.',
   },
   {
-    q: '¿Y si tengo más de una sucursal?',
-    a: 'Cada sucursal es independiente: su caja, sus socios y su equipo. Como dueño tenés una pantalla de resumen que te muestra todas juntas. Se paga por sucursal.',
-  },
-  {
     q: '¿Funciona sin internet?',
     a: 'Sí. El mostrador sigue trabajando con el cable desenchufado: cobrás, das de alta un socio, registrás entradas y salidas, anotás gastos y cerrás la caja. Todo queda guardado en la computadora del gimnasio y sube solo cuando vuelve la conexión, con la hora en que pasó de verdad. Lo único que no se puede hacer sin internet es ver los datos desde afuera, porque para eso sí hace falta la nube.',
   },
   {
+    q: '¿Y si tengo más de una sucursal?',
+    a: 'Cada sucursal es independiente: su caja, sus socios y su equipo. Como dueño tenés una pantalla de resumen que te muestra todas juntas. Se paga por sucursal.',
+  },
+  {
     q: '¿Cómo cobro las cuotas de mis socios?',
     a: 'Como quieras: efectivo, transferencia o Mercado Pago. Vos registrás el cobro en Veltronik y el sistema corre el vencimiento del socio automáticamente. Veltronik no se queda con una comisión de lo que cobrás.',
+  },
+  {
+    q: '¿Qué pasa con mis datos si me voy?',
+    a: 'Son tuyos. Los bajás a Excel cuando quieras, antes o después de irte: socios, cobros y caja. No hay permanencia ni multa por irte.',
   },
 ];
 
@@ -97,16 +176,17 @@ const schema = {
       name: 'Veltronik',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web, Windows',
-      description: 'Software de gestión y control de acceso para gimnasios: socios, cuotas, caja, clases y molinete con reconocimiento facial.',
+      description: 'Sistema para gimnasios: socios, cuotas, caja diaria, control de acceso por QR o molinete con reconocimiento facial. Funciona sin internet.',
       url: SITE_URL,
       inLanguage: 'es-AR',
-      offers: {
+      offers: planes.map((p) => ({
         '@type': 'Offer',
-        price: String(plan.price),
+        name: p.name,
+        price: String(p.price),
         priceCurrency: 'ARS',
         category: 'Suscripción mensual por sucursal',
         url: `${SITE_URL}/#precios`,
-      },
+      })),
     },
     {
       '@type': 'Organization',
@@ -115,8 +195,8 @@ const schema = {
       logo: `${SITE_URL}/logo.png`,
       email: CONTACTO.email,
       areaServed: 'AR',
-      // sameAs le dice a Google que el canal es de esta misma organizacion. Hoy esta
-      // vacio; declararlo igual hace que el dia que tenga videos ya esten asociados.
+      address: { '@type': 'PostalAddress', addressLocality: 'Posadas', addressRegion: 'Misiones', addressCountry: 'AR' },
+      // sameAs le dice a Google que el canal es de esta misma organización.
       sameAs: [REDES.youtube],
     },
     {
@@ -133,122 +213,191 @@ const schema = {
 
 <Base
   title="Software para gimnasios en Argentina | Veltronik"
-  description="Sistema de gestión para gimnasios: socios, cuotas, caja, clases y control de acceso. Con molinete y reconocimiento facial opcional. 14 días gratis, sin tarjeta."
+  description="Sistema para gimnasios: socios, cuotas, caja y control de acceso. Avisa quién entra con la cuota vencida, cobra en dos clicks y funciona sin internet. 14 días gratis, sin tarjeta."
   schema={schema}
 >
+  {/* ─── HERO: el mensaje a la izquierda, el mostrador andando a la derecha ─── */}
   <section class="hero">
-    <div class="wrap center">
-      <h1>El software para gimnasios que también te abre la puerta</h1>
-      <p class="lead">
-        Socios, cuotas, caja y clases en un solo lugar. Y si querés, el molinete que
-        reconoce la cara del socio y no deja pasar al que debe.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Probar 14 días gratis</a>
-        <a class="btn btn-ghost btn-lg" href="/molinete-facial">Ver el molinete facial</a>
+    <div class="wrap hero-grid">
+      <div class="hero-texto">
+        <h1>
+          <span class="hero-kicker">Sistema para gimnasios</span>
+          La cuota se cobra <span class="marcado">en la puerta.</span>
+        </h1>
+        <p class="lead">
+          Veltronik le muestra a tu mostrador quién entra al día y quién debe, cobra en dos
+          clicks y sigue andando aunque se corte internet.
+        </p>
+        <div class="botones">
+          <a class="btn btn-primario btn-grande" href={appRoute('/register')} data-primer-cta>
+            Probar 14 días gratis <Icon name="flecha" size={18} />
+          </a>
+          {wa && (
+            <a class="btn btn-wa btn-grande" href={waLink('Hola! Vi Veltronik en la web. ¿Me lo mostrás andando?')}>
+              <Icon name="wa" size={18} /> Hablemos
+            </a>
+          )}
+        </div>
+        <ul class="garantias">
+          <li>Sin tarjeta</li>
+          <li>Socios ilimitados</li>
+          <li>Sin permanencia</li>
+        </ul>
+        <p class="hero-origen"><Icon name="pin" size={16} /> Hecho en {CIUDAD}</p>
       </div>
-      <p class="hero-note">Sin tarjeta de crédito. Socios ilimitados desde el primer día.</p>
 
-      <div class="chips">
-        <span class="chip">Socios</span>
-        <span class="chip">Cuotas y aranceles</span>
-        <span class="chip">Caja diaria</span>
-        {/*
-          Va acá arriba a propósito: es lo que ningún competidor de este precio hace, y hasta
-          hoy la web no lo decía en ningún lado. Ver el FAQ para el alcance exacto.
-        */}
-        <span class="chip">Funciona sin internet</span>
-        <span class="chip">Clases</span>
-        <span class="chip">Control de acceso</span>
-        <span class="chip">Check-in por QR</span>
-        <span class="chip">Retención</span>
-        <span class="chip">Reportes</span>
-        <span class="chip">Multi-sucursal</span>
+      <div class="hero-demo">
+        <MostradorDemo />
       </div>
     </div>
   </section>
 
-  <section id="funciones">
+  {/* ─── LOS HECHOS: cuatro números, sin adornos ─── */}
+  <section class="hechos-sec">
     <div class="wrap">
-      <div class="center" style="margin-bottom:3rem">
-        <p class="eyebrow">Funciones</p>
-        <h2>Todo lo que hace tu gimnasio, en una pantalla</h2>
+      <ul class="hechos">
+        {hechos.map((h) => (
+          <li>
+            <p class="hecho-n num">{h.n} <span>{h.u}</span></p>
+            <p class="hecho-t">{h.t}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  {/* ─── LA CUENTA ─── */}
+  <section id="la-cuenta" class="alt">
+    <div class="wrap">
+      <div class="cabecera">
+        <p class="rotulo es-rojo">La cuenta que nadie hace</p>
+        <h2>¿Cuánta plata entra a entrenar <span class="marcado">sin pagar</span>?</h2>
         <p class="lead">
-          No es un módulo suelto: es el día del gimnasio de punta a punta, desde que el
-          socio entra hasta que cerrás la caja.
+          No es que la gente no quiera pagar: es que en el mostrador nadie tiene el dato a
+          mano, o no se anima a decirlo. Poné tus números.
+        </p>
+      </div>
+      <Calculadora precio={Number(plan.price)} />
+    </div>
+  </section>
+
+  {/* ─── UN DÍA EN EL GIMNASIO ─── */}
+  <section id="un-dia">
+    <div class="wrap">
+      <div class="cabecera">
+        <p class="rotulo">Cómo funciona</p>
+        <h2>Un día en tu gimnasio, <span class="marcado">de punta a punta</span></h2>
+        <p class="lead">
+          No es un módulo suelto: es lo que pasa desde que abrís la persiana hasta que te
+          vas a dormir sabiendo cuánto entró.
         </p>
       </div>
 
-      <div class="grid grid-3">
-        {funciones.map((f) => (
-          <article class="card">
-            <div class="ficon"><Icon name={f.icon} /></div>
-            <h3>{f.titulo}</h3>
-            <p>{f.texto}</p>
+      <ol class="dia">
+        {dia.map((d) => (
+          <li class={d.alerta ? `dia-hora es-alerta ${d.alerta}` : 'dia-hora'}>
+            <p class="dia-reloj num">{d.hora}</p>
+            <span class="dia-punto" aria-hidden="true"><Icon name={d.icono} size={18} /></span>
+            <div class="dia-texto">
+              <h3>{d.titulo}</h3>
+              <p>{d.texto}</p>
+            </div>
+            <span class={`dia-chip ${d.chip.clase}`}>{d.chip.texto}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  {/* ─── CADA UNO, LO SUYO ─── */}
+  <section class="alt">
+    <div class="wrap">
+      <div class="cabecera center">
+        <p class="rotulo es-verde">Para quién es</p>
+        <h2>Cuatro personas que dejan de renegar</h2>
+      </div>
+      <div class="roles">
+        {roles.map((r) => (
+          <article class="rol">
+            <div class="rol-cabeza">
+              <span class="rol-icono"><Icon name={r.icono} size={20} /></span>
+              <h3>{r.quien}</h3>
+            </div>
+            <ul>
+              {r.items.map((i) => <li>{i}</li>)}
+            </ul>
           </article>
         ))}
       </div>
     </div>
   </section>
 
-  <section class="alt">
-    <div class="wrap split">
-      <div>
-        <p class="eyebrow">Control de acceso</p>
-        <h2>La puerta que cobra sola</h2>
-        <p class="lead" style="margin-bottom:1.8rem">
-          El socio se para frente al molinete, el equipo le reconoce la cara y pasa. Si
-          está vencido, el molinete no abre y en el mostrador aparece su nombre para
-          cobrarle ahí mismo. Le cobrás, y la puerta se destraba sola en segundos.
-        </p>
-        <a class="btn btn-primary" href="/molinete-facial">Cómo funciona el molinete</a>
+  {/* ─── CAMBIAR DA MIEDO ─── */}
+  <section>
+    <div class="wrap">
+      <div class="cabecera">
+        <p class="rotulo es-ambar">Sin riesgo</p>
+        <h2>Cambiar de sistema da miedo. <span class="marcado">Por eso:</span></h2>
       </div>
+      <div class="columnas">
+        {confianza.map((c) => (
+          <article>
+            <span class="columnas-icono"><Icon name={c.icono} size={22} /></span>
+            <h3>{c.titulo}</h3>
+            <p>{c.texto}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
 
-      <ol class="steps">
-        <li><strong>Se para frente al molinete</strong>No saca el celular, no busca la tarjeta, no dice el nombre.</li>
-        <li><strong>El equipo lo reconoce</strong>Y consulta si tiene la cuota al día.</li>
-        <li><strong>Al día: pasa</strong>Y su entrada queda registrada sin que nadie anote nada.</li>
-        <li><strong>Vencido: no pasa</strong>Aparece en el mostrador con su nombre y lo que debe. Le cobrás y la puerta se abre.</li>
+  {/* ─── LA PUERTA ─── */}
+  <section class="puerta-sec">
+    <div class="wrap puerta">
+      <div>
+        <p class="rotulo">Plan con control de acceso</p>
+        <h2>¿Y si la puerta <span class="marcado">cobrara sola</span>?</h2>
+        <p class="lead">
+          El molinete reconoce la cara del socio. Si está al día, gira. Si debe, no gira y en
+          el mostrador salta su nombre con lo que adeuda. Le cobrás y la puerta se destraba
+          en segundos. Nadie tiene que hacer de policía.
+        </p>
+        <div class="botones">
+          <a class="btn btn-borde btn-grande" href="/molinete-facial">Cómo funciona el molinete</a>
+        </div>
+      </div>
+      <ol class="estados" aria-label="Qué pasa en la puerta">
+        <li class="es-verde"><span class="estados-rotulo">Al día</span><span><strong>Gira y pasa.</strong> La entrada queda registrada sola.</span></li>
+        <li class="es-rojo"><span class="estados-rotulo">Debe</span><span><strong>No gira.</strong> Su nombre salta en el mostrador.</span></li>
+        <li class="es-azul"><span class="estados-rotulo">Cobrado</span><span><strong>Se destraba.</strong> En segundos, sin tocar el equipo.</span></li>
       </ol>
     </div>
   </section>
 
-  <section id="precios">
+  {/* ─── PRECIOS ─── */}
+  <section id="precios" class="alt">
     <div class="wrap">
-      <div class="center" style="margin-bottom:2.8rem">
-        <p class="eyebrow">Precios</p>
-        <h2>Un precio, todos los socios</h2>
-        <p class="lead">
-          Sin comisión por cobro, sin costo por socio y sin permanencia. Si te querés ir,
-          te vas.
-        </p>
+      <div class="cabecera center">
+        <p class="rotulo es-verde">Precios</p>
+        <h2>Un precio. Todos tus socios.</h2>
+        <p class="lead">Sin comisión por cobro, sin costo por socio y sin permanencia. Si te querés ir, te vas.</p>
       </div>
 
       {/*
-        Los DOS planes, no solo el primero. Hasta el 2026-09-16 acá se dibujaba `planes[0]`
-        y el plan con control de acceso —el más caro, el que justifica todo el desarrollo
-        del molinete— era invisible en la web mientras estaba prendido en el backend.
-
-        La lista sale del catálogo real (`/public/plans`), así que si mañana nace un tercero
-        aparece solo. Se recorre en vez de escribir dos tarjetas a mano justamente para que
-        esto no vuelva a desincronizarse.
+        Los planes salen del catálogo real (`/public/plans`): si mañana nace un tercero,
+        aparece solo. Hasta el 2026-09-16 acá se dibujaba solo `planes[0]` y el plan con
+        control de acceso era invisible en la web mientras estaba prendido en el backend.
       */}
-      <div class="grid grid-2" style="align-items:start">
+      <div class="precios">
         {planes.map((p, i) => (
-          <div class="card precio-card">
-            <h3 style="font-size:1.3rem;margin-bottom:.25rem">{p.name}</h3>
-            <p style="color:var(--text-muted);margin:0;font-size:.95rem">{p.tagline}</p>
-
-            <div class="precio-monto">
-              <span class="signo">$</span>
-              <span class="n">{formatoPrecio(p.price)}</span>
-              <span class="per">/ mes</span>
-            </div>
+          <article class={`precio ${i === 0 ? 'es-principal' : ''}`}>
+            <p class="precio-para">{i === 0 ? 'Para todo el gimnasio' : 'Con la puerta que cobra sola'}</p>
+            <h3>{p.name}</h3>
+            <p class="precio-tagline">{p.tagline}</p>
+            <p class="precio-monto num">
+              <span class="signo">$</span><span class="n">{formatoPrecio(p.price)}</span><span class="per">/ mes</span>
+            </p>
             <p class="precio-sub">Por sucursal, en pesos argentinos. IVA incluido.</p>
-
-            <ul class="lista">
-              {p.features.map((f) => <li>{f}</li>)}
-            </ul>
 
             {/*
               El básico se contrata solo; el premium NO, y no es un descuido. El control de
@@ -258,65 +407,206 @@ const schema = {
             */}
             {i === 0 ? (
               <Fragment>
-                <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Empezar los 14 días gratis</a>
-                <p style="text-align:center;margin:.9rem 0 0;font-size:.85rem;color:var(--text-muted)">
-                  No pedimos tarjeta para la prueba.
-                </p>
+                <a class="btn btn-primario btn-grande" href={appRoute('/register')}>Empezar los 14 días gratis</a>
+                <p class="precio-letra">No pedimos tarjeta para la prueba.</p>
               </Fragment>
             ) : (
               <Fragment>
                 <a
-                  class="btn btn-ghost btn-lg"
+                  class="btn btn-wa btn-grande"
                   href={waLink(`Hola! Me interesa el plan ${p.name} con control de acceso. ¿Me pasás info?`) || `mailto:${CONTACTO.email}?subject=Consulta%20por%20el%20plan%20con%20control%20de%20acceso`}
-                >Hablemos por WhatsApp</a>
-                <p style="text-align:center;margin:.9rem 0 0;font-size:.85rem;color:var(--text-muted)">
-                  El molinete o la puerta se cotizan aparte.
-                </p>
+                ><Icon name="wa" size={18} /> Hablemos por WhatsApp</a>
+                <p class="precio-letra">El molinete se cotiza aparte, según tu entrada. Seguís en el plan Veltronik hasta que el molinete esté funcionando.</p>
               </Fragment>
             )}
-          </div>
+
+            <ul class="precio-lista">
+              {p.features.map((f) => <li>{f}</li>)}
+            </ul>
+          </article>
         ))}
       </div>
-
-      <div class="aviso" style="max-width:560px;margin:1.5rem auto 0">
-        <Icon name="escudo" size={19} />
-        <div>
-          <strong>¿Querés el molinete con reconocimiento facial?</strong>
-          Se cotiza aparte, según la puerta y el equipo que tenga tu gimnasio.
-          <a href={waLink('Hola! Quiero cotizar el molinete con reconocimiento facial.') || `mailto:${CONTACTO.email}?subject=Consulta%20por%20molinete%20facial`}>Escribinos</a>
-          y lo vemos.
-        </div>
-      </div>
     </div>
   </section>
 
-  <section class="alt">
-    <div class="wrap faq">
-      <div class="center" style="margin-bottom:2.2rem">
-        <p class="eyebrow">Preguntas</p>
+  {/* ─── PREGUNTAS ─── */}
+  <section>
+    <div class="wrap">
+      <div class="cabecera center">
+        <p class="rotulo">Preguntas</p>
         <h2>Lo que nos preguntan siempre</h2>
       </div>
-
-      {faq.map((f) => (
-        <details>
-          <summary>{f.q}</summary>
-          <p>{f.a}</p>
-        </details>
-      ))}
+      <div class="faq">
+        {faq.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
     </div>
   </section>
 
+  {/* ─── EL CIERRE ─── */}
   <section class="cierre">
     <div class="wrap">
-      <h2>Probalo con los socios que ya tenés</h2>
-      <p class="lead center" style="margin-bottom:2rem">
-        Creás la cuenta, cargás tu gimnasio y en la misma tarde estás cobrando desde
-        Veltronik. Catorce días para decidir sin poner un peso.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href={appRoute('/register')}>Crear mi cuenta</a>
-        <a class="btn btn-ghost btn-lg" href="/descargar">Descargar para Windows</a>
+      <div class="cierre-caja">
+        <Marca size={520} id="marca-cierre" class="cierre-marca" />
+        <h2>Probalo con los socios <span class="marcado">que ya tenés.</span></h2>
+        <p class="lead">
+          Creás la cuenta, cargás tu gimnasio y esa misma tarde estás cobrando desde
+          Veltronik. O escribinos y te lo dejamos andando con tu Excel adentro.
+        </p>
+        <div class="botones">
+          <a class="btn btn-primario btn-grande" href={appRoute('/register')}>Probar 14 días gratis <Icon name="flecha" size={18} /></a>
+          {wa && (
+            <a class="btn btn-wa btn-grande" href={waLink('Hola! Quiero probar Veltronik con mis socios. ¿Me ayudás a cargarlos?')}>
+              <Icon name="wa" size={18} /> Te ayudamos a arrancar
+            </a>
+          )}
+        </div>
+        <ul class="garantias">
+          <li>14 días gratis</li>
+          <li>Sin tarjeta</li>
+          <li>Sin permanencia</li>
+        </ul>
       </div>
     </div>
   </section>
 </Base>
+
+<style>
+  .hero-grid { position: relative; z-index: 1; display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }
+  @media (min-width: 1000px) { .hero-grid { grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); } }
+  /* El título de la portada, medido para su columna: "La cuota / se cobra / en la puerta." */
+  .hero h1 { font-size: clamp(2.8rem, 5.8vw, 5rem); }
+  .hero-origen {
+    display: inline-flex; align-items: center; gap: .45rem; margin: 1.6rem 0 0;
+    font-size: .9rem; color: var(--dim);
+  }
+  .hero-demo { position: relative; }
+  .hero-demo::before {
+    /* El brillo detrás del mostrador: lo separa del fondo sin sombra de neón. Un degradé
+       radial y nada más: con `filter: blur` encima, Chromium armaba una capa aparte que
+       rompía el dibujo al scrollear (y en un celular con poca placa de video cuesta). */
+    content: ''; position: absolute; inset: -6% -8% -10%; z-index: -1;
+    background: radial-gradient(closest-side, rgba(59,130,246,.2), rgba(59,130,246,.06) 55%, transparent);
+  }
+
+  /* ─── Hechos ─── */
+  .hechos-sec { padding: 0 0 clamp(40px, 7vw, 96px); }
+  .hechos {
+    list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-block: 1px solid var(--line);
+  }
+  .hechos li { padding: 1.8rem 1.4rem; border-left: 1px solid var(--line); }
+  .hechos li:first-child { border-left: 0; padding-left: 0; }
+  .hecho-n {
+    margin: 0 0 .5rem; font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 900;
+    letter-spacing: -0.045em; line-height: 1; color: var(--text);
+  }
+  .hecho-n span { font-size: .45em; font-weight: 700; letter-spacing: -0.01em; color: var(--blue-400); }
+  .hecho-t { margin: 0; font-size: .95rem; color: var(--muted); }
+  @media (max-width: 900px) {
+    .hechos { grid-template-columns: 1fr 1fr; }
+    .hechos li:nth-child(3) { border-left: 0; padding-left: 0; }
+    .hechos li:nth-child(n+3) { border-top: 1px solid var(--line); }
+  }
+  @media (max-width: 480px) {
+    .hechos li { padding: 1.3rem .9rem; }
+    .hechos li:nth-child(odd) { padding-left: 0; }
+  }
+
+  /* ─── Un día ─── */
+  .dia { list-style: none; margin: 0; padding: 0; position: relative; }
+  .dia::before {
+    /* El riel del día: de la mañana (azul) a la noche. */
+    content: ''; position: absolute; top: 22px; bottom: 22px; left: calc(92px + 22px);
+    width: 2px; background: linear-gradient(var(--blue-500), var(--line-2) 55%, var(--line));
+  }
+  .dia-hora {
+    position: relative; display: grid; align-items: start;
+    grid-template-columns: 92px 44px minmax(0, 1fr) auto; gap: 0 1.4rem;
+    padding: 1.4rem 0;
+  }
+  .dia-hora + .dia-hora { border-top: 1px dashed var(--line); }
+  .dia-reloj {
+    margin: .45rem 0 0; text-align: right;
+    font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text);
+  }
+  .dia-punto {
+    position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--bg-2); border: 1px solid var(--line-2); color: var(--blue-400);
+  }
+  .dia-texto h3 { margin: .45rem 0 .4rem; font-size: 1.22rem; }
+  .dia-texto p { margin: 0; color: var(--muted); max-width: 60ch; }
+  .dia-chip {
+    align-self: center; white-space: nowrap;
+    font-size: .82rem; font-weight: 700; padding: .38rem .8rem; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+    background: color-mix(in srgb, var(--c) 11%, transparent);
+    color: color-mix(in srgb, var(--c) 75%, white);
+  }
+  /* La hora del vencido y la del corte, marcadas: son las dos que más miedo dan. */
+  .dia-hora.es-alerta .dia-punto { color: color-mix(in srgb, var(--c) 70%, white); border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+  @media (max-width: 760px) {
+    .dia::before { left: 21px; }
+    .dia-hora { grid-template-columns: 44px minmax(0, 1fr); gap: .2rem 1rem; }
+    .dia-punto { grid-row: 1 / span 3; }
+    .dia-reloj { grid-column: 2; text-align: left; margin: .55rem 0 0; font-size: 1.15rem; color: var(--blue-300); }
+    .dia-texto { grid-column: 2; }
+    .dia-texto h3 { margin-top: .1rem; }
+    .dia-chip { grid-column: 2; justify-self: start; margin-top: .7rem; }
+  }
+
+  /* ─── Roles ─── */
+  .roles { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .rol {
+    background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg);
+    padding: 1.5rem;
+  }
+  .rol-cabeza { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+  .rol-cabeza h3 { margin: 0; }
+  .rol-icono {
+    width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+    background: color-mix(in srgb, var(--blue-500) 14%, transparent); color: var(--blue-400);
+  }
+  .rol ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .8rem; }
+  .rol li { position: relative; padding-left: 1.4rem; font-size: .96rem; color: var(--text-2); }
+  .rol li::before {
+    content: ''; position: absolute; left: 0; top: .55rem; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--verde);
+  }
+
+  /* ─── La puerta ─── */
+  .puerta-sec { border-top: 1px solid var(--line); }
+  .puerta { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 900px) { .puerta { grid-template-columns: 1.1fr .9fr; gap: 4rem; } }
+  .puerta .lead { margin-bottom: 1.8rem; }
+  /* ─── Precios ─── */
+  .precios { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); max-width: 980px; margin: 0 auto; align-items: start; }
+  .precio {
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r-xl);
+    padding: clamp(1.6rem, 3.5vw, 2.3rem); display: grid;
+  }
+  .precio.es-principal { border-color: color-mix(in srgb, var(--blue-500) 55%, transparent); box-shadow: 0 30px 60px -30px rgba(59,130,246,.45); }
+  .precio-para { margin: 0 0 .9rem; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--blue-400); }
+  .precio h3 { font-size: 1.55rem; margin-bottom: .3rem; }
+  .precio-tagline { margin: 0; color: var(--muted); }
+  .precio-monto { display: flex; align-items: baseline; gap: .2rem; margin: 1.5rem 0 .2rem; color: var(--text); }
+  .precio-monto .signo { font-size: 1.6rem; font-weight: 700; color: var(--muted); align-self: flex-start; margin-top: .5rem; }
+  .precio-monto .n { font-size: clamp(3rem, 7vw, 4rem); font-weight: 900; letter-spacing: -0.05em; line-height: 1; }
+  .precio-monto .per { font-size: 1rem; color: var(--muted); margin-left: .3rem; }
+  .precio-sub { font-size: .87rem; color: var(--dim); margin-bottom: 1.5rem; }
+  .precio .btn { width: 100%; }
+  .precio-letra { margin: .8rem 0 0; font-size: .86rem; color: var(--muted); text-align: center; }
+  .precio-lista { list-style: none; margin: 1.6rem 0 0; padding: 1.4rem 0 0; border-top: 1px solid var(--line); display: grid; gap: .6rem; }
+  .precio-lista li { position: relative; padding-left: 1.7rem; font-size: .95rem; color: var(--text-2); }
+  .precio-lista li::before {
+    content: ''; position: absolute; left: 2px; top: .5rem;
+    width: 11px; height: 6px; border-left: 2px solid var(--verde); border-bottom: 2px solid var(--verde); transform: rotate(-45deg);
+  }
+
+</style>

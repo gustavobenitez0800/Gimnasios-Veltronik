@@ -1,272 +1,390 @@
 /* ============================================
    VELTRONIK — SITIO PÚBLICO
    ============================================
-   Los tokens son los MISMOS que los del portal (frontend/src/styles/variables.css).
-   No es prolijidad: el visitante hace click en "Empezar" y aterriza en la app. Si la
-   landing fuera de otro color, el salto se siente como irse a otro producto.
+   Los tokens son los MISMOS del portal (frontend/src/styles/variables.css): el visitante hace
+   click en "Probar" y aterriza en la app. Si la landing fuera de otro color, el salto se siente
+   como irse a otro producto. Oscuro y sin modo claro, como la app.
 
-   Del sistema del portal se respeta lo que está escrito ahí: botón sólido (sin
-   gradiente), elevación real (sin neon glow), radios ajustados — herramienta seria, no
-   app de consumo. Veltronik es oscuro y no tiene modo claro; acá tampoco.
+   La idea visual (2026-09-23): mostrar el sistema en vez de describirlo. El lenguaje sale del
+   mostrador: el cartel con los días grandes, y los tres colores que el que atiende lee de un
+   vistazo — verde al día, ámbar por vencer, rojo vencido. Nada de fotos de stock, nada de
+   gradientes violetas, nada de "solución integral".
+
+   Tipografía: Inter, la misma de la app, servida desde /fonts (no Google Fonts: un pedido
+   menos a un tercero y el primer dibujo no espera a otro dominio).
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/inter-700.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/inter-800.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 900; font-display: swap; src: url('/fonts/inter-900.woff2') format('woff2'); }
 
 :root {
-  --primary-300: #93bbfd;
-  --primary-400: #609afa;
-  --primary-500: #3b82f6;
-  --primary-600: #2570eb;
-  --accent-300: #a5b4fc;
-  --accent-500: #6366f1;
+  --blue-300: #93bbfd;
+  --blue-400: #609afa;
+  --blue-500: #3b82f6;
+  --blue-600: #2570eb;
 
-  --bg-primary: #0b0e14;
-  --bg-secondary: #12151c;
-  --bg-tertiary: #1a1e27;
-  --bg-elevated: #20252f;
+  /* Los tres estados del socio, como en el mostrador. */
+  --verde: #22c55e;
+  --verde-claro: #4ade80;
+  --ambar: #f59e0b;
+  --ambar-claro: #fbbf24;
+  --rojo: #ef4444;
+  --rojo-claro: #f87171;
+  --wa: #25d366;
 
-  --text-primary: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border-color: #232936;
+  --bg: #0b0e14;
+  --bg-2: #12151c;
+  --bg-3: #1a1e27;
+  --bg-4: #20252f;
+  --line: #232936;
+  --line-2: #2e3545;
 
-  --success-500: #22c55e;
-  --warning-500: #f59e0b;
+  --text: #f1f5f9;
+  --text-2: #cbd5e1;
+  --muted: #94a3b8;
+  --dim: #7c8aa1;   /* 5:1 sobre el fondo: el mínimo para texto chico (era #64748b, 4:1) */
 
-  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', var(--font-ui);
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --card-radius: 12px;
-  --btn-radius: 8px;
-  --maxw: 1120px;
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --maxw: 1180px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; -webkit-text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
 body {
   margin: 0;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.65;
+  background: var(--bg);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Inter: la "l" con cola y el 1 sin ambigüedad. Los números de plata, del mismo ancho. */
+  font-feature-settings: 'cv05' 1, 'cv11' 1, 'calt' 1;
+  overflow-x: hidden;
 }
 
-h1, h2, h3 {
-  font-family: var(--font-display);
-  color: var(--text-primary);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+h1, h2, h3, h4 {
+  color: var(--text);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
   margin: 0 0 .5em;
   text-wrap: balance;
+  font-weight: 800;
 }
-h1 { font-size: clamp(2.1rem, 5.2vw, 3.6rem); font-weight: 700; }
-h2 { font-size: clamp(1.6rem, 3.4vw, 2.35rem); font-weight: 600; }
-h3 { font-size: 1.15rem; font-weight: 600; }
+h1 { font-size: clamp(2.7rem, 7.2vw, 5.6rem); font-weight: 900; letter-spacing: -0.045em; line-height: .96; }
+h2 { font-size: clamp(2rem, 4.6vw, 3.5rem); }
+h3 { font-size: 1.2rem; letter-spacing: -0.02em; line-height: 1.25; font-weight: 700; }
 p  { margin: 0 0 1rem; text-wrap: pretty; }
+strong { color: var(--text); font-weight: 600; }
 
-a { color: var(--primary-400); text-decoration: none; }
-a:hover { color: var(--primary-300); }
+a { color: var(--blue-400); text-decoration: none; }
+a:hover { color: var(--blue-300); }
+img, svg { max-width: 100%; }
+img { height: auto; display: block; }
+button, input, select { font: inherit; color: inherit; }
 
-img { max-width: 100%; height: auto; display: block; }
+:focus-visible { outline: 2px solid var(--blue-400); outline-offset: 3px; border-radius: 6px; }
 
-:focus-visible { outline: 2px solid var(--primary-400); outline-offset: 3px; border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
 
 /* ─── Estructura ─── */
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
-section { padding: clamp(56px, 8vw, 96px) 0; }
-.eyebrow {
-  font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--primary-400); margin-bottom: .75rem;
-}
-.lead { font-size: clamp(1.02rem, 2vw, 1.18rem); color: var(--text-secondary); max-width: 62ch; }
+section { padding: clamp(72px, 10vw, 128px) 0; position: relative; }
 .center { text-align: center; }
+
+/* El rótulo de cada sección: un punto de estado y la palabra. Es el mismo punto que la app
+   usa para decir "al día" o "vencido": acá dice de qué habla la sección. */
+.rotulo {
+  display: inline-flex; align-items: center; gap: .55rem;
+  font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 1.1rem;
+}
+.rotulo::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--punto, var(--blue-500));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--punto, var(--blue-500)) 18%, transparent);
+}
+.rotulo.es-verde { --punto: var(--verde); }
+.rotulo.es-ambar { --punto: var(--ambar); }
+.rotulo.es-rojo  { --punto: var(--rojo); }
+
+.lead { font-size: clamp(1.08rem, 1.9vw, 1.28rem); color: var(--text-2); max-width: 58ch; line-height: 1.55; }
 .center .lead { margin-inline: auto; }
+.cabecera { max-width: 760px; margin-bottom: clamp(2.5rem, 5vw, 4rem); }
+.cabecera.center { margin-inline: auto; }
+
+/* Lo que se resalta en un título: en azul, sin gradiente. */
+.marcado { color: var(--blue-400); }
 
 /* ─── Botones ─── */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .8rem 1.5rem; border-radius: var(--btn-radius);
-  font-family: var(--font-ui); font-size: .97rem; font-weight: 600;
-  border: 1px solid transparent; cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+  padding: .85rem 1.45rem; border-radius: var(--r-sm);
+  font-size: .98rem; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
 }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--primary-500); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
-.btn-primary:hover { background: var(--primary-600); color: #fff; }
-.btn-ghost { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
-.btn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: #333b4d; }
-.btn-lg { padding: 1rem 1.9rem; font-size: 1.03rem; }
-
-/* ─── Tarjetas ─── */
-.card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--card-radius);
-  padding: 1.6rem;
+.btn svg { width: 1.1em; height: 1.1em; flex: none; }
+.btn-primario {
+  background: var(--blue-500); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 24px -10px rgba(59,130,246,.7);
 }
-.grid { display: grid; gap: 1.1rem; }
-.grid-3 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
-.grid-2 { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+.btn-primario:hover { background: var(--blue-600); color: #fff; }
+.btn-borde { background: transparent; color: var(--text); border-color: var(--line-2); }
+.btn-borde:hover { background: var(--bg-3); color: var(--text); border-color: #3a4357; }
+/* WhatsApp con su verde: es el botón que el dueño de gimnasio reconoce sin leerlo. */
+.btn-wa { background: transparent; color: var(--text); border-color: color-mix(in srgb, var(--wa) 45%, transparent); }
+.btn-wa svg { color: var(--wa); }
+.btn-wa:hover { background: color-mix(in srgb, var(--wa) 12%, transparent); color: var(--text); }
+.btn-grande { padding: 1.05rem 1.75rem; font-size: 1.05rem; border-radius: 10px; }
+.botones { display: flex; gap: .75rem; flex-wrap: wrap; }
+.center .botones { justify-content: center; }
+
+/* La línea de garantías debajo de un botón: lo que se sabe antes de hacer click. */
+.garantias {
+  display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin: 1.1rem 0 0; padding: 0; list-style: none;
+  font-size: .9rem; color: var(--muted);
+}
+.garantias li { display: inline-flex; align-items: center; gap: .4rem; }
+.garantias li::before {
+  content: ''; width: 11px; height: 6px; margin-top: -3px;
+  border-left: 2px solid var(--verde); border-bottom: 2px solid var(--verde); transform: rotate(-45deg);
+}
+.center .garantias { justify-content: center; }
+
+/* ─── Superficies ─── */
+.panel {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.alt { background: var(--bg-2); border-block: 1px solid var(--line); }
 
 /* ─── Nav ─── */
 .nav {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(11, 14, 20, .88);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
+  background: rgba(11, 14, 20, .82);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s ease, background .2s ease;
 }
-.nav-inner { display: flex; align-items: center; gap: 1.5rem; height: 64px; }
+.nav.con-borde { border-bottom-color: var(--line); background: rgba(11, 14, 20, .92); }
+.nav-inner { display: flex; align-items: center; gap: 1.6rem; height: 68px; }
 .nav-logo {
-  display: flex; align-items: center; gap: .6rem;
-  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
-  color: var(--text-primary); letter-spacing: -.02em;
+  display: inline-flex; align-items: center; gap: .6rem;
+  font-weight: 800; font-size: 1.14rem; letter-spacing: -.03em; color: var(--text);
 }
-.nav-logo:hover { color: var(--text-primary); }
-/* El logo es vertical (600x776): se respeta su proporción. Es la versión clara porque el
-   original, azul marino, casi no se ve sobre este fondo. */
-.nav-logo img { height: 28px; width: auto; }
-.nav-links { display: flex; gap: 1.4rem; margin-left: auto; }
-.nav-links a { color: var(--text-muted); font-size: .93rem; font-weight: 500; }
-.nav-links a:hover { color: var(--text-primary); }
-.nav-cta { display: flex; gap: .6rem; }
-@media (max-width: 860px) {
+.nav-logo:hover { color: var(--text); }
+.nav-logo svg { width: 22px; height: 28px; }
+.nav-links { display: flex; gap: 1.6rem; margin-left: auto; }
+.nav-links a { color: var(--muted); font-size: .94rem; font-weight: 500; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: flex; align-items: center; gap: 1rem; }
+.nav-ingresar { color: var(--text-2); font-size: .94rem; font-weight: 500; }
+.nav-ingresar:hover { color: var(--text); }
+.nav-cta .btn { padding: .6rem 1.1rem; font-size: .92rem; }
+@media (max-width: 900px) {
   .nav-links { display: none; }
   .nav-cta { margin-left: auto; }
 }
-@media (max-width: 460px) {
-  .nav-cta .btn-ghost { display: none; }
+@media (max-width: 420px) {
+  .nav-ingresar { display: none; }
 }
 
-/* ─── Hero ─── */
-.hero {
-  padding: clamp(64px, 10vw, 120px) 0 clamp(56px, 8vw, 96px);
-  border-bottom: 1px solid var(--border-color);
-  background:
-    radial-gradient(900px 420px at 50% -12%, rgba(59,130,246,.13), transparent 70%),
-    var(--bg-primary);
+/* ─── La barra de abajo en el celular ───
+   El dueño de gimnasio abre esto desde el link que le mandaron por WhatsApp, en el celular.
+   Cuando el botón del principio ya se fue para arriba, la acción sigue a un pulgar de
+   distancia. Aparece recién pasado el hero (lo decide un script chico en Base.astro). */
+.barra-movil {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: none; gap: .6rem; padding: .7rem 16px calc(.7rem + env(safe-area-inset-bottom));
+  background: rgba(11, 14, 20, .94);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  transform: translateY(110%); transition: transform .25s ease;
 }
-.hero h1 { max-width: 17ch; margin-inline: auto; }
-.hero .lead { margin: 1.2rem auto 2rem; }
-.hero-cta { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; }
-.hero-note { margin-top: 1.1rem; font-size: .88rem; color: var(--text-muted); }
-
-/* ─── Franja de módulos ─── */
-.chips { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin-top: 2.6rem; }
-.chip {
-  font-size: .84rem; font-weight: 500; color: var(--text-muted);
-  background: var(--bg-secondary); border: 1px solid var(--border-color);
-  border-radius: 999px; padding: .38rem .9rem;
+.barra-movil .btn { flex: 1; padding: .8rem 1rem; }
+.barra-movil.visible { transform: none; }
+@media (max-width: 760px) {
+  .barra-movil { display: flex; }
+  body { padding-bottom: 76px; }
 }
 
-/* ─── Iconos de función ─── */
-.ficon {
-  width: 40px; height: 40px; border-radius: 10px; margin-bottom: 1rem;
-  display: grid; place-items: center;
-  background: color-mix(in srgb, var(--primary-500) 14%, transparent);
-  color: var(--primary-400);
-}
-.ficon svg { width: 21px; height: 21px; }
-.card h3 { margin-bottom: .4rem; }
-.card p:last-child { margin-bottom: 0; }
-
-/* ─── Destacado (molinete) ─── */
-.split { display: grid; gap: 2.5rem; align-items: center; grid-template-columns: 1fr; }
-@media (min-width: 900px) { .split { grid-template-columns: 1.05fr .95fr; gap: 3.5rem; } }
-.alt { background: var(--bg-secondary); border-block: 1px solid var(--border-color); }
-
-.steps { list-style: none; margin: 0; padding: 0; counter-reset: paso; }
-.steps li {
-  counter-increment: paso; position: relative;
-  padding: 0 0 1.35rem 3rem; color: var(--text-secondary);
-}
-.steps li:last-child { padding-bottom: 0; }
-.steps li::before {
-  content: counter(paso);
-  position: absolute; left: 0; top: -1px;
-  width: 30px; height: 30px; border-radius: 8px;
-  display: grid; place-items: center;
-  font-family: var(--font-display); font-size: .87rem; font-weight: 700;
-  background: color-mix(in srgb, var(--primary-500) 15%, transparent);
-  color: var(--primary-300);
-  border: 1px solid color-mix(in srgb, var(--primary-500) 28%, transparent);
-}
-.steps strong { color: var(--text-primary); display: block; font-weight: 600; }
-
-/* ─── Precios ─── */
-.precio-card { max-width: 460px; margin-inline: auto; padding: 2.1rem; }
-.precio-monto { display: flex; align-items: baseline; gap: .25rem; margin: 1.1rem 0 .2rem; }
-.precio-monto .signo { font-size: 1.5rem; font-weight: 600; color: var(--text-muted); }
-.precio-monto .n {
-  font-family: var(--font-display); font-size: 3.1rem; font-weight: 700;
-  color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -.03em;
-}
-.precio-monto .per { font-size: .95rem; color: var(--text-muted); }
-.precio-sub { font-size: .87rem; color: var(--text-muted); margin-bottom: 1.6rem; }
-.lista { list-style: none; margin: 0 0 1.8rem; padding: 0; }
-.lista li { position: relative; padding: .42rem 0 .42rem 1.85rem; font-size: .95rem; }
-.lista li::before {
-  content: ''; position: absolute; left: 0; top: .78rem;
-  width: 15px; height: 8px; border-left: 2px solid var(--success-500);
-  border-bottom: 2px solid var(--success-500); transform: rotate(-45deg);
-}
-.precio-card .btn { width: 100%; }
-
-.aviso {
-  display: flex; gap: .8rem; align-items: flex-start;
-  background: color-mix(in srgb, var(--warning-500) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning-500) 26%, transparent);
-  border-radius: 10px; padding: 1rem 1.15rem;
-  font-size: .92rem; color: var(--text-secondary);
-}
-.aviso svg { flex-shrink: 0; width: 19px; height: 19px; color: var(--warning-500); margin-top: 2px; }
-.aviso strong { color: var(--text-primary); }
-
-/* ─── FAQ ─── */
-.faq { max-width: 780px; margin-inline: auto; }
-.faq details {
-  border-bottom: 1px solid var(--border-color);
-  padding: 1.15rem 0;
-}
+/* ─── Preguntas ─── */
+.faq { max-width: 820px; margin-inline: auto; }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq details:first-of-type { border-top: 1px solid var(--line); }
 .faq summary {
-  cursor: pointer; list-style: none; font-weight: 600; color: var(--text-primary);
-  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-  font-size: 1.02rem;
+  cursor: pointer; list-style: none; font-weight: 600; color: var(--text);
+  display: flex; justify-content: space-between; align-items: center; gap: 1.2rem;
+  font-size: 1.08rem; padding: 1.3rem 0; letter-spacing: -0.01em;
 }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary::after {
-  content: '+'; font-size: 1.5rem; color: var(--text-muted); line-height: 1; flex-shrink: 0;
-  font-family: var(--font-display);
+  content: ''; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background:
+    linear-gradient(var(--muted), var(--muted)) center / 10px 1.5px no-repeat,
+    linear-gradient(var(--muted), var(--muted)) center / 1.5px 10px no-repeat;
+  transition: transform .2s ease;
 }
-.faq details[open] summary::after { content: '−'; }
-.faq details p { margin: .85rem 0 0; color: var(--text-secondary); font-size: .96rem; }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq summary:hover { color: var(--blue-300); }
+.faq details p { margin: -.2rem 0 1.4rem; color: var(--text-2); max-width: 70ch; }
 
-/* ─── Cierre ─── */
-.cierre { text-align: center; border-top: 1px solid var(--border-color); }
+/* ─── Aviso ─── */
+.aviso {
+  display: flex; gap: .85rem; align-items: flex-start;
+  background: color-mix(in srgb, var(--ambar) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ambar) 26%, transparent);
+  border-radius: var(--r); padding: 1rem 1.2rem;
+  font-size: .95rem; color: var(--text-2);
+}
+.aviso svg { flex: none; width: 19px; height: 19px; color: var(--ambar); margin-top: 3px; }
 
 /* ─── Pie ─── */
 .foot {
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  padding: 2.8rem 0 2.2rem;
-  font-size: .9rem;
+  border-top: 1px solid var(--line);
+  padding: 3.4rem 0 2.4rem;
+  font-size: .93rem;
 }
-.foot-grid { display: flex; flex-wrap: wrap; gap: 2.5rem; justify-content: space-between; }
+.foot-grid { display: grid; gap: 2.5rem; grid-template-columns: 1.4fr repeat(3, 1fr); }
+@media (max-width: 760px) { .foot-grid { grid-template-columns: 1fr 1fr; } .foot-marca { grid-column: 1 / -1; } }
 .foot h4 {
   font-size: .78rem; text-transform: uppercase; letter-spacing: .1em;
-  color: var(--text-muted); margin: 0 0 .85rem; font-weight: 700;
+  color: var(--dim); margin: 0 0 .9rem; font-weight: 700;
 }
-.foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
-.foot a { color: var(--text-secondary); }
-.foot a:hover { color: var(--text-primary); }
+.foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+.foot a { color: var(--text-2); }
+.foot a:hover { color: var(--text); }
+.foot-marca p { color: var(--muted); max-width: 34ch; margin: .9rem 0 0; }
 .foot-legal {
-  margin-top: 2.4rem; padding-top: 1.4rem; border-top: 1px solid var(--border-color);
-  color: var(--text-muted); font-size: .85rem;
+  margin-top: 2.8rem; padding-top: 1.4rem; border-top: 1px solid var(--line);
+  color: var(--dim); font-size: .86rem;
+  display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PIEZAS QUE COMPARTEN LAS PÁGINAS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Los colores de estado: --c lo usan los chips, las listas y los carteles ─── */
+.es-azul { --c: var(--blue-500); }
+.es-verde { --c: var(--verde); }
+.es-rojo { --c: var(--rojo); }
+.es-ambar { --c: var(--ambar); }
+
+/* ─── El hero de cada página ─── */
+.hero {
+  padding: clamp(40px, 6vw, 84px) 0 clamp(64px, 8vw, 104px);
+  /* clip y no hidden: con hidden el hero es desplazable (el brillo de la derecha lo hace más
+     ancho que la pantalla) y al tocar un botón el navegador lo corría de costado para
+     "mostrarlo". clip recorta igual sin volverlo desplazable. hidden queda de respaldo. */
+  overflow: hidden;
+  overflow: clip;
+}
+/* La cuadrícula de fondo: como el piso de goma de un gimnasio, apenas se ve. Se apaga hacia
+   los bordes para que no compita con el texto. */
+.hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(80% 70% at 70% 30%, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(80% 70% at 70% 30%, black, transparent 75%);
+}
+.hero::after {
+  content: ''; position: absolute; width: 720px; height: 720px; right: -160px; top: -220px; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(59,130,246,.18), transparent);
+}
+.hero > .wrap { position: relative; z-index: 1; }
+.hero-kicker {
+  display: block; margin-bottom: 1.1rem;
+  font-size: .95rem; font-weight: 600; letter-spacing: 0; color: var(--muted);
+}
+.hero h1 { margin-bottom: 1.4rem; }
+.hero .lead { margin-bottom: 2rem; }
+/* El remate azul de un título va entero en un renglón: partido, se lee a medias. */
+h1 .marcado { white-space: nowrap; }
+@media (max-width: 520px) {
+  .hero .botones { display: grid; }
+  .hero .botones .btn { width: 100%; }
+}
+
+/* ─── Columnas de texto con su ícono (ex "confianza") ─── */
+.columnas { display: grid; gap: 2.4rem 2rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+/* Seis cosas se leen mejor 3 + 3 que 4 + 2. */
+@media (min-width: 900px) { .columnas.de-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.columnas article { border-top: 2px solid var(--line-2); padding-top: 1.4rem; }
+.columnas-icono { display: inline-grid; color: var(--ambar-claro); margin-bottom: .9rem; }
+.columnas h3 { font-size: 1.3rem; margin-bottom: .55rem; }
+.columnas p { margin: 0; color: var(--muted); }
+
+/* ─── Los estados de la puerta: al día / debe / cobrado ─── */
+.estados { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+.estados li {
+  display: grid; grid-template-columns: 96px 1fr; gap: 1rem; align-items: center;
+  padding: 1.05rem 1.2rem; border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--c) 8%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  color: var(--muted);
+}
+.estados strong { color: var(--text); margin-right: .25rem; }
+.estados-rotulo {
+  font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: color-mix(in srgb, var(--c) 75%, white);
+}
+
+/* ─── Pasos numerados ─── */
+.pasos { list-style: none; margin: 0; padding: 0; counter-reset: paso; display: grid; gap: 0; }
+.pasos li {
+  counter-increment: paso; position: relative;
+  display: grid; grid-template-columns: 44px 1fr; gap: 1rem; align-items: start;
+  padding: 1.1rem 0; border-top: 1px dashed var(--line);
+}
+.pasos li:first-child { border-top: 0; }
+.pasos li::before {
+  content: counter(paso);
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 800; font-size: 1rem; color: var(--blue-300);
+  background: var(--bg-2); border: 1px solid var(--line-2);
+}
+.pasos strong { display: block; font-size: 1.1rem; font-weight: 700; margin: .5rem 0 .2rem; letter-spacing: -0.01em; }
+.pasos li p { margin: 0; color: var(--muted); }
+
+/* ─── El cierre de cada página ─── */
+.cierre { padding-top: 0; }
+.cierre-caja {
+  position: relative; overflow: hidden; overflow: clip; isolation: isolate;
+  border-radius: var(--r-xl); border: 1px solid var(--line-2);
+  padding: clamp(2.4rem, 7vw, 5.5rem) clamp(1.4rem, 5vw, 4.5rem);
+  background:
+    radial-gradient(90% 120% at 0% 100%, rgba(59,130,246,.22), transparent 60%),
+    var(--bg-2);
+}
+.cierre-caja h2 { font-size: clamp(2.2rem, 5.6vw, 4.2rem); max-width: 14ch; }
+.cierre-caja .lead { margin-bottom: 2rem; }
+/* La marca, enorme y recortada: la firma de las páginas. */
+.cierre-marca {
+  position: absolute; z-index: -1; right: -60px; bottom: -110px; width: auto; height: 130%;
+  opacity: .09; transform: rotate(8deg);
 }

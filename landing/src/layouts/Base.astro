@@ -1,16 +1,23 @@
 ---
-// El <head> de todas las páginas, en un solo lugar.
+// El <head> y el marco de todas las páginas, en un solo lugar.
 //
 // Cada página está OBLIGADA a pasar su propio title y description: dos páginas con el
 // mismo título compiten entre sí en Google y ninguna gana. Por eso no hay valores por
 // defecto para esos dos — si falta uno, se ve en el build.
-import { SITE_URL, appRoute, NAV, CONTACTO, REDES, waLink } from '../lib/site.js';
+import { SITE_URL, appRoute, NAV, CONTACTO, REDES, CIUDAD, waLink } from '../lib/site.js';
+import Marca from '../components/Marca.astro';
+import Icon from '../components/Icon.astro';
 import '../styles/global.css';
 
 // La tarjeta que muestran WhatsApp, Facebook y LinkedIn al pegar el link. Antes era el logo
 // (600x776, vertical, azul marino sobre transparente): las redes lo recortaban o lo mostraban
 // chiquito, y en un chat oscuro casi no se veía. og.png es 1200x630, el tamaño que esperan.
-const { title, description, image = '/og.png', noindex = false, schema } = Astro.props;
+const {
+  title, description, image = '/og.png', noindex = false, schema,
+  // El mensaje con el que se abre WhatsApp desde la barra del celular: cada página dice de
+  // dónde viene la consulta, que es media respuesta adelantada.
+  mensajeWa = 'Hola! Vi Veltronik en la web y quiero saber más.',
+} = Astro.props;
 const esLaTarjeta = image === '/og.png';
 
 // Canónica absoluta y sin barra final. Google trata /descargar y /descargar/ como dos
@@ -18,13 +25,14 @@ const esLaTarjeta = image === '/og.png';
 const canonical = new URL(Astro.url.pathname.replace(/\/$/, '') || '/', SITE_URL).href;
 const ogImage = new URL(image, SITE_URL).href;
 const year = new Date().getFullYear();
+const wa = waLink(mensajeWa);
 ---
 
 <!doctype html>
 <html lang="es-AR">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
     <title>{title}</title>
     <meta name="description" content={description} />
@@ -34,10 +42,18 @@ const year = new Date().getFullYear();
       : <meta name="robots" content="index, follow, max-image-preview:large" />}
 
     <meta name="theme-color" content="#0b0e14" />
+    {/* La marca en vector y en el azul del sitio: se ve en la barra de pestañas clara y en la
+        oscura. La PNG queda de respaldo para los navegadores que no toman SVG. */}
+    <link rel="icon" type="image/svg+xml" href="/marca.svg" />
     <link rel="icon" type="image/png" href="/logo.png" />
     {/* Opaco a propósito: iOS le pone fondo negro a un ícono transparente, y el logo
         azul marino desaparecía en la pantalla de inicio del iPhone. */}
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    {/* Los dos pesos del primer dibujo (el texto y los títulos), pedidos antes de que el CSS
+        los descubra. Los otros llegan cuando hacen falta. */}
+    <link rel="preload" href="/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter-900.woff2" as="font" type="font/woff2" crossorigin />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Veltronik" />
@@ -48,69 +64,75 @@ const year = new Date().getFullYear();
     <meta property="og:image" content={ogImage} />
     {esLaTarjeta && <meta property="og:image:width" content="1200" />}
     {esLaTarjeta && <meta property="og:image:height" content="630" />}
-    {esLaTarjeta && <meta property="og:image:alt" content="Veltronik: el software para gimnasios que también te abre la puerta" />}
+    {esLaTarjeta && <meta property="og:image:alt" content="Veltronik: el sistema para gimnasios que cobra la cuota en la puerta" />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
   </head>
 
   <body>
-    <header class="nav">
+    <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+    <header class="nav" id="nav">
       <div class="wrap nav-inner">
-        <a href="/" class="nav-logo">
-          <img src="/logo-claro.png" alt="" width="22" height="28" />
+        <a href="/" class="nav-logo" aria-label="Veltronik, ir al inicio">
+          <Marca size={28} id="marca-nav" />
           Veltronik
         </a>
-        <nav class="nav-links">
+        <nav class="nav-links" aria-label="Principal">
           {NAV.map((i) => <a href={i.href}>{i.label}</a>)}
         </nav>
         <div class="nav-cta">
-          <a class="btn btn-ghost" href={appRoute('/')}>Ingresar</a>
-          <a class="btn btn-primary" href={appRoute('/register')}>Probar gratis</a>
+          <a class="nav-ingresar" href={appRoute('/')}>Ingresar</a>
+          <a class="btn btn-primario" href={appRoute('/register')}>Probar gratis</a>
         </div>
       </div>
     </header>
 
-    <main>
+    <main id="contenido">
       <slot />
     </main>
 
     <footer class="foot">
       <div class="wrap">
         <div class="foot-grid">
-          <div>
-            <a href="/" class="nav-logo" style="margin-bottom:.7rem">
-              <img src="/logo-claro.png" alt="" width="22" height="28" />
+          <div class="foot-marca">
+            <a href="/" class="nav-logo" aria-label="Veltronik, ir al inicio">
+              <Marca size={28} id="marca-pie" />
               Veltronik
             </a>
-            <p style="color:var(--text-muted);max-width:30ch;margin:0">
-              Software de gestión y control de acceso para gimnasios. Hecho en Argentina.
+            <p>
+              El sistema del mostrador para gimnasios: socios, cuotas, caja y control de
+              acceso. Hecho en {CIUDAD}.
             </p>
           </div>
 
           <div>
             <h4>Producto</h4>
             <ul>
-              <li><a href="/#funciones">Funciones</a></li>
-              <li><a href="/molinete-facial">Molinete facial</a></li>
+              <li><a href="/#un-dia">Cómo funciona</a></li>
               <li><a href="/#precios">Precios</a></li>
-              <li><a href="/descargar">Descargar</a></li>
+              <li><a href="/molinete-facial">Molinete facial</a></li>
+              <li><a href="/descargar">Descargar para Windows</a></li>
             </ul>
           </div>
 
           <div>
             <h4>Empezar</h4>
             <ul>
-              <li><a href={appRoute('/register')}>Crear cuenta</a></li>
+              <li><a href={appRoute('/register')}>Crear cuenta gratis</a></li>
               <li><a href={appRoute('/')}>Ingresar al sistema</a></li>
-              {waLink() && <li><a href={waLink()}>WhatsApp</a></li>}
-              <li><a href={`mailto:${CONTACTO.email}`}>Contacto</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>Hablemos</h4>
+            <ul>
+              {wa && <li><a href={wa}>WhatsApp</a></li>}
+              <li><a href={`mailto:${CONTACTO.email}`}>{CONTACTO.email}</a></li>
               {/*
                 rel="noopener": sin esto, la página que se abre puede manipular la nuestra a
                 través de window.opener. Es gratis ponerlo y no hay razón para no hacerlo.
@@ -121,9 +143,65 @@ const year = new Date().getFullYear();
         </div>
 
         <div class="foot-legal">
-          © {year} Veltronik. Todos los derechos reservados.
+          <span>© {year} Veltronik. Todos los derechos reservados.</span>
+          <span>Precios en pesos argentinos, por sucursal.</span>
         </div>
       </div>
     </footer>
+
+    {/* La acción a un pulgar, en el celular (ver .barra-movil en global.css). */}
+    <div class="barra-movil" id="barra-movil" aria-hidden="true">
+      <a class="btn btn-primario" href={appRoute('/register')} tabindex="-1">Probar 14 días gratis</a>
+      {wa && (
+        <a class="btn btn-wa" href={wa} tabindex="-1" aria-label="Escribinos por WhatsApp">
+          <Icon name="wa" size={18} /> WhatsApp
+        </a>
+      )}
+    </div>
+
+    <script>
+      // Dos detalles de la navegación, sin librerías:
+      //  · la barra de arriba toma su borde recién cuando hay algo debajo (arriba de todo,
+      //    sin borde, el hero respira);
+      //  · la barra del celular aparece pasado el primer botón de la página, y se esconde
+      //    cuando llega al pie (ahí ya están los mismos botones).
+      const nav = document.getElementById('nav');
+      const barra = document.getElementById('barra-movil');
+      const primerBoton = document.querySelector('[data-primer-cta]');
+      const pie = document.querySelector('.foot');
+      let pasoElBoton = false;
+      let seVeElPie = false;
+      const pintar = () => {
+        const visible = pasoElBoton && !seVeElPie;
+        barra?.classList.toggle('visible', visible);
+        barra?.setAttribute('aria-hidden', String(!visible));
+        barra?.querySelectorAll('a').forEach((a) => a.setAttribute('tabindex', visible ? '0' : '-1'));
+      };
+      const alScrollear = () => nav?.classList.toggle('con-borde', window.scrollY > 8);
+      window.addEventListener('scroll', alScrollear, { passive: true });
+      alScrollear();
+      if ('IntersectionObserver' in window) {
+        if (primerBoton) {
+          new IntersectionObserver(([e]) => {
+            pasoElBoton = !e.isIntersecting && e.boundingClientRect.top < 0;
+            pintar();
+          }).observe(primerBoton);
+        } else {
+          pasoElBoton = true;
+        }
+        if (pie) new IntersectionObserver(([e]) => { seVeElPie = e.isIntersecting; pintar(); }).observe(pie);
+        pintar();
+      }
+    </script>
   </body>
 </html>
+
+<style is:global>
+  /* El salto al contenido para quien navega con el teclado: invisible hasta que tiene foco. */
+  .saltar {
+    position: absolute; left: 12px; top: -48px; z-index: 100;
+    background: var(--blue-500); color: #fff; padding: .55rem .9rem; border-radius: 8px;
+    font-weight: 600; transition: top .15s ease;
+  }
+  .saltar:focus { top: 12px; color: #fff; }
+</style>

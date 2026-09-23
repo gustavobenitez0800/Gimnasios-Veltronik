@@ -1,13 +1,24 @@
 ---
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import { appRoute, SITE_URL, CONTACTO } from '../lib/site.js';
+import Marca from '../components/Marca.astro';
+import { appRoute, SITE_URL, CONTACTO, waLink } from '../lib/site.js';
 import { getInstalador } from '../lib/release.js';
 
 // La versión y el peso se leen en build time, solo para MOSTRARLOS. El botón nunca
 // apunta al .exe directo: apunta a /api/descargar, que resuelve el link en el momento.
 // Así una versión nueva se descarga bien aunque nadie haya redeployado la landing.
 const info = await getInstalador();
+
+const mensaje = 'Hola! Necesito una mano con la instalación de Veltronik.';
+const ayuda = waLink(mensaje) || `mailto:${CONTACTO.email}?subject=Ayuda%20con%20la%20instalaci%C3%B3n`;
+
+const suma = [
+  { icono: 'monitor', titulo: 'Se abre sola', texto: 'Queda instalada en la computadora del mostrador y arranca lista para trabajar, sin buscar la dirección ni volver a iniciar sesión todos los días.' },
+  { icono: 'sinRed', titulo: 'Anda sin internet', texto: 'Si se corta la conexión, el mostrador sigue cobrando, registrando entradas y cerrando la caja. Cuando vuelve, sube todo en orden.' },
+  { icono: 'puerta', titulo: 'Habla con la puerta', texto: 'Es la que se conecta con el molinete y el lector facial dentro de la red del gimnasio. Eso un navegador no lo puede hacer.' },
+  { icono: 'descarga', titulo: 'Se actualiza sola', texto: 'Cuando sacamos una versión nueva, la app la baja y la instala sin que tengas que volver a esta página.' },
+];
 
 const schema = {
   '@context': 'https://schema.org',
@@ -23,151 +34,164 @@ const schema = {
 
 <Base
   title="Descargar Veltronik para Windows | Software de gimnasios"
-  description="Descargá Veltronik para Windows: la app de mostrador para registrar entradas y cobrar cuotas. Gratis con tu cuenta, para Windows 10 y 11."
+  description="Descargá Veltronik para Windows: la app de mostrador para registrar entradas y cobrar cuotas, que sigue andando sin internet. Gratis con tu cuenta, para Windows 10 y 11."
   schema={schema}
+  mensajeWa={mensaje}
 >
   <section class="hero">
-    <div class="wrap center">
-      <p class="eyebrow">Descarga</p>
-      <h1>Veltronik para Windows</h1>
-      <p class="lead">
-        La app de mostrador: se abre sola con la computadora del gimnasio, registra las
-        entradas y cobra las cuotas. Es la misma cuenta que usás en la web.
-      </p>
-
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="/api/descargar" download>
-          <Icon name="descarga" size={19} />
-          Descargar para Windows
-        </a>
-        <a class="btn btn-ghost btn-lg" href={appRoute('/')}>Usar desde el navegador</a>
-      </div>
-
-      <p class="hero-note">
-        {info
-          ? `Versión ${info.version} · ${info.peso} · Windows 10 y 11 (64 bits)`
-          : 'Windows 10 y 11 (64 bits)'}
-      </p>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap" style="max-width:780px">
-      <div class="aviso" style="margin-bottom:3rem">
-        <Icon name="alerta" size={19} />
-        <div>
-          <strong>Windows te va a mostrar un aviso al abrir el instalador.</strong>
-          Va a decir "Windows protegió tu PC". Es porque el instalador todavía no tiene
-          firma digital, no porque el archivo tenga algo raro. Hacé click en
-          <strong>Más información</strong> y después en <strong>Ejecutar de todas formas</strong>.
-          Si preferís verificarlo por tu cuenta, el archivo se descarga directo desde
-          nuestro repositorio público en GitHub.
+    <div class="wrap desc-hero">
+      <div>
+        <h1>
+          <span class="hero-kicker">Veltronik para Windows</span>
+          La app del <span class="marcado">mostrador.</span>
+        </h1>
+        <p class="lead">
+          Se abre sola con la computadora del gimnasio, registra las entradas, cobra las
+          cuotas y sigue andando aunque se corte internet. Es la misma cuenta que usás en la web.
+        </p>
+        <div class="botones">
+          <a class="btn btn-primario btn-grande" href="/api/descargar" download data-primer-cta>
+            <Icon name="descarga" size={19} /> Descargar para Windows
+          </a>
+          <a class="btn btn-borde btn-grande" href={appRoute('/')}>Usar desde el navegador</a>
         </div>
+        <p class="desc-version num">
+          {info
+            ? `Versión ${info.version} · ${info.peso} · Windows 10 y 11 (64 bits)`
+            : 'Windows 10 y 11 (64 bits)'}
+        </p>
       </div>
 
-      <h2>¿Necesito instalarlo?</h2>
-      <p class="lead" style="margin-bottom:2rem">
-        No. Veltronik funciona entero desde el navegador y podés manejar tu gimnasio sin
-        bajar nada. La app de Windows es para la computadora del mostrador, donde suma
-        un par de cosas.
-      </p>
-
-      <div class="grid grid-2">
-        <article class="card">
-          <div class="ficon"><Icon name="monitor" /></div>
-          <h3>Se abre sola</h3>
-          <p>
-            Queda instalada en la computadora del mostrador y arranca lista para trabajar,
-            sin que nadie tenga que buscar la dirección ni volver a iniciar sesión todos
-            los días.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="puerta" /></div>
-          <h3>Habla con la puerta</h3>
-          <p>
-            Es la que se conecta con el molinete y el lector facial dentro de la red del
-            gimnasio. Eso un navegador no lo puede hacer.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="descarga" /></div>
-          <h3>Se actualiza sola</h3>
-          <p>
-            Cuando sacamos una versión nueva, la app la baja y la instala sin que tengas
-            que volver a esta página.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="ficon"><Icon name="equipo" /></div>
-          <h3>La misma cuenta</h3>
-          <p>
-            No es otro sistema ni otra base de datos: entrás con el mismo usuario y ves
-            los mismos socios que en la web.
-          </p>
-        </article>
+      {/* La ventana de la app, dibujada: lo que aparece al abrirla. */}
+      <div class="ventana" aria-hidden="true">
+        <div class="ventana-barra">
+          <span><Marca size={14} id="marca-ventana" /> Veltronik</span>
+          <span class="ventana-hora num">Mostrador</span>
+        </div>
+        <div class="ventana-cuerpo">
+          <div class="ventana-fila es-verde"><span class="n num">18</span><span><strong>Martina López</strong>Al día · Musculación</span></div>
+          <div class="ventana-fila es-rojo"><span class="n"><Icon name="x" size={26} /></span><span><strong>Tomás Rivero</strong>Vencida hace 4 días</span></div>
+          <div class="ventana-fila es-ambar"><span class="n num">1</span><span><strong>Lucía Benítez</strong>Vence mañana</span></div>
+          <p class="ventana-red"><span class="punto"></span> Sin conexión · todo sigue funcionando</p>
+        </div>
       </div>
     </div>
   </section>
 
   <section class="alt">
-    <div class="wrap faq">
-      <div class="center" style="margin-bottom:2.2rem">
-        <p class="eyebrow">Instalación</p>
-        <h2>Preguntas de la descarga</h2>
+    <div class="wrap">
+      <div class="aviso desc-aviso">
+        <Icon name="alerta" size={19} />
+        <div>
+          <strong>Windows te va a mostrar un aviso al abrir el instalador.</strong>
+          Va a decir "Windows protegió tu PC". Es porque el instalador todavía no tiene firma
+          digital, no porque el archivo tenga algo raro. Hacé click en
+          <strong>Más información</strong> y después en <strong>Ejecutar de todas formas</strong>.
+          Si preferís verificarlo por tu cuenta, el archivo se descarga directo desde nuestro
+          repositorio público en GitHub.
+        </div>
       </div>
 
-      <details>
-        <summary>¿Tiene costo aparte?</summary>
-        <p>
-          No. La app de Windows está incluida en tu suscripción, y podés instalarla en
-          todas las computadoras del gimnasio que quieras.
+      <div class="cabecera">
+        <p class="rotulo">¿Hace falta instalarlo?</p>
+        <h2>No. Pero en el mostrador <span class="marcado">suma.</span></h2>
+        <p class="lead">
+          Veltronik funciona entero desde el navegador y podés manejar tu gimnasio sin bajar
+          nada. La app de Windows es para la computadora del mostrador, donde suma cuatro cosas.
         </p>
-      </details>
+      </div>
+      <div class="columnas">
+        {suma.map((s) => (
+          <article>
+            <span class="columnas-icono"><Icon name={s.icono} size={22} /></span>
+            <h3>{s.titulo}</h3>
+            <p>{s.texto}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
 
-      <details>
-        <summary>¿Hay versión para Mac o Linux?</summary>
-        <p>
-          Todavía no. Si usás Mac o Linux, entrá desde el navegador: tenés el sistema
-          completo, salvo la conexión con el molinete.
-        </p>
-      </details>
-
-      <details>
-        <summary>¿Y para celular?</summary>
-        <p>
-          No hace falta instalar nada: abrí Veltronik desde el navegador del celular y
-          está adaptado para pantalla chica. Tus socios tampoco instalan nada: el
-          check-in por QR se abre solo al escanear el cartel de la puerta.
-        </p>
-      </details>
-
-      <details>
-        <summary>¿Puedo instalarlo antes de tener cuenta?</summary>
-        <p>
-          Podés, pero no vas a poder entrar: la app pide el mismo usuario que la web.
-          Conviene <a href={appRoute('/register')}>crear la cuenta</a> primero. Son dos
-          minutos y los primeros 14 días no se pagan.
-        </p>
-      </details>
+  <section>
+    <div class="wrap">
+      <div class="cabecera center">
+        <p class="rotulo">Instalación</p>
+        <h2>Preguntas de la descarga</h2>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>¿Tiene costo aparte?</summary>
+          <p>No. La app de Windows está incluida en tu suscripción, y podés instalarla en todas las computadoras del gimnasio que quieras.</p>
+        </details>
+        <details>
+          <summary>¿Hay versión para Mac o Linux?</summary>
+          <p>Todavía no. Si usás Mac o Linux, entrá desde el navegador: tenés el sistema completo, salvo la conexión con el molinete y el trabajo sin internet.</p>
+        </details>
+        <details>
+          <summary>¿Y para celular?</summary>
+          <p>No hace falta instalar nada: abrí Veltronik desde el navegador del celular y está adaptado para pantalla chica. Tus socios tampoco instalan nada: el check-in por QR se abre solo al escanear el cartel de la puerta.</p>
+        </details>
+        <details>
+          <summary>¿Puedo instalarlo antes de tener cuenta?</summary>
+          <p>Podés, pero no vas a poder entrar: la app pide el mismo usuario que la web. Conviene <a href={appRoute('/register')}>crear la cuenta</a> primero. Son dos minutos y los primeros 14 días no se pagan.</p>
+        </details>
+      </div>
     </div>
   </section>
 
   <section class="cierre">
     <div class="wrap">
-      <h2>¿Se te complicó la instalación?</h2>
-      <p class="lead center" style="margin-bottom:2rem">
-        Escribinos y lo resolvemos con vos. Si querés, lo dejamos andando en la
-        computadora del mostrador sin que tengas que tocar nada.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href={`mailto:${CONTACTO.email}?subject=Ayuda%20con%20la%20instalaci%C3%B3n`}>
-          Escribirnos
-        </a>
+      <div class="cierre-caja">
+        <Marca size={520} id="marca-cierre-desc" class="cierre-marca" />
+        <h2>¿Se te complicó la <span class="marcado">instalación?</span></h2>
+        <p class="lead">
+          Escribinos y lo resolvemos con vos. Si querés, lo dejamos andando en la computadora
+          del mostrador sin que tengas que tocar nada.
+        </p>
+        <div class="botones">
+          <a class="btn btn-wa btn-grande" href={ayuda}><Icon name="wa" size={18} /> Escribinos</a>
+          <a class="btn btn-borde btn-grande" href="/api/descargar" download><Icon name="descarga" size={18} /> Descargar de nuevo</a>
+        </div>
       </div>
     </div>
   </section>
 </Base>
+
+<style>
+  .desc-hero { display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }
+  @media (min-width: 960px) { .desc-hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); } }
+  .desc-version { margin: 1.2rem 0 0; font-size: .9rem; color: var(--dim); }
+
+  .ventana {
+    background: var(--bg-2); border: 1px solid var(--line-2); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 40px 80px -30px rgba(0,0,0,.8);
+  }
+  .ventana-barra {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .6rem .9rem; background: var(--bg-3); border-bottom: 1px solid var(--line);
+    font-size: .8rem; font-weight: 600; color: var(--text-2);
+  }
+  .ventana-barra > span:first-child { display: inline-flex; align-items: center; gap: .45rem; }
+  .ventana-hora { color: var(--dim); font-weight: 500; }
+  .ventana-cuerpo { padding: 1rem; display: grid; gap: .6rem; }
+  .ventana-fila {
+    display: grid; grid-template-columns: 58px 1fr; gap: .9rem; align-items: center;
+    padding: .65rem; border-radius: 14px;
+    background: color-mix(in srgb, var(--c) 8%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+    font-size: .88rem; color: color-mix(in srgb, var(--c) 70%, white);
+  }
+  .ventana-fila .n {
+    width: 58px; aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--c) 16%, var(--bg));
+    font-size: 1.7rem; font-weight: 900; letter-spacing: -0.04em;
+  }
+  .ventana-fila strong { display: block; color: var(--text); font-size: 1rem; font-weight: 800; }
+  .ventana-red {
+    margin: .3rem 0 0; display: flex; align-items: center; gap: .5rem;
+    font-size: .84rem; font-weight: 600; color: var(--ambar-claro);
+  }
+  .ventana-red .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--ambar); box-shadow: 0 0 0 3px rgba(245,158,11,.2); }
+
+  .desc-aviso { max-width: 820px; margin-bottom: clamp(3rem, 6vw, 4.5rem); }
+</style>
