@@ -35,6 +35,12 @@ public class GymMemberService {
         return repository.findByTenantIdAndDeletedAtIsNull(TenantContextHolder.getTenantId());
     }
 
+    /** Cambia con cualquier cambio en las fichas de los socios del gimnasio actual. */
+    @Transactional(readOnly = true)
+    public String marcaDelGimnasio() {
+        return repository.marcaDelGimnasio(TenantContextHolder.getTenantId());
+    }
+
     /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email). */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<GymMember> findPageForCurrentTenant(

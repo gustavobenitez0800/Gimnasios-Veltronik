@@ -31,12 +31,15 @@ public class GymAccessController {
     private final AccessLogService accessService;
     private final AccessLogMapper accessMapper;
     private final com.veltronik.v2.gym.services.MolineteService molineteService;
+    private final com.veltronik.v2.gym.services.GymMemberService memberService;
 
     public GymAccessController(AccessLogService accessService, AccessLogMapper accessMapper,
-                               com.veltronik.v2.gym.services.MolineteService molineteService) {
+                               com.veltronik.v2.gym.services.MolineteService molineteService,
+                               com.veltronik.v2.gym.services.GymMemberService memberService) {
         this.accessService = accessService;
         this.accessMapper = accessMapper;
         this.molineteService = molineteService;
+        this.memberService = memberService;
     }
 
     @GetMapping("/today")
@@ -75,8 +78,67 @@ public class GymAccessController {
     /** Cuántos accesos del día viajan. La pantalla muestra 30; el resto no lo mira nadie. */
     private static final int CUANTOS_DE_HOY = 60;
 
+    /**
+     * ⭐ LA FOTO DEL MOSTRADOR: si no cambió nada, no se vuelve a armar.
+     *
+     * <p><b>Qué pasó.</b> Cada terminal pide el mostrador cada quince segundos (cada tres con
+     * la ventana adelante), y desde la 2.6.39 también minimizado. Armarlo es traer de Supabase
+     * quién está adentro, las marcas del día y los avisos, cada fila con la ficha del socio.
+     * En septiembre de 2026 eso fueron ~750 MB por día hábil para UN gimnasio, y el proyecto se
+     * pasó del plan gratis en 12 días. Casi todos esos pedidos devolvían exactamente lo mismo
+     * que el anterior.</p>
+     *
+     * <p><b>Cómo se sabe que no cambió nada.</b> Por una marca de tres partes, cada una una
+     * sola fila: la de los accesos (la misma que {@code /novedades}), la de los rechazos del
+     * molinete y la de las fichas de los socios —un cobro cambia el veredicto de un aviso sin
+     * que pase nada en la puerta—. Más la fecha, para que a medianoche "hoy" sea otro día.</p>
+     *
+     * <p><b>Y aun sin cambios, la foto vence al minuto.</b> Hay cosas que cambian solas con el
+     * reloj: un socio que se vence a media tarde, el ingreso por QR que sale de la ventana de
+     * cinco minutos. Un minuto de atraso en eso no lo nota nadie.</p>
+     *
+     * <p>Cada instancia del servidor tiene su foto, y está bien: la marca se lee siempre de la
+     * base, así que ninguna puede servir algo que otra ya cambió.</p>
+     */
+    static final long FOTO_VIGENTE_MS = 60_000;
+
+    private record Foto(String marca, long vence, Map<String, Object> cuerpo) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<UUID, Foto> fotos =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** El reloj de la foto. Los tests lo adelantan para no esperar un minuto. */
+    java.util.function.LongSupplier reloj = System::currentTimeMillis;
+
     @GetMapping("/mostrador")
     public ResponseEntity<Map<String, Object>> mostrador() {
+        UUID tenantId = com.veltronik.v2.core.security.TenantContextHolder.getTenantId();
+        if (tenantId == null) return ResponseEntity.ok(armarMostrador());
+
+        // La marca se lee ANTES de armar. Si algo cambia mientras se arma, la foto queda
+        // guardada con la marca vieja y el próximo pedido la rehace. Al revés sería guardar
+        // una foto vieja con la marca nueva, y servirla como si estuviera al día.
+        String marca = accessService.marcaDeAccesos()
+                + "|" + molineteService.marcaDeRechazos()
+                + "|" + memberService.marcaDelGimnasio()
+                + "|" + LocalDate.now(ZONA_DEL_NEGOCIO);
+        long ahora = reloj.getAsLong();
+
+        Foto foto = fotos.get(tenantId);
+        if (foto != null && foto.marca().equals(marca) && ahora < foto.vence()) {
+            return ResponseEntity.ok(foto.cuerpo());
+        }
+
+        Map<String, Object> cuerpo = armarMostrador();
+        fotos.put(tenantId, new Foto(marca, ahora + FOTO_VIGENTE_MS,
+                java.util.Collections.unmodifiableMap(cuerpo)));
+        return ResponseEntity.ok(cuerpo);
+    }
+
+    private static final java.time.ZoneId ZONA_DEL_NEGOCIO =
+            java.time.ZoneId.of("America/Argentina/Buenos_Aires");
+
+    private Map<String, Object> armarMostrador() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
 
@@ -90,10 +152,11 @@ public class GymAccessController {
         // un dia entero, cada una con la ficha completa del socio, es cientos de fichas
         // viajando por la conexion del gimnasio cada quince segundos para pintar 30 renglones
         // y dos numeros. Los dos numeros vienen calculados aparte, sobre el dia COMPLETO.
-        List<com.veltronik.v2.gym.entities.AccessLog> deHoy = accessService.getTodayAccesses();
-        AccessLogService.ResumenDelDia resumen = accessService.resumirDia(deHoy);
-        body.put("hoy", accessMapper.toDtoList(
-                deHoy.size() > CUANTOS_DE_HOY ? deHoy.subList(0, CUANTOS_DE_HOY) : deHoy));
+        //
+        // 🔴 Y el recorte lo hace la BASE. Antes se traía el día entero y se cortaba acá, y lo
+        // que Supabase cobra es lo que sale de la base, no lo que llega a la pantalla.
+        AccessLogService.ResumenDelDia resumen = accessService.resumenDeHoy();
+        body.put("hoy", accessMapper.toDtoList(accessService.ultimosDeHoy(CUANTOS_DE_HOY)));
         body.put("hoyTotal", resumen.total());
         body.put("hoyPromedioMin", resumen.promedioMin());
 
@@ -132,7 +195,7 @@ public class GymAccessController {
         // pedido se repite cada quince segundos— pero la ventana es de 5 minutos, así que
         // casi siempre viaja una lista vacía.
         body.put("ingresos", accessService.ingresosRecientes());
-        return ResponseEntity.ok(body);
+        return body;
     }
 
     /**

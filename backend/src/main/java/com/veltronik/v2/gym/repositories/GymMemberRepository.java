@@ -40,6 +40,22 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      */
     @EntityGraph(attributePaths = "plan")
     java.util.Optional<GymMember> findWithPlanById(UUID id);
+
+    /**
+     * La MARCA de los socios del gimnasio: cambia con cada alta, edición, cobro que corre el
+     * vencimiento, baja o borrado. Una sola fila, sobre el índice de {@code tenant_id}.
+     *
+     * <p>El mostrador la usa para saber si puede reusar lo que ya armó: el veredicto de cada
+     * aviso sale de la ficha del socio, así que un cobro tiene que invalidar la foto aunque en
+     * la puerta no haya pasado nada.</p>
+     */
+    @Query(value = """
+            SELECT count(*) || ':' || coalesce(to_char(max(updated_at), 'YYYYMMDDHH24MISSUS'), '-')
+            FROM gym_member
+            WHERE tenant_id = :tenantId
+            """, nativeQuery = true)
+    String marcaDelGimnasio(@Param("tenantId") UUID tenantId);
+
     long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
 
     /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */

@@ -31,6 +31,32 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     @EntityGraph(attributePaths = "member")
     List<AccessLog> findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(UUID tenantId, LocalDateTime start, LocalDateTime end);
 
+    /**
+     * Lo mismo, pero solo las primeras {@code pagina.getPageSize()}: el LIMIT va en la base.
+     *
+     * <p>🔴 <b>Recortar la respuesta NO recorta lo que sale de la base.</b> El mostrador mandaba
+     * 60 filas, pero para elegirlas traía de Supabase el día entero, cada fila con la ficha
+     * completa del socio. Supabase cobra lo que sale de la base hacia el servidor, no lo que
+     * llega a la pantalla: en septiembre de 2026 un solo gimnasio gastaba ~750 MB por día
+     * hábil y el proyecto se pasó del plan en 12 días.</p>
+     */
+    @EntityGraph(attributePaths = "member")
+    List<AccessLog> findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(
+            UUID tenantId, LocalDateTime start, LocalDateTime end,
+            org.springframework.data.domain.Pageable pagina);
+
+    /**
+     * Entrada y salida de cada visita del rango: lo justo para contar el total y el promedio
+     * del día, sin traer una sola ficha de socio.
+     */
+    @Query("""
+            SELECT a.checkInAt, a.checkOutAt FROM AccessLog a
+            WHERE a.tenant.id = :tenantId AND a.checkInAt BETWEEN :desde AND :hasta
+            """)
+    List<Object[]> horariosEntre(@Param("tenantId") UUID tenantId,
+                                 @Param("desde") LocalDateTime desde,
+                                 @Param("hasta") LocalDateTime hasta);
+
     /** Últimos accesos del tenant (para el feed de actividad del equipo). */
     @EntityGraph(attributePaths = "member")
     List<AccessLog> findTop25ByTenantIdOrderByCheckInAtDesc(UUID tenantId);
@@ -129,13 +155,6 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     List<AccessLog> findByCheckOutAtIsNullAndCheckInAtBefore(LocalDateTime limite);
 
     /**
-     * Accesos por QR de hoy que el mostrador todavía no atendió, del más nuevo al más viejo.
-     *
-     * <p><b>Solo los del QR, a propósito.</b> Los que carga la recepcionista a mano ya los vio
-     * ella: la pantalla le muestra el estado del socio cuando lo elige de la lista. El aviso
-     * existe justamente para los que entraron SIN que nadie los mirara.</p>
-     */
-    /**
      * Los pasos por QR desde un momento dado, sin filtrar por aviso.
      *
      * <p>Distinto del de abajo: aquel trae solo los que le faltan atención al mostrador.
@@ -145,9 +164,35 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     List<AccessLog> findByTenantIdAndAccessMethodAndCheckInAtAfterOrderByCheckInAtDesc(
             UUID tenantId, String accessMethod, LocalDateTime desde);
 
-    @EntityGraph(attributePaths = "member")
-    List<AccessLog> findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
-            UUID tenantId, String accessMethod, LocalDateTime desde);
+    /**
+     * Accesos por QR de hoy que el mostrador todavía no atendió y cuyo socio NO está al día,
+     * del más nuevo al más viejo.
+     *
+     * <p><b>Solo los del QR, a propósito.</b> Los que carga la recepcionista a mano ya los vio
+     * ella: la pantalla le muestra el estado del socio cuando lo elige de la lista. El aviso
+     * existe justamente para los que entraron SIN que nadie los mirara.</p>
+     *
+     * <p>🔴 <b>Por qué el "no está al día" va en la consulta.</b> Al socio al día nadie le marca
+     * el aviso como visto —no hay aviso que ver—, así que su acceso queda "sin atender" para
+     * siempre. Sin este filtro, la consulta traía casi todas las entradas por QR del día, con la
+     * ficha de cada socio, para descartarlas en Java una por una: un día entero de fichas
+     * saliendo de Supabase cada quince segundos.</p>
+     *
+     * <p>⚠️ La condición es {@code MemberAccessPolicy.Verdict#necesitaAviso} escrita en SQL
+     * (al día = activo y con vencimiento en el futuro). Si esa regla cambia, esta también:
+     * {@code MostradorEgressTest} compara las dos para cada situación del socio y falla si
+     * dejan de coincidir.</p>
+     */
+    @Query("""
+            SELECT a FROM AccessLog a JOIN FETCH a.member m
+            WHERE a.tenant.id = :tenantId AND a.accessMethod = 'QR'
+              AND a.avisoVistoAt IS NULL AND a.checkInAt > :desde
+              AND (m.isActive = false OR m.membershipEnd IS NULL OR m.membershipEnd <= :ahora)
+            ORDER BY a.checkInAt DESC
+            """)
+    List<AccessLog> qrSinAtenderQueNoEstanAlDia(@Param("tenantId") UUID tenantId,
+                                                @Param("desde") LocalDateTime desde,
+                                                @Param("ahora") LocalDateTime ahora);
 
     /**
      * A cuántos socios DISTINTOS marcó este teléfono desde {@code desde}.

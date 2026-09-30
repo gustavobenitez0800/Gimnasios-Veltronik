@@ -534,12 +534,9 @@ class AccessLogServiceTest {
     @DisplayName("los números del día")
     class ResumenDelDia {
 
-        private AccessLog visita(int entroHaceMin, Integer duroMin) {
-            AccessLog a = new AccessLog();
+        private AccessLogService.Horario visita(int entroHaceMin, Integer duroMin) {
             LocalDateTime entrada = LocalDateTime.now().minusMinutes(entroHaceMin);
-            a.setCheckInAt(entrada);
-            if (duroMin != null) a.setCheckOutAt(entrada.plusMinutes(duroMin));
-            return a;
+            return new AccessLogService.Horario(entrada, duroMin == null ? null : entrada.plusMinutes(duroMin));
         }
 
         // ⭐ POR QUÉ SE CALCULAN ACÁ: la pantalla muestra 30 filas pero los números son de
@@ -548,7 +545,7 @@ class AccessLogServiceTest {
         @Test
         @DisplayName("el total es el del día entero, no el de lo que se manda")
         void elTotalEsDelDiaEntero() {
-            var r = service.resumirDia(java.util.List.of(
+            var r = AccessLogService.resumir(java.util.List.of(
                     visita(180, 60), visita(120, 90), visita(60, null)));
 
             assertEquals(3, r.total());
@@ -559,7 +556,7 @@ class AccessLogServiceTest {
         void promedioSoloDeLasCerradas() {
             // El que todavía está adentro no tiene duración: meterlo como cero hundiría el
             // promedio, y justo a las horas de más gente.
-            var r = service.resumirDia(java.util.List.of(
+            var r = AccessLogService.resumir(java.util.List.of(
                     visita(180, 60), visita(120, 90), visita(10, null)));
 
             assertEquals(75, r.promedioMin());
@@ -569,7 +566,7 @@ class AccessLogServiceTest {
         @DisplayName("sin ninguna visita cerrada el promedio es NULL, no cero")
         void sinCerradasNoHayPromedio() {
             // Cero diría que la gente entra y sale en el acto. "Todavía no sé" es otra cosa.
-            var r = service.resumirDia(java.util.List.of(visita(30, null)));
+            var r = AccessLogService.resumir(java.util.List.of(visita(30, null)));
 
             assertEquals(1, r.total());
             assertNull(r.promedioMin());
@@ -578,7 +575,7 @@ class AccessLogServiceTest {
         @Test
         @DisplayName("un día sin nadie no rompe")
         void diaVacio() {
-            var r = service.resumirDia(java.util.List.of());
+            var r = AccessLogService.resumir(java.util.List.of());
             assertEquals(0, r.total());
             assertNull(r.promedioMin());
         }

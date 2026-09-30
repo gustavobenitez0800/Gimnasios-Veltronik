@@ -44,13 +44,19 @@ public class KillSwitchFilter extends OncePerRequestFilter {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
 
     /**
-     * PERF: caché de veredictos PERMITIDOS (tenant → vencimiento del veredicto, 30 s).
+     * PERF: caché de veredictos PERMITIDOS (tenant → vencimiento del veredicto, 5 min).
      * Sin esto, CADA request pagaba 2 queries a la BD remota (tenant + suscripción) antes
      * de llegar al endpoint. Solo se cachea el ALLOW: un tenant bloqueado siempre golpea
      * la BD, así el desbloqueo tras un pago es INMEDIATO; el caso inverso (venció hace
-     * segundos) se tolera ≤30 s — el cobro no corre riesgo.
+     * un rato) se tolera ≤5 min — el cobro no corre riesgo.
+     *
+     * <p>⚠️ Eran 30 s, y era caro: {@code findById} trae el {@code Tenant} ENTERO, logo
+     * incluido (un data URI de 30-60 KB). Con el escritorio preguntando cada 2 segundos, el
+     * caché se vencía y se recargaba todo el día: ~1.700 logos por día por gimnasio saliendo
+     * de Supabase, que cobra lo que sale de la base (ver {@code GymAccessController#mostrador}).
+     * Cinco minutos lo divide por diez sin cambiar nada que alguien pueda notar.</p>
      */
-    private static final long ALLOW_TTL_MS = 30_000;
+    private static final long ALLOW_TTL_MS = 5 * 60_000;
     private final java.util.concurrent.ConcurrentHashMap<UUID, Long> allowCache =
             new java.util.concurrent.ConcurrentHashMap<>();
 
