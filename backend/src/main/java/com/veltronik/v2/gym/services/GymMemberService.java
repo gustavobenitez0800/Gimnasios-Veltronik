@@ -205,6 +205,7 @@ public class GymMemberService {
         // donde alguien cuela el id de un socio de otro negocio.
         com.veltronik.v2.gym.entities.GymPlan plan =
                 planId == null ? null : planService.findByIdAndVerifyOwnership(planId);
-        return repository.asignarArancel(TenantContextHolder.getTenantId(), ids, plan);
+        return repository.asignarArancel(TenantContextHolder.getTenantId(), ids, plan,
+                java.time.LocalDateTime.now());
     }
 }

@@ -71,13 +71,22 @@ class MostradorEgressTest extends EmbeddedPostgresTest {
         gym = crearGimnasio();
         TenantContextHolder.setTenantId(gym);
         ahoraFalso = System.currentTimeMillis();
-        controller.reloj = () -> ahoraFalso;
+        elDeVerdad().reloj = () -> ahoraFalso;
         stats().setStatisticsEnabled(true);
+    }
+
+    /**
+     * El reloj se le cambia al controlador de ADENTRO: si algún día lleva un
+     * {@code @PreAuthorize}, Spring lo envuelve en un proxy y un campo escrito en el proxy no lo
+     * ve nadie (ya pasó en {@code ListaDeSociosEgressTest}).
+     */
+    private GymAccessController elDeVerdad() {
+        return org.springframework.test.util.AopTestUtils.getUltimateTargetObject(controller);
     }
 
     @AfterEach
     void limpiar() {
-        controller.reloj = System::currentTimeMillis;
+        elDeVerdad().reloj = System::currentTimeMillis;
         TenantContextHolder.clear();
         tx.executeWithoutResult(st -> {
             for (UUID t : gimnasios) {

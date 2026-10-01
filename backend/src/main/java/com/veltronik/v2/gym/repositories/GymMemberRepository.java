@@ -45,12 +45,21 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * La MARCA de los socios del gimnasio: cambia con cada alta, edición, cobro que corre el
      * vencimiento, baja o borrado. Una sola fila, sobre el índice de {@code tenant_id}.
      *
-     * <p>El mostrador la usa para saber si puede reusar lo que ya armó: el veredicto de cada
-     * aviso sale de la ficha del socio, así que un cobro tiene que invalidar la foto aunque en
-     * la puerta no haya pasado nada.</p>
+     * <p>El mostrador y la lista de socios la usan para saber si pueden reusar lo que ya
+     * trajeron de la base: el veredicto de cada aviso sale de la ficha del socio, así que un
+     * cobro tiene que invalidar la foto aunque en la puerta no haya pasado nada.</p>
+     *
+     * <p>⚠️ Depende de que toda escritura mueva {@code updated_at}. Las que pasan por la
+     * entidad lo hacen solas ({@code @PreUpdate}); un UPDATE masivo tiene que hacerlo a mano,
+     * como {@link #asignarArancel}.</p>
+     *
+     * <p>⚠️ <b>La SUMA y no el máximo.</b> Dos cobros de socios distintos en el mismo segundo:
+     * el que termina último puede llevar una hora ANTERIOR a la del otro (se tomó antes y tardó
+     * más en guardarse). El máximo no se mueve y ese cobro quedaría fuera de la foto. La suma
+     * cambia con cualquier fila que cambie, porque la hora de una fila solo puede avanzar.</p>
      */
     @Query(value = """
-            SELECT count(*) || ':' || coalesce(to_char(max(updated_at), 'YYYYMMDDHH24MISSUS'), '-')
+            SELECT count(*) || ':' || coalesce(sum(extract(epoch FROM updated_at))::text, '-')
             FROM gym_member
             WHERE tenant_id = :tenantId
             """, nativeQuery = true)
@@ -241,13 +250,21 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
      * sesión de Hibernate quedó viejo: sin limpiarla, una lectura posterior devolvería el
      * valor anterior desde su caché de primer nivel.</p>
      *
+     * <p>⚠️ <b>Y mueve {@code updatedAt} a mano.</b> Un UPDATE masivo no pasa por el
+     * {@code @PreUpdate} de la entidad. Sin esto la marca de los socios
+     * ({@link #marcaDelGimnasio}) no cambia, y la lista que sirve {@code GET /gym/members} desde
+     * su foto seguiría mostrando el arancel viejo — el que el cobro pre-elige.</p>
+     *
+     * @param ahora el mismo reloj que usa {@code BaseEntity} para sus marcas
      * @return cuántas filas cambiaron de verdad
      */
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE GymMember m SET m.plan = :plan WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.id IN :ids")
+    @Query("UPDATE GymMember m SET m.plan = :plan, m.updatedAt = :ahora "
+         + "WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND m.id IN :ids")
     int asignarArancel(@Param("tenantId") UUID tenantId,
                        @Param("ids") java.util.Collection<UUID> ids,
-                       @Param("plan") com.veltronik.v2.gym.entities.GymPlan plan);
+                       @Param("plan") com.veltronik.v2.gym.entities.GymPlan plan,
+                       @Param("ahora") java.time.LocalDateTime ahora);
 
     // ── Para el importador (V84) ───────────────────────────────────────────────
 
