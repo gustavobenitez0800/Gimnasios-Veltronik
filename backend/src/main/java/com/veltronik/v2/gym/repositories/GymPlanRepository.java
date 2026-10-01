@@ -22,6 +22,20 @@ public interface GymPlanRepository extends JpaRepository<GymPlan, UUID> {
     List<GymPlan> findByTenantIdOrderByIsActiveDescPriceAsc(UUID tenantId);
 
     /**
+     * La MARCA de los aranceles del gimnasio: cambia con cada alta, edición o baja. Una fila.
+     *
+     * <p>La lista de socios lleva el nombre del arancel de cada uno, así que renombrar
+     * "Mensual" tiene que invalidar la foto de la lista aunque ningún socio haya cambiado.
+     * La suma y no el máximo, por lo mismo que {@code GymMemberRepository#marcaDelGimnasio}.</p>
+     */
+    @Query(value = """
+            SELECT count(*) || ':' || coalesce(sum(extract(epoch FROM updated_at))::text, '-')
+            FROM gym_plan
+            WHERE tenant_id = :tenantId
+            """, nativeQuery = true)
+    String marcaDelGimnasio(@Param("tenantId") UUID tenantId);
+
+    /**
      * Busca por nombre sin distinguir mayúsculas ni acentos de más.
      *
      * <p>Existe para el alta: "Pase Libre" y "pase libre" son el mismo arancel para quien

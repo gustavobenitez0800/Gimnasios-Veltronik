@@ -2,6 +2,7 @@ import apiClient from '../lib/apiClient';
 import { sinConexion } from '../lib/conexion';
 import {
   prepararSocios, buscarSocios, estadoSocios, refrescarSocios, agregarSocioLocal, listarSocios,
+  refrescarSiHaceMas, REFRESCO_SI_NO_ESTA_MS,
 } from '../lib/localMembers';
 import {
   encolarPendiente, disponible, nuevoSello, cuantosPendientes,
@@ -287,7 +288,14 @@ class MemberService {
       // carga y esta búsqueda cae al backend. La siguiente ya va a ser local.
       prepararSocios(tenantId).catch(() => {});
       const { vacia } = estadoSocios();
-      if (!vacia) return buscarSocios(search, 20);
+      if (!vacia) {
+        const encontrados = buscarSocios(search, 20);
+        // Nadie con eso en la copia: puede ser alguien que se dio de alta hace un rato en
+        // OTRA máquina. Se pide la lista sin esperar al minuto, así la búsqueda siguiente ya
+        // lo encuentra — como antes, cuando se pedía en cada búsqueda.
+        if (!encontrados.length) refrescarSiHaceMas(tenantId, REFRESCO_SI_NO_ESTA_MS).catch(() => {});
+        return encontrados;
+      }
     }
 
     // ── Respaldo: la primera búsqueda antes de que baje la lista, o si no hay
