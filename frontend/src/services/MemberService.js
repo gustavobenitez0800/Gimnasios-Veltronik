@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { sinConexion } from '../lib/conexion';
 import {
   prepararSocios, buscarSocios, estadoSocios, refrescarSocios, agregarSocioLocal, listarSocios,
 } from '../lib/localMembers';
@@ -33,7 +34,7 @@ class MemberService {
    * exportar— sigue sin poder hacerse, y falla como siempre.</p>
    */
   async getMembersPaged(page = 0, size = 50, search = '') {
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
 
     // Sin red ni se intenta: serían pedidos condenados a fallar, cada uno con su plazo de
     // espera y sus reintentos, apilándose mientras alguien mira la pantalla vacía.
@@ -140,7 +141,7 @@ class MemberService {
     const id = memberData?.id || nuevoSello();
     const cuerpo = { ...memberData, id };
 
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolarPendiente({ ...cuerpo, tipo: 'ALTA', clientRef: id });
       if (ref) {

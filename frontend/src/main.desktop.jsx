@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import DesktopRoutes from './routes/DesktopRoutes.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { vigilarLaConexion } from './lib/conexion';
 
 // ── Fase 3: cada arranque re-verifica a qué sucursal pertenece este equipo ──
 // Se borra la sucursal guardada ANTES de montar nada, para que el arranque pase sí o sí
@@ -20,6 +21,12 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 try {
   localStorage.removeItem('current_org_id');
 } catch { /* sin storage: DeviceGate resuelve igual */ }
+
+// ── ¿Hay servidor? Se pregunta YA, antes de montar nada ──
+// El arranque decide con esto si abre con lo guardado en el equipo o le pregunta a la nube, y
+// cuanto antes se sepa, menos gira el logo. Desde acá, además, un corte deja de costar un
+// plazo de espera por clic: ver lib/conexion.
+vigilarLaConexion();
 
 const rootEl = document.getElementById('root');
 if (!rootEl) {

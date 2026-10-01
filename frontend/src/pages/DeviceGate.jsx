@@ -27,6 +27,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { gymService, deviceService, errorService } from '../services';
 import CONFIG from '../lib/config';
+import { sinConexion } from '../lib/conexion';
 import Icon from '../components/Icon';
 import logoSrc from '../assets/LogotipoSecundario.png';
 
@@ -182,8 +183,12 @@ export default function DeviceGate() {
     // BORRA `current_org_id`, así que el mostrador quedaba sin saber de qué gimnasio es la
     // copia de socios que tiene en el disco. La pantalla que existe para identificar el
     // equipo terminaba dejándolo más perdido que antes de entrar.
+    //
+    // ⚠️ "Sin red" es `sinConexion()`, no `navigator.onLine`: con el router prendido y sin
+    // internet —el corte más común— Windows dice que hay red, y esta pantalla se quedaba
+    // "Identificando…" hasta que los dos pedidos de abajo se daban por vencidos.
     const recordadaAlArrancar = sucursalRecordada();
-    if (recordadaAlArrancar && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (recordadaAlArrancar && sinConexion()) {
       console.warn('[DeviceGate] sin red: se entra con la sucursal recordada');
       await entrarA(recordadaAlArrancar.id, recordadaAlArrancar.name, recordadaAlArrancar.role, { sinRed: true });
       return;
@@ -344,7 +349,7 @@ export default function DeviceGate() {
 
   return (
     <div className="auth-card" style={{ maxWidth: '460px' }}>
-      <img src={logoSrc} alt="Veltronik" style={{ height: '44px', margin: '0 auto 1.5rem', display: 'block' }} />
+      <img src={logoSrc} alt="Veltronik" className="marca-centrada" style={{ height: '44px', margin: '0 auto 1.5rem', display: 'block' }} />
 
       {estado === 'cargando' && (
         <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>

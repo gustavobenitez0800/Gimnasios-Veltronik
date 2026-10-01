@@ -21,6 +21,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import apiClient from '../lib/apiClient';
 import { portalUrl } from '../lib/portal';
 import { useToast } from '../contexts/ToastContext';
+import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
 import Icon from './Icon';
 
 const clave = () => `veltronik_qr_entrada_${localStorage.getItem('current_org_id') || ''}`;
@@ -57,6 +58,9 @@ export default function QrParaEscanear({ puedeCrear }) {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+  // Abierto sin conexión decía "sin conexión" hasta salir y volver a entrar. Ahora se trae
+  // apenas vuelve.
+  useAlPonerseAlDia(cargar);
 
   const crear = async () => {
     setCreando(true);

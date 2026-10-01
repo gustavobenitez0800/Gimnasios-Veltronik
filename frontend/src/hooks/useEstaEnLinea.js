@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sinConexion, alCambiarLaConexion } from '../lib/conexion';
 
 /**
  * ¿Hay red ahora mismo? Reactivo, para que la pantalla pueda decir la verdad.
@@ -14,30 +15,29 @@ import { useEffect, useState } from 'react';
  * creciente. Son pedidos condenados a fallar que se apilan y que además tapan el problema:
  * cuanto más se insiste, más tarda en aparecer la respuesta honesta.</p>
  *
- * <p><b>⚠️ `navigator.onLine` dice poco, y por eso solo se usa para lo que sí sabe.</b> Un
- * `false` es confiable —la placa de red está caída, no hay a dónde mandar nada—; un `true`
- * solo significa que hay una interfaz levantada, no que el servidor esté del otro lado. Acá se
- * usa nada más que para dejar de insistir y para poder decir "sin conexión". Nunca para
- * afirmar que algo está funcionando.</p>
+ * <p><b>⚠️ La respuesta es la de `lib/conexion`, no la de `navigator.onLine`.</b> Ese dato dice
+ * poco: con el router prendido y sin internet da true, y así esta pantalla creía tener red y
+ * seguía insistiendo. En el escritorio, `lib/conexion` sabe además si el SERVIDOR contesta, y
+ * avisa cuando vuelve — que es cuando la pantalla tiene que ponerse al día. En la web responde
+ * lo mismo que `navigator.onLine`.</p>
  */
 export function useEstaEnLinea() {
-  const [enLinea, setEnLinea] = useState(
-    () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false),
-  );
+  const [enLinea, setEnLinea] = useState(() => !sinConexion());
 
   useEffect(() => {
-    const prendio = () => setEnLinea(true);
-    const apago = () => setEnLinea(false);
+    const actualizar = () => setEnLinea(!sinConexion());
 
-    window.addEventListener('online', prendio);
-    window.addEventListener('offline', apago);
+    window.addEventListener('online', actualizar);
+    window.addEventListener('offline', actualizar);
+    const soltar = alCambiarLaConexion(actualizar);
 
     // Por si cambió entre el primer render y el momento en que se engancharon los oyentes.
-    if (typeof navigator !== 'undefined') setEnLinea(navigator.onLine !== false);
+    actualizar();
 
     return () => {
-      window.removeEventListener('online', prendio);
-      window.removeEventListener('offline', apago);
+      window.removeEventListener('online', actualizar);
+      window.removeEventListener('offline', actualizar);
+      soltar();
     };
   }, []);
 

@@ -29,6 +29,9 @@ const NETWORK_RETRY = { maxRetries: 1, baseDelayMs: 500, maxDelayMs: 3000, metho
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceId';
 import { getShiftId } from './shift';
+import {
+  cortado, vigila, sondear, avisarQueContesto, senalDelCorte, errorSinConexion,
+} from './conexion';
 
 /**
  * El token de la sesión, insistiendo un poco.
@@ -94,10 +97,41 @@ async function tokenDeLaSesion() {
  */
 const ES_RUTA_PUBLICA = (url) => String(url || '').includes('/public/');
 
+/**
+ * ⭐ SIN CONEXIÓN, EL PEDIDO NO SALE: FALLA EN EL ACTO.
+ *
+ * <p>Es lo que hace que el escritorio sin internet ande a la velocidad del clic. Cada servicio
+ * ya sabía caer a su copia local ante un corte, pero para enterarse del corte primero esperaba
+ * que el pedido muriera en la red —con su plazo y su reintento—, en cada clic. Declarado el
+ * corte (ver lib/conexion), el pedido se rechaza sin salir y la copia aparece al instante.</p>
+ *
+ * <p>Las LECTURAS que ya estaban en el aire, además, se sueltan en el momento del corte: sin
+ * eso, la primera pantalla después de perder la red se quedaba esperando su plazo entero. Las
+ * escrituras no: puede que ya hayan llegado, y cada una sabe qué hacer si no vuelve respuesta.</p>
+ */
+function frenarSiNoHayConexion(config) {
+  if (cortado()) throw errorSinConexion(config);
+}
+
+/** Cuelga de las lecturas la señal del corte (el segundo párrafo de arriba). */
+function soltarAlCortarse(config) {
+  const metodo = (config.method || 'get').toLowerCase();
+  if (!vigila() || metodo !== 'get') return;
+  const corte = senalDelCorte();
+  config.signal = config.signal && typeof AbortSignal.any === 'function'
+    ? AbortSignal.any([config.signal, corte])
+    : (config.signal || corte);
+  config.__cortable = true;
+}
+
 // Interceptor de REQUEST: Inyectar el Token JWT en cada petición
 apiClient.interceptors.request.use(
   async (config) => {
-    if (ES_RUTA_PUBLICA(config.url)) return config;
+    frenarSiNoHayConexion(config);
+    if (ES_RUTA_PUBLICA(config.url)) {
+      soltarAlCortarse(config);
+      return config;
+    }
 
     // ⚠️ UN PEDIDO SIN TOKEN ES UN 401 GARANTIZADO, Y UN 401 CIERRA LA SESIÓN.
     //
@@ -121,6 +155,11 @@ apiClient.interceptors.request.use(
       throw sinSesion;
     }
     config.headers.Authorization = `Bearer ${token}`;
+
+    // Otra vez, a propósito: leer la sesión puede haber tardado, y en ese rato el corte puede
+    // haberse declarado. No se manda a la red un pedido que ya se sabe que no va a llegar.
+    frenarSiNoHayConexion(config);
+    soltarAlCortarse(config);
 
     // Inyectar el Tenant seleccionado (Gimnasio).
     // Respeta un X-Tenant-ID seteado explícitamente por-request (ej: el Lobby, que
@@ -166,13 +205,44 @@ let unauthorizedHandled = false;
 
 // Interceptor de RESPONSE: Manejar errores globales (ej: 401 Unauthorized, 402 Payment Required)
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    avisarQueContesto();
+    return response;
+  },
   async (error) => {
     // ── Reintento de errores de RED en métodos idempotentes ──
     // Un error de transporte NO trae `error.response` (a diferencia de un 4xx/5xx).
     const config = error.config;
     const isNetworkError = !error.response;
     const method = (config?.method || 'get').toLowerCase();
+
+    // Contestó algo —aunque sea un error—: hay servidor.
+    if (error.response) avisarQueContesto();
+
+    // ── Sin conexión ya declarada: ni reintento ni espera ──
+    // O no salió (lo frenó el interceptor de arriba), o se soltó al declararse el corte. Las
+    // dos cosas se ven igual para quien pidió, a propósito: un solo error de "sin conexión",
+    // y no un "canceled" en inglés que alguna pantalla terminaría mostrando tal cual.
+    if (error?.sinConexion) return Promise.reject(error);
+    if (config?.__cortable && error?.code === 'ERR_CANCELED' && cortado()) {
+      return Promise.reject(errorSinConexion(config));
+    }
+
+    // ── En el escritorio, un pedido que murió en el transporte se pregunta por qué ──
+    // Se sondea el servidor UNA vez, con plazo corto. Si no contesta, queda declarado el
+    // corte (y desde ahí todo lo demás va a la copia en el acto) y este pedido falla ya, sin
+    // gastar su reintento. Si contesta, fue un parpadeo y el reintento de siempre sigue.
+    //
+    // ⚠️ El pedido que no salió por no poder leer la sesión (`sinSesion`) NO espera el sondeo:
+    // puede ser el servidor de sesiones y no el nuestro. Igual lo dispara, por las dudas.
+    if (config && isNetworkError && vigila()) {
+      if (error.sinSesion) {
+        sondear();
+      } else if (!(await sondear())) {
+        return Promise.reject(error);
+      }
+    }
+
     if (config && isNetworkError && NETWORK_RETRY.methods.includes(method)) {
       config.__retryCount = config.__retryCount || 0;
       if (config.__retryCount < NETWORK_RETRY.maxRetries) {

@@ -37,6 +37,7 @@
 // se corrompe con el enchufe; SQLite así configurado no. En el navegador sigue todo igual.
 
 import apiClient from './apiClient';
+import { sinConexion } from './conexion';
 import { situacionDe } from './situacionSocio';
 import { altasPendientes } from './colaAccesos';
 
@@ -234,8 +235,9 @@ export async function refrescarSocios(tenantId) {
   // de errores rojos que tapaban los de verdad, y hacía trabajar al equipo para nada.
   //
   // Lo que hay en memoria sigue estando: buscar anda igual. Y cuando vuelva la red, el
-  // temporizador de la pantalla y el evento `online` la ponen al día sin que nadie toque nada.
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return memoria.socios;
+  // temporizador de la pantalla y `VaciadorDeCola` (al volver la conexión) la actualizan sin
+  // que nadie toque nada.
+  if (sinConexion()) return memoria.socios;
 
   cargando = (async () => {
     try {
