@@ -55,6 +55,26 @@ export { REFRESCO_MS } from './frescura';
 let memoria = { tenantId: null, socios: [], actualizado: null };
 let cargando = null;
 
+// ⚠️ Cada cuánto, COMO MÁXIMO, una búsqueda vuelve a pedir la lista al servidor.
+//
+// El buscador del mostrador llama a `prepararSocios` en cada búsqueda, y eso bajaba la lista
+// ENTERA cada vez: una o dos descargas de todos los socios por cada DNI tipeado, contra lo
+// que dice el comentario de arriba. Sumado al mostrador, en septiembre de 2026 hizo pasar al
+// proyecto del plan gratis de Supabase en doce días (ver GymMemberController#getAllMembers).
+//
+// La copia ya se mantiene al día por otros caminos: el refresco de cada `REFRESCO_MS`, y el
+// que dispara cada alta, cobro o edición hecha EN ESTE equipo. Lo único que una búsqueda
+// aporta es traer lo que se cargó en OTRO equipo, y para eso alcanza una vez por minuto.
+export const REFRESCO_AL_BUSCAR_MS = 60 * 1000;
+
+// Y si la búsqueda NO ENCUENTRA a nadie, se pide antes: es justo el caso de alguien que se dio
+// de alta hace un rato en otra máquina y ahora está parado en el mostrador. Diez segundos de
+// piso para que tipear un DNI que no existe no sea una descarga por tecla.
+export const REFRESCO_SI_NO_ESTA_MS = 10 * 1000;
+
+// Cuándo salió el último pedido, haya andado o no: uno que falla tampoco se repite en cada tecla.
+let ultimoIntento = 0;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Dónde se guarda la copia
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,7 +227,8 @@ function normalizar(txt) {
 export async function prepararSocios(tenantId, { refrescar = true } = {}) {
   if (!tenantId) return;
 
-  if (memoria.tenantId !== tenantId) {
+  const otroGimnasio = memoria.tenantId !== tenantId;
+  if (otroGimnasio) {
     memoria = { tenantId, socios: [], actualizado: null };
     const guardado = await almacen.leer(tenantId);
     if (guardado?.socios?.length) {
@@ -216,9 +237,19 @@ export async function prepararSocios(tenantId, { refrescar = true } = {}) {
   }
 
   if (refrescar) {
-    // Sin await a propósito: que la pantalla no espere a la red para poder buscar.
-    refrescarSocios(tenantId).catch(() => {});
+    // Sin await a propósito: que la pantalla no espere a la red para poder buscar. Y no en
+    // cada llamada (ver REFRESCO_AL_BUSCAR_MS), salvo que la lista sea de otro gimnasio.
+    const pedido = otroGimnasio
+      ? refrescarSocios(tenantId)
+      : refrescarSiHaceMas(tenantId, REFRESCO_AL_BUSCAR_MS);
+    pedido.catch(() => {});
   }
+}
+
+/** Pide la lista al servidor solo si el último pedido salió hace más de `ms`. */
+export function refrescarSiHaceMas(tenantId, ms) {
+  if (Date.now() - ultimoIntento < ms) return cargando || Promise.resolve(memoria.socios);
+  return refrescarSocios(tenantId);
 }
 
 /**
@@ -242,6 +273,7 @@ export async function refrescarSocios(tenantId) {
       // Timeout corto: esto corre en el fondo y nadie lo está esperando. Si la conexión
       // está mal, mejor rendirse rápido y reintentar en el próximo ciclo que dejar una
       // petición colgada ocupando la única conexión buena que haya.
+      ultimoIntento = Date.now();
       const { data } = await apiClient.get('/gym/members', { timeout: 12000 });
       const lista = Array.isArray(data) ? data : (data?.content || []);
       const socios = lista.map(comprimir);
@@ -401,4 +433,5 @@ export function estadoSocios() {
 /** Al cambiar de sucursal o cerrar sesión: la lista de un gimnasio no sirve para otro. */
 export function olvidarSocios() {
   memoria = { tenantId: null, socios: [], actualizado: null };
+  ultimoIntento = 0;
 }
