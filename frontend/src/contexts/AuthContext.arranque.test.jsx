@@ -103,7 +103,7 @@ function volver() {
 function sinRed(hay) {
   Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
 }
-vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
+vi.mock('../assets/marca-veltronik.svg', () => ({ default: 'logo.svg' }));
 
 const { AuthProvider } = await import('./AuthContext');
 

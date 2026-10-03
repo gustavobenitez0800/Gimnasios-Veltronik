@@ -2,16 +2,13 @@
    VELTRONIK V2 - COMPLETE DESIGN SYSTEM
    ============================================ */
 
-/* ─── Google Fonts ─── */
-/* Inter = texto/UI. Space Grotesk = display (títulos): grotesca con carácter,
-   usada por equipos de producto serios; aporta identidad sin parecer plantilla.
-   Outfit (Pilates/Academia) y Montserrat (Club) son las de los verticales.
-   Cada familia que se agregue acá es peso real que baja el navegador: si ningún
-   `font-family` la nombra, sacala (así se fueron Playfair Display y Quicksand
-   cuando se dieron de baja Salón y Restaurante). */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Outfit:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap');
+/* ─── Tipografía ───
+   Una sola familia: Inter, empaquetada con la app (styles/fonts.css). Los títulos no usan otra
+   familia: usan Inter más pesada y más apretada (--font-display + --tracking-display). Hasta el
+   2026-09-22 convivían Inter, Space Grotesk y dos más que ninguna pantalla usaba, todas bajadas
+   de Google Fonts: sin internet el escritorio se quedaba sin ninguna. */
 
-/* â”€â”€â”€ CSS Variables â”€â”€â”€ */
+/* ─── CSS Variables ─── */
 :root {
   /* Primary — "Signal" blue: un solo acento confiado (no cyan candy). */
   --primary-50: #eff5ff;
@@ -111,8 +108,10 @@
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  /* Display (títulos): Space Grotesk con fallback a la UI font. */
-  --font-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Títulos: la misma Inter. Lo que los distingue es el peso y el espaciado, no otra familia. */
+  --font-display: var(--font-family);
+  /* Inter a tamaño grande se lee mejor apretada: es lo que recomienda su propia guía. */
+  --tracking-display: -0.022em;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -155,7 +154,7 @@
   --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.42);
 }
 
-/* â”€â”€â”€ Light Mode â”€â”€â”€ */
+/* ─── Light Mode ─── */
 /* ─── PALETA ───
    Veltronik tiene UNA identidad visual: la del gimnasio, definida arriba en :root.
 

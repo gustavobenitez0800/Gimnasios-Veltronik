@@ -131,17 +131,56 @@
 .action-btn-success { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
 .action-btn-success:hover { background: #22c55e; color: #fff; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4); }
 
-.action-btn-whatsapp { background: rgba(37, 211, 102, 0.15); color: #25d366; }
+/* Las acciones SECUNDARIAS en reposo son neutras: el color aparece al pasar el mouse. Con cinco
+   tintes distintos por fila la tabla parecía un tablero de luces, y la única que importa
+   (cobrar) no se distinguía de las demás. */
+.action-btn-whatsapp,
+.action-btn-payment,
+.action-btn-history,
+.action-btn-delete,
+.action-btn-mas { background: var(--bg-tertiary); color: var(--text-secondary); }
+
 .action-btn-whatsapp:hover { background: #25d366; color: #fff; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4); }
-
-.action-btn-payment { background: rgba(14, 165, 233, 0.15); color: var(--primary-500); }
 .action-btn-payment:hover { background: var(--primary-500); color: #fff; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4); }
-
-.action-btn-history { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
 .action-btn-history:hover { background: #a855f7; color: #fff; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4); }
-
-.action-btn-delete { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .action-btn-delete:hover { background: #ef4444; color: #fff; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); }
+.action-btn-mas:hover,
+.action-btn-mas[aria-expanded="true"] { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
+
+/* El lugar del botón que falta (un socio sin teléfono): la fila no se corre. */
+.action-btn-hueco { display: block; width: 30px; height: 30px; flex: none; }
+
+/* ─── El menú "⋯" de una fila (components/MenuDeAcciones) ─── */
+.menu-acciones {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  padding: 0.3rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.55);
+}
+.menu-acciones-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.menu-acciones-item:hover,
+.menu-acciones-item:focus-visible { background: var(--bg-tertiary); outline: none; }
+.menu-acciones-item.es-peligro { color: var(--error-500); }
+.menu-acciones-item.es-peligro:hover,
+.menu-acciones-item.es-peligro:focus-visible { background: rgba(239, 68, 68, 0.12); }
 
 /* Days Countdown */
 .days-countdown {
@@ -187,6 +226,11 @@
 }
 
 .table-filters { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+/* El buscador crece, pero deja lugar a los filtros EN EL MISMO RENGLÓN: con width 100% (el de
+   .form-input) empujaba el desplegable abajo, y la tarjeta medía el doble para dos controles. */
+.table-filters { flex: 1 1 auto; }
+.table-filters .form-input { flex: 1 1 260px; width: auto; min-width: 200px; }
+.table-filters .form-select { flex: 0 0 auto; }
 
 /* ─── Member Search in Payment Modal ─── */
 .member-search-container {
@@ -372,7 +416,7 @@
 
 .cobro-metodo.elegido {
   border-color: var(--primary-500);
-  background: var(--primary-soft);
+  background: color-mix(in srgb, var(--primary-500) 14%, transparent);
   color: var(--text-primary);
   font-weight: 600;
 }

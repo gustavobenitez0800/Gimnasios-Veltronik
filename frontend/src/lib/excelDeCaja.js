@@ -24,27 +24,18 @@
 // número de serie de Excel: dejárselo a la librería mete el huso horario de la PC en el medio.
 // ============================================
 
+import { nombreDeForma } from './formasDePago';
+
 // Con centavos: el contador suma la columna y tiene que llegar al total, centavo por centavo.
 const FORMATO_PLATA = '"$" #,##0.00;[Red]-"$" #,##0.00';
 const FORMATO_FECHA = 'dd/mm/yyyy';
 const FORMATO_HORA = 'hh:mm';
 
-const NOMBRE_METODO = {
-  cash: 'Efectivo',
-  transfer: 'Transferencia',
-  mercadopago: 'Mercado Pago',
-  mercado_pago: 'Mercado Pago',
-  mp: 'Mercado Pago',
-  card: 'Tarjeta',
-  other: 'Otro',
-};
-
 const ORIGEN_HISTORIAL = 'Historial importado';
 
-/** "cash", "CASH", "MERCADOPAGO"… → cómo se lee. */
+/** "cash", "CASH", "MERCADOPAGO"… → cómo se lee. El mismo nombre que la pantalla (formasDePago). */
 export function nombreDelMetodo(metodo) {
-  const clave = String(metodo || '').toLowerCase();
-  return NOMBRE_METODO[clave] || metodo || '';
+  return nombreDeForma(metodo);
 }
 
 const EXCEL_CERO = Date.UTC(1899, 11, 30);

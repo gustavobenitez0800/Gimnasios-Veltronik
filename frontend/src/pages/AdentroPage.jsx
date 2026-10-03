@@ -23,7 +23,7 @@
 import { useMemo } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { accessService, errorService } from '../services';
-import { getInitials, getRelativeTime } from '../lib/utils';
+import { getInitials, getRelativeTime, horaDe } from '../lib/utils';
 import { useQueryCache, useRefrescoAutomatico } from '../hooks';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
@@ -32,7 +32,6 @@ import StatCard from '../components/ui/StatCard';
 
 export default function AdentroPage() {
   const orgLabel = GYM.placeLabel;
-  const orgLabelCap = GYM.placeLabelCap;
   const { showToast } = useToast();
 
   const { data, loading, invalidate, isFetching } = useQueryCache(
@@ -89,7 +88,7 @@ export default function AdentroPage() {
   return (
     <div className="adentro-page">
       <PageHeader
-        title={`En el ${orgLabelCap}`}
+        title={`En el ${orgLabel}`}
         subtitle="Quién está adentro ahora y cómo viene el día"
         icon="barbell"
       />
@@ -106,11 +105,11 @@ export default function AdentroPage() {
         <div className="table-header">
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon name="barbell" size="1.2em" />
-            En el {orgLabelCap} ahora
+            En el {orgLabel} ahora
           </h3>
           <span className="people-count"><Icon name="users" size="1em" /> {checkedIn.length}</span>
         </div>
-        <div className="checked-in-list adentro-lista" style={{ padding: '0 1rem 1rem' }}>
+        <div className="checked-in-list adentro-lista">
           {loading ? (
             <div className="text-center text-muted" style={{ padding: '2rem' }}><span className="spinner" /> Cargando...</div>
           ) : checkedIn.length === 0 ? (
@@ -152,8 +151,8 @@ export default function AdentroPage() {
                   <tr key={log.id}>
                     <td data-label="Socio"><strong>{member?.fullName || 'Socio'}</strong></td>
                     <td data-label="DNI">{member?.dni || '-'}</td>
-                    <td data-label="Entrada">{log.checkInAt ? new Date(log.checkInAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
-                    <td data-label="Salida">{log.checkOutAt ? new Date(log.checkOutAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-success">Adentro</span>}</td>
+                    <td data-label="Entrada">{horaDe(log.checkInAt) || '-'}</td>
+                    <td data-label="Salida">{log.checkOutAt ? horaDe(log.checkOutAt) : <span className="badge badge-success">Adentro</span>}</td>
                     <td data-label="Método">
                       {(log.accessMethod || '').toLowerCase() === 'manual' ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>

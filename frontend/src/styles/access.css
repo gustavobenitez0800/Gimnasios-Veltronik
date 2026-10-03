@@ -81,6 +81,9 @@
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 0.5rem;
 }
+/* "Nadie en el gimnasio" y "Cargando" ocupan la fila entera: si no, quedaban centrados en la
+   primera columna, corridos a la izquierda. */
+.adentro-lista > .text-center { grid-column: 1 / -1; }
 
 /* ────────────────────────────────────────────────────────────
    EL AVISO DE ENTRADA, AL COSTADO IZQUIERDO
@@ -465,3 +468,17 @@
   .access-barra { margin-bottom: 1rem; }
   .access-cuerpo { margin-top: 1rem; }
 }
+
+/* ────────────────────────────────────────────────────────────
+   RETENCIÓN: las dos listas (vencen pronto / con la cuota vencida)
+   Los mismos renglones que "En el gimnasio", con el avatar del color de lo que le pasa.
+   (Vivía todo en estilos en línea, repetido en cada fila.)
+   ──────────────────────────────────────────────────────────── */
+.retencion-lista { display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto; }
+.retencion-fila { transition: opacity 0.2s; }
+.retencion-fila.esta-actualizando { opacity: 0.7; }
+.retencion-avatar { width: 40px; height: 40px; font-size: 0.8rem; font-weight: 700; }
+.retencion-avatar.es-aviso { background: linear-gradient(135deg, var(--warning-500), #d97706); }
+.retencion-avatar.es-vencido { background: linear-gradient(135deg, var(--error-500), var(--error-600)); }
+.retencion-detalle { font-size: var(--font-size-xs); color: var(--text-muted); }
+.retencion-vacio { padding: 2rem; }

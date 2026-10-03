@@ -104,9 +104,10 @@ describe('el Dashboard', () => {
   it('⭐ las últimas altas muestran su estado real, no "Inactivo" para todos', async () => {
     await pintar();
 
-    expect(filaDe('Beto Ríos').textContent).toContain('Activo');
+    // Las mismas palabras que Socios (ESTADOS_DEL_SOCIO): Al día, Vencido, Sin cuota, Baja.
+    expect(filaDe('Beto Ríos').textContent).toContain('Al día');
     expect(filaDe('Carla Paz').textContent).toContain('Vencido');
-    expect(filaDe('Dani Sosa').textContent).toContain('Inactivo');
+    expect(filaDe('Dani Sosa').textContent).toContain('Baja');
   });
 
   it('⭐ si el resumen no llega, no pinta ceros: dice que falló y deja reintentar', async () => {
@@ -196,6 +197,6 @@ describe('el Dashboard', () => {
 
     expect(texto()).toContain('y 10 más');
     const link = [...container.querySelectorAll('a')].find((a) => a.textContent.includes('Ver vencidos'));
-    expect(link.getAttribute('href')).toContain('estado=expired');
+    expect(link.getAttribute('href')).toContain('estado=vencido');
   });
 });

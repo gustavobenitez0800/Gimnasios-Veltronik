@@ -23,11 +23,11 @@ class ErrorService {
     this.errorMap = [
       {
         match: (msg) => msg.includes('Failed to fetch') || msg.includes('NetworkError'),
-        message: 'Error de conexión. Verifica tu conexión a internet e intenta nuevamente.',
+        message: 'No hay conexión con el servidor. Revisá el internet y probá de nuevo.',
       },
       {
         match: (msg) => msg.includes('timeout') || msg.includes('Timeout'),
-        message: 'La solicitud tardó demasiado. Intenta nuevamente.',
+        message: 'El servidor tardó demasiado en contestar. Probá de nuevo.',
       },
       {
         match: (msg) => msg.includes('Invalid login credentials'),
@@ -54,7 +54,7 @@ class ErrorService {
       },
       {
         match: (msg) => msg.includes('violates row-level security'),
-        message: 'No tienes permiso para realizar esta acción.',
+        message: 'No tenés permiso para hacer esto.',
       },
       {
         match: (msg) => msg.includes('foreign key constraint'),

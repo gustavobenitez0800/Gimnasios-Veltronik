@@ -3,6 +3,7 @@
 // ============================================
 
 import CONFIG from './config';
+import { nombreDeForma } from './formasDePago';
 
 /**
  * Conditional logging — el ÚNICO lugar sancionado para console.log de debug.
@@ -35,12 +36,16 @@ export function getInitials(name) {
 export function formatCurrency(amount, currency = 'ARS') {
   const n = Number(amount);
   const conCentavos = Number.isFinite(n) && Math.round(Math.abs(n) * 100) % 100 !== 0;
-  return new Intl.NumberFormat('es-AR', {
+  const formato = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency,
     minimumFractionDigits: conCentavos ? 2 : 0,
     maximumFractionDigits: conCentavos ? 2 : 0,
-  }).format(amount);
+  });
+  // Lo negativo con el mismo signo que las restas escritas a mano ("− $ 60.000"): Intl da
+  // "-$ 52.000", y en la misma tabla se veían dos guiones distintos para lo mismo.
+  if (Number.isFinite(n) && n < 0) return '− ' + formato.format(Math.abs(n));
+  return formato.format(amount);
 }
 
 /**
@@ -187,6 +192,18 @@ export function formatDate(date, options = {}) {
 }
 
 /**
+ * La hora de un momento, de 24: "17:26". Sin hourCycle, el ICU de algunas máquinas contesta
+ * "05:26 p. m.", que en un mostrador argentino no lo escribe nadie. Vacío si no hay dato o no
+ * se puede leer: nunca rompe la pantalla.
+ */
+export function horaDe(instante) {
+  if (!instante) return '';
+  const d = new Date(instante);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+}
+
+/**
  * Format time for display
  */
 export function formatTime(time) {
@@ -288,16 +305,7 @@ export function getStatusLabel(status) {
   return map[status] || 'Inactivo';
 }
 
-/**
- * Get payment method label
- */
+/** El nombre de una forma de pago, venga como venga escrita (ver lib/formasDePago). */
 export function getMethodLabel(method) {
-  const methods = {
-    cash: 'Efectivo',
-    card: 'Tarjeta',
-    transfer: 'Transferencia',
-    mercadopago: 'Mercado Pago',
-    other: 'Otro',
-  };
-  return methods[method] || method;
+  return method ? nombreDeForma(method) : method;
 }

@@ -26,14 +26,10 @@ import { arancelDelSocio } from '../controllers/formSocio';
 // traducción que usan Ajustes y Pagos: antes acá un Pase Semanal decía "7 días" y allá
 // "1 semana".
 import { queCubre } from '../lib/cobertura';
+import { FORMAS_DE_PAGO } from '../lib/formasDePago';
 
-/** Los mismos nombres y el mismo orden que usa la pantalla de Pagos. */
-const METODOS = [
-  { valor: 'cash', etiqueta: 'Efectivo' },
-  { valor: 'transfer', etiqueta: 'Transferencia' },
-  { valor: 'mercadopago', etiqueta: 'Mercado Pago' },
-  { valor: 'card', etiqueta: 'Tarjeta' },
-];
+/** Los mismos nombres y el mismo orden que Pagos y la Caja (lib/formasDePago). */
+const METODOS = FORMAS_DE_PAGO;
 
 export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCobrar }) {
   const [planId, setPlanId] = useState('');

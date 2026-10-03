@@ -5,6 +5,9 @@
    Each @import maps to a logical module.
    ============================================ */
 
+/* ─── La tipografía (Inter, empaquetada: anda sin internet) ─── */
+@import './styles/fonts.css';
+
 /* ─── Design Tokens & Themes ─── */
 @import './styles/variables.css';
 
