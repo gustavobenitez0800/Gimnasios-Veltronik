@@ -32,6 +32,9 @@ const year = new Date().getFullYear();
     {noindex
       ? <meta name="robots" content="noindex, follow" />
       : <meta name="robots" content="index, follow, max-image-preview:large" />}
+    {/* Prueba de que el sitio es nuestro ante Google Search Console. No borrarla: si
+        desaparece, Google da de baja la verificación y se pierde el acceso al panel. */}
+    <meta name="google-site-verification" content="-nEwruBMTxy110Nsn807bYprsKJvmnTNEkPjMEwZxRw" />
 
     <meta name="theme-color" content="#0b0e14" />
     <link rel="icon" type="image/png" href="/logo.png" />

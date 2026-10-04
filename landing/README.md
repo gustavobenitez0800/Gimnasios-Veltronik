@@ -112,8 +112,9 @@ Proyecto **nuevo**, distinto al del portal.
 
 ## Después del primer deploy
 
-- [ ] **Google Search Console**: verificar el dominio y mandar
-      `https://veltronik.com.ar/sitemap-index.xml`.
+- [x] **Google Search Console**: verificar el dominio y mandar
+      `https://veltronik.com.ar/sitemap-index.xml`. (Propiedad de prefijo de URL,
+      verificada con la etiqueta `google-site-verification` de `Base.astro`.)
 - [ ] **Poner el portal en `noindex`** (`frontend/index.html`). Hoy tiene
       `<meta name="robots" content="index, follow">` y compite contra la landing por las
       mismas búsquedas — con una página que es un formulario de login.
