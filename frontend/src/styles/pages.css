@@ -87,6 +87,9 @@
     inset 0 1px 0 var(--card-highlight);
 }
 
+/* Con más de un plan las tarjetas van apiladas: sin esto quedaban pegadas borde con borde. */
+.plans-card + .plans-card { margin-top: 1.5rem; }
+
 /* Reflejo especular superior (como el login), insetado para respetar el radio sin
    recortar el badge (no usamos overflow:hidden). */
 .plans-card::before {

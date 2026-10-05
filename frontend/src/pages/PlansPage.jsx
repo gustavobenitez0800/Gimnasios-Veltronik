@@ -31,6 +31,10 @@ export default function PlansPage() {
   const { gym, subscription } = useAuth();
   const [subscribing, setSubscribing] = useState(false);
   const [planes, setPlanes] = useState(null);
+  // Qué plan tiene abierto el formulario de tarjeta (solo cuenta cuando hay más de uno).
+  const [planElegido, setPlanElegido] = useState(null);
+  // Ese formulario se está armando o tiene un cobro en curso: no se cambia de plan en el medio.
+  const [formularioOcupado, setFormularioOcupado] = useState(false);
 
   // Respaldo si el backend no contesta: el muro de pago NO puede quedar en blanco — es la
   // única pantalla desde donde un cliente bloqueado puede volver a entrar. El precio sale
@@ -65,6 +69,25 @@ export default function PlansPage() {
       'Nuevas funciones y actualizaciones gratis',
     ],
   }];
+
+  // UN SOLO FORMULARIO DE TARJETA POR VEZ.
+  // Mercado Pago admite un único Card Payment Brick vivo por página. Al prenderse el premium
+  // esta pantalla pasó a montar dos —uno por plan— y quedó así: los dos formularios dibujados
+  // adentro de la tarjeta del primer plan, la del segundo vacía, y un "Cargando pago seguro…"
+  // que no terminaba nunca. Con un solo plan el formulario sale directo, como siempre; con
+  // más de uno se abre el del plan que el cliente elige, y elegir otro cierra el anterior.
+  //
+  // El botón del otro plan queda apagado mientras el formulario abierto se arma (un par de
+  // segundos) o cobra: sacar un Brick a medio armar deja colgado al siguiente, y cambiar de
+  // plan con un cobro andando es pedir dos suscripciones.
+  //
+  // Y recién cuando el backend contestó cuántos planes hay: mientras tanto se muestra la
+  // tarjeta de respaldo, y abrirle el formulario para sacárselo al llegar el segundo plan
+  // sería montar y desmontar el Brick en pleno arranque.
+  const planesListos = planes !== null;
+  const planConFormulario = !planesListos ? null
+    : planesAMostrar.length === 1 ? planesAMostrar[0].code
+    : planElegido;
 
   // Esta página NUNCA mete a nadie al sistema sola. Antes hacía
   // `if (isActiveSubscription(subscription)) navigate(DASHBOARD)`, con dos problemas:
@@ -175,20 +198,28 @@ export default function PlansPage() {
             </ul>
 
             {sucursalElegida ? (
-              <>
-                {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
-                <CardCheckout amount={Number(plan.price)} plan={plan.code} onSuccess={handleSuccess} />
+              plan.code === planConFormulario ? (
+                <>
+                  {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
+                  <CardCheckout amount={Number(plan.price)} plan={plan.code} onSuccess={handleSuccess} onBusyChange={setFormularioOcupado} />
 
-                {/* Respaldo: link clásico de Mercado Pago */}
-                <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={() => handleSubscribe(plan.code)} style={{ marginTop: '0.75rem' }}>
-                  {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
+                  {/* Respaldo: link clásico de Mercado Pago */}
+                  <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={() => handleSubscribe(plan.code)} style={{ marginTop: '0.75rem' }}>
+                    {subscribing ? <><span className="spinner" /> Procesando...</> : 'Prefiero pagar con el link de Mercado Pago'}
+                  </button>
+
+                  <div className="plans-secure">
+                    <Icon name="lock" size="0.9em" />
+                    <span>Pago seguro procesado por Mercado Pago</span>
+                  </div>
+                </>
+              ) : planesListos ? (
+                <button className="btn btn-primary plans-cta" disabled={formularioOcupado} onClick={() => setPlanElegido(plan.code)} style={{ marginBottom: 0 }}>
+                  Contratar {plan.name}
                 </button>
-
-                <div className="plans-secure">
-                  <Icon name="lock" size="0.9em" />
-                  <span>Pago seguro procesado por Mercado Pago</span>
-                </div>
-              </>
+              ) : (
+                <div className="plans-secure"><span className="spinner" /> Cargando…</div>
+              )
             ) : (
               <div className="plans-uptodate">
                 <div className="plans-uptodate-head">
