@@ -147,8 +147,9 @@ public class GymMemberController {
                             org.springframework.http.HttpStatus.CONFLICT,
                             "Ese identificador ya está en uso.");
                 }
-                // Es de este gimnasio: el alta ya entró. Se devuelve tal cual está.
-                return ResponseEntity.ok(memberMapper.toDto(yaEstaba, accessPolicy));
+                // Es de este gimnasio: el alta ya entró. Se devuelve tal cual está — releído
+                // con su arancel, que el de arriba no lo trae y el DTO lo necesita.
+                return ResponseEntity.ok(memberMapper.toDto(memberService.conSuArancel(yaEstaba), accessPolicy));
             }
         }
 

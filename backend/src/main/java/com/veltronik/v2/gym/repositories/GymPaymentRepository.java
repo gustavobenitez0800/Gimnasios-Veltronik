@@ -22,8 +22,16 @@ public interface GymPaymentRepository extends JpaRepository<GymPayment, UUID> {
      * ejecutar el efecto lateral —extender la cobertura del socio— por segunda vez. La otra
      * mitad, la que de verdad garantiza, es el índice único parcial de la V63: entre este
      * SELECT y el INSERT hay una ventana, y dos vaciados en paralelo pasan por ella.</p>
+     *
+     * <p><b>⚠️ Viene CON el arancel y con el socio.</b> Lo que sale de acá se le devuelve al
+     * terminal como respuesta del reintento, y ese DTO lleva los dos adentro. Sin traerlos en
+     * la consulta son proxies sin sesión: el reintento contesta 500 y la cola del terminal
+     * queda taponada (ver {@code ReintentoConArancelIntegrationTest}). Van los DOS nombrados:
+     * con el grafo, lo que no se nombra llega perezoso aunque la entidad diga EAGER.</p>
      */
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"member", "plan"})
     java.util.Optional<GymPayment> findByTenantIdAndClientRef(UUID tenantId, UUID clientRef);
+
     @Query("SELECT p FROM GymPayment p LEFT JOIN FETCH p.member LEFT JOIN FETCH p.plan WHERE p.tenant.id = :tenantId ORDER BY p.paymentDate DESC")
     List<GymPayment> findByTenantId(@Param("tenantId") UUID tenantId);
 

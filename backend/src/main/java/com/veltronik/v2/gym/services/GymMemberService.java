@@ -82,10 +82,32 @@ public class GymMemberService {
      * <p><b>No la use nadie para leer datos.</b> Para eso está
      * {@link #findByIdAndVerifyOwnership}, que verifica el gimnasio y es la que corresponde en
      * todos los demás casos. Acá solo interesa <i>si existe y de quién es</i>.</p>
+     *
+     * <p><b>⚠️ Tiene que ser {@code findById}, y por eso mismo lo que devuelve NO sirve para
+     * armar una respuesta.</b> La carga por clave primaria es la única que se saltea el filtro
+     * de gimnasio — con una consulta, el socio ajeno "no existe" y el alta le pisa la ficha—.
+     * Pero viene sin el arancel: para devolverlo al terminal está {@link #conSuArancel}.</p>
      */
     @Transactional(readOnly = true)
     public java.util.Optional<GymMember> buscarEnCualquierTenant(UUID id) {
         return repository.findById(id);
+    }
+
+    /**
+     * El mismo socio, releído con el arancel adentro, para devolverlo en un alta reintentada.
+     *
+     * <p><b>⚠️ Sin esto se tapona un gimnasio entero.</b> El DTO lleva el nombre del arancel y
+     * se arma fuera de la transacción: con el socio de {@link #buscarEnCualquierTenant} el
+     * arancel era un proxy sin sesión y el reintento contestaba 500. La cola del terminal
+     * reintenta un 500 para siempre y sube en orden, así que todo lo que venía detrás quedaba
+     * esperando. Le pasó a Santo Sport el 05/10/2026: 36 horas y 139 movimientos
+     * (ver {@code ReintentoConArancelIntegrationTest}).</p>
+     *
+     * @param socio uno que YA se verificó que es de este gimnasio
+     */
+    @Transactional(readOnly = true)
+    public GymMember conSuArancel(GymMember socio) {
+        return repository.findWithPlanById(socio.getId()).orElse(socio);
     }
 
     @Transactional(readOnly = true)
