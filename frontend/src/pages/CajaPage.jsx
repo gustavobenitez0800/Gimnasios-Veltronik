@@ -936,12 +936,15 @@ export default function CajaPage() {
         )}
       </Modal>
 
-      {/* ─── ANULAR UN MOVIMIENTO: el motivo queda registrado ─── */}
+      {/* ─── ANULAR UN MOVIMIENTO: el motivo queda registrado ───
+           ⚠️ <ModalActions> va ADENTRO del <form>, acá y en la ventana de abajo. Del 2026-09-02
+           al 2026-10-07 iban en la ranura `actions` del Modal, que se dibuja fuera del
+           formulario, y un <button type="submit"> fuera de su form no envía nada: "Anular" y
+           "Anotar" se podían apretar todo el día y no pasaba nada. */}
       <Modal
         isOpen={!!anulando}
         onClose={() => setAnulando(null)}
         title="Anular movimiento"
-        actions={<ModalActions onCancel={() => setAnulando(null)} saving={guardando} submitText="Anular" />}
       >
         <form onSubmit={confirmarAnulacion} noValidate>
           {anulando && (
@@ -962,6 +965,7 @@ export default function CajaPage() {
               puede hacer desaparecer de la lista es justamente lo que no queremos.
             </small>
           </div>
+          <ModalActions onCancel={() => setAnulando(null)} saving={guardando} submitText="Anular" />
         </form>
       </Modal>
 
@@ -970,7 +974,6 @@ export default function CajaPage() {
         isOpen={anotando}
         onClose={() => setAnotando(false)}
         title={movTipo === 'EGRESO' ? 'Anotar un gasto' : 'Anotar un ingreso'}
-        actions={<ModalActions onCancel={() => setAnotando(false)} saving={guardando} submitText="Anotar" />}
       >
         <form onSubmit={anotarMovimiento} noValidate>
           <div className="form-group">
@@ -1033,6 +1036,7 @@ export default function CajaPage() {
               </small>
             )}
           </div>
+          <ModalActions onCancel={() => setAnotando(false)} saving={guardando} submitText="Anotar" />
         </form>
       </Modal>
     </div>

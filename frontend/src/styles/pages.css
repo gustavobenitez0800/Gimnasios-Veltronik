@@ -858,6 +858,12 @@
   position: absolute;
   top: 1rem;
   right: 1rem;
+  /* ⚠️ Sin esto la ✕ casi no se puede apretar. El ícono de abajo (.lobby-blocked-icon) es un
+     bloque del ancho de la ventana con un `filter`, y un `filter` lo sube de capa: como viene
+     después en el documento, quedaba ENCIMA de la ✕ y se llevaba el clic. Medido el 2026-10-07
+     en "Eliminar gimnasio": de la ✕ solo respondía la franja de arriba. Pasa igual en el
+     cartel de pago, que usa estas mismas dos clases. */
+  z-index: 1;
   background: none;
   border: none;
   color: var(--text-muted);

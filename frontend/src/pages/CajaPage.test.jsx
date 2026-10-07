@@ -594,6 +594,118 @@ describe('los botones de gastos e ingresos', () => {
   });
 });
 
+/**
+ * ⚠️ ANOTAR Y ANULAR, APRETANDO LOS BOTONES DE VERDAD (2026-10-07).
+ *
+ * Del 2026-09-02 al 2026-10-07 "Anotar" y "Anular" no hacían NADA. Los dibujaba la ranura de
+ * acciones del Modal, que queda FUERA del <form>, y un <button type="submit"> fuera de su
+ * formulario no envía nada. Ningún test apretaba esos botones, así que estaba todo en verde:
+ * lo encontró el dueño queriendo anotar un gasto. Es el mismo error que ya había pasado en
+ * CobroRapido.
+ *
+ * Por eso acá no se dispara 'submit' sobre el form a mano: se aprieta el botón, como en la
+ * pantalla. Si el botón vuelve a quedar afuera, estos tests se ponen rojos.
+ */
+describe('⭐ anotar y anular un movimiento, apretando los botones', () => {
+
+  const EGRESO = {
+    id: 'm1', tipo: 'EGRESO', categoria: 'Limpieza', detalle: 'Semana del 1 al 7',
+    monto: 15000, metodo: 'CASH', hechoPorNombre: 'Carla', fecha: '2026-09-02T11:00:00',
+  };
+
+  const ventana = () => container.querySelector('.modal-container');
+  const botonExacto = (texto, dentroDe = container) => [...dentroDe.querySelectorAll('button')]
+    .find((b) => b.textContent.trim() === texto);
+
+  async function apretar(b) {
+    if (!b) throw new Error('no está el botón que se quería apretar');
+    await act(async () => { b.click(); });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await Promise.resolve(); });
+    }
+  }
+
+  async function escribirEn(input, valor) {
+    await act(async () => {
+      setValorNativo.call(input, valor);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('⭐ un gasto: en qué, cuánto y el detalle, y "Anotar" lo manda', async () => {
+    cajaService.registrarMovimiento.mockResolvedValue({ id: 'm9' });
+    await pintar();
+
+    await apretar(boton('Anotar un gasto'));
+    await apretar(botonExacto('Limpieza', ventana()));
+    await escribirEn(ventana().querySelector('.caja-monto'), '15000');
+    await escribirEn(ventana().querySelector('input[placeholder="Agua, factura 4412"]'), 'Lavandina y trapos');
+    await apretar(botonExacto('Anotar', ventana()));
+
+    expect(cajaService.registrarMovimiento).toHaveBeenCalledWith({
+      tipo: 'EGRESO', categoria: 'Limpieza', detalle: 'Lavandina y trapos',
+      monto: 15000, metodo: 'CASH', hechoPor: 'Carla',
+    });
+    expect(toastEstable.showToast).toHaveBeenCalledWith('Gasto anotado.', 'success');
+    expect(ventana(), 'la ventana se cierra sola').toBeFalsy();
+  });
+
+  it('un ingreso sale como INGRESO, y ahí el detalle es opcional', async () => {
+    cajaService.registrarMovimiento.mockResolvedValue({ id: 'm10' });
+    await pintar();
+
+    await apretar(boton('Anotar un ingreso'));
+    await apretar(botonExacto('Venta', ventana()));
+    await escribirEn(ventana().querySelector('.caja-monto'), '3500');
+    await apretar(botonExacto('Anotar', ventana()));
+
+    expect(cajaService.registrarMovimiento).toHaveBeenCalledWith({
+      tipo: 'INGRESO', categoria: 'Venta', detalle: null,
+      monto: 3500, metodo: 'CASH', hechoPor: 'Carla',
+    });
+  });
+
+  it('⚠️ un gasto sin detalle no se anota: avisa qué falta y la ventana sigue abierta', async () => {
+    await pintar();
+
+    await apretar(boton('Anotar un gasto'));
+    await apretar(botonExacto('Proveedor', ventana()));
+    await escribirEn(ventana().querySelector('.caja-monto'), '46000');
+    await apretar(botonExacto('Anotar', ventana()));
+
+    expect(cajaService.registrarMovimiento).not.toHaveBeenCalled();
+    expect(toastEstable.showToast).toHaveBeenCalledWith(
+      'Escribí en qué se gastó. Sin eso no se puede verificar después.', 'error',
+    );
+    expect(ventana(), 'no pierde lo que ya escribió').toBeTruthy();
+  });
+
+  it('⭐ anular: se escribe el motivo y "Anular" lo manda', async () => {
+    cajaService.movimientosDeCaja.mockResolvedValue([EGRESO]);
+    cajaService.anularMovimiento.mockResolvedValue({});
+    await pintar();
+
+    await apretar(botonExacto('Anular'));                       // el de la fila
+    await escribirEn(ventana().querySelector('input'), 'Cargado dos veces');
+    await apretar(botonExacto('Anular', ventana()));            // el de la ventana
+
+    expect(cajaService.anularMovimiento).toHaveBeenCalledWith('m1', {
+      motivo: 'Cargado dos veces', anuladoPor: 'Carla',
+    });
+    expect(ventana(), 'la ventana se cierra sola').toBeFalsy();
+  });
+
+  it('"Cancelar" cierra sin mandar nada', async () => {
+    await pintar();
+
+    await apretar(boton('Anotar un gasto'));
+    await apretar(botonExacto('Cancelar', ventana()));
+
+    expect(ventana()).toBeFalsy();
+    expect(cajaService.registrarMovimiento).not.toHaveBeenCalled();
+  });
+});
+
 describe('la hora, como se lee en el mostrador', () => {
 
   it('cada cobro con su hora de 24, sin "p. m."', async () => {
