@@ -8,7 +8,10 @@ import { getInstalador } from '../lib/release.js';
 // La versión y el peso se leen en build time, solo para MOSTRARLOS. El botón nunca
 // apunta al .exe directo: apunta a /api/descargar, que resuelve el link en el momento.
 // Así una versión nueva se descarga bien aunque nadie haya redeployado la landing.
+// Lo que se muestra se pone al día solo al abrir la página (el script del final, que le
+// pregunta a /api/version): lo de acá es el punto de partida y lo que lee Google.
 const info = await getInstalador();
+const requisitos = 'Windows 10 y 11 (64 bits)';
 
 const mensaje = 'Hola! Necesito una mano con la instalación de Veltronik.';
 const ayuda = waLink(mensaje) || `mailto:${CONTACTO.email}?subject=Ayuda%20con%20la%20instalaci%C3%B3n`;
@@ -55,10 +58,8 @@ const schema = {
           </a>
           <a class="btn btn-borde btn-grande" href={appRoute('/')}>Usar desde el navegador</a>
         </div>
-        <p class="desc-version num">
-          {info
-            ? `Versión ${info.version} · ${info.peso} · Windows 10 y 11 (64 bits)`
-            : 'Windows 10 y 11 (64 bits)'}
+        <p class="desc-version num" data-version data-requisitos={requisitos}>
+          {info ? `Versión ${info.version} · ${info.peso} · ${requisitos}` : requisitos}
         </p>
       </div>
 
@@ -156,6 +157,20 @@ const schema = {
     </div>
   </section>
 </Base>
+
+<script>
+  // El renglón de la versión, puesto al día: ver src/pages/api/version.js. Si el pedido
+  // falla, queda escrito lo del armado, que como mucho es una versión vieja.
+  const renglon = document.querySelector('[data-version]');
+  if (renglon) {
+    fetch('/api/version')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (v?.version) renglon.textContent = `Versión ${v.version} · ${v.peso} · ${renglon.dataset.requisitos}`;
+      })
+      .catch(() => {});
+  }
+</script>
 
 <style>
   .desc-hero { display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }

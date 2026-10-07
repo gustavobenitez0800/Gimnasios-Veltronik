@@ -92,6 +92,25 @@ const wa = waLink(mensajeWa);
           <a class="nav-ingresar" href={appRoute('/')}>Ingresar</a>
           <a class="btn btn-primario" href={appRoute('/register')}>Probar gratis</a>
         </div>
+
+        {/*
+          El menú del celular. Hasta el 2026-10-07 no había: debajo de 900 px los enlaces se
+          escondían y nada los reemplazaba, y debajo de 420 se iba también "Ingresar". Un
+          cliente que buscaba "veltronik" desde el teléfono para entrar tenía que bajar la
+          página entera hasta el pie.
+          Es un <details> a propósito: abre y cierra sin JavaScript. El script de abajo solo
+          suma lo cómodo (cerrarlo al elegir, con Escape o tocando afuera).
+        */}
+        <details class="nav-menu" id="nav-menu">
+          <summary aria-label="Menú">
+            <span class="nav-menu-abrir"><Icon name="menu" size={22} /></span>
+            <span class="nav-menu-cerrar"><Icon name="x" size={22} /></span>
+          </summary>
+          <nav class="nav-menu-panel" aria-label="Menú">
+            {NAV.map((i) => <a href={i.href}>{i.label}</a>)}
+            <a href={appRoute('/')}>Ingresar al sistema</a>
+          </nav>
+        </details>
       </div>
     </header>
 
@@ -131,7 +150,7 @@ const wa = waLink(mensajeWa);
             </ul>
           </div>
 
-          <div>
+          <div class="foot-contacto">
             <h4>Hablemos</h4>
             <ul>
               {wa && <li><a href={wa}>WhatsApp</a></li>}
@@ -194,6 +213,21 @@ const wa = waLink(mensajeWa);
         }
         if (pie) new IntersectionObserver(([e]) => { seVeElPie = e.isIntersecting; pintar(); }).observe(pie);
         pintar();
+      }
+
+      // El menú del celular se cierra solo al elegir un destino (los enlaces a una sección de
+      // esta misma página no recargan nada, y quedaba abierto tapando lo que se fue a ver),
+      // con Escape y al tocar afuera.
+      const menu = document.getElementById('nav-menu');
+      if (menu) {
+        const cerrarMenu = () => { menu.open = false; };
+        menu.querySelectorAll('.nav-menu-panel a').forEach((a) => a.addEventListener('click', cerrarMenu));
+        document.addEventListener('click', (e) => { if (menu.open && !menu.contains(e.target)) cerrarMenu(); });
+        document.addEventListener('keydown', (e) => {
+          if (e.key !== 'Escape' || !menu.open) return;
+          cerrarMenu();
+          menu.querySelector('summary')?.focus();
+        });
       }
 
       // Llegar a una sección desde OTRA página ("Precios" en el menú de /descargar lleva a
