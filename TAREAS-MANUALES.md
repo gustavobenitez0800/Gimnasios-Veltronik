@@ -1,7 +1,7 @@
 # 📋 Tareas manuales — Gustavo
 
 > Lo que **solo vos** podés hacer: paneles, credenciales, pruebas con la app en la mano y
-> decisiones. Actualizado: **2026-10-06**. Tachá con `[x]` a medida que avances.
+> decisiones. Actualizado: **2026-10-07**. Tachá con `[x]` a medida que avances.
 >
 > La versión anterior (19/09) se reemplazó entera: daba por pendiente la renovación de SEKUR
 > y por posible apagar Railway. Está en la historia de git si hace falta.
@@ -14,9 +14,12 @@
       rotación de la contraseña.
 - [ ] **Dos cuentas de prueba en Mercado Pago** (vendedor y comprador, Argentina) y sus
       datos en `scripts/.env.mp-prueba`. Sin eso no se puede probar la suscripción programada.
-- [ ] **Confirmar las tres promesas de la landing nueva** (ver §7).
+- [x] **Las tres promesas de la landing nueva**, confirmadas el 6/10. La landing se publicó
+      el 7/10.
 - [x] **El PR #49** (el pulido de septiembre) entró a `main` el 6/10 y va en la versión
       2.6.42 del escritorio.
+- [x] **El guardado de la sesión que aguanta al antivirus** salió el 6/10 en la versión
+      2.6.43. Falta verlo en una PC con la sesión iniciada: que al abrir no pida login.
 - [ ] **Domingo 11/10, gimnasio cerrado:** Supabase de NANO a MICRO (gratis, reinicia el
       proyecto) y probar restaurar el backup.
 
@@ -142,10 +145,13 @@ Lo que los tests no pueden ver: el estado REAL de producción.
 
 ## 🤔 7. Decisiones que solo podés tomar vos
 
-- [ ] **Las tres promesas de la landing nueva.** Antes de publicarla tienen que ser ciertas:
-      "seguís en el plan Veltronik hasta que el molinete esté funcionando", "te acompañamos
-      por WhatsApp los primeros días y te lo dejamos andando con tu Excel adentro" y "te
-      contesta una persona que conoce el sistema por dentro, no un bot".
+- [x] **Las tres promesas de la landing nueva.** Confirmadas el 6/10 y publicadas: "seguís
+      en el plan Veltronik hasta que el molinete esté funcionando", "te acompañamos por
+      WhatsApp los primeros días y te lo dejamos andando con tu Excel adentro" y "te contesta
+      una persona que conoce el sistema por dentro, no un bot". Son compromisos: si alguno
+      deja de ser cierto, hay que sacarlo de la landing.
+- [ ] **"La app arranca sola con la computadora".** La landing lo dice, y es una opción que
+      viene apagada. O se prende por defecto, o se suaviza la frase.
 - [ ] **Pago adelantado: ¿se suma o arranca de cero?** Hoy se suma (31 días que quedaban + 31
       nuevos = 62). Abierto desde el 7/09.
 - [ ] **Las 6 preguntas al proveedor de hardware.** La sexta —¿da plazo de pago?— decide el
@@ -162,14 +168,12 @@ Lo que los tests no pueden ver: el estado REAL de producción.
 
 **En curso:**
 
-- **La landing nueva** (rama `landing/de-punta-a-punta`). Espera las tres promesas de §7.
 - **Suscripción programada.** Cargar la tarjeta durante la prueba y que el primer cobro
   salga el día en que termina; hoy no hay ningún botón para pagar antes del bloqueo. Mercado
   Pago acepta agendar el cobro en una suscripción por link; falta probarlo con tarjeta, y
   para eso hacen falta las cuentas de prueba de §0. Tiene que estar antes del 5/11.
-- **La sesión que no se cierra sola.** Faltan tres fases: que un corte de red no se tome
-  por sesión muerta (~5 h), que el guardado de la sesión aguante al antivirus (~2 h) y
-  registrar en el servidor por qué se cerró cada sesión (~2 h).
+- **La sesión que no se cierra sola.** Faltan dos fases: que un corte de red no se tome por
+  sesión muerta (~5 h) y registrar en el servidor por qué se cerró cada sesión (~2 h).
 
 **Para después:**
 
