@@ -3,7 +3,8 @@
  * VELTRONIK - PRUEBA DE HUMO DEL NÚCLEO LOCAL
  * ============================================
  *
- * Abre la base del terminal de verdad, escribe, lee y borra. Imprime lo que encontró y sale.
+ * Abre la base del terminal de verdad, escribe, lee y borra. Imprime lo que encontró y sale:
+ * con 0 si todo anduvo, con 1 si algo falló o si no pudo seguir. Sale SIEMPRE.
  *
  * <b>Por qué esto existe y no alcanza con los tests.</b> `better-sqlite3` es un módulo
  * NATIVO: el binario se baja compilado contra el ABI de Electron, y vitest corre sobre el
@@ -24,6 +25,11 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// ⚠️ ANTES de cargar nada nuestro, para que cubra también un `require` que explota. El cuerpo
+// de la prueba tiene su propio `.catch`; esto es para lo que pase fuera de esa promesa.
+process.on('uncaughtException', abortar);
+process.on('unhandledRejection', abortar);
+
 const nucleoDb = require(path.join(__dirname, '..', 'electron', 'nucleo', 'db.cjs'));
 const espejo = require(path.join(__dirname, '..', 'electron', 'nucleo', 'espejo.cjs'));
 const boveda = require(path.join(__dirname, '..', 'electron', 'nucleo', 'boveda.cjs'));
@@ -42,6 +48,31 @@ function chequear(descripcion, condicion, detalle) {
     if (!condicion) fallas += 1;
 }
 
+/** El veredicto. El código de salida es para quien corre esto desde un script y no lo lee. */
+function terminar() {
+    console.log(`\n${fallas === 0 ? 'Todo bien.' : `${fallas} falla(s).`}\n`);
+    app.exit(fallas === 0 ? 0 : 1);
+}
+
+/**
+ * Lo que nadie previó: se dice qué fue y se sale con error.
+ *
+ * <b>Por qué no alcanza con dejar que explote.</b> En Node un error sin atender termina el
+ * proceso con el stack a la vista. En Electron no: el proceso principal sigue vivo, sin
+ * ventana, esperando para siempre. Así quedaba esto cuando la base no abría — imprimía la
+ * FALLA, usaba igual la conexión que no tenía y nunca llegaba al `app.exit` del final. Un
+ * diagnóstico que se cuelga callado es peor que no tenerlo: no dice ni que sí ni que no.
+ *
+ * <b>No toca el contador ni nada que se defina más abajo</b>, a propósito: tiene que poder
+ * correr aunque el archivo se haya cortado en el primer `require`.
+ */
+function abortar(error) {
+    console.log('\n FALLA  la prueba se cortó por un error inesperado; lo que seguía quedó sin probar:');
+    console.log(error && error.stack ? error.stack : String(error));
+    console.log('');
+    app.exit(1);
+}
+
 function socio(n, nombre, apellido, doc) {
     return {
         id: `00000000-0000-4000-8000-00000000000${n}`,
@@ -55,6 +86,36 @@ function socio(n, nombre, apellido, doc) {
         diasVencido: 0,
         busqueda: `${nombre} ${apellido} ${doc}`.toLowerCase(),
     };
+}
+
+/**
+ * LA BÓVEDA. Acá se prueba el cifrado del sistema operativo de verdad (DPAPI en Windows), que
+ * es otra cosa que la suite no puede tocar.
+ *
+ * Va en una función aparte porque es lo único de esta prueba que no necesita la base, así que
+ * se corre también cuando la base no abre. Y ahí es donde más dice: la bóveda escribe en la
+ * MISMA carpeta, de modo que si ella guarda, la carpeta está bien y el problema es de SQLite
+ * —el binario o el archivo—.
+ */
+function probarLaBoveda() {
+    console.log('');
+    const puedeCifrar = boveda.disponible();
+    chequear('el sistema puede cifrar', puedeCifrar, puedeCifrar ? '' : 'sin llavero: se usa localStorage');
+
+    if (puedeCifrar) {
+        const CLAVE = 'humo-sesion';
+        const SECRETO = '{"refresh_token":"rt-de-mentira","user":{"id":"u1"}}';
+
+        chequear('guarda', boveda.escribir(CLAVE, SECRETO));
+        chequear('devuelve lo mismo que guardó', boveda.leer(CLAVE) === SECRETO);
+
+        // Lo que importa de verdad: que en el disco NO esté el texto en claro. Si esto
+        // fallara, la bóveda sería un archivo con otro nombre y el mismo problema.
+        const enDisco = fs.readFileSync(boveda.ruta(), 'utf8');
+        chequear('en el disco NO está en claro', !enDisco.includes('rt-de-mentira'));
+
+        chequear('borra', boveda.borrar(CLAVE) && boveda.leer(CLAVE) === null);
+    }
 }
 
 app.whenReady().then(() => {
@@ -72,6 +133,18 @@ app.whenReady().then(() => {
     // 2. ¿Abre el archivo, y con las pragmas que pedimos?
     const db = nucleoDb.abrir();
     chequear('la base abre', !!db, nucleoDb.ruta());
+    if (!db) {
+        // `abrir()` no tira: devuelve null y deja anotado el motivo. Todo lo que sigue —el
+        // espejo, la cola, la migración— vive en esa base, así que no hay con qué probarlo.
+        // Va solo el primer renglón: el aviso entero ya lo imprimió db.cjs acá arriba, y
+        // cuando falta el binario son más de diez rutas.
+        const motivo = String(nucleoDb.porQueNo() || 'no dijo por qué').split('\n')[0];
+        console.log(`\nNo abrió: ${motivo}`);
+        console.log('Sin base no hay espejo ni cola que probar. Sigue la bóveda, que es un archivo aparte.');
+        probarLaBoveda();
+        terminar();
+        return;
+    }
 
     const journal = db.pragma('journal_mode', { simple: true });
     const sync = db.pragma('synchronous', { simple: true });
@@ -113,26 +186,7 @@ app.whenReady().then(() => {
     chequear('hay WAL', fs.existsSync(`${ruta}-wal`));
 
     // ── LA BÓVEDA ──
-    // Acá se prueba el cifrado del sistema operativo de verdad (DPAPI en Windows), que es
-    // otra cosa que la suite no puede tocar.
-    console.log('');
-    const puedeCifrar = boveda.disponible();
-    chequear('el sistema puede cifrar', puedeCifrar, puedeCifrar ? '' : 'sin llavero: se usa localStorage');
-
-    if (puedeCifrar) {
-        const CLAVE = 'humo-sesion';
-        const SECRETO = '{"refresh_token":"rt-de-mentira","user":{"id":"u1"}}';
-
-        chequear('guarda', boveda.escribir(CLAVE, SECRETO));
-        chequear('devuelve lo mismo que guardó', boveda.leer(CLAVE) === SECRETO);
-
-        // Lo que importa de verdad: que en el disco NO esté el texto en claro. Si esto
-        // fallara, la bóveda sería un archivo con otro nombre y el mismo problema.
-        const enDisco = fs.readFileSync(boveda.ruta(), 'utf8');
-        chequear('en el disco NO está en claro', !enDisco.includes('rt-de-mentira'));
-
-        chequear('borra', boveda.borrar(CLAVE) && boveda.leer(CLAVE) === null);
-    }
+    probarLaBoveda();
 
     // ── LA COLA ──
     // Lo único de esta base que NO es copia de nada: si se pierde, el gimnasio perdió una
@@ -299,6 +353,5 @@ app.whenReady().then(() => {
 
     nucleoDb.cerrar();
 
-    console.log(`\n${fallas === 0 ? 'Todo bien.' : `${fallas} falla(s).`}\n`);
-    app.exit(fallas === 0 ? 0 : 1);
-});
+    terminar();
+}).catch(abortar);
