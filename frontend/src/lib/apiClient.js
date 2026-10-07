@@ -257,6 +257,10 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response && error.response.status === 401) {
+      // El pedido que AVISA de un cierre de sesión (cierresDeSesion.js) no puede provocar
+      // otro: su 401 vuelve como un error cualquiera. Ni renueva, ni reintenta, ni avisa.
+      if (config?.__noCierraSesion) return Promise.reject(error);
+
       // ── Antes de cerrarle la sesión a nadie, se intenta renovarla UNA vez ──
       //
       // Un 401 no siempre significa "esta sesión murió": puede ser un token que venció
@@ -289,7 +293,13 @@ apiClient.interceptors.response.use(
         // GLOBALES: `signOut()` sin parámetros revoca la sesión en TODOS los dispositivos del
         // usuario, así que un 401 en una máquina tiraba al login a las demás una hora
         // después, "de la nada". Decidir un cierre es de UN solo lugar: AuthContext.logout.
-        window.dispatchEvent(new Event('auth-unauthorized'));
+        //
+        // El aviso lleva qué pedido fue el rechazado, para el registro de por qué se cerró
+        // la sesión. Sin lo que va después del "?": ahí viajan búsquedas con nombres y DNI.
+        const pedido = `${String(config?.method || 'get').toUpperCase()} ${String(config?.url || '').split('?')[0]}`;
+        window.dispatchEvent(new CustomEvent('auth-unauthorized', {
+          detail: { pedido, error: error.response.data?.error },
+        }));
       }
     } else if (error.response && error.response.status === 402) {
       // Kill Switch Activado: Sucursal inactiva por falta de pago.

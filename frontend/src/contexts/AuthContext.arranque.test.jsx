@@ -408,3 +408,73 @@ describe('⭐ sin servidor aunque Windows diga que hay red', () => {
     expect(supabase.auth.startAutoRefresh, 'y la renovación se vuelve a prender').toHaveBeenCalled();
   });
 });
+
+// ============================================
+// POR QUÉ SE CERRÓ LA SESIÓN (fase D)
+// ============================================
+// El módulo que anota y sube tiene sus propios tests (lib/cierresDeSesion.test.js). Acá se
+// prueba que la app lo llame donde corresponde: al entrar, al abrir sin sesión, y cuando
+// Supabase da la sesión por terminada sin que nadie se lo pida.
+describe('por qué se cerró la sesión', () => {
+  const CIERRES = 'veltronik_cierres_de_sesion';
+  const HABIA_SESION = 'veltronik_habia_sesion';
+  const pendientes = () => JSON.parse(localStorage.getItem(CIERRES) || '[]');
+
+  beforeEach(() => {
+    apiClient.post = vi.fn(() => Promise.resolve({ data: { anotados: [] } }));
+  });
+  afterEach(() => {
+    delete apiClient.post;
+  });
+
+  it('al entrar deja dicho que este equipo tiene una sesión, y de quién', async () => {
+    await pintarEn('#/lobby');
+
+    expect(localStorage.getItem(HABIA_SESION)).toBe(SESION.user.id);
+  });
+
+  // El camino 2 de "me sacó solo", visto desde afuera: la app abre y la sesión ya no está.
+  it('⚠️ abrir sin sesión donde había una queda anotado como que se perdió', async () => {
+    localStorage.setItem(HABIA_SESION, SESION.user.id);
+    authService.getSession.mockResolvedValue(null);
+
+    await pintarEn('#/');
+
+    expect(pendientes()).toMatchObject([{ motivo: 'SE_PERDIO_AL_ABRIR', userId: SESION.user.id }]);
+  });
+
+  it('abrir sin sesión donde nunca entró nadie no anota nada', async () => {
+    authService.getSession.mockResolvedValue(null);
+
+    await pintarEn('#/');
+
+    expect(pendientes()).toEqual([]);
+  });
+
+  it('lo que quedó sin avisar sube apenas alguien vuelve a entrar', async () => {
+    localStorage.setItem(CIERRES, JSON.stringify([{ clientRef: 'c1', motivo: 'SUPABASE' }]));
+    apiClient.post.mockResolvedValue({ data: { anotados: ['c1'] } });
+
+    await pintarEn('#/lobby');
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/account/cierres-de-sesion',
+      { cierres: [expect.objectContaining({ clientRef: 'c1' })] },
+      expect.anything(),
+    );
+    expect(pendientes()).toEqual([]);
+  });
+
+  it('⚠️ si Supabase da la sesión por terminada sin que nadie lo pida, queda anotado', async () => {
+    let avisar;
+    authService.onAuthStateChange.mockImplementation((cb) => {
+      avisar = cb;
+      return { unsubscribe: vi.fn() };
+    });
+    await pintarEn('#/lobby');
+
+    await act(async () => { await avisar('SIGNED_OUT', null); });
+
+    expect(pendientes()).toMatchObject([{ motivo: 'SUPABASE', userId: SESION.user.id }]);
+  });
+});

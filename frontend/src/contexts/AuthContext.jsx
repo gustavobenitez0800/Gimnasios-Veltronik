@@ -14,6 +14,10 @@ import { clearQueryCache } from '../hooks/useQueryCache';
 // quedar en la máquina para que la vea quien entre después.
 import { olvidarSocios } from '../lib/localMembers';
 import { sesionGuardada } from '../lib/boveda';
+// Por qué se cerró cada sesión, anotado acá y avisado al servidor (fase D de la sesión).
+import {
+  MOTIVOS, anotarCierre, anotarSiHabiaSesion, recordarQueHaySesion, subirCierres, subirCierresSinDemorar,
+} from '../lib/cierresDeSesion';
 import { supabase, CLAVE_DE_SESION } from '../lib/supabase';
 import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { sinConexion, cuandoSeCorte, alCambiarLaConexion } from '../lib/conexion';
@@ -575,6 +579,11 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        // ¿Había alguien adentro la última vez que esta app estuvo abierta? Entonces la
+        // sesión se perdió sin que nadie la cerrara, y se anota para avisarlo cuando entren.
+        // En una app donde nunca entró nadie esto no anota nada.
+        anotarSiHabiaSesion(MOTIVOS.SE_PERDIO_AL_ABRIR);
+
         reloj.informe('sin sesión guardada → login');
         setLoading(false);
         initCompleteRef.current = true;
@@ -605,6 +614,12 @@ export function AuthProvider({ children }) {
         // Sidebar / Settings / Lobby leen `profile?.fullName`; sin poblar `profile`
         // queda siempre en "Usuario" aunque el nombre exista en la sesión.
         setProfile(perfil);
+
+        // Este equipo tiene una sesión, y de quién: es lo que después permite decir "se
+        // perdió" si un día abre sin ella. Y lo que haya quedado sin avisar de un cierre
+        // anterior sube ahora, que hay con qué. No se espera: es diagnóstico.
+        recordarQueHaySesion(usuario.id);
+        subirCierres();
       }
 
       // Intentar cargar el contexto de la org seleccionada
@@ -732,15 +747,26 @@ export function AuthProvider({ children }) {
    * `signOut()` eran GLOBALES. Ahora apiClient solo avisa, y cerrar —de este dispositivo o de
    * todos— se decide acá.</p>
    *
-   * @param {{ enTodos?: boolean }} opciones `enTodos` revoca también las sesiones de los otros
-   *   dispositivos. Solo la usa el botón que lo dice explícitamente.
+   * @param {{ enTodos?: boolean, motivo?: string, detalle?: string }} opciones `enTodos` revoca
+   *   también las sesiones de los otros dispositivos; solo la usa el botón que lo dice
+   *   explícitamente. `motivo` lo pasa quien cierra SIN que nadie lo haya pedido (hoy, el 401
+   *   del backend); sin motivo, el cierre es de alguien que apretó un botón.
    */
-  const cerrarSesion = async ({ enTodos = false } = {}) => {
+  const cerrarSesion = async ({ enTodos = false, motivo, detalle } = {}) => {
     // Reentrante: si ya hay un logout en curso (botón Salir + evento auth-unauthorized,
     // o varios 401 simultáneos), los siguientes no hacen nada. Antes cada disparo
     // encadenaba su propio signOut + redirect + reload → crash al cambiar de cuenta.
     if (loggingOutRef.current) return;
     loggingOutRef.current = true;
+
+    // ⭐ POR QUÉ SE CIERRA, anotado antes de cerrar: después ya no se sabe.
+    // Si lo pidió alguien, la sesión todavía sirve y el aviso sube ahora, sin demorar la
+    // salida más de dos segundos. Si la rechazó el backend no hay con qué subirlo: queda
+    // anotado en este equipo y sube cuando alguien vuelva a entrar.
+    const loPidioAlguien = !motivo;
+    anotarCierre(motivo || (enTodos ? MOTIVOS.USUARIO_TODOS : MOTIVOS.USUARIO), { detalle, userId: user?.id });
+    if (loPidioAlguien) await subirCierresSinDemorar();
+
     try {
       await (enTodos ? authService.signOutEverywhere() : authService.signOut());
     } catch {
@@ -777,8 +803,8 @@ export function AuthProvider({ children }) {
 
   // El aviso de 401 se escucha con un listener que se registra UNA vez. Con la referencia
   // llama siempre a la versión vigente del cierre, en vez de la que existía en el primer render.
-  const logoutRef = useRef(logout);
-  useEffect(() => { logoutRef.current = logout; });
+  const cerrarSesionRef = useRef(cerrarSesion);
+  useEffect(() => { cerrarSesionRef.current = cerrarSesion; });
 
   useEffect(() => {
     initAuth();
@@ -795,6 +821,9 @@ export function AuthProvider({ children }) {
           // Queda registrado a propósito: cuando alguien reporta "me sacó solo", esto es lo
           // único que dice si la sesión la cerró Supabase o la cerramos nosotros.
           console.warn('[auth] SIGNED_OUT: Supabase dio la sesión por terminada');
+          // Y ahora también llega al servidor. Si el cierre lo hicimos nosotros, el motivo ya
+          // quedó anotado y esto no lo cuenta de nuevo: solo anota el que nadie pidió.
+          anotarSiHabiaSesion(MOTIVOS.SUPABASE);
           clearQueryCache();
           olvidarSocios();
           lastLoadedOrgRef.current = null;
@@ -820,7 +849,11 @@ export function AuthProvider({ children }) {
       }
     );
 
-    const handleUnauthorized = () => logoutRef.current();
+    // El aviso trae qué pedido rechazó el backend (ver apiClient): va al registro del cierre.
+    const handleUnauthorized = (aviso) => cerrarSesionRef.current({
+      motivo: MOTIVOS.RESPUESTA_401,
+      detalle: [aviso?.detail?.pedido, aviso?.detail?.error].filter(Boolean).join(' · ') || undefined,
+    });
     const handlePaymentRequired = () => navigate(CONFIG.ROUTES.BLOCKED, { replace: true });
     const handleForbiddenTenant = () => {
       // El negocio seleccionado dejó de ser accesible: limpiar contexto y volver al Lobby.

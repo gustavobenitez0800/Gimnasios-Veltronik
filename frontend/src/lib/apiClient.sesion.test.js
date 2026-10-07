@@ -146,6 +146,42 @@ describe('la sesión no se quema sola', () => {
     expect(avisos).toHaveLength(1);
   });
 
+  // Para el registro de por qué se cerró la sesión (fase D): el aviso dice QUÉ pedido rechazó
+  // el backend. Sin lo que va después del "?", que es donde viajan nombres y DNI.
+  it('el aviso lleva qué pedido fue el rechazado, sin la búsqueda', async () => {
+    getSession.mockResolvedValue(conSesion('tok-muerto'));
+    refreshSession.mockResolvedValue(sinSesion);
+    const avisos = [];
+    const anotar = (e) => avisos.push(e.detail);
+    window.addEventListener('auth-unauthorized', anotar);
+
+    const { apiClient } = await montar(noAutorizado);
+
+    await expect(apiClient.get('/gym/members/search?q=Perez%2030111222')).rejects.toBeDefined();
+    window.removeEventListener('auth-unauthorized', anotar);
+
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].pedido).toBe('GET /gym/members/search');
+  });
+
+  // El pedido que AVISA de un cierre de sesión no puede provocar otro.
+  it('⚠️ un pedido marcado como "no cierra sesión" devuelve su 401 y nada más', async () => {
+    getSession.mockResolvedValue(conSesion('tok-muerto'));
+    const avisos = [];
+    const contar = () => avisos.push(1);
+    window.addEventListener('auth-unauthorized', contar);
+
+    const { apiClient } = await montar(noAutorizado);
+
+    await expect(apiClient.post('/account/cierres-de-sesion', { cierres: [] }, { __noCierraSesion: true }))
+      .rejects.toMatchObject({ response: { status: 401 } });
+    window.removeEventListener('auth-unauthorized', contar);
+
+    expect(refreshSession, 'no intenta renovar').not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+    expect(avisos, 'no avisa: nadie cierra la sesión por esto').toHaveLength(0);
+  });
+
   it('⭐ un 400 por falta de sucursal NO toca la sesión: ni renueva ni avisa', async () => {
     // El backend contestaba "falta la sucursal" con 401 y esto lo trataba como una sesión
     // muerta. Ahora es 400 + TENANT_CONTEXT_MISSING: un pedido mal armado, no un problema
