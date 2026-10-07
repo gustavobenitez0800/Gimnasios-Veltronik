@@ -272,7 +272,7 @@ describe('los insights del día', () => {
   it('dice cuántos vencen esta semana, con plural', () => {
     const [primero] = insightsDelDia(resumenBase);
 
-    expect(primero.title).toBe('Membresías por vencer');
+    expect(primero.title).toBe('Vencen esta semana');
     expect(primero.message).toContain('2 socios');
   });
 

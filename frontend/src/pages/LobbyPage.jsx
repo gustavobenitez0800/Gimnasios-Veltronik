@@ -23,11 +23,13 @@ import CuentaEnBorrado from '../components/CuentaEnBorrado';
 import BorrarCuentaModal from '../components/BorrarCuentaModal';
 import Icon from '../components/Icon';
 import GymLogo from '../components/GymLogo';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 import CONFIG from '../lib/config';
 import { openPortal } from '../lib/portal';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
+import { obtenerPlanes } from '../lib/planes';
 
 // ¿Es un dispositivo táctil? Decide si el campo de confirmación se enfoca solo:
 // en escritorio ahorra un click, en un teléfono abre el teclado a destiempo.
@@ -43,17 +45,17 @@ const BLOCK_MESSAGES = {
     showUpdateCard: false,
   },
   past_due: {
-    title: 'Pago Rechazado',
+    title: 'Pago rechazado',
     message: 'No pudimos procesar tu pago mensual. Actualizá tu método de pago para recuperar el acceso.',
     showUpdateCard: true,
   },
   canceled: {
-    title: 'Suscripción Cancelada',
+    title: 'Suscripción cancelada',
     message: 'Tu suscripción fue cancelada. Tus datos están seguros y no serán eliminados. Reactivá tu suscripción para continuar.',
     showUpdateCard: false,
   },
   trial_expired: {
-    title: 'Prueba Gratuita Finalizada',
+    title: 'Terminó la prueba gratis',
     message: 'Tu período de prueba de 14 días ha finalizado. Tus datos están seguros. Suscribite para seguir usando Veltronik.',
     showUpdateCard: false,
   },
@@ -63,7 +65,7 @@ const BLOCK_MESSAGES = {
     showUpdateCard: false,
   },
   no_subscription: {
-    title: 'Acceso Suspendido',
+    title: 'Acceso suspendido',
     message: 'Este sistema necesita una suscripción activa para funcionar. Suscribite para activar el acceso.',
     showUpdateCard: false,
   },
@@ -94,6 +96,8 @@ export default function LobbyPage() {
 
   const [orgs, setOrgs] = useState([]);
   const [orgStatuses, setOrgStatuses] = useState({});
+  // Los planes con su precio (/public/plans), para que cada tarjeta diga el de SU plan.
+  const [planes, setPlanes] = useState([]);
   const [groups, setGroups] = useState([]); // Grupos de sucursales del dueño
   const [loading, setLoading] = useState(true);
   // ¿La PRIMERA carga falló? Sin esto, una lista que no se pudo traer se veía igual que una
@@ -136,6 +140,10 @@ export default function LobbyPage() {
       const subsPromise = apiClient.get('/tenants/my/subscriptions')
         .then((res) => res.data || [])
         .catch(() => null); // null = no se pudo; abajo cae al método por-negocio
+
+      // Los planes y sus precios (lib/planes, un pedido por sesión). Sin esto la tarjeta dice
+      // el precio base.
+      obtenerPlanes().then(setPlanes);
 
       // Grupos del dueño (para organizar el lobby). Best-effort.
       const groupsPromise = groupService.getMyGroups()
@@ -186,7 +194,7 @@ export default function LobbyPage() {
         const statuses = {};
         for (const org of orgsList) {
           const sub = subMap[org.id] || null;
-          statuses[org.id] = computeAccess(org, sub);
+          statuses[org.id] = { ...computeAccess(org, sub), planCode: sub?.planCode || null };
         }
         setOrgStatuses(statuses);
       } else {
@@ -405,16 +413,25 @@ export default function LobbyPage() {
 
   // ─── Render de una card de negocio (extraído para poder agrupar) ───
   const renderOrgCard = (org) => {
-    const price = precioMensual;
     const accessStatus = orgStatuses[org.id];
+    const plan = planes.find((p) => p.code === accessStatus?.planCode) || null;
+    const price = Number(plan?.price) > 0 ? Number(plan.price) : precioMensual;
     const isBlocked = accessStatus && !accessStatus.canAccess;
 
     return (
-      <button
+      <div
         key={org.id}
         className={`lobby-card card-hover ${isBlocked ? 'lobby-card-blocked' : ''}`}
-        onClick={() => handleSelectOrg(org)}
       >
+        {/* La tarjeta entera abre el gimnasio, con un botón que la cubre. No es la tarjeta la
+            que es botón: el de borrar va adentro, y un botón dentro de otro es HTML inválido
+            (el navegador lo desarma y el lector de pantalla no sabe cuál se toca). */}
+        <button
+          type="button"
+          className="lobby-card-abrir"
+          onClick={() => handleSelectOrg(org)}
+          aria-label={`Entrar a ${org.name}`}
+        />
         {/* Delete button (owner only) */}
         {org.role === 'owner' && (
           <button
@@ -474,13 +491,14 @@ export default function LobbyPage() {
           </div>
         )}
 
-        {/* Price — only show when not in active trial */}
+        {/* El precio de SU plan: hasta el 2026-09-22 decía el del básico en todas las
+            tarjetas, aunque la sucursal pagara Premium. */}
         {accessStatus?.status !== 'trial' && (
           <div className="lobby-card-price">
-            ${price.toLocaleString('es-AR')}/mes
+            {plan?.name ? `${plan.name} · ` : ''}${price.toLocaleString('es-AR')}/mes
           </div>
         )}
-      </button>
+      </div>
     );
   };
 
@@ -529,7 +547,7 @@ export default function LobbyPage() {
       <div className="lobby-card-icon create-icon">
         <Icon name={CONFIG.IS_DESKTOP ? 'globe' : 'plus'} size="2rem" />
       </div>
-      <h3 className="lobby-card-name">{isFirstGym ? 'Registrá tu Gimnasio' : 'Nueva sucursal'}</h3>
+      <h3 className="lobby-card-name">{isFirstGym ? 'Registrá tu gimnasio' : 'Nueva sucursal'}</h3>
       <p className="lobby-card-role">
         {CONFIG.IS_DESKTOP
           ? 'Se abre en tu navegador'
@@ -596,7 +614,7 @@ export default function LobbyPage() {
 
         {/* Title */}
         <div className="lobby-title-section">
-          <h1 className="lobby-title">Mis Gimnasios</h1>
+          <h1 className="lobby-title">Mis gimnasios</h1>
           <p className="lobby-subtitle">Elegí una sucursal para entrar al sistema</p>
         </div>
 
@@ -688,7 +706,7 @@ export default function LobbyPage() {
 
             {/* Title & message */}
             <h2 className="lobby-blocked-title">
-              {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.title || 'Acceso Suspendido'}
+              {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.title || 'Acceso suspendido'}
             </h2>
             <p className="lobby-blocked-message">
               {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.message || 'Necesitás una suscripción activa para acceder a este sistema.'}
@@ -716,7 +734,7 @@ export default function LobbyPage() {
             {/* Actions */}
             <div className="lobby-blocked-actions">
               <button className="btn btn-primary lobby-blocked-btn-main" onClick={handleReactivate}>
-                <Icon name="creditCard" size="1.1em" /> {blockedOrg.accessStatus?.blockReason === 'additional_branch' ? 'Activar Suscripción' : 'Reactivar Suscripción'}
+                <Icon name="creditCard" size="1.1em" /> {blockedOrg.accessStatus?.blockReason === 'additional_branch' ? 'Activar suscripción' : 'Reactivar suscripción'}
               </button>
 
               {BLOCK_MESSAGES[blockedOrg.accessStatus?.blockReason]?.showUpdateCard && (
@@ -766,7 +784,7 @@ export default function LobbyPage() {
               <Icon name="alertTriangle" size="2rem" />
             </div>
 
-            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar Gimnasio</h2>
+            <h2 className="lobby-blocked-title" style={{ color: '#ef4444' }}>Eliminar gimnasio</h2>
             <p className="lobby-blocked-message">
               Vas a cerrar <strong>"{deleteTarget.name}"</strong> con <strong>todos sus datos</strong>: socios, pagos, accesos y equipos. Damos de baja su cobro automático ahora, y tenés <strong>30 días para arrepentirte</strong> antes de que se borre definitivamente. Tus otras sucursales no se tocan.
             </p>

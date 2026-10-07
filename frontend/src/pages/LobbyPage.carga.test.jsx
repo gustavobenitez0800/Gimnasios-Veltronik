@@ -32,7 +32,7 @@ vi.mock('../components/CuentaEnBorrado', () => ({ default: () => null }));
 vi.mock('../components/BorrarCuentaModal', () => ({ default: () => null }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
 vi.mock('../components/GymLogo', () => ({ default: () => null }));
-vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
+vi.mock('../assets/marca-veltronik.svg', () => ({ default: 'logo.svg' }));
 
 const { default: LobbyPage } = await import('./LobbyPage');
 
@@ -66,7 +66,7 @@ describe('la primera carga del Lobby', () => {
 
     expect(container.textContent).toContain('No pudimos traer tus gimnasios');
     expect(container.textContent).toContain('Reintentar');
-    expect(container.textContent).not.toContain('Registrá tu Gimnasio');
+    expect(container.textContent).not.toContain('Registrá tu gimnasio');
   });
 
   it('un usuario nuevo de verdad (lista vacía) sí ve "Registrá tu gimnasio"', async () => {
@@ -74,7 +74,7 @@ describe('la primera carga del Lobby', () => {
 
     await pintar();
 
-    expect(container.textContent).toContain('Registrá tu Gimnasio');
+    expect(container.textContent).toContain('Registrá tu gimnasio');
     expect(container.textContent).not.toContain('No pudimos traer tus gimnasios');
   });
 });

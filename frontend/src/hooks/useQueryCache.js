@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { readEntry, writeEntry, markStale, invalidateQueries, clearQueryCache } from './queryCacheStore';
+import {
+  readEntry, writeEntry, markStale, invalidateQueries, clearQueryCache,
+  suscribirRefrescoGeneral, refrescarTodo,
+} from './queryCacheStore';
 
 // El Map vive en ./queryCacheStore (se puede probar sin React, y se puede invalidar
 // desde fuera de un componente: cobrar un pago vuelve vieja la lista de Socios).
-export { invalidateQueries, clearQueryCache };
+export { invalidateQueries, clearQueryCache, refrescarTodo };
 
 /**
  * Hook para obtener datos con caché (Stale-While-Revalidate).
@@ -91,6 +94,10 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, trigger]);
+
+  // Volvió la conexión (o subió la cola): esta pantalla vuelve a pedir lo suyo. La entrada ya
+  // la marcó vieja `refrescarTodo`; acá solo se dispara el pedido.
+  useEffect(() => suscribirRefrescoGeneral(() => setTrigger((t) => t + 1)), []);
 
   /**
    * Actualiza el valor de la caché manualmente (ej: después de una mutación CRUD)

@@ -1,33 +1,39 @@
 // ============================================
 // VELTRONIK V2 - REPORTES (gym)
 // ============================================
-// Exportador de informes (Excel/PDF) por rango de fecha. Los datos se piden
-// recién al apretar el botón: la página no carga nada al abrirse.
+// Exportador de informes (Excel/PDF). Los datos se piden recién al apretar el botón: la
+// página no carga nada al abrirse.
+//
+// Qué columnas lleva cada uno lo decide lib/reportesDelGimnasio (con sus tests). Acá solo se
+// piden los datos y se bajan.
+//
+// ⭐ EL DE INGRESOS ES EL LIBRO DE INGRESOS. En Excel baja EL MISMO libro que la Caja le arma
+// al contador (resumen, cobros, gastos e ingresos, con los totales del servidor); en PDF, sus
+// renglones. Antes sumaba los pagos por su cuenta y su total no coincidía con ningún otro.
 // ============================================
 
 import { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
-import { memberService, paymentService, accessService } from '../services';
-import { getStatusLabel, getMethodLabel, getQuickDates } from '../lib/utils';
+import { memberService, accessService, errorService } from '../services';
+import { cajaService } from '../services/CajaService';
+import { formatDate, toLocalDateString } from '../lib/utils';
 import { downloadExcel, downloadPDF } from '../lib/reportExport';
+import { descargarExcelDeCaja } from '../lib/excelDeCaja';
+import { tablaDeSocios, tablaDeIngresos, tablaDeAccesos, tablaDelResumen } from '../lib/reportesDelGimnasio';
+import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
+import SelectorDeFechas from '../components/SelectorDeFechas';
 import { PageHeader } from '../components/Layout';
 import Icon from '../components/Icon';
 
-// El DTO de socios de V2 trae `active` (boolean) + membershipEnd, NO un campo `status`.
-// Derivamos el estado real para que los reportes no muestren estado vacío/erróneo.
-function deriveMemberStatus(m) {
-  if (m.active === false) return 'inactive';
-  if (m.membershipEnd && new Date(m.membershipEnd) < new Date()) return 'expired';
-  return 'active';
-}
+const FORMATO = { excel: 'Excel', pdf: 'PDF' };
 
 export default function ReportsPage() {
   const { showToast } = useToast();
-  
-  const [dateFrom, setDateFrom] = useState(() => getQuickDates('month').from);
-  const [dateTo, setDateTo] = useState(() => getQuickDates('month').to);
-  const [activePeriod, setActivePeriod] = useState('month');
-  
+  const rango = useRangoDeFechas('month');
+  const { desde, hasta } = rango;
+  const periodo = desde === hasta ? formatDate(desde) : `${formatDate(desde)} al ${formatDate(hasta)}`;
+  const enArchivo = `${desde}_${hasta}`;
+
   const orgId = localStorage.getItem('current_org_id');
   const historyKey = `veltronik_export_history_${orgId}`;
 
@@ -36,216 +42,117 @@ export default function ReportsPage() {
     try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch { return []; }
   });
 
-  const setQuickDate = (period) => {
-    const { from, to } = getQuickDates(period);
-    setDateFrom(from);
-    setDateTo(to);
-    setActivePeriod(period);
-  };
-
   const addToHistory = (type, format) => {
-    const entry = { type, format, date: new Date().toLocaleString('es-AR') };
+    const entry = { type, format: FORMATO[format], date: new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }) };
     const history = [entry, ...exportHistory].slice(0, 10);
     setExportHistory(history);
-    localStorage.setItem(historyKey, JSON.stringify(history));
+    try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch { /* sin almacenamiento: la lista vive hasta cerrar */ }
   };
 
-  const exportMembers = async (format) => {
-    setExporting(e => ({ ...e, members: format }));
-    try {
-      // Fetch-on-demand
-      let members = await memberService.getAllMembers();
-      
-      if (dateFrom && dateTo) {
-        members = (members || []).filter(m => {
-          const d = m.membershipStart || (m.createdAt ? m.createdAt.split('T')[0] : null);
-          if (!d) return true; // keep members with no date
-          return d >= dateFrom && d <= dateTo;
-        });
-      }
-      
-      const headers = ['Nombre', 'DNI', 'Teléfono', 'Email', 'Estado', 'Inicio Membresía', 'Fin Membresía'];
-      const rows = (members || []).map(m => [m.fullName, m.dni || '', m.phone || '', m.email || '', getStatusLabel(deriveMemberStatus(m)), m.membershipStart || '', m.membershipEnd || '']);
-      
-      if (format === 'excel') {
-        await downloadExcel(`socios_${dateFrom}.xlsx`, headers, rows);
-      } else {
-        await downloadPDF('Reporte de Socios', `socios_${dateFrom}.pdf`, headers, rows);
-      }
-      
-      addToHistory('Socios', format === 'excel' ? 'Excel' : 'PDF');
-      showToast(`Reporte de socios exportado`, 'success');
-    } catch (err) { showToast('Error: ' + err.message, 'error'); }
-    finally { setExporting(e => ({ ...e, members: null })); }
+  const rangoValido = () => {
+    if (!desde || !hasta || desde > hasta) {
+      showToast('Elegí un rango de fechas válido.', 'error');
+      return false;
+    }
+    return true;
   };
 
-  const exportPayments = async (format) => {
-    setExporting(e => ({ ...e, payments: format }));
+  /** Pide, arma y baja; con el aviso y el historial. Un error NO baja un archivo a medias. */
+  const exportar = async (clave, nombre, format, armar) => {
+    setExporting((e) => ({ ...e, [clave]: format }));
     try {
-      // El filtrado por fecha lo hace el BACKEND (params from/to). El front solo dibuja.
-      const payments = await paymentService.getAllPayments(dateFrom, dateTo);
+      await armar();
+      addToHistory(nombre, format);
+      showToast(`Listo: ${nombre.toLowerCase()} en ${FORMATO[format]}.`, 'success');
+    } catch (err) {
+      showToast(errorService.getMessage(err), 'error');
+    } finally {
+      setExporting((e) => ({ ...e, [clave]: null }));
+    }
+  };
 
-      const headers = ['Socio', 'Monto', 'Fecha', 'Método', 'Estado'];
-      const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+  const bajarTabla = (format, titulo, archivo, { headers, rows }) => (format === 'excel'
+    ? downloadExcel(`${archivo}.xlsx`, headers, rows)
+    : downloadPDF(titulo, `${archivo}.pdf`, headers, rows));
 
-      // El backend manda method/status en MAYÚSCULA (CASH/PAID). Normalizamos para mostrar.
-      const STATUS_ES = { paid: 'Pagado', pending: 'Pendiente' };
-      const rows = (payments || []).map(p => [
-        `${p.member?.firstName || ''} ${p.member?.lastName || ''}`.trim(),
-        formatCurrency(p.amount || 0),
-        p.paymentDate || '',
-        getMethodLabel((p.paymentMethod || '').toLowerCase()),
-        STATUS_ES[(p.status || '').toLowerCase()] || p.status || ''
+  // El padrón es el de HOY: no depende del rango. Filtrarlo por fecha de alta (como hacía)
+  // bajaba "el reporte de socios" con los tres que se anotaron este mes.
+  const exportMembers = (format) => exportar('members', 'Socios', format, async () => {
+    const socios = await memberService.getAllMembers();
+    await bajarTabla(format, 'Socios', `socios_${toLocalDateString()}`, tablaDeSocios(socios));
+  });
+
+  const exportPayments = (format) => {
+    if (!rangoValido()) return;
+    exportar('payments', 'Ingresos', format, async () => {
+      const reporte = await cajaService.reporte(desde, hasta);
+      if (format === 'excel') await descargarExcelDeCaja(reporte);
+      else await bajarTabla(format, `Ingresos del ${periodo}`, `ingresos_${enArchivo}`, tablaDeIngresos(reporte));
+    });
+  };
+
+  const exportAccess = (format) => {
+    if (!rangoValido()) return;
+    exportar('access', 'Asistencia', format, async () => {
+      const accesos = await accessService.getLogsByDateRange(desde, hasta);
+      await bajarTabla(format, `Asistencia del ${periodo}`, `asistencia_${enArchivo}`, tablaDeAccesos(accesos));
+    });
+  };
+
+  // ⚠️ Si falla cualquiera de los tres pedidos, no se baja nada. Un resumen con "0 entradas"
+  // porque no se pudo preguntar (como hacía) es un número inventado con formato de dato.
+  const exportSummary = (format) => {
+    if (!rangoValido()) return;
+    exportar('summary', 'Resumen', format, async () => {
+      const [socios, reporte, accesos] = await Promise.all([
+        memberService.getAllMembers(),
+        cajaService.reporte(desde, hasta),
+        accessService.getLogsByDateRange(desde, hasta),
       ]);
-
-      // Calcular total sumado (solo de pagos completados). El backend manda 'PAID' (mayúscula).
-      const totalSum = (payments || []).filter(p => (p.status || '').toLowerCase() === 'paid').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-      
-      // Agregar filas de total al final
-      rows.push(['', '', '', '', '']); // Separador visual
-      rows.push(['TOTAL SUMADO (Aprobados)', formatCurrency(totalSum), '', '', '']);
-      
-      if (format === 'excel') {
-        await downloadExcel(`pagos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
-      } else {
-        await downloadPDF('Reporte de Pagos', `pagos_${dateFrom}_${dateTo}.pdf`, headers, rows);
-      }
-      
-      addToHistory('Pagos', format === 'excel' ? 'Excel' : 'PDF');
-      showToast(`Reporte de pagos exportado (${payments.length} registros)`, 'success');
-    } catch (err) { showToast('Error: ' + err.message, 'error'); }
-    finally { setExporting(e => ({ ...e, payments: null })); }
-  };
-
-  const exportAccess = async (format) => {
-    setExporting(e => ({ ...e, access: format }));
-    try {
-      let logs;
-      if (dateFrom && dateTo) {
-        logs = await accessService.getLogsByDateRange(dateFrom, dateTo);
-      } else {
-        logs = await accessService.getTodayLogs();
-      }
-      
-      const headers = ['Socio', 'DNI', 'Entrada', 'Salida', 'Método'];
-      const rows = (logs || []).map(l => [l.member?.fullName || '', l.member?.dni || '', l.checkInAt || '', l.checkOutAt || '', l.accessMethod || '']);
-      
-      if (format === 'excel') {
-        await downloadExcel(`accesos_${dateFrom}_${dateTo}.xlsx`, headers, rows);
-      } else {
-        await downloadPDF('Reporte de Accesos', `accesos_${dateFrom}_${dateTo}.pdf`, headers, rows);
-      }
-      
-      addToHistory('Accesos', format === 'excel' ? 'Excel' : 'PDF');
-      showToast('Reporte de accesos exportado', 'success');
-    } catch (err) { showToast('Error: ' + err.message, 'error'); }
-    finally { setExporting(e => ({ ...e, access: null })); }
-  };
-
-  const exportSummary = async (format) => {
-    setExporting(e => ({ ...e, summary: format }));
-    try {
-      // Para el resumen, obtenemos solo contadores sin cargar las tablas enteras
-
-      // Socios activos y total
-      const members = await memberService.getAllMembers();
-      const active = members.filter(m => deriveMemberStatus(m) === 'active').length;
-      const newMembers = members.filter(m => {
-        if (!dateFrom || !dateTo || !m.membershipStart) return true;
-        return m.membershipStart >= dateFrom && m.membershipStart <= dateTo;
-      });
-
-      // 3. Accesos del período
-      let logs = [];
-      try {
-        if (dateFrom && dateTo) {
-          logs = await accessService.getLogsByDateRange(dateFrom, dateTo);
-        } else {
-          logs = await accessService.getTodayLogs();
-        }
-      } catch (err) {
-        console.error("Error obteniendo accesos:", err);
-      }
-
-      const headers = ['Métrica', 'Valor'];
-      const rows = [
-        ['Socios Activos (Total Histórico)', active], 
-        ['Total Socios (Total Histórico)', members.length], 
-        [`Nuevos Socios (${dateFrom || 'Inicio'} al ${dateTo || 'Fin'})`, newMembers.length],
-        [`Accesos Registrados (${dateFrom || 'Inicio'} al ${dateTo || 'Fin'})`, logs?.length || 0]
-      ];
-      
-      if (format === 'excel') {
-        await downloadExcel(`resumen_${dateFrom || 'total'}_${dateTo || 'total'}.xlsx`, headers, rows);
-      } else {
-        await downloadPDF('Resumen General', `resumen_${dateFrom || 'total'}_${dateTo || 'total'}.pdf`, headers, rows);
-      }
-      
-      addToHistory('Resumen', format === 'excel' ? 'Excel' : 'PDF');
-      showToast('Resumen exportado', 'success');
-    } catch (err) { showToast('Error: ' + err.message, 'error'); }
-    finally { setExporting(e => ({ ...e, summary: null })); }
+      await bajarTabla(format, `Resumen del ${periodo}`, `resumen_${enArchivo}`,
+        tablaDelResumen({ socios, reporte, accesos, desde, hasta }));
+    });
   };
 
   const reports = [
-    { key: 'members', title: 'Reporte de Socios', desc: 'Lista de socios + datos de contacto, estado, vencimiento.', icon: 'users', color: 'primary', action: exportMembers },
-    { key: 'payments', title: 'Reporte de Ingresos', desc: 'Pagos recibidos con totales, filtrados por rango de fecha.', icon: 'cash', color: 'success', action: exportPayments },
-    { key: 'access', title: 'Reporte de Asistencia', desc: 'Registro de entradas y salidas para análisis de afluencia.', icon: 'doorEnter', color: 'accent', action: exportAccess },
-    { key: 'summary', title: 'Resumen General', desc: 'Métricas de socios, nuevas altas y análisis de asistencia.', icon: 'chart', color: 'warning', action: exportSummary },
+    { key: 'members', title: 'Socios', desc: 'Todos los socios con su estado de hoy, contacto, arancel y vencimiento. No depende de las fechas.', icon: 'users', color: 'primary', action: exportMembers },
+    { key: 'payments', title: 'Ingresos', desc: 'Las cuotas, las ventas y otros ingresos del período, con los mismos totales de la Caja. En Excel es el libro del contador.', icon: 'cash', color: 'success', action: exportPayments },
+    { key: 'access', title: 'Asistencia', desc: 'Cada entrada y salida del período, con la hora y cómo entró.', icon: 'doorEnter', color: 'accent', action: exportAccess },
+    { key: 'summary', title: 'Resumen', desc: 'Cuántos socios hay al día y vencidos, las altas, lo que entró y las entradas del período.', icon: 'chart', color: 'warning', action: exportSummary },
   ];
 
   return (
     <div className="reports-page">
-      <PageHeader title="Reportes y Exportación" subtitle="Genera y descarga informes de tu gimnasio" icon="chart" />
+      <PageHeader title="Reportes" subtitle="Bajá la información del gimnasio en Excel o PDF" icon="chart" />
 
-      {/* Date Range */}
       <div className="card mb-3" style={{ padding: '1.25rem' }}>
-        <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-          <div className="flex gap-1 items-center">
-            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Desde</label>
-            <input type="date" className="form-input" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
-          </div>
-          <div className="flex gap-1 items-center">
-            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>Hasta</label>
-            <input type="date" className="form-input" value={dateTo} onChange={e => { setDateTo(e.target.value); setActivePeriod(''); }} style={{ width: 'auto' }} />
-          </div>
-          <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
-            {['today', 'week', 'month', 'year'].map(p => (
-              <button key={p} className={`btn btn-sm ${activePeriod === p ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setQuickDate(p)}>
-                {{ today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' }[p]}
-              </button>
-            ))}
-          </div>
-        </div>
+        <SelectorDeFechas rango={rango} />
       </div>
 
-      {/* Report Cards */}
       <div className="reports-grid">
-        {reports.map(r => (
+        {reports.map((r) => (
           <div key={r.key} className="report-card">
-            <div className={`report-icon stat-icon-${r.color}`} style={{ width: 56, height: 56, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+            <div className={`report-icon stat-icon-${r.color}`}>
               <Icon name={r.icon} size="1.5rem" />
             </div>
             <div className="report-title">{r.title}</div>
             <div className="report-description">{r.desc}</div>
-            <div className="flex gap-2" style={{ marginTop: 'auto', paddingTop: '1rem' }}>
-              <button className="btn btn-primary btn-sm flex-1" onClick={() => r.action('excel')} disabled={exporting[r.key]}>
-                {exporting[r.key] === 'excel' ? <><span className="spinner" /> ...</> : <><Icon name="download" /> Excel</>}
+            <div className="report-botones">
+              <button className="btn btn-primary btn-sm" onClick={() => r.action('excel')} disabled={!!exporting[r.key]}>
+                {exporting[r.key] === 'excel' ? <><span className="spinner" /> Armando…</> : <><Icon name="download" /> Excel</>}
               </button>
-              <button className="btn btn-secondary btn-sm flex-1" onClick={() => r.action('pdf')} disabled={exporting[r.key]}>
-                {exporting[r.key] === 'pdf' ? <><span className="spinner" /> ...</> : <><Icon name="download" /> PDF</>}
+              <button className="btn btn-secondary btn-sm" onClick={() => r.action('pdf')} disabled={!!exporting[r.key]}>
+                {exporting[r.key] === 'pdf' ? <><span className="spinner" /> Armando…</> : <><Icon name="download" /> PDF</>}
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Export History */}
       <div className="card mt-3" style={{ padding: '1.25rem' }}>
-        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Icon name="folder" size="1em" /> Exportaciones Recientes</h3>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Icon name="folder" size="1em" /> Lo último que se bajó</h3>
         {exportHistory.length === 0 ? (
-          <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Los archivos exportados aparecerán aquí</div>
+          <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Lo que bajes aparece acá.</div>
         ) : (
           exportHistory.map((exp) => (
             <div key={`${exp.date}-${exp.type}-${exp.format}`} className="payment-history-item">

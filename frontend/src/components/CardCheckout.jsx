@@ -6,17 +6,17 @@
 // Este componente refleja el ESTADO REAL del backend, paso a paso (tipo Netflix):
 //   validando tarjeta → procesando el cobro → confirmado / rechazado (con motivo).
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { loadMercadoPago } from '@mercadopago/sdk-js';
 import CONFIG from '../lib/config';
 import { subscriptionService } from '../services/SubscriptionService';
 import { mpRejectionMessage } from '../lib/mpStatusDetail';
 import { getMpPublicKey } from '../lib/paymentConfig';
 
-const CONTAINER_ID = 'cardPaymentBrick_container';
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX = 40; // ~2 min
 const SDK_TIMEOUT_MS = 12000; // corte si el SDK de MP no carga (red/Electron) — evita el spinner eterno
+const READY_TIMEOUT_MS = 25000; // corte si el formulario no queda listo: se ofrece reintentar o el link
 
 /** Promesa con timeout: si tarda más de `ms`, rechaza (en vez de colgarse para siempre). */
 function withTimeout(promise, ms, message) {
@@ -42,22 +42,50 @@ const S = {
  *              precio: el monto lo pone el catálogo del backend. Si el importe viniera de acá,
  *              cualquiera contrataría el premium por mil pesos editando la request. El `amount`
  *              es solo para que el Brick muestre la cifra correcta en pantalla.
+ * @param onBusyChange  avisa true mientras NO conviene desmontar este componente, y false
+ *              cuando ya se puede. La página de planes lo usa para no dejar cambiar de plan
+ *              en el medio.
+ *
+ * ⚠️ UNO SOLO POR PANTALLA, Y NO SE LO SACA A MEDIO ARMAR. Mercado Pago admite un único Card
+ * Payment Brick vivo por página: sus campos seguros (los iframes de número, vencimiento y
+ * código) son únicos. Probado contra el SDK real:
+ *   · dos a la vez → el segundo no termina de cargar nunca, ni en su propio contenedor;
+ *   · desmontar uno mientras se está armando y montar otro enseguida → el nuevo queda en
+ *     "Cargando…" ("Field 'cardNumber' already unmounted").
+ * Quien ofrezca dos cobros en la misma pantalla muestra un formulario por vez y espera a
+ * `onBusyChange(false)` antes de cambiarlo.
  */
-export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan, onSuccess, onError }) {
+export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan, onSuccess, onError, onBusyChange }) {
   const [status, setStatus] = useState(S.LOADING);
   const [message, setMessage] = useState('');
   const [attempt, setAttempt] = useState(0); // re-monta el Brick al reintentar
-  const propsRef = useRef({ amount, plan, onSuccess, onError });
+  const propsRef = useRef({ amount, plan, onSuccess, onError, onBusyChange });
   const pollRef = useRef(null);
   const statusRef = useRef(status);
+  // Un id por instancia, no uno fijo: con el id repetido el Brick se dibujaba en el primer
+  // contenedor que encontraba, o sea adentro de OTRO formulario. (useId trae caracteres que
+  // no sirven en un selector; se dejan solo letras y números.)
+  const containerId = `cardPaymentBrick_${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   // Patrón "latest ref": los callbacks async (polling, onSubmit del Brick) leen
   // siempre los valores vigentes sin re-suscribirse. Se sincronizan en un effect
   // (no durante el render) y ANTES del effect del Brick, que los consume.
   useEffect(() => {
-    propsRef.current = { amount, plan, onSuccess, onError };
+    propsRef.current = { amount, plan, onSuccess, onError, onBusyChange };
     statusRef.current = status;
   });
+
+  // Ocupado = sacarlo ahora rompe algo. Dos casos: el Brick se está armando (ver la nota de
+  // arriba), o hay un cobro en curso —la tarjeta ya salió para el backend y todavía no hay un
+  // rechazo que habilite reintentar—. Incluye TIMEOUT: MP sigue procesando aunque dejamos de
+  // preguntar.
+  const busy = status === S.LOADING || status === S.SUBMITTING || status === S.PROCESSING
+    || status === S.SUCCESS || status === S.TIMEOUT;
+  useEffect(() => {
+    if (!busy) return undefined;
+    propsRef.current.onBusyChange?.(true);
+    return () => propsRef.current.onBusyChange?.(false);
+  }, [busy]);
 
   // Polling del estado REAL del cobro en el backend.
   const startPolling = () => {
@@ -97,6 +125,17 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
     let controller = null;
     let cancelled = false;
 
+    // Vigía: pase lo que pase más abajo, "Cargando…" tiene un final. El create() de MP puede
+    // volver bien y que onReady no llegue nunca (pasa si otro Brick le pisó los campos
+    // seguros), y ahí no hay excepción que atrapar. Si el formulario termina llegando
+    // después, onReady lo vuelve a mostrar.
+    const vigia = setTimeout(() => {
+      if (cancelled || statusRef.current !== S.LOADING) return;
+      console.error('[CardCheckout] el formulario no quedó listo a tiempo');
+      setStatus(S.ERROR);
+      setMessage(FALLBACK_HINT);
+    }, READY_TIMEOUT_MS);
+
     (async () => {
       try {
         // Clave pública resuelta en RUNTIME (backend → fallback build). Así un build sin la
@@ -113,14 +152,14 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
         await withTimeout(loadMercadoPago(), SDK_TIMEOUT_MS, 'sdk-timeout');
         if (cancelled) return;
         const mp = new window.MercadoPago(mpKey, { locale: 'es-AR' });
-        controller = await mp.bricks().create('cardPayment', CONTAINER_ID, {
+        controller = await mp.bricks().create('cardPayment', containerId, {
           initialization: { amount: propsRef.current.amount },
           customization: {
             visual: { style: { theme: 'dark' } },
             paymentMethods: { minInstallments: 1, maxInstallments: 1 },
           },
           callbacks: {
-            onReady: () => { if (!cancelled) setStatus(S.READY); },
+            onReady: () => { if (!cancelled) { setStatus(S.READY); setMessage(''); } },
             onError: (err) => {
               console.error('[CardCheckout] brick error:', err);
               if (!cancelled) { setStatus(S.ERROR); setMessage(FALLBACK_HINT); }
@@ -160,10 +199,11 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
 
     return () => {
       cancelled = true;
+      clearTimeout(vigia);
       try { controller?.unmount?.(); } catch { /* noop */ }
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [attempt]);
+  }, [attempt, containerId]);
 
   // El reset del estado vive acá (handler), no en el effect: al reintentar, el
   // Brick se re-monta con la UI ya en "Cargando" en el mismo commit.
@@ -183,7 +223,7 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
       )}
 
       {/* Contenedor del Brick: SIEMPRE en el DOM; se oculta cuando ya hay un cobro en curso. */}
-      <div id={CONTAINER_ID} style={{ display: showBrick ? 'block' : 'none' }} />
+      <div id={containerId} style={{ display: showBrick ? 'block' : 'none' }} />
 
       {/* Mensajes en la fase de carga de tarjeta (token/subscribe error) */}
       {(status === S.READY || status === S.SUBMITTING) && message && (
@@ -220,7 +260,10 @@ export default function CardCheckout({ amount = CONFIG.SUBSCRIPTION_PRICE, plan,
       )}
 
       {status === S.ERROR && message && (
-        <div style={panelErr}><p style={pMuted}>{message}</p></div>
+        <div style={panelErr}>
+          <p style={pMuted}>{message}</p>
+          <button className="btn btn-secondary" onClick={retry} style={{ marginTop: '0.5rem' }}>Reintentar</button>
+        </div>
       )}
     </div>
   );

@@ -16,10 +16,12 @@ import { olvidarSocios } from '../lib/localMembers';
 import { sesionGuardada } from '../lib/boveda';
 import { supabase, CLAVE_DE_SESION } from '../lib/supabase';
 import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
+import { sinConexion, cuandoSeCorte, alCambiarLaConexion } from '../lib/conexion';
 import { hasAccess } from '../lib/access';
 import CONFIG from '../lib/config';
 import { useToast } from './ToastContext';
-import logoSrc from '../assets/LogotipoSecundario.png';
+// La marca en vector y en el azul de la app: el PNG azul marino no se veía sobre lo oscuro.
+import logoSrc from '../assets/marca-veltronik.svg';
 
 // Se exporta el Context crudo (no solo el Provider) para poder proveer un valor mínimo
 // sin Supabase: lo usaba el shell del modo local del POS, y hoy lo usan los tests que
@@ -273,8 +275,12 @@ async function sesionSinConexion() {
   if (!guardada?.user) return null;
 
   // ¿Es de verdad un problema de red? Si el backend contesta, la sesión está muerta en serio.
-  const estado = await diagnoseConnectivity().catch(() => CONNECTIVITY.OFFLINE);
-  if (estado === CONNECTIVITY.ONLINE) return null;
+  // Con el corte ya declarado (lib/conexion) no hay nada que preguntar: el sondeo acaba de
+  // decir que no, y preguntar otra vez son hasta cuatro segundos más de logo girando.
+  if (!sinConexion()) {
+    const estado = await diagnoseConnectivity().catch(() => CONNECTIVITY.OFFLINE);
+    if (estado === CONNECTIVITY.ONLINE) return null;
+  }
 
   return identidadDe(guardada.user);
 }
@@ -506,12 +512,10 @@ export function AuthProvider({ children }) {
       // ya está en el disco. Es el caso del apagón —el terminal reinicia antes de que
       // vuelva la línea— y tiene que ser instantáneo.
       //
-      // Ojo: esto es un ATAJO, no la única puerta. `navigator.onLine` da true cuando se
-      // está conectado a un router sin internet, y ahí se sigue por el camino de siempre —
-      // que tarda, pero no confunde una conexión lenta con una conexión ausente. Confundir
-      // eso mandaría al login a alguien con la sesión perfectamente viva, que es
-      // exactamente el bug que todo esto vino a cerrar.
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      // "Sin red" es `sinConexion()` y no `navigator.onLine`: con el router prendido y sin
+      // internet —el corte más común— Windows dice que hay red. En el escritorio el sondeo del
+      // arranque (lib/conexion) es el que sabe.
+      if (sinConexion()) {
         const local = await sesionSinConexion();
         if (local) {
           entrarEnModoLocal(local);
@@ -520,7 +524,31 @@ export function AuthProvider({ children }) {
         }
       }
 
-      const session = await authService.getSession().catch(() => null);
+      // ⭐ LA SESIÓN LE HACE CARRERA AL SONDEO.
+      //
+      // Con el token vigente, `getSession()` contesta desde el disco en un instante y gana.
+      // Con el token vencido sale a renovarlo, y sin internet Supabase insiste treinta
+      // segundos: eso era el logo girando medio minuto. El sondeo del arranque dice en
+      // segundos (en el acto, con el Wi-Fi apagado) si hay servidor; si no hay, se abre con la
+      // sesión guardada sin esperar a que Supabase se rinda.
+      //
+      // Una conexión LENTA no gana esta carrera por error: el sondeo solo declara el corte si
+      // el servidor no contesta nada. En la web el corte no se declara nunca y gana siempre
+      // `getSession()`, como antes.
+      const SE_CORTO = Symbol('se cortó');
+      let session = await Promise.race([
+        authService.getSession().catch(() => null),
+        cuandoSeCorte().then(() => SE_CORTO),
+      ]);
+      if (session === SE_CORTO) {
+        const local = await sesionSinConexion();
+        if (local) {
+          entrarEnModoLocal(local);
+          reloj.informe('modo local (el servidor no contestó)');
+          return;
+        }
+        session = null;
+      }
       reloj.marca('sesion');
       if (!session) {
         // ⭐ "NO HAY SESIÓN" Y "NO PUDE CONFIRMARLA" SE VEN IGUAL DESDE ACÁ, Y NO SON LO MISMO.
@@ -662,22 +690,37 @@ export function AuthProvider({ children }) {
    * podrían pasar días sin que nadie lo note. Peor: mientras tanto, el reintento de
    * renovación quedó apagado a propósito, así que la sesión tampoco se renovaría sola.</p>
    *
-   * <p>El evento `online` del navegador es la señal más barata que hay para esto: lo emite
-   * el sistema operativo cuando aparece una interfaz de red. Puede mentir hacia el lado
-   * optimista —un router sin internet también lo dispara— y no importa: en ese caso
-   * `initAuth` no va a poder confirmar la sesión y volverá a entrar en modo local, que es
-   * donde ya estaba.</p>
+   * <p>La señal es la vuelta del SERVIDOR (lib/conexion), no el evento `online` del
+   * navegador. Ese evento solo avisa que apareció una placa de red, y con el router prendido
+   * y sin internet no llega nunca: nunca hubo un `offline` del que volver. Así se quedaba el
+   * mostrador en modo local hasta que alguien saliera y volviera a entrar.</p>
+   *
+   * <p>Y si el terminal entró sin red por la puerta (DeviceGate), la sucursal no se cargó:
+   * nombre, logo y suscripción quedaron en los valores por defecto. Se cargan ahora.</p>
    */
+  const alVolverLaConexionRef = useRef(null);
   useEffect(() => {
-    if (!modoSinConexion) return undefined;
-    const alVolverLaRed = () => {
-      console.warn('[auth] volvió la red: se reintenta la sesión');
-      try { supabase.auth.startAutoRefresh(); } catch { /* no siempre está disponible */ }
-      initAuth();
+    alVolverLaConexionRef.current = () => {
+      if (modoSinConexion) {
+        console.warn('[auth] volvió la conexión: se reintenta la sesión');
+        try { supabase.auth.startAutoRefresh(); } catch { /* no siempre está disponible */ }
+        // Carga también la sucursal, si la pantalla la usa: ver `necesitaSucursal`.
+        initAuth();
+        return;
+      }
+      const sucursal = localStorage.getItem('current_org_id');
+      if (sucursal && user && !gym) {
+        Promise.resolve(refreshOrgContext(sucursal)).catch((e) => {
+          console.warn('[auth] volvió la conexión pero no se pudo cargar la sucursal:', e?.message);
+        });
+      }
     };
-    window.addEventListener('online', alVolverLaRed);
-    return () => window.removeEventListener('online', alVolverLaRed);
-  }, [modoSinConexion, initAuth]);
+  });
+  // Se escucha UNA vez y se llama a la versión vigente: re-suscribirse en cada render abriría
+  // ventanas en las que la vuelta de la conexión no la escucha nadie.
+  useEffect(() => alCambiarLaConexion((hay) => {
+    if (hay) alVolverLaConexionRef.current?.();
+  }), []);
 
   // Declarado ANTES del useEffect que lo usa (handleUnauthorized): si no, el
   // listener captura una referencia todavía no inicializada del primer render.
@@ -925,7 +968,7 @@ export function AuthProvider({ children }) {
     return (
       <AuthContext.Provider value={value}>
         <div className="auth-splash">
-          <img src={logoSrc} alt="Veltronik" className="auth-splash-logo" />
+          <img src={logoSrc} alt="Veltronik" className="auth-splash-logo marca-centrada" />
           <div className="auth-splash-spinner"><span className="spinner" /></div>
         </div>
       </AuthContext.Provider>

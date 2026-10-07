@@ -14,7 +14,7 @@
 // exactamente lo que fijan estos tests.
 // ============================================
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -30,6 +30,26 @@ vi.mock('../lib/colaAccesos', () => ({
   vaciar: (...a) => cola.vaciar(...a),
   disponible: () => cola.disponible(),
 }));
+
+/**
+ * La conexión, en manos del test: `cortado` es lo que declara el sondeo del escritorio cuando
+ * el servidor no contesta aunque Windows diga que hay red.
+ */
+const conexion = { cortado: false, oyentes: new Set() };
+vi.mock('../lib/conexion', () => ({
+  sinConexion: () => conexion.cortado || navigator.onLine === false,
+  alCambiarLaConexion: (fn) => { conexion.oyentes.add(fn); return () => conexion.oyentes.delete(fn); },
+}));
+const alDia = { refrescarTodo: vi.fn(), refrescarSocios: vi.fn(() => Promise.resolve()) };
+vi.mock('../hooks/queryCacheStore', () => ({ refrescarTodo: (...a) => alDia.refrescarTodo(...a) }));
+vi.mock('../lib/localMembers', () => ({ refrescarSocios: (...a) => alDia.refrescarSocios(...a) }));
+
+/** Lo que avisa lib/conexion cuando el sondeo vuelve a encontrar al servidor. */
+async function volvioElServidor() {
+  conexion.cortado = false;
+  await act(async () => { for (const fn of [...conexion.oyentes]) fn(true); });
+  await act(async () => { await Promise.resolve(); });
+}
 
 const { default: VaciadorDeCola, EVENTO_COLA_CAMBIO } = await import('./VaciadorDeCola');
 
@@ -54,7 +74,16 @@ beforeEach(() => {
   cola.disponible.mockReturnValue(true);
   cola.vaciar.mockResolvedValue({ enviados: 0, quedan: 0, descartados: 0 });
   sinRed(true);
+  conexion.cortado = false;
   sesion.orgId = '11111111-1111-1111-1111-111111111111';
+});
+
+// Sin desmontar, el vaciador de un test seguía escuchando en el siguiente.
+afterEach(() => {
+  if (root) act(() => root.unmount());
+  if (container) container.remove();
+  root = null;
+  container = null;
 });
 
 describe('⚠️ sin sucursal no sale nada', () => {
@@ -173,5 +202,66 @@ describe('lo que le cuenta al resto de la app', () => {
     expect(container.innerHTML, 'no dibuja nada, ni siquiera cuando falla').toBe('');
     expect(oido, 'y avisa igual: quizá alcanzó a subir algo antes de fallar').toHaveBeenCalled();
     window.removeEventListener(EVENTO_COLA_CAMBIO, oido);
+  });
+});
+
+describe('⭐ al volver la conexión, todo se pone al día solo', () => {
+  // REPORTADO POR EL DUEÑO (30/09): al prender internet, Socios, Pagos y la Caja seguían
+  // mostrando lo que habían sacado de la copia local. Había que salir y volver a entrar.
+
+  it('⚠️ con el corte declarado no intenta, aunque Windows diga que hay red', async () => {
+    // El router prendido y sin internet: `navigator.onLine` en true, el servidor sin contestar.
+    conexion.cortado = true;
+    await montar();
+    expect(cola.vaciar).not.toHaveBeenCalled();
+  });
+
+  it('al volver el servidor, sube la cola y pone todo al día — sin ningún `online`', async () => {
+    conexion.cortado = true;
+    await montar();
+
+    await volvioElServidor();
+
+    expect(cola.vaciar).toHaveBeenCalledTimes(1);
+    expect(alDia.refrescarTodo).toHaveBeenCalledTimes(1);
+    expect(alDia.refrescarSocios).toHaveBeenCalledWith(sesion.orgId);
+  });
+
+  it('⭐ PRIMERO sube la cola y DESPUÉS se piden los datos', async () => {
+    // Al revés, la Caja traería del servidor unos totales SIN los cobros hechos sin conexión:
+    // un número más bajo que el que se veía un segundo antes.
+    conexion.cortado = true;
+    await montar();
+    let terminarVaciado;
+    cola.vaciar.mockReturnValue(new Promise((r) => { terminarVaciado = r; }));
+
+    await volvioElServidor();
+    expect(alDia.refrescarTodo, 'la cola todavía está subiendo').not.toHaveBeenCalled();
+
+    await act(async () => { terminarVaciado({ enviados: 2, quedan: 0, descartados: 0 }); });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(alDia.refrescarTodo).toHaveBeenCalledTimes(1);
+  });
+
+  it('volviendo sin nada en la cola, igual pone todo al día', async () => {
+    // Lo que se vio sin conexión salió de la copia: está viejo aunque no se haya encolado nada.
+    conexion.cortado = true;
+    await montar();
+
+    await volvioElServidor();
+
+    expect(alDia.refrescarTodo).toHaveBeenCalled();
+  });
+
+  it('con conexión, si el vaciado de rutina sube algo, también pone todo al día', async () => {
+    cola.vaciar.mockResolvedValue({ enviados: 3, quedan: 0, descartados: 0 });
+    await montar();
+    expect(alDia.refrescarTodo).toHaveBeenCalledTimes(1);
+  });
+
+  it('y si no subió nada, no molesta a las pantallas', async () => {
+    await montar();
+    expect(alDia.refrescarTodo).not.toHaveBeenCalled();
   });
 });

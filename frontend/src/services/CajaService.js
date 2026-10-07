@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { sinConexion } from '../lib/conexion';
 import {
   encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes,
   cobrosPendientes,
@@ -31,7 +32,7 @@ class CajaService {
   async abierto() {
     // ⚠️ SIN RED CONOCIDA NI SE INTENTA. Es la misma regla que en el mostrador: preguntarle a
     // la nube antes de mirar si hay red es regalarle el timeout a quien está esperando.
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (sinRed) {
       const local = await resumenSegunElTerminal();
       if (local) return local;
@@ -71,7 +72,7 @@ class CajaService {
     // el wifi apagado, con los tests de las dos partes en verde.
     const enCola = await cobrosPendientes();
 
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (sinRed) return enCola;
 
     try {
@@ -118,7 +119,7 @@ class CajaService {
 
     // Si hay algo esperando, este también espera: la cola es una sola y el orden vale entre
     // tipos. Adelantarse por la escritura directa lo rompería.
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolarPendiente(paraLaCola);
       if (ref) return { encolado: true, clientRef: ref };
@@ -175,7 +176,7 @@ class CajaService {
   async movimientosDeCaja() {
     const enCola = await movimientosPendientes();
 
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (sinRed) return enCola;
 
     try {
@@ -222,7 +223,7 @@ class CajaService {
 
     const quedaEnCaja = Number(esperadoSegunTerminal || 0) - Number(retiroEfectivo || 0);
 
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       // ⚠️ Con algo esperando, el cierre TAMBIÉN espera. Si se adelantara, el servidor lo
       // contaría antes de haber recibido los cobros del día y cerraría con un total de menos.

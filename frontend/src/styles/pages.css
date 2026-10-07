@@ -87,6 +87,9 @@
     inset 0 1px 0 var(--card-highlight);
 }
 
+/* Con más de un plan las tarjetas van apiladas: sin esto quedaban pegadas borde con borde. */
+.plans-card + .plans-card { margin-top: 1.5rem; }
+
 /* Reflejo especular superior (como el login), insetado para respetar el radio sin
    recortar el badge (no usamos overflow:hidden). */
 .plans-card::before {
@@ -278,10 +281,23 @@
 }
 
 .auth-splash-logo {
-  width: 72px;
+  /* Alto fijo y ancho natural, no una caja cuadrada con `contain`: el corrimiento de
+     `.marca-centrada` es un porcentaje del ancho, y tiene que ser el del dibujo. */
   height: 72px;
-  object-fit: contain;
+  width: auto;
   animation: splashPulse 2s ease-in-out infinite;
+}
+
+/* ─── La marca, centrada a ojo ───
+   El logo de Veltronik carga el peso a la izquierda: su centro visual (el centroide del
+   dibujo, medido sobre sus vértices) cae al 36% del ancho, no al 50%. Centrado por la caja,
+   con algo centrado abajo —el círculo de "cargando", un título— se lo ve corrido a la
+   izquierda: lo reportó el dueño el 30/09 en la pantalla de carga. Se lo corre lo que le falta.
+
+   `translate` y no `transform`, para no pelear con la animación del splash.
+   ⚠️ El porcentaje es del ancho de la IMAGEN: tiene que ir con alto fijo y `width: auto`. */
+.marca-centrada {
+  translate: 14% 0;
 }
 
 .auth-splash-spinner {
@@ -1429,4 +1445,21 @@
   border: 1px solid var(--warning-500);
   background: color-mix(in srgb, var(--warning-500) 10%, transparent);
   font-size: var(--font-size-sm);
+}
+
+/* ─── La tarjeta del Lobby: un botón que la cubre entera ───
+   La tarjeta no es un <button> porque adentro va el de borrar (un botón dentro de otro es HTML
+   inválido). El que abre el gimnasio la tapa de punta a punta; el de borrar queda por encima. */
+.lobby-card-abrir {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.lobby-card-abrir:focus-visible {
+  outline: 2px solid var(--primary-400);
+  outline-offset: -3px;
 }

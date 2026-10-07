@@ -46,7 +46,13 @@ vi.mock('../lib/config', () => ({
   default: { ROUTES: { DASHBOARD: '/dashboard', ACCESS: '/access', LOBBY: '/lobby' } },
 }));
 vi.mock('../components/Icon', () => ({ default: () => null }));
-vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
+vi.mock('../assets/marca-veltronik.svg', () => ({ default: 'logo.svg' }));
+
+/** `cortado`: el sondeo del escritorio declaró que el servidor no contesta (ver lib/conexion). */
+const conexion = { cortado: false };
+vi.mock('../lib/conexion', () => ({
+  sinConexion: () => conexion.cortado || navigator.onLine === false,
+}));
 
 const { default: DeviceGate } = await import('./DeviceGate');
 
@@ -185,7 +191,26 @@ describe('sin conexión, el equipo se acuerda de su sucursal', () => {
     deviceService.me.mockRejectedValue(new Error('Network Error'));
   });
 
-  afterEach(() => sinRed(true));
+  afterEach(() => {
+    sinRed(true);
+    conexion.cortado = false;
+  });
+
+  it('⭐ sin servidor aunque Windows diga que hay red: entra en el acto, sin preguntar', async () => {
+    // REPORTADO POR EL DUEÑO (30/09): "Identificando este equipo…" tardaba demasiado sin
+    // internet. Con el router prendido `navigator.onLine` da true, así que la pantalla salía a
+    // preguntar y esperaba que los dos pedidos se dieran por vencidos. El corte ya lo sabe el
+    // sondeo del arranque: no hay nada que esperar.
+    yaSeIdentificoAntes();
+    sinRed(true);
+    conexion.cortado = true;
+
+    await pintar();
+
+    expect(deviceService.me).not.toHaveBeenCalled();
+    expect(gymService.getUserGyms).not.toHaveBeenCalled();
+    expect(navegado).toEqual(['/access']);
+  });
 
   it('una identificación exitosa deja la copia durable', async () => {
     deviceService.me.mockResolvedValue({ enrolledTenantId: 'org1', enrolledTenantName: 'HaA Fitness' });

@@ -40,9 +40,61 @@ public class GymMemberController {
         this.planService = planService;
     }
 
+    /**
+     * ⭐ LA FOTO DE LA LISTA: los socios se traen de la base solo si alguno cambió.
+     *
+     * <p><b>Qué pasó.</b> Esta lista es la copia local del escritorio (el buscador del
+     * mostrador, el modo sin internet). El escritorio la pide cada 5 minutos y, además, el
+     * buscador la vuelve a pedir en cada tecla si no hay otra en camino. Cada pedido traía de
+     * Supabase TODAS las columnas de TODOS los socios con su arancel —400 fichas en un gimnasio
+     * mediano—, y Supabase cobra lo que sale de la base. Es parte de lo que en septiembre de
+     * 2026 hizo pasar al proyecto del plan gratis (ver {@code GymAccessController#mostrador}).</p>
+     *
+     * <p><b>Qué se guarda.</b> Las ENTIDADES que vinieron de la base, no la respuesta armada: la
+     * situación de cada socio (al día, en gracia, vencido, cuántos días) depende de la hora y
+     * se vuelve a calcular en CADA pedido. Así la foto nunca muestra un vencimiento viejo, por
+     * más que tenga media hora.</p>
+     *
+     * <p><b>Cuándo se tira.</b> Cuando cambia la marca de los socios (alta, edición, cobro,
+     * baja, borrado) o la de los aranceles (el nombre del arancel viaja en cada socio). Y a la
+     * media hora igual, como red por si algún camino escribiera sin mover {@code updated_at}.</p>
+     *
+     * <p>Las entidades guardadas no las toca nadie más que el mapper, que solo lee: el arancel
+     * ya viene cargado en la misma consulta, así que no hay nada perezoso que se active fuera
+     * de la sesión.</p>
+     */
+    static final long FOTO_VIGENTE_MS = 30 * 60_000;
+
+    private record Foto(String marca, long vence, List<GymMember> socios) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<UUID, Foto> fotos =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** El reloj de la foto. Los tests lo adelantan para no esperar media hora. */
+    java.util.function.LongSupplier reloj = System::currentTimeMillis;
+
     @GetMapping
     public ResponseEntity<List<GymMemberDTO>> getAllMembers() {
-        return ResponseEntity.ok(memberMapper.toDtoList(memberService.findAllForCurrentTenant(), accessPolicy));
+        return ResponseEntity.ok(memberMapper.toDtoList(sociosDelGimnasio(), accessPolicy));
+    }
+
+    private List<GymMember> sociosDelGimnasio() {
+        UUID tenantId = com.veltronik.v2.core.security.TenantContextHolder.getTenantId();
+        if (tenantId == null) return memberService.findAllForCurrentTenant();
+
+        // La marca se lee ANTES de traer la lista: si algo cambia en el medio, la foto queda
+        // con la marca vieja y el próximo pedido la rehace, en vez de quedar una lista vieja
+        // con la marca nueva.
+        String marca = memberService.marcaDelGimnasio() + "|" + planService.marcaDelGimnasio();
+        long ahora = reloj.getAsLong();
+
+        Foto foto = fotos.get(tenantId);
+        if (foto != null && foto.marca().equals(marca) && ahora < foto.vence()) {
+            return foto.socios();
+        }
+        List<GymMember> socios = List.copyOf(memberService.findAllForCurrentTenant());
+        fotos.put(tenantId, new Foto(marca, ahora + FOTO_VIGENTE_MS, socios));
+        return socios;
     }
 
     /**

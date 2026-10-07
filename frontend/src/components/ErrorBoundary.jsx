@@ -74,7 +74,7 @@ export default class ErrorBoundary extends Component {
     if (this.state.hasError) {
       if (this.props.inline) {
         return (
-          <div className="card" style={{ padding: '3rem 2rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+          <div className="card" style={{ padding: '3rem 2rem', textAlign: 'center', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
             <div style={{ color: 'var(--error-500)', marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: 64, height: 64, background: 'rgba(239,68,68,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>
                 <Icon name="alertTriangle" />
@@ -117,7 +117,7 @@ export default class ErrorBoundary extends Component {
               </div>
 
               <h1 className="auth-title" style={{ marginBottom: '0.75rem', fontSize: '1.5rem' }}>
-                {this.state.isNetworkError ? 'Pérdida de Conexión' : 'Ocurrió un inconveniente'}
+                {this.state.isNetworkError ? 'Sin conexión' : 'Ocurrió un inconveniente'}
               </h1>
 
               <p className="auth-subtitle" style={{ marginBottom: '2rem', fontSize: '1rem', lineHeight: 1.6 }}>

@@ -337,6 +337,8 @@ describe('el balance de ingresos', () => {
     const primero = toLocalDateString(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
     expect(cajaService.balanceDeRango).toHaveBeenLastCalledWith(primero, toLocalDateString(ahora));
     expect(container.textContent).toContain('Total del mes');
+    // La cantidad va con el total, no en un casillero suelto.
+    expect(container.querySelector('.caja-cifra.es-total').textContent).toContain('31 cobros');
   });
 
   /** Un backend que todavía no tiene el balance no puede dejar sin cerrar la caja. */

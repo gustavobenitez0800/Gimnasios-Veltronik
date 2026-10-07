@@ -4,7 +4,7 @@
 // Cobro principal: el cliente pone la tarjeta acá mismo (Card Payment Brick) y queda
 // suscripto, sin login de MP ni email que coincida. Se deja el link de MP como respaldo.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../lib/apiClient';
@@ -13,15 +13,24 @@ import CardCheckout from '../components/CardCheckout';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 import { useMonthlyPrice } from '../hooks/useMonthlyPrice';
+import { obtenerPlanes, planDe } from '../lib/planes';
 
 export default function BlockedPage() {
-  const { logout } = useAuth();
+  const { logout, subscription } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [fallbackLoading, setFallbackLoading] = useState(false);
   // Antes acá decía "$80.000 ARS" escrito a mano: el muro de pago prometía un precio y el
   // cobro salía por otro. Ahora lo dice el backend, que es el que le pasa el monto a MP.
-  const precioNumero = useMonthlyPrice();
+  const precioBase = useMonthlyPrice();
+
+  // ⭐ Se reactiva EL PLAN QUE TENÍA. Sin decirle cuál, el cobro salía como básico (es lo que
+  // hace el backend ante un pedido sin plan): una sucursal Premium que se atrasaba volvía
+  // pagando el básico y perdía la puerta. Si su plan ya no está a la venta, va el básico.
+  const [planes, setPlanes] = useState(null);
+  useEffect(() => { obtenerPlanes().then(setPlanes); }, []);
+  const plan = planDe(planes, subscription?.planCode);
+  const precioNumero = Number(plan?.price) > 0 ? Number(plan.price) : precioBase;
   const precio = precioNumero.toLocaleString('es-AR');
 
   // Pago OK con tarjeta → el backend ya reactivó. Volvemos al Lobby, que re-evalúa el acceso
@@ -35,7 +44,9 @@ export default function BlockedPage() {
   const handleFallbackLink = async () => {
     try {
       setFallbackLoading(true);
-      const response = await apiClient.get('/billing/subscription-link');
+      const response = await apiClient.get('/billing/subscription-link', {
+        params: plan?.code ? { plan: plan.code } : undefined,
+      });
       const { init_point } = response.data;
       if (init_point) {
         window.location.href = init_point;
@@ -83,7 +94,11 @@ export default function BlockedPage() {
         </p>
 
         {/* Formulario de tarjeta (tokeniza y suscribe sin salir de la app) */}
-        <CardCheckout amount={precioNumero} onSuccess={handleSuccess} />
+        {/* Recién con el plan resuelto: el formulario toma el monto al montarse, y arrancaría con
+            el del básico. (obtenerPlanes nunca falla: sin respuesta da [] y va el básico.) */}
+        {planes === null
+          ? <p style={{ color: '#9ca3af' }}><span className="spinner" /> Cargando pago seguro…</p>
+          : <CardCheckout amount={precioNumero} plan={plan?.code} onSuccess={handleSuccess} />}
 
         {/* Respaldo: link clásico de Mercado Pago */}
         <button

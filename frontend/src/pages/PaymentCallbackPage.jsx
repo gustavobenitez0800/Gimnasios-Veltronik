@@ -16,8 +16,8 @@ import Icon from '../components/Icon';
 const STEPS = {
   loading:  { icon: 'refresh',     title: 'Verificando pago', color: '#3b82f6' },
   success:  { icon: 'checkCircle', title: '¡Pago Exitoso!', color: '#10b981' },
-  pending:  { icon: 'clock',       title: 'Pago en Proceso', color: '#f59e0b' },
-  error:    { icon: 'xCircle',     title: 'Pago Rechazado', color: '#ef4444' },
+  pending:  { icon: 'clock',       title: 'Pago en proceso', color: '#f59e0b' },
+  error:    { icon: 'xCircle',     title: 'Pago rechazado', color: '#ef4444' },
   activating: { icon: 'zap',       title: 'Activando tu cuenta', color: '#8b5cf6' },
 };
 

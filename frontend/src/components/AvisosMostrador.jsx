@@ -19,6 +19,7 @@
 import { useState } from 'react';
 import { accessService } from '../services';
 import Icon from './Icon';
+import { horaDe } from '../lib/utils';
 
 /** Qué decirle a la recepcionista, según la situación del socio. */
 const TEXTO = {
@@ -28,12 +29,6 @@ const TEXTO = {
   SIN_DATOS: () => 'no tiene fecha de vencimiento cargada en su ficha',
 };
 
-function hora(iso) {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  } catch { return ''; }
-}
 
 /**
  * El estado del rechazado se recalcula al mostrarlo, así que puede haberse resuelto solo entre
@@ -60,13 +55,13 @@ const VARIANTES = {
   entrada: {
     titulo: (n) => (n === 1 ? 'Un socio entró y necesita atención' : `${n} socios entraron y necesitan atención`),
     marcar: (id) => accessService.marcarAvisoVisto(id),
-    frase: (a) => ` ${(TEXTO[a.estado] || (() => 'necesita atención'))(a)} · entró ${hora(a.hora)}`,
+    frase: (a) => ` ${(TEXTO[a.estado] || (() => 'necesita atención'))(a)} · entró ${horaDe(a.hora)}`,
   },
   rechazo: {
     titulo: (n) => (n === 1 ? 'La puerta frenó a un socio' : `La puerta frenó a ${n} socios`),
     marcar: (id) => accessService.marcarRechazoVisto(id),
     // Al rechazado la puerta NO lo dejó pasar, así que el texto es sobre por qué se lo frenó.
-    frase: (a) => ` quiso entrar por el molinete y no pudo: ${(TEXTO_RECHAZO[a.estado] || (() => 'revisá su ficha'))(a)} · ${hora(a.hora)}`,
+    frase: (a) => ` quiso entrar por el molinete y no pudo: ${(TEXTO_RECHAZO[a.estado] || (() => 'revisá su ficha'))(a)} · ${horaDe(a.hora)}`,
   },
 };
 

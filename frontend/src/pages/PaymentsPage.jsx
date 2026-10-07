@@ -12,6 +12,7 @@ import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth, sumarPlata } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
+import { FORMAS_DE_PAGO, OTRA_FORMA } from '../lib/formasDePago';
 import { useModal, invalidateQueries } from '../hooks';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader } from '../components/Layout';
@@ -42,6 +43,18 @@ function esEstado(pago, estado) {
 function nombreDelCobro(pago) {
   if (pago.member?.fullName) return pago.member.fullName;
   return pago.importado ? 'Sin socio en Veltronik' : 'Socio eliminado';
+}
+
+/**
+ * El período en un renglón: "12/10 al 12/11/2026". Con el año repetido ("12/10/2026 -
+ * 12/11/2026") la celda se partía en tres renglones y cada fila medía el doble.
+ */
+function periodoCorto(desde, hasta) {
+  const d = formatDate(desde);
+  const h = formatDate(hasta);
+  if (!d || !h) return d || h || '-';
+  const mismoAnio = d.slice(-4) === h.slice(-4);
+  return `${mismoAnio ? d.slice(0, -5) : d} al ${h}`;
 }
 
 function getInitialForm() {
@@ -304,12 +317,12 @@ export default function PaymentsPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!modal.form.member_id) {
-      showToast('Selecciona un socio', 'error');
+      showToast('Elegí un socio', 'error');
       return;
     }
     const amountVal = parseFloat(modal.form.amount);
     if (!modal.form.amount || isNaN(amountVal) || amountVal <= 0) {
-      showToast('Ingresa un monto válido', 'error');
+      showToast('Escribí un monto mayor a cero', 'error');
       return;
     }
 
@@ -398,7 +411,7 @@ export default function PaymentsPage() {
     <div className="payments-page">
       <PageHeader
         title="Pagos"
-        subtitle={isFetching && payments.length > 0 ? "Actualizando datos..." : "Gestión de pagos de socios"}
+        subtitle={isFetching && payments.length > 0 ? "Actualizando datos..." : "Los cobros de tus socios"}
         icon="cash"
         actions={
           <div className="flex gap-1">
@@ -413,7 +426,7 @@ export default function PaymentsPage() {
               setSelectedMember(null);
               modal.open();
             }}>
-              <Icon name="plus" /> Registrar Pago
+              <Icon name="plus" /> Registrar pago
             </button>
           </div>
         }
@@ -466,11 +479,8 @@ export default function PaymentsPage() {
             value: methodFilter,
             onChange: setMethodFilter,
             options: [
-              { value: '', label: 'Todos los métodos' },
-              { value: 'cash', label: 'Efectivo' },
-              { value: 'card', label: 'Tarjeta' },
-              { value: 'transfer', label: 'Transferencia' },
-              { value: 'mercadopago', label: 'Mercado Pago' },
+              { value: '', label: 'Todas las formas de pago' },
+              ...FORMAS_DE_PAGO.map((f) => ({ value: f.valor, label: f.etiqueta })),
             ],
           },
           {
@@ -489,36 +499,35 @@ export default function PaymentsPage() {
       />
 
       {/* Table */}
-      <div className="card">
+      <div className="card tabla-pagos">
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
-                <th>Socio</th>
+                <th className="col-socio">Socio</th>
                 <th>Monto</th>
-                <th>Fecha</th>
-                <th>Método</th>
-                <th>Estado</th>
-                <th>Período</th>
-                <th>Acciones</th>
+                <th className="col-fecha">Fecha</th>
+                <th className="col-forma">Forma de pago</th>
+                <th className="col-periodo">Período</th>
+                <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
               {isFetching && payments.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="table-empty">
+                  <td colSpan="6" className="table-empty">
                     <span className="spinner" /> Cargando...
                   </td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td colSpan="7" className="table-empty">
+                  <td colSpan="6" className="table-empty">
                     No se pudieron cargar los pagos
                   </td>
                 </tr>
               ) : payments.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="table-empty">
+                  <td colSpan="6" className="table-empty">
                     No se encontraron pagos
                   </td>
                 </tr>
@@ -526,11 +535,11 @@ export default function PaymentsPage() {
                 payments.map((payment) => (
                   <tr key={payment.id} className={esEstado(payment, 'cancelled') ? 'pago-anulado' : undefined}
                     style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
-                    <td data-label="Socio">
-                      <strong>{nombreDelCobro(payment)}</strong>
+                    <td data-label="Socio" className="col-socio">
+                      <strong className="celda-una-linea" title={nombreDelCobro(payment)}>{nombreDelCobro(payment)}</strong>
                       {payment.member?.dni && (
-                        <small className="text-muted" style={{ display: 'block' }}>
-                          DNI: {payment.member.dni}
+                        <small className="text-muted celda-una-linea" style={{ display: 'block' }}>
+                          DNI {payment.member.dni}
                         </small>
                       )}
                       {/* Historia del sistema anterior: suma en los ingresos, pero no corrió
@@ -554,23 +563,28 @@ export default function PaymentsPage() {
                       <span className="pago-monto" style={{ fontWeight: 600, color: 'var(--success-500)' }}>
                         {formatCurrency(payment.amount)}
                       </span>
+                      {/* El estado va con el monto y SOLO cuando no es el de siempre. Una columna
+                          que dice PAGADO en casi todas las filas es ruido, y le sacaba a la tabla
+                          el ancho que necesitaba para entrar sin barra horizontal. */}
+                      {!esEstado(payment, 'paid') && (
+                        <div className="pago-estado">
+                          {esEstado(payment, 'cancelled')
+                            ? <Badge status="cancelled" label="Anulado" />
+                            : <Badge status={payment.status} />}
+                        </div>
+                      )}
                     </td>
-                    <td data-label="Fecha">{formatDate(payment.paymentDate)}</td>
-                    <td data-label="Método">{getMethodLabel(payment.paymentMethod)}</td>
-                    <td data-label="Estado">
-                      {esEstado(payment, 'cancelled')
-                        ? <Badge status="cancelled" label="Anulado" />
-                        : <Badge status={payment.status} />}
-                    </td>
-                    <td data-label="Período">
+                    <td data-label="Fecha" className="col-fecha">{formatDate(payment.paymentDate)}</td>
+                    <td data-label="Forma de pago" className="col-forma">{getMethodLabel(payment.paymentMethod)}</td>
+                    <td data-label="Período" className="col-periodo">
                       {payment.periodStart && payment.periodEnd ? (
-                        `${formatDate(payment.periodStart)} - ${formatDate(payment.periodEnd)}`
+                        <span className="celda-una-linea">{periodoCorto(payment.periodStart, payment.periodEnd)}</span>
                       ) : payment.periodoImportadoDesde && payment.periodoImportadoHasta ? (
                         /* El del historial importado lo reconstruye el sistema con el
                            vencimiento que traía el anterior (V87): se ve igual, y el cartelito
                            dice de dónde sale. No mueve ningún vencimiento. */
-                        <span title="Calculado con el vencimiento que traía el sistema anterior. No mueve ningún vencimiento.">
-                          {formatDate(payment.periodoImportadoDesde)} - {formatDate(payment.periodoImportadoHasta)}
+                        <span className="celda-una-linea" title="Calculado con el vencimiento que traía el sistema anterior. No mueve ningún vencimiento.">
+                          {periodoCorto(payment.periodoImportadoDesde, payment.periodoImportadoHasta)}
                         </span>
                       ) : '-'}
                     </td>
@@ -609,7 +623,7 @@ export default function PaymentsPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.isEditing ? 'Editar Pago' : 'Registrar Pago'}
+        title={modal.isEditing ? 'Editar pago' : 'Registrar pago'}
       >
         <form onSubmit={handleSave} noValidate>
           {/* Ya lo contó un cierre de caja: corregirlo se puede, y la diferencia entra en el
@@ -703,14 +717,12 @@ export default function PaymentsPage() {
                 onChange={(e) => handleFormChange('paymentDate', e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Método de pago</label>
+              <label className="form-label">Forma de pago</label>
               <select className="form-select" value={modal.form.paymentMethod}
                 onChange={(e) => handleFormChange('paymentMethod', e.target.value)}>
-                <option value="cash">Efectivo</option>
-                <option value="card">Tarjeta</option>
-                <option value="transfer">Transferencia</option>
-                <option value="mercadopago">Mercado Pago</option>
-                <option value="other">Otro</option>
+                {[...FORMAS_DE_PAGO, OTRA_FORMA].map((f) => (
+                  <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">

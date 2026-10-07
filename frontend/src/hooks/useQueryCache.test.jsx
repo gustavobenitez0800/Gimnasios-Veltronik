@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useQueryCache, clearQueryCache } from './useQueryCache';
+import { useQueryCache, clearQueryCache, refrescarTodo } from './useQueryCache';
 
 // Monta un hook de verdad y deja mirar lo que devolvió en cada render.
 function montar(useHook) {
@@ -153,5 +153,61 @@ describe('useQueryCache', () => {
     expect(segunda.invalidate).toBe(primera.invalidate);
     expect(segunda.mutate).toBe(primera.mutate);
     vista.desmontar();
+  });
+});
+
+describe('⭐ refrescarTodo: volvió la conexión', () => {
+  // REPORTADO POR EL DUEÑO (30/09): al prender internet, Socios seguía mostrando lo que había
+  // sacado de la copia local. La respuesta de la copia quedó guardada como fresca, y con cinco
+  // minutos de frescura nadie la volvía a pedir: había que salir y volver a entrar.
+
+  beforeEach(() => {
+    clearQueryCache();
+  });
+
+  it('lo que está en pantalla se vuelve a pedir, aunque estuviera "fresco"', async () => {
+    const traer = vi.fn()
+      .mockResolvedValueOnce(['de la copia'])
+      .mockResolvedValueOnce(['del servidor']);
+    const vista = montar(() => useQueryCache(['socios'], traer, { staleTime: 5 * 60 * 1000 }));
+    await esperar();
+    expect(vista.ultimo().data).toEqual(['de la copia']);
+
+    await act(async () => { refrescarTodo(); });
+    await esperar();
+
+    expect(traer).toHaveBeenCalledTimes(2);
+    expect(vista.ultimo().data).toEqual(['del servidor']);
+    vista.desmontar();
+  });
+
+  it('sin vaciar la pantalla: lo viejo se sigue viendo mientras llega lo nuevo', async () => {
+    let entregar;
+    const traer = vi.fn()
+      .mockResolvedValueOnce(['de la copia'])
+      .mockReturnValueOnce(new Promise((r) => { entregar = r; }));
+    const vista = montar(() => useQueryCache(['socios'], traer, { staleTime: 5 * 60 * 1000 }));
+    await esperar();
+
+    await act(async () => { refrescarTodo(); });
+
+    expect(vista.ultimo().loading).toBe(false);
+    expect(vista.ultimo().data).toEqual(['de la copia']);
+    await act(async () => { entregar(['del servidor']); });
+    vista.desmontar();
+  });
+
+  it('lo que NO está en pantalla queda viejo: se pide apenas se vuelve a abrir', async () => {
+    const traer = vi.fn().mockResolvedValue(['ana']);
+    const primera = montar(() => useQueryCache(['pagos'], traer, { staleTime: 5 * 60 * 1000 }));
+    await esperar();
+    primera.desmontar();
+
+    refrescarTodo();
+    const segunda = montar(() => useQueryCache(['pagos'], traer, { staleTime: 5 * 60 * 1000 }));
+    await esperar();
+
+    expect(traer).toHaveBeenCalledTimes(2);
+    segunda.desmontar();
   });
 });

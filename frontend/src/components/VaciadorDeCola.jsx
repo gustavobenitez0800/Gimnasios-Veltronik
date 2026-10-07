@@ -15,6 +15,9 @@
 // Monta una sola vez, dentro del proveedor de sesión, y avisa por un evento cuando la cola
 // cambió — así la pantalla de Acceso actualiza su contador sin que este componente tenga que
 // conocerla.
+//
+// Y es el que PONE TODO AL DÍA cuando vuelve la conexión (ver `alVolver`): el orden entre
+// subir la cola y volver a pedir los datos importa, y en un solo lugar no se puede invertir.
 
 import { useEffect, useCallback } from 'react';
 import { useToast } from '../contexts/ToastContext';
@@ -22,6 +25,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { accessService, paymentService, memberService } from '../services';
 import { cajaService } from '../services/CajaService';
 import { vaciar, disponible } from '../lib/colaAccesos';
+import { sinConexion, alCambiarLaConexion } from '../lib/conexion';
+import { refrescarSocios } from '../lib/localMembers';
+import { refrescarTodo } from '../hooks/queryCacheStore';
 
 /** Cada cuánto se reintenta si quedó algo. Cinco minutos: nadie está esperando esto. */
 const CADA_MS = 5 * 60 * 1000;
@@ -33,10 +39,11 @@ export default function VaciadorDeCola() {
   const { showToast } = useToast();
   const { orgId } = useAuth();
 
+  /** Sube lo que haya. Devuelve cuántos subieron (0 si no le tocaba intentar). */
   const intentar = useCallback(async () => {
-    if (!disponible()) return;
+    if (!disponible()) return 0;
     // Sin red no se intenta: serían pedidos condenados a fallar, cada uno con su ruido.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (sinConexion()) return 0;
 
     // ⚠️ NI SIN SUCURSAL. El escritorio arranca borrando `current_org_id` a propósito, así
     // que en cada arranque hay una ventana sin sucursal. Un acceso que sale en esa ventana
@@ -47,8 +54,9 @@ export default function VaciadorDeCola() {
     // fila se queda y se reintenta— pero se
     // quemaban DOS intentos en cada arranque, para siempre. Se encontró al revés: una fila
     // en la cola con `intentos: 2` y ningún motivo a la vista.
-    if (!orgId) return;
+    if (!orgId) return 0;
 
+    let subieron = 0;
     try {
       // Un enviador por tipo: los cinco caminos que tocan plata más los accesos
       // (ver docs/FASE3-CAMINOS.md). Ya están todos.
@@ -56,7 +64,7 @@ export default function VaciadorDeCola() {
       // ⚠️ Lo que NO tiene enviador se queda en la cola y corta la tanda, no se descarta:
       // durante una actualización un terminal viejo puede encontrarse un tipo que su código
       // todavía no sabe mandar, y tirarlo sería tirar plata.
-      const { enviados } = await vaciar({
+      const { enviados = 0 } = await vaciar({
         ACCESO: (item) => accessService.enviarEncolado(item),
         // ⚠️ La SALIDA no es un ACCESO. El acceso pide que el servidor deduzca la dirección
         // contra el momento; la salida le dice QUÉ visita cerrar. Se usa cuando el mostrador
@@ -75,6 +83,7 @@ export default function VaciadorDeCola() {
         // poder comparar.
         CIERRE: (item) => cajaService.enviarCierreEncolado(item),
       });
+      subieron = enviados;
       if (enviados > 0) {
         // ⚠️ "ACCESO", NO "ENTRADA". La cola no sabe la dirección: eso lo decide el servidor
         // mirando el estado del socio en el momento en que ocurrió. Llamarle "entrada" a lo
@@ -94,20 +103,44 @@ export default function VaciadorDeCola() {
       // reintentan solos. Es exactamente para lo que la cola existe.
     }
     window.dispatchEvent(new Event(EVENTO_COLA_CAMBIO));
+    return subieron;
   }, [showToast, orgId]);
 
   useEffect(() => {
-    intentar();
-    // `online` es la señal barata: lo emite el sistema operativo cuando aparece la red. El
-    // temporizador es la red de seguridad para cuando esa señal no llega (un router que
-    // nunca se cayó del todo, una conexión que volvió sin avisar).
-    window.addEventListener('online', intentar);
-    const t = setInterval(intentar, CADA_MS);
+    // Si subió algo, lo que muestran Socios, Pagos o la Caja quedó viejo: recién ahora el
+    // servidor sabe de esos cobros y altas.
+    const cadaTanto = async () => {
+      if ((await intentar()) > 0) refrescarTodo();
+    };
+
+    // ⭐ AL VOLVER LA CONEXIÓN: PRIMERO SUBE LA COLA, DESPUÉS SE PONE TODO AL DÍA.
+    //
+    // Reportado por el dueño (30/09): al prender internet las pantallas seguían mostrando lo
+    // que habían sacado de la copia local, y había que salir del sistema y volver a entrar.
+    //
+    // El orden importa: si las pantallas pidieran antes de que suba la cola, la Caja traería
+    // del servidor unos totales SIN los cobros que se hicieron sin conexión — un número más
+    // bajo que el que se veía un segundo antes. Primero se sube, después se pregunta.
+    const alVolver = async () => {
+      await intentar();
+      refrescarTodo();
+      if (orgId) refrescarSocios(orgId).catch(() => {});
+    };
+
+    cadaTanto();
+    // En el escritorio la vuelta la avisa lib/conexion, que sondea el servidor: el `online` del
+    // navegador no llega con el router prendido y sin internet, que es el corte más común. Se
+    // escuchan los dos porque en la web no hay quien sondee. El temporizador es la red de
+    // seguridad para cuando ninguna señal llega.
+    window.addEventListener('online', cadaTanto);
+    const soltar = alCambiarLaConexion((hay) => { if (hay) alVolver(); });
+    const t = setInterval(cadaTanto, CADA_MS);
     return () => {
-      window.removeEventListener('online', intentar);
+      window.removeEventListener('online', cadaTanto);
+      soltar();
       clearInterval(t);
     };
-  }, [intentar]);
+  }, [intentar, orgId]);
 
   return null;
 }

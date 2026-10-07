@@ -17,7 +17,8 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardController } from '../controllers/useDashboardController';
-import { formatCurrency, formatDate, getStatusLabel, getStatusBadgeClass } from '../lib/utils';
+import { formatCurrency, formatDate } from '../lib/utils';
+import EstadoDelSocio from '../components/EstadoDelSocio';
 import { montoCorto } from '../lib/resumenDashboard';
 import { GYM } from '../lib/gym';
 import { PageHeader } from '../components/Layout';
@@ -238,7 +239,7 @@ function GymDashboard({ gym }) {
                 contando solo a los que pagaron: dos números para la misma palabra, en la
                 misma pantalla. */}
             <StatCard icon="users" label={`${membersLabel} al día`} value={dashboardStats.alDia} color="primary" />
-            <StatCard icon="cash" label="Ingresos del Mes" value={formatCurrency(dashboardStats.monthlyRevenue)}
+            <StatCard icon="cash" label="Ingresos del mes" value={formatCurrency(dashboardStats.monthlyRevenue)}
               color="success" detail={detalleDelMes} detailTone={tonoDelMes}
               nota={notaDelMes ? `Incluye ${notaDelMes}` : undefined} />
           </>
@@ -254,7 +255,7 @@ function GymDashboard({ gym }) {
       {!CONFIG.IS_DESKTOP && (
       <div className="ai-section">
         <h2 className="ai-section-title">
-          <Icon name="brain" size="1.2em" /> Inteligencia Artificial
+          <Icon name="brain" size="1.2em" /> Inteligencia artificial
           <span className="ai-badge">AI Powered</span>
         </h2>
 
@@ -294,7 +295,7 @@ function GymDashboard({ gym }) {
           {/* Revenue Chart */}
           <div className="card chart-card">
             <h4 className="chart-title">
-              <Icon name="trendingUp" size="1em" /> Ingresos Mensuales
+              <Icon name="trendingUp" size="1em" /> Ingresos por mes
               <span className="chart-subtitle">· {revenueChartData.mesEnCurso} en curso, al día {revenueChartData.dia}</span>
             </h4>
             <div className="chart-container">
@@ -304,7 +305,7 @@ function GymDashboard({ gym }) {
 
           {/* Members Chart */}
           <div className="card chart-card">
-            <h4 className="chart-title"><Icon name="users" size="1em" /> Estado de {membersLabel}</h4>
+            <h4 className="chart-title"><Icon name="users" size="1em" /> Estado de los {membersLabel.toLowerCase()}</h4>
             <div className="chart-container">
               {/* Un doughnut cuyos valores suman CERO no dibuja nada: Chart.js reparte
                   la circunferencia en proporción a los datos, y sin datos no hay arco
@@ -335,7 +336,7 @@ function GymDashboard({ gym }) {
         {!CONFIG.IS_DESKTOP && (
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title"><Icon name="lightbulb" size="1em" /> Insights del Día</h3>
+            <h3 className="card-title"><Icon name="lightbulb" size="1em" /> Para mirar hoy</h3>
           </div>
           <div className="insights-panel">
             {insights.length === 0 ? (
@@ -364,7 +365,7 @@ function GymDashboard({ gym }) {
         {/* Alerts */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title"><Icon name="alertTriangle" size="1em" /> Alertas de Vencimiento</h3>
+            <h3 className="card-title"><Icon name="alertTriangle" size="1em" /> Vencimientos</h3>
           </div>
           <div className="alerts-panel">
             {alerts.length === 0 ? (
@@ -390,7 +391,7 @@ function GymDashboard({ gym }) {
                 {alertsTotal > Math.min(alerts.length, ALERTAS_VISIBLES) && (
                   <div className="alerts-mas">
                     <span>y {alertsTotal - Math.min(alerts.length, ALERTAS_VISIBLES)} más</span>
-                    <Link to={`${CONFIG.ROUTES.MEMBERS}?estado=expired`} className="btn btn-sm btn-ghost">
+                    <Link to={`${CONFIG.ROUTES.MEMBERS}?estado=vencido`} className="btn btn-sm btn-ghost">
                       Ver vencidos →
                     </Link>
                   </div>
@@ -406,7 +407,7 @@ function GymDashboard({ gym }) {
         {/* Recent Members */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Últimos {membersLabel}</h3>
+            <h3 className="card-title">Últimas altas</h3>
             <Link to={CONFIG.ROUTES.MEMBERS} className="btn btn-sm btn-ghost">
               Ver todos →
             </Link>
@@ -434,9 +435,8 @@ function GymDashboard({ gym }) {
                       <td data-label="Nombre">{member.fullName}</td>
                       <td data-label="DNI">{member.dni || '-'}</td>
                       <td data-label="Estado">
-                        <span className={`badge ${getStatusBadgeClass(member.status)}`}>
-                          {getStatusLabel(member.status)}
-                        </span>
+                        {/* El mismo chip que Socios: el que nunca pagó dice "Sin cuota", no "Activo". */}
+                        <EstadoDelSocio socio={member} />
                       </td>
                       <td data-label="Vencimiento">{formatDate(member.membershipEnd)}</td>
                     </tr>
@@ -450,24 +450,24 @@ function GymDashboard({ gym }) {
         {/* Quick Actions */}
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Acciones Rápidas</h3>
+            <h3 className="card-title">Accesos rápidos</h3>
           </div>
           <div className="quick-actions">
             <Link to={`${CONFIG.ROUTES.MEMBERS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="plus" /></span>
-              <span className="quick-action-label">Nuevo {memberLabel}</span>
+              <span className="quick-action-label">Nuevo {memberLabel.toLowerCase()}</span>
             </Link>
             <Link to={`${CONFIG.ROUTES.PAYMENTS}?action=new`} className="quick-action">
               <span className="quick-action-icon"><Icon name="cash" /></span>
-              <span className="quick-action-label">Registrar Pago</span>
+              <span className="quick-action-label">Cobrar una cuota</span>
             </Link>
             <Link to={CONFIG.ROUTES.MEMBERS} className="quick-action">
               <span className="quick-action-icon"><Icon name="search" /></span>
-              <span className="quick-action-label">Buscar {memberLabel}</span>
+              <span className="quick-action-label">Buscar {memberLabel.toLowerCase()}</span>
             </Link>
             <Link to={CONFIG.ROUTES.SETTINGS} className="quick-action">
               <span className="quick-action-icon"><Icon name="settings" /></span>
-              <span className="quick-action-label">Configuración</span>
+              <span className="quick-action-label">Ajustes</span>
             </Link>
           </div>
         </div>

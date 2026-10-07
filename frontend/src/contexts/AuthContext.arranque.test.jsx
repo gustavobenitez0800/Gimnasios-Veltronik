@@ -76,11 +76,34 @@ vi.mock('../lib/connectivity', () => ({
   diagnoseConnectivity: (...a) => conectividad.diagnoseConnectivity(...a),
 }));
 
+/**
+ * La conexión, en manos del test. `cortar()` es lo que hace el sondeo del escritorio cuando el
+ * servidor no contesta aunque Windows diga que hay red; `volver()`, cuando lo encuentra de nuevo.
+ * Sin tocarla, responde lo que dice el sistema, como el módulo real en la web.
+ */
+const conexion = { cortado: false, alCortarse: [], oyentes: new Set() };
+vi.mock('../lib/conexion', () => ({
+  sinConexion: () => conexion.cortado || navigator.onLine === false,
+  cuandoSeCorte: () => (conexion.cortado
+    ? Promise.resolve()
+    : new Promise((r) => { conexion.alCortarse.push(r); })),
+  alCambiarLaConexion: (fn) => { conexion.oyentes.add(fn); return () => conexion.oyentes.delete(fn); },
+}));
+function cortar() {
+  conexion.cortado = true;
+  conexion.alCortarse.splice(0).forEach((r) => r());
+  [...conexion.oyentes].forEach((fn) => fn(false));
+}
+function volver() {
+  conexion.cortado = false;
+  [...conexion.oyentes].forEach((fn) => fn(true));
+}
+
 /** Pone (o saca) la máquina en modo "sin red", como el terminal después de un apagón. */
 function sinRed(hay) {
   Object.defineProperty(window.navigator, 'onLine', { value: hay, configurable: true });
 }
-vi.mock('../assets/LogotipoSecundario.png', () => ({ default: 'logo.png' }));
+vi.mock('../assets/marca-veltronik.svg', () => ({ default: 'logo.svg' }));
 
 const { AuthProvider } = await import('./AuthContext');
 
@@ -121,6 +144,9 @@ beforeEach(() => {
   conectividad.diagnoseConnectivity.mockResolvedValue('OFFLINE');
   sinRed(true);
   delete window.electronAPI;
+  conexion.cortado = false;
+  conexion.alCortarse = [];
+  conexion.oyentes.clear();
 });
 
 afterEach(() => {
@@ -313,5 +339,72 @@ describe('el arranque sin red', () => {
     await pintarEn('#/lobby');
 
     expect(authService.getSession).toHaveBeenCalled();
+  });
+});
+
+// ⭐ REPORTADO POR EL DUEÑO (30/09): "cuando entro al modo offline tarda demasiado en cargar".
+//
+// El atajo de arriba solo se tomaba con `navigator.onLine === false`, y eso casi nunca pasa: con
+// el router prendido y sin internet —o con una placa virtual levantada, como en su PC— Windows
+// dice que hay red. Entonces se le preguntaba a Supabase, que con el token vencido insiste
+// TREINTA SEGUNDOS antes de rendirse. Eso era el logo girando.
+describe('⭐ sin servidor aunque Windows diga que hay red', () => {
+  function terminalConRouterSinInternet() {
+    window.electronAPI = {};
+    sinRed(true); // Windows: "hay red"
+    boveda.sesionGuardada.mockResolvedValue({ refresh_token: 'rt', user: SESION.user });
+    // El token venció y Supabase está reintentando la renovación contra una red que no llega.
+    authService.getSession.mockReturnValue(new Promise(() => {}));
+  }
+
+  it('no espera a que Supabase se rinda: apenas el sondeo dice que no hay servidor, abre', async () => {
+    terminalConRouterSinInternet();
+
+    await pintarEn('#/acceso');
+    expect(hayLogoGirando(), 'todavía no se sabe si hay servidor').toBe(true);
+
+    await act(async () => { cortar(); });
+    await tick();
+
+    expect(hayLogoGirando()).toBe(false);
+    expect(container.textContent).toContain('ya se ve la app');
+  });
+
+  it('y no vuelve a preguntar si hay red: el sondeo ya lo dijo', async () => {
+    // `diagnoseConnectivity` son hasta cuatro segundos más de logo girando.
+    terminalConRouterSinInternet();
+    await pintarEn('#/acceso');
+
+    await act(async () => { cortar(); });
+    await tick();
+
+    // Las dos juntas: sin la primera, "no preguntó" pasaría también con el logo colgado.
+    expect(hayLogoGirando()).toBe(false);
+    expect(conectividad.diagnoseConnectivity).not.toHaveBeenCalled();
+  });
+
+  it('con el corte ya declarado al arrancar, ni siquiera le pregunta a Supabase', async () => {
+    terminalConRouterSinInternet();
+    conexion.cortado = true;
+
+    await pintarEn('#/acceso');
+
+    expect(authService.getSession).not.toHaveBeenCalled();
+    expect(hayLogoGirando()).toBe(false);
+  });
+
+  it('⭐ al volver el servidor sale solo del modo local, sin que llegue ningún `online`', async () => {
+    // El otro medio del reporte: había que salir del sistema y volver a entrar.
+    terminalConRouterSinInternet();
+    conexion.cortado = true;
+    await pintarEn('#/acceso');
+    authService.getSession.mockResolvedValue(SESION);
+
+    await act(async () => { volver(); });
+    await tick();
+
+    expect(authService.getSession, 'se reintenta la sesión').toHaveBeenCalled();
+    const { supabase } = await import('../lib/supabase');
+    expect(supabase.auth.startAutoRefresh, 'y la renovación se vuelve a prender').toHaveBeenCalled();
   });
 });

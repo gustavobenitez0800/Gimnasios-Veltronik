@@ -22,7 +22,7 @@
 // riesgo chico.
 // ============================================
 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import CONFIG from '../lib/config';
 import { AppLayout, AuthLayout } from '../components/Layout';
 
@@ -101,7 +101,7 @@ export default function DesktopRoutes() {
 
       {/* Fallback. Cubre además las rutas que acá no existen (/register, /onboarding,
           /mission-control, /payment-callback): escribirlas a mano no lleva a ningún lado. */}
-      <Route path="*" element={<LoginPage />} />
+      <Route path="*" element={<Navigate to={CONFIG.ROUTES.LOGIN} replace />} />
     </Routes>
     </>
   );

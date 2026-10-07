@@ -80,6 +80,19 @@ public class AccessLogService {
     }
 
     /**
+     * Las últimas {@code cuantos} marcas de hoy, con el socio. El recorte lo hace la base.
+     *
+     * <p>Para el mostrador, que muestra 30 filas. {@link #getTodayAccesses()} trae el día
+     * entero y sigue existiendo para quien de verdad lo necesita.</p>
+     */
+    public List<AccessLog> ultimosDeHoy(int cuantos) {
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        return accessLogRepository.findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(
+                TenantContextHolder.getTenantId(), today.atStartOfDay(), today.atTime(LocalTime.MAX),
+                org.springframework.data.domain.PageRequest.of(0, cuantos));
+    }
+
+    /**
      * Los números del día, calculados acá para no tener que mandar la lista entera.
      *
      * <p>La pantalla muestra 30 filas pero necesita el total y el promedio de TODO el día.
@@ -87,15 +100,29 @@ public class AccessLogService {
      * frontend los contaba: en un gimnasio con 250 entradas eso son cientos de fichas
      * viajando por la conexión del gimnasio cada quince segundos, para pintar dos números.</p>
      *
-     * @param delDia la lista que ya se trajo; no vuelve a consultar
+     * <p>Y de la base salen solo los dos horarios de cada visita, no las fichas: contar no
+     * necesita saber quién entró.</p>
      */
-    public ResumenDelDia resumirDia(List<AccessLog> delDia) {
+    public ResumenDelDia resumenDeHoy() {
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        List<Horario> horarios = accessLogRepository.horariosEntre(
+                        TenantContextHolder.getTenantId(), today.atStartOfDay(), today.atTime(LocalTime.MAX))
+                .stream()
+                .map(h -> new Horario((LocalDateTime) h[0], (LocalDateTime) h[1]))
+                .toList();
+        return resumir(horarios);
+    }
+
+    /** Entrada y salida de una visita. {@code salida} null = sigue adentro. */
+    public record Horario(LocalDateTime entrada, LocalDateTime salida) {}
+
+    static ResumenDelDia resumir(List<Horario> delDia) {
         long completadas = 0;
         long minutos = 0;
-        for (AccessLog a : delDia) {
-            if (a.getCheckOutAt() == null || a.getCheckInAt() == null) continue;
+        for (Horario h : delDia) {
+            if (h.salida() == null || h.entrada() == null) continue;
             completadas++;
-            minutos += java.time.Duration.between(a.getCheckInAt(), a.getCheckOutAt()).toMinutes();
+            minutos += java.time.Duration.between(h.entrada(), h.salida()).toMinutes();
         }
         // Sin visitas cerradas no hay promedio que informar. Cero seria mentira: diria que
         // la gente entra y sale en el acto.
@@ -532,16 +559,19 @@ public class AccessLogService {
     @Transactional(readOnly = true)
     public List<Aviso> avisosPendientes() {
         LocalDateTime desde = LocalDate.now(BUSINESS_ZONE).atStartOfDay();
-        List<AccessLog> accesos = accessLogRepository
-                .findByTenantIdAndAccessMethodAndAvisoVistoAtIsNullAndCheckInAtAfterOrderByCheckInAtDesc(
-                        TenantContextHolder.getTenantId(), "QR", desde);
-
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
+        // La base ya descarta a los que están al día (ver la consulta): traerlos era traer
+        // casi todas las entradas por QR del día para tirarlas acá.
+        List<AccessLog> accesos = accessLogRepository.qrSinAtenderQueNoEstanAlDia(
+                TenantContextHolder.getTenantId(), desde, ahora);
+
         List<Aviso> avisos = new java.util.ArrayList<>();
         for (AccessLog a : accesos) {
             GymMember m = a.getMember();
             if (m == null) continue;
             MemberAccessPolicy.Verdict v = accessPolicy.evaluate(m, ahora);
+            // La política sigue siendo la que decide: el filtro de la consulta solo ahorra
+            // viajes. Que los dos no se desfasen lo cuida MostradorEgressTest.
             if (!v.necesitaAviso()) continue;
             avisos.add(new Aviso(
                     a.getId(), m.getId(),

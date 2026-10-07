@@ -1,4 +1,4 @@
-/* â”€â”€â”€ Buttons â”€â”€â”€ */
+/* ─── Buttons ─── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -96,7 +96,7 @@
 
 .link-button:hover { color: var(--primary-300); }
 
-/* â”€â”€â”€ Form Elements â”€â”€â”€ */
+/* ─── Form Elements ─── */
 .form-group { margin-bottom: 1.25rem; }
 
 .form-label {
@@ -194,6 +194,14 @@
   box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--card-highlight);
 }
 
+/* Una tarjeta que es solo una barra (los filtros de una lista): el relleno lo pone su contenido. */
+.card.card-barra { padding: 0; }
+.card.card-barra .table-header { padding: 0.75rem 1rem; }
+/* Una tarjeta con su encabezado arriba y la lista abajo: el encabezado usa el aire de la
+   tarjeta en vez de sumar el suyo (eran 1,5rem + 1rem de cada lado). */
+.card > .table-header { padding: 0 0 1rem; }
+.card.card-barra > .table-header { padding: 0.75rem 1rem; }
+
 /* ── Utilidad de superficie glass reutilizable ──
    El lenguaje glassmorphism del sistema, tokenizado por tema y vertical. Aplicá
    `glass-surface` a cualquier panel/módulo nuevo (incluido un sistema futuro) para
@@ -224,6 +232,12 @@
 }
 
 .card-title { font-size: var(--font-size-lg); font-weight: 600; }
+
+/* Los títulos de sección de una tarjeta, todos como .card-title. Sin esto heredaban el h3 del
+   documento (24 px): "En el gimnasio ahora" o "Vencen pronto" parecían el título de la
+   página, y cada pantalla tenía su tamaño. Con :where() no le gana a ningún estilo propio
+   (.empty-state-title, la caja, el mostrador). */
+:where(.card, .checkin-section) h3 { font-size: var(--font-size-lg); font-weight: 600; }
 
 /* ─── Tables ─── */
 .table-container {
@@ -354,7 +368,7 @@
 .badge-neutral { background: rgba(100, 116, 139, 0.1); color: var(--text-muted); border-color: rgba(100, 116, 139, 0.2); }
 .badge-accent { background: color-mix(in srgb, var(--accent-500) 12%, transparent); color: var(--accent-300); border-color: color-mix(in srgb, var(--accent-500) 22%, transparent); }
 
-/* â”€â”€â”€ Spinner â”€â”€â”€ */
+/* ─── Spinner ─── */
 .spinner {
   display: inline-block;
   width: 1rem;
@@ -369,7 +383,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* â”€â”€â”€ Icon â”€â”€â”€ */
+/* ─── Icon ─── */
 .icon {
   display: inline-flex;
   align-items: center;
@@ -382,7 +396,7 @@
   height: 100%;
 }
 
-/* â”€â”€â”€ Avatar â”€â”€â”€ */
+/* ─── Avatar ─── */
 .avatar {
   width: 36px;
   height: 36px;
@@ -444,3 +458,21 @@
   .selector-fechas-campo > span { min-width: 3.2rem; }
   .selector-fechas-campo .form-input { flex: 1; min-width: 0; }
 }
+
+/* La × de las ventanas (components/ui/Modal): 32 px para acertarle, neutra hasta el hover. */
+.modal-cerrar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex: none;
+  border: 0; border-radius: var(--border-radius-md);
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-fast), color var(--transition-fast);
+}
+.modal-cerrar:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.modal-cerrar:focus-visible { outline: 2px solid var(--primary-500); outline-offset: 2px; }
+
+/* Sin las flechitas de subir/bajar en los campos numéricos: en un monto o un DNI no sirven,
+   se tocan sin querer y tapan las últimas cifras. (La rueda del mouse la frena
+   lib/ruedaEnNumeros.) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }

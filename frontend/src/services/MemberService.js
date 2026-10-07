@@ -1,6 +1,8 @@
 import apiClient from '../lib/apiClient';
+import { sinConexion } from '../lib/conexion';
 import {
   prepararSocios, buscarSocios, estadoSocios, refrescarSocios, agregarSocioLocal, listarSocios,
+  refrescarSiHaceMas, REFRESCO_SI_NO_ESTA_MS,
 } from '../lib/localMembers';
 import {
   encolarPendiente, disponible, nuevoSello, cuantosPendientes,
@@ -33,7 +35,7 @@ class MemberService {
    * exportar— sigue sin poder hacerse, y falla como siempre.</p>
    */
   async getMembersPaged(page = 0, size = 50, search = '') {
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
 
     // Sin red ni se intenta: serían pedidos condenados a fallar, cada uno con su plazo de
     // espera y sus reintentos, apilándose mientras alguien mira la pantalla vacía.
@@ -140,7 +142,7 @@ class MemberService {
     const id = memberData?.id || nuevoSello();
     const cuerpo = { ...memberData, id };
 
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolarPendiente({ ...cuerpo, tipo: 'ALTA', clientRef: id });
       if (ref) {
@@ -286,7 +288,14 @@ class MemberService {
       // carga y esta búsqueda cae al backend. La siguiente ya va a ser local.
       prepararSocios(tenantId).catch(() => {});
       const { vacia } = estadoSocios();
-      if (!vacia) return buscarSocios(search, 20);
+      if (!vacia) {
+        const encontrados = buscarSocios(search, 20);
+        // Nadie con eso en la copia: puede ser alguien que se dio de alta hace un rato en
+        // OTRA máquina. Se pide la lista sin esperar al minuto, así la búsqueda siguiente ya
+        // lo encuentra — como antes, cuando se pedía en cada búsqueda.
+        if (!encontrados.length) refrescarSiHaceMas(tenantId, REFRESCO_SI_NO_ESTA_MS).catch(() => {});
+        return encontrados;
+      }
     }
 
     // ── Respaldo: la primera búsqueda antes de que baje la lista, o si no hay

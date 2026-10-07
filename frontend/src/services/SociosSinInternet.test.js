@@ -31,6 +31,12 @@ vi.mock('../lib/localMembers', () => ({
   listarSocios: vi.fn(() => ({ socios: copia.socios, total: copia.total })),
 }));
 
+/** `cortado`: el sondeo del escritorio declaró que el servidor no contesta (ver lib/conexion). */
+const conexion = { cortado: false };
+vi.mock('../lib/conexion', () => ({
+  sinConexion: () => conexion.cortado || navigator.onLine === false,
+}));
+
 const { memberService } = await import('./MemberService');
 const { prepararSocios, listarSocios } = await import('../lib/localMembers');
 
@@ -51,6 +57,22 @@ beforeEach(() => {
   copia.socios = [UN_SOCIO];
   copia.total = 1;
   sinRed(true);
+  conexion.cortado = false;
+});
+
+describe('⭐ a la velocidad del clic: con el corte declarado ni se intenta', () => {
+  // REPORTADO POR EL DUEÑO (30/09): "la versión offline es demasiado lenta". Con el router
+  // prendido y sin internet, `navigator.onLine` dice que hay red: cada clic salía, esperaba que
+  // el pedido muriera, y recién ahí caía a la copia.
+  it('Windows dice que hay red, el servidor no contesta: va derecho a la copia', async () => {
+    sinRed(true);
+    conexion.cortado = true;
+
+    const page = await memberService.getMembersPaged(0, 50, '');
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(page.deLaCopiaLocal).toBe(true);
+  });
 });
 
 describe('⭐ sin internet, la lista sale de la copia local', () => {
