@@ -480,6 +480,15 @@ public class GymPaymentService {
         if (!payment.getTenant().getId().equals(TenantContextHolder.getTenantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acceso denegado a este pago");
         }
+
+        // ⚠️ EL ARANCEL SE CARGA ACÁ, con la transacción todavía abierta. Lo que sale de este
+        // método termina en un DTO que lleva el arancel adentro, y ese DTO lo arma el
+        // controlador con la sesión ya cerrada: sin esto, pedir el detalle de un cobro con
+        // arancel contestaba 500. Editar y anular se salvaban de casualidad —cargan al socio,
+        // y con él su arancel—, que es justo la clase de casualidad que un día deja de darse.
+        // Se carga en vez de cambiar la búsqueda porque esta va por clave primaria a propósito:
+        // es la que ve el cobro de otro gimnasio y puede contestar "no es tuyo".
+        org.hibernate.Hibernate.initialize(payment.getPlan());
         return payment;
     }
     
