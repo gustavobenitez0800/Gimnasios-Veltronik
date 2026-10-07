@@ -195,6 +195,21 @@ const wa = waLink(mensajeWa);
         if (pie) new IntersectionObserver(([e]) => { seVeElPie = e.isIntersecting; pintar(); }).observe(pie);
         pintar();
       }
+
+      // Llegar a una sección desde OTRA página ("Precios" en el menú de /descargar lleva a
+      // /#precios). Con el desplazamiento suave del sitio, el salto que hace el navegador al
+      // cargar no llega: la portada quedaba arriba de todo. Se lo lleva de una, sin animación,
+      // y recién con la página cargada, que es cuando cada sección ya está en su lugar.
+      const irALaSeccion = () => {
+        if (location.hash.length < 2) return;
+        let destino = null;
+        try {
+          destino = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        } catch { /* un # mal escrito no es una sección */ }
+        destino?.scrollIntoView({ behavior: 'instant', block: 'start' });
+      };
+      if (document.readyState === 'complete') irALaSeccion();
+      else window.addEventListener('load', irALaSeccion, { once: true });
     </script>
   </body>
 </html>
