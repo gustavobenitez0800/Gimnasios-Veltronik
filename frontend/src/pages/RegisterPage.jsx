@@ -63,7 +63,7 @@ export default function RegisterPage() {
     <div className="auth-card">
       {/* Logo */}
       <div className="auth-logo">
-        <img src={logoSrc} alt="Veltronik" className="auth-logo-img" />
+        <img src={logoSrc} alt="Veltronik" className="auth-logo-img marca-centrada" />
         <h1 className="auth-logo-text">Veltronik</h1>
         <p className="auth-logo-subtitle">El sistema de tu gimnasio</p>
       </div>

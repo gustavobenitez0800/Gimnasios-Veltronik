@@ -64,7 +64,7 @@ export default function DesktopAuthPage() {
 
   return (
     <div className="auth-card" style={{ textAlign: 'center' }}>
-      <img src={logoSrc} alt="Veltronik" style={{ height: '48px', margin: '0 auto 1.5rem', display: 'block' }} />
+      <img src={logoSrc} alt="Veltronik" className="marca-centrada" style={{ height: '48px', margin: '0 auto 1.5rem', display: 'block' }} />
 
       {ok ? (
         <>

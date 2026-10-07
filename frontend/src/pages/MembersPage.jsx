@@ -5,7 +5,7 @@
 // export a CSV. Cómo se llama al socio lo dice lib/gym.
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
@@ -14,6 +14,7 @@ import { useMemberController } from '../controllers/useMemberController';
 import { formatDate, formatCurrency, getMethodLabel, addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete, invalidateQueries } from '../hooks';
+import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import { FilterBar, Badge, DaySelector, DAY_NAMES, Pagination } from '../components/ui';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -119,12 +120,16 @@ export default function MembersPage() {
   // preparar el cobro. Si el gimnasio no configuró ninguno, todo sigue funcionando como
   // antes: la columna no aparece y se cobra escribiendo el monto.
   const [aranceles, setAranceles] = useState([]);
-  useEffect(() => {
+  const cargarAranceles = useCallback(() => {
     planService.getVigentes()
       .then((lista) => setAranceles(lista || []))
-      // Sin aranceles se cobra a mano. No es un error que valga interrumpir a nadie.
-      .catch(() => setAranceles([]));
+      // Sin aranceles se cobra a mano. No es un error que valga interrumpir a nadie, y la
+      // lista que ya estaba se queda.
+      .catch(() => {});
   }, []);
+  useEffect(() => { cargarAranceles(); }, [cargarAranceles]);
+  // Abierta sin conexión, la lista queda vacía: se trae apenas vuelve.
+  useAlPonerseAlDia(cargarAranceles);
   const hayAranceles = aranceles.length > 0;
 
   // ─── El molinete ───

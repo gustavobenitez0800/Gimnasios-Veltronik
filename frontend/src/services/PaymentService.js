@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { sinConexion } from '../lib/conexion';
 import { refrescarSocios } from '../lib/localMembers';
 import { avisarCambioDeCobertura } from '../lib/molinete';
 import { invalidateQueries } from '../hooks/queryCacheStore';
@@ -56,7 +57,7 @@ class PaymentService {
     // ⚠️ SI HAY ALGO ESPERANDO, ESTE TAMBIÉN ESPERA. La cola es una sola y el orden vale
     // entre tipos: adelantarse por la puerta lateral de la escritura directa rompería el orden
     // global igual que lo rompía con los accesos.
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolarPendiente(paraLaCola);
       if (ref) return { encolado: true, clientRef: ref };

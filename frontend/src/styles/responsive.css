@@ -582,7 +582,7 @@ button, a, input, select, textarea, [role="button"] {
 
   /* Compactación del bloque de marca */
   .auth-logo { margin-bottom: 1.15rem; }
-  .auth-logo-img { width: 46px; height: 46px; margin-bottom: 0.5rem; }
+  .auth-logo-img { height: 46px; width: auto; margin-bottom: 0.5rem; }
   .auth-logo-text { font-size: var(--font-size-xl); }
   .auth-logo-subtitle { font-size: var(--font-size-xs); }
 
@@ -675,7 +675,7 @@ button, a, input, select, textarea, [role="button"] {
     border-radius: var(--border-radius-lg);
   }
 
-  .auth-logo-img { width: 42px; height: 42px; }
+  .auth-logo-img { height: 42px; width: auto; }
 
   /* En un teléfono chico la bajada de marca es lo primero que sobra: el logo y el
      nombre ya dicen dónde estás, y esos ~28px son la diferencia entre entrar en

@@ -32,6 +32,12 @@ public class GymPlanService {
         return repository.findByTenantIdOrderByIsActiveDescPriceAsc(TenantContextHolder.getTenantId());
     }
 
+    /** Cambia con cualquier cambio en los aranceles del gimnasio actual. */
+    @Transactional(readOnly = true)
+    public String marcaDelGimnasio() {
+        return repository.marcaDelGimnasio(TenantContextHolder.getTenantId());
+    }
+
     /** Los que se pueden cobrar hoy. Es lo que ve el selector al registrar un pago. */
     @Transactional(readOnly = true)
     public List<GymPlan> findVigentesForCurrentTenant() {

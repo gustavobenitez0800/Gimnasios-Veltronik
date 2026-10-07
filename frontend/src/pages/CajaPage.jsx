@@ -39,6 +39,7 @@ import { nombreDeForma, esEfectivo } from '../lib/formasDePago';
 import { getShift } from '../lib/shift';
 import { descargarExcelDeCaja } from '../lib/excelDeCaja';
 import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
+import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
 import { PageHeader, EmptyState } from '../components/Layout';
 import SelectorDeFechas from '../components/SelectorDeFechas';
 import Modal, { ModalActions } from '../components/ui/Modal';
@@ -223,6 +224,14 @@ export default function CajaPage() {
 
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { cargarBalance(balanceDesde, balanceHasta); }, [cargarBalance, balanceDesde, balanceHasta]);
+
+  // ⭐ Volvió la conexión, o subió lo que esperaba en la cola: lo que se ve salió de la copia
+  // del terminal y el servidor ya sabe más. Sin esto la caja seguía mostrando los números de
+  // la copia —sin el balance, que sin red se esconde— hasta salir y volver a entrar.
+  useAlPonerseAlDia(() => {
+    cargar();
+    cargarBalance(balanceDesde, balanceHasta);
+  });
 
   // ─── La cuenta del cajón, en un solo lugar ───
   //

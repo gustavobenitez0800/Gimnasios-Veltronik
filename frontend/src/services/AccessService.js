@@ -1,4 +1,5 @@
 import apiClient from '../lib/apiClient';
+import { sinConexion } from '../lib/conexion';
 import { encolar, encolarPendiente, disponible, nuevoSello, momentoLocal, cuantosPendientes } from '../lib/colaAccesos';
 
 /**
@@ -60,7 +61,7 @@ class AccessService {
     //
     // Mientras haya cola, la cola es el único camino. Así el orden se mantiene de punta a
     // punta y no solo de la mitad para adelante.
-    const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const sinRed = sinConexion();
     if (disponible() && (sinRed || (await cuantosPendientes()) > 0)) {
       const ref = await encolar(paraLaCola);
       if (ref) return { encolado: true, clientRef: ref };
@@ -157,7 +158,7 @@ class AccessService {
     const hayCola = disponible();
 
     if (hayCola && memberId) {
-      const sinRed = typeof navigator !== 'undefined' && navigator.onLine === false;
+      const sinRed = sinConexion();
       if (sinRed || (await cuantosPendientes()) > 0) {
         const ref = await encolar({
           memberId, method: 'manual', memberName,

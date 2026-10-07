@@ -71,3 +71,29 @@ export function invalidateQueries(ns) {
 export function clearQueryCache() {
   store.clear();
 }
+
+// Las pantallas montadas que quieren enterarse de un `refrescarTodo`.
+const alRefrescarTodo = new Set();
+
+/** Lo usa `useQueryCache`: cada pantalla montada vuelve a pedir lo suyo. */
+export function suscribirRefrescoGeneral(fn) {
+  alRefrescarTodo.add(fn);
+  return () => { alRefrescarTodo.delete(fn); };
+}
+
+/**
+ * ⭐ TODO LO QUE HAY PASA A VIEJO, Y LO QUE ESTÁ EN PANTALLA SE VUELVE A PEDIR YA.
+ *
+ * <p>Para cuando cambió el mundo entero y no un módulo: <b>volvió la conexión</b>. Mientras no
+ * hubo servidor, lo que se vio salió de la copia local, y esa respuesta quedó guardada acá como
+ * si fuera fresca. Sin esto, Socios o Pagos seguían mostrando lo de la copia hasta cinco minutos
+ * después de volver internet — o hasta salir del sistema y volver a entrar, que es lo que
+ * terminaba haciendo el dueño.</p>
+ *
+ * <p>Marca y no borra, por lo mismo que `invalidateQueries`: lo que se ve se sigue viendo
+ * mientras llega lo nuevo.</p>
+ */
+export function refrescarTodo() {
+  for (const entry of store.values()) entry.timestamp = 0;
+  for (const fn of [...alRefrescarTodo]) fn();
+}

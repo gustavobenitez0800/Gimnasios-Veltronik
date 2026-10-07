@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
   return (
         <div className="auth-card">
           <div className="auth-logo">
-            <img src={logoSrc} alt="Veltronik" className="auth-logo-img" />
+            <img src={logoSrc} alt="Veltronik" className="auth-logo-img marca-centrada" />
             <h1 className="auth-logo-text">Veltronik</h1>
           </div>
 
