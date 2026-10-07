@@ -58,10 +58,23 @@ directories:
 # flota que se auto-actualiza: probás el .exe empaquetado en una máquina, y recién
 # cuando confirmás que arranca, publicás el borrador y ahí sí propaga. Alineado con el
 # rollout escalonado (ADR-007): ningún cliente recibe algo sin verificación humana previa.
+#
+# ⭐⭐ LOS INSTALADORES VIVEN EN UN REPO APARTE (veltronik-releases), NO EN EL DEL CÓDIGO.
+#
+# Lo que va acá queda horneado adentro de cada instalador (resources/app-update.yml): es la
+# dirección a la que ESE escritorio va a preguntar por versiones nuevas mientras esté
+# instalado. Estaba apuntando al repo del código, y por eso ese repo no se podía hacer
+# privado: el día que lo fuera, ningún cliente volvía a actualizarse, sin un solo error a
+# la vista.
+#
+# ⛔ CAMBIAR ESTO NO MUDA A NADIE POR SÍ SOLO. La primera versión que lo lleva (la "puente")
+# tiene que llegarle a cada equipo POR LA DIRECCIÓN VIEJA: por eso release.yml publica cada
+# versión en los dos repos mientras dure la mudanza. Un equipo que no pasó por la puente
+# sigue mirando el repo viejo para siempre.
 publish:
   provider: github
   owner: gustavobenitez0800
-  repo: gimnasios-veltronik
+  repo: veltronik-releases
   releaseType: draft
 
 # ============================================

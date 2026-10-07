@@ -156,13 +156,32 @@ Lo que los tests no pueden ver: el estado REAL de producción.
       nuevos = 62). Abierto desde el 7/09.
 - [ ] **Las 6 preguntas al proveedor de hardware.** La sexta —¿da plazo de pago?— decide el
       modelo entero (comisión o comprar a gremio).
-- [ ] **¿Repo privado?** Hoy es público: se lee todo el código. Hacerlo privado tiene dos
-      consecuencias que hay que resolver ANTES del clic:
-      - **Rompe las actualizaciones automáticas** de todos los clientes: la app baja las
-        versiones de las releases de este repo. Primero hay que mudar las releases a un repo
-        público aparte (es trabajo mío, y necesita que crees ese repo y un token).
-      - **GitHub Actions deja de ser gratis ilimitado**: un repo privado tiene 2.000
-        minutos/mes, y el build de Windows cuenta doble.
+- [ ] **Repo privado — decidido el 7/10, en dos tiempos.** No es un clic: cada Veltronik
+      instalado tiene grabada la dirección de este repo para buscar versiones nuevas, y si se
+      hace privado hoy ninguno vuelve a actualizarse.
+      - **Tiempo 1 (mudar los instaladores):** van a un repo público aparte,
+        `veltronik-releases`, que solo tiene instaladores. La "versión puente" sale por los
+        dos repos: por este le llega a cada equipo, y desde ella ese equipo mira el nuevo.
+        - [ ] **El token `RELEASES_TOKEN`** (lo creás vos, 3 minutos; no se pega en ningún
+              chat). GitHub → tu foto → *Settings* → *Developer settings* → *Personal access
+              tokens* → *Fine-grained tokens* → *Generate new token*. Nombre: `veltronik-releases`.
+              *Repository access*: *Only select repositories* → `veltronik-releases`.
+              *Permissions* → *Repository permissions* → **Contents: Read and write** (nada
+              más). Copiás el token y lo pegás en este repo: *Settings* → *Secrets and
+              variables* → *Actions* → *New repository secret* → nombre `RELEASES_TOKEN`.
+              **Anotá cuándo vence**: el día que venza no sale ninguna versión nueva (el
+              flujo se pone en rojo y lo dice; no rompe nada instalado).
+      - **Tiempo 2 (el candado):** recién cuando TODOS los equipos reporten la versión puente
+        o una posterior. Un equipo que no pasó por la puente queda sin actualizaciones para
+        siempre y hay que reinstalarle a mano.
+        - [ ] El clic: repo → *Settings* → abajo de todo, *Change repository visibility* →
+              *Private*. **No lo hagas hasta que yo te confirme que todos los equipos pasaron.**
+      - **Lo que cambia al ser privado:** el código deja de servir de portfolio; GitHub
+        Actions pasa a tener 2.000 minutos por mes (medido: usamos 553 en el mes más
+        cargado); y hay reportes de despliegues bloqueados en el plan gratis de Vercel con
+        repos privados — se prueba en el momento y, si pasa, volver a público lo deshace.
+      - **No arregla lo de la contraseña (§1):** deja de mostrarla a gente nueva, pero no la
+        des-filtra. La rotación sigue pendiente.
 
 ## 🛠️ 8. Pendientes técnicos (no son tareas tuyas)
 

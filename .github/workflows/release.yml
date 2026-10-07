@@ -35,7 +35,21 @@ on:
           - always
 
 permissions:
-  contents: write          # necesario para que electron-builder cree el Release
+  contents: write          # para publicar la copia del Release en ESTE repo (ver "la mudanza")
+
+# ⭐ LA MUDANZA: los instaladores viven en un repo aparte.
+#
+# Cada escritorio instalado lleva grabada la dirección donde pregunta por versiones nuevas
+# (sale de `publish` en electron-builder.yml). Esa dirección era este repo, y por eso este
+# repo no podía ser privado: el día que lo fuera, ningún cliente volvía a actualizarse.
+#
+# Desde la versión puente, el instalador mira `veltronik-releases`, un repo público que solo
+# tiene instaladores. Mientras queden equipos con una versión anterior a la puente —que
+# siguen mirando acá— cada versión se publica EN LOS DOS: en el repo nuevo, y una copia en
+# este. El día que este repo pase a privado se sacan el paso de la copia y su verificación
+# (están marcados con "MIENTRAS DURE LA MUDANZA").
+env:
+  REPO_DE_VERSIONES: gustavobenitez0800/veltronik-releases
 
 jobs:
   build-windows:
@@ -47,6 +61,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Comprobar que está el token del repo de versiones
+        # El token integrado del runner solo escribe en ESTE repo, y los instaladores van a
+        # otro: hace falta RELEASES_TOKEN (un token fino con permiso de Contents sobre
+        # veltronik-releases y nada más). Sin él, electron-builder arma el instalador durante
+        # minutos para recién fallar al subirlo, con un error que no dice qué falta. Se corta
+        # acá, antes de gastar el build, y con el motivo a la vista.
+        if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
+        shell: bash
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$RELEASES_TOKEN" ]; then
+            echo "::error::Falta el secreto RELEASES_TOKEN (o vencio). Sin el no se puede publicar en $REPO_DE_VERSIONES. Ver TAREAS-MANUALES.md."
+            exit 1
+          fi
+          echo "Hay token para publicar en $REPO_DE_VERSIONES."
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -90,8 +121,10 @@ jobs:
 
       - name: Build & publish Electron (Windows)
         env:
-          # Token integrado del runner: permite publicar el Release sin PAT manual.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # El token del repo de versiones: electron-builder publica en el repo que dice
+          # `publish` en electron-builder.yml, que ya no es este. (A mano y con "never" no
+          # publica nada, y entonces da igual que el token esté.)
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           # Sin firma de código (coincide con verifyUpdateCodeSignature: false del yml).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         # Por tag (el camino real de release): SIEMPRE publica — el comportamiento de
@@ -115,7 +148,7 @@ jobs:
         # existía antes. Corregirlo después es lo único que funciona siempre.
         if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -124,9 +157,40 @@ jobs:
             # A mano: el tag es el que electron-builder derivó del package.json.
             TAG="v$(node -p "require('./package.json').version")"
           fi
-          echo "Publicando $TAG"
-          gh release edit "$TAG" --draft=false --latest
-          gh release view "$TAG" --json tagName,isDraft --jq '"tag: \(.tagName)  borrador: \(.isDraft)"'
+          # Los pasos que siguen publican y verifican el mismo tag: se decide una sola vez.
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Publicando $TAG en $REPO_DE_VERSIONES"
+          gh release edit "$TAG" --repo "$REPO_DE_VERSIONES" --draft=false --latest
+          gh release view "$TAG" --repo "$REPO_DE_VERSIONES" --json tagName,isDraft --jq '"tag: \(.tagName)  borrador: \(.isDraft)"'
+
+      - name: Publicar una copia en este repo (MIENTRAS DURE LA MUDANZA)
+        # Los equipos con una versión anterior a la puente siguen preguntando acá. Sin esta
+        # copia no les llega nunca la versión que los pasa al repo nuevo — ni ninguna otra.
+        #
+        # Son los MISMOS tres archivos que electron-builder acaba de subir al repo nuevo: el
+        # latest.yml lleva el nombre, el tamaño y el sha512 del instalador, nada que dependa
+        # del repo. Si ya existía un Release con este tag (un reintento del run), se le
+        # reemplazan los archivos en vez de fallar.
+        #
+        # ⛔ SE SACA EL DÍA QUE ESTE REPO PASE A PRIVADO (junto con su parte de la verificación
+        # de abajo), y no antes: mientras este repo sea público y quede un solo equipo sin
+        # pasar por la puente, esto es lo único que lo mantiene al día.
+        if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          ARCHIVOS=(dist_electron/latest.yml dist_electron/Veltronik-Setup-*.exe dist_electron/Veltronik-Setup-*.exe.blockmap)
+          ls -la "${ARCHIVOS[@]}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${ARCHIVOS[@]}" --repo "${{ github.repository }}" --clobber
+            gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest
+          else
+            gh release create "$TAG" "${ARCHIVOS[@]}" --repo "${{ github.repository }}" \
+              --title "$TAG" --latest \
+              --notes "Copia de https://github.com/$REPO_DE_VERSIONES/releases/tag/$TAG para los equipos que todavia buscan las versiones en este repo."
+          fi
+          gh release view "$TAG" --repo "${{ github.repository }}" --json tagName,isDraft --jq '"copia — tag: \(.tagName)  borrador: \(.isDraft)"'
 
       - name: Verificar que el actualizador de los clientes lo vea
         # ⭐ LA VERIFICACIÓN QUE DE VERDAD IMPORTA. Que el Release diga "Latest" en la
@@ -138,22 +202,35 @@ jobs:
         # Si igual no aparece, ESTE PASO PONE EL RUN EN ROJO — que es el punto: enterarse
         # en el pipeline y no dentro de tres semanas, cuando un cliente pregunte por qué
         # no le llegó una función.
+        #
+        # ⭐ SE MIRAN LAS DOS DIRECCIONES, porque hay equipos mirando cada una: los que ya
+        # pasaron por la versión puente (repo de versiones) y los que todavía no (este repo,
+        # MIENTRAS DURE LA MUDANZA). Que falte en cualquiera de las dos pone el run en rojo:
+        # si falta en la vieja, justo los equipos que hay que mudar se quedan sin mudar.
         if: ${{ github.event_name == 'push' || inputs.publish == 'always' }}
         shell: bash
         run: |
           VERSION="$(node -p "require('./package.json').version")"
-          URL="https://github.com/${{ github.repository }}/releases/latest/download/latest.yml"
-          echo "Buscando la version $VERSION en $URL"
-          for intento in 1 2 3 4 5 6; do
-            YML="$(curl -sL --max-time 30 "$URL" || true)"
-            if echo "$YML" | grep -q "^version: ${VERSION}$"; then
-              echo "OK — el actualizador ve la $VERSION. Los clientes la van a recibir."
-              exit 0
+          FALLO=0
+          for REPO in "$REPO_DE_VERSIONES" "${{ github.repository }}"; do
+            URL="https://github.com/$REPO/releases/latest/download/latest.yml"
+            echo "Buscando la version $VERSION en $URL"
+            VISTO=0
+            for intento in 1 2 3 4 5 6; do
+              YML="$(curl -sL --max-time 30 "$URL" || true)"
+              if echo "$YML" | grep -q "^version: ${VERSION}$"; then
+                echo "OK — en $REPO el actualizador ve la $VERSION."
+                VISTO=1
+                break
+              fi
+              echo "  intento $intento: todavia no. Espero 10s..."
+              sleep 10
+            done
+            if [ "$VISTO" != "1" ]; then
+              echo "::error::En $REPO el latest.yml NO expone la version $VERSION. Los equipos que miran ahi NO van a recibir esta release."
+              echo "--- lo que devolvio el latest.yml ---"
+              echo "$YML"
+              FALLO=1
             fi
-            echo "  intento $intento: todavia no. Espero 10s..."
-            sleep 10
           done
-          echo "::error::El latest.yml NO expone la version $VERSION. Los clientes NO van a recibir esta release."
-          echo "--- lo que devolvio el latest.yml ---"
-          echo "$YML"
-          exit 1
+          exit $FALLO
