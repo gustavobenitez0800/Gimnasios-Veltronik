@@ -19,12 +19,13 @@
 // Y es el que PONE TODO AL DÍA cuando vuelve la conexión (ver `alVolver`): el orden entre
 // subir la cola y volver a pedir los datos importa, y en un solo lugar no se puede invertir.
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { accessService, paymentService, memberService } from '../services';
 import { cajaService } from '../services/CajaService';
-import { vaciar, disponible } from '../lib/colaAccesos';
+import { vaciar, disponible, resumenDeCola } from '../lib/colaAccesos';
+import { avisarColaTrabada, olvidarAvisoDeColaTrabada } from '../lib/colaTrabada';
 import { sinConexion, alCambiarLaConexion } from '../lib/conexion';
 import { refrescarSocios } from '../lib/localMembers';
 import { refrescarTodo } from '../hooks/queryCacheStore';
@@ -38,6 +39,9 @@ export const EVENTO_COLA_CAMBIO = 'veltronik-cola-cambio';
 export default function VaciadorDeCola() {
   const { showToast } = useToast();
   const { orgId } = useAuth();
+  // Si ya se le dijo a quien atiende que la cola está trabada. Una vez por atasco: repetirlo
+  // cada cinco minutos convierte el aviso en ruido, y el ruido se deja de leer.
+  const avisoEnPantalla = useRef(false);
 
   /** Sube lo que haya. Devuelve cuántos subieron (0 si no le tocaba intentar). */
   const intentar = useCallback(async () => {
@@ -102,6 +106,32 @@ export default function VaciadorDeCola() {
       // Que el vaciado falle no puede romper nada: los accesos siguen en la cola y se
       // reintentan solos. Es exactamente para lo que la cola existe.
     }
+
+    // ⭐ SI EL SERVIDOR VIENE RECHAZANDO AL DE ADELANTE, ESO SE DICE — a nosotros y a quien
+    // atiende. Acá hay conexión (arriba se cortó si no la había): lo que no sube no es por el
+    // internet. Sin esto la cola se quedaba trabada en silencio y la pantalla culpaba a la
+    // conexión; a Santo Sport le pasó 36 horas (05/10/2026).
+    try {
+      const como = await resumenDeCola();
+      if (como.trabada) {
+        const yaLoSabemos = await avisarColaTrabada(como);
+        if (!avisoEnPantalla.current) {
+          avisoEnPantalla.current = true;
+          showToast(
+            'Hay movimientos que no están pudiendo subir, y no es por el internet. '
+            + 'Están guardados en esta computadora. '
+            + (yaLoSabemos ? 'Veltronik ya recibió el aviso.' : 'Avisale a Veltronik.'),
+            'warning',
+          );
+        }
+      } else {
+        avisoEnPantalla.current = false;
+        olvidarAvisoDeColaTrabada();
+      }
+    } catch {
+      // Avisar que algo anda mal no puede ser lo que rompa el vaciado.
+    }
+
     window.dispatchEvent(new Event(EVENTO_COLA_CAMBIO));
     return subieron;
   }, [showToast, orgId]);

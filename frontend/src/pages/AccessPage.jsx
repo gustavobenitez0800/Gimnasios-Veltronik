@@ -228,7 +228,8 @@ export default function AccessPage() {
     // al anterior, así que redibujaba siempre — con un temporizador atrás, la pantalla del
     // mostrador no paraba nunca. Lo atrapó la suite entera de Acceso, en timeout.
     setCola((previo) => (
-      previo.cuantos === nuevo.cuantos && previo.dias === nuevo.dias ? previo : nuevo
+      previo.cuantos === nuevo.cuantos && previo.dias === nuevo.dias
+        && Boolean(previo.trabada) === Boolean(nuevo.trabada) ? previo : nuevo
     ));
   }, []);
 
@@ -661,7 +662,25 @@ export default function AccessPage() {
               algo: un cartel que está siempre prendido deja de avisar. Y se muestra siempre
               que haya algo, con o sin conexión — mientras quede una visita sin subir, el
               gimnasio no la tiene. */}
-          {pendientesCola > 0 && (
+          {/* ⭐ CUANDO NO ES EL INTERNET, NO SE DICE "AL VOLVER INTERNET". Si el servidor viene
+              rechazando lo de adelante, la cola no sube aunque la conexión esté perfecta, y
+              prometer que se arregla sola manda a quien atiende a revisar el router. Pasó: un
+              gimnasio llamó al técnico por una falla que era nuestra (Santo Sport, 05/10/2026).
+              Acá se dice "movimientos" porque en la cola también hay cobros y altas. */}
+          {pendientesCola > 0 && cola.trabada && (
+            <p className="copia-local is-muy-vieja" role="status">
+              <Icon name="alertTriangle" size="0.9em" />
+              <span>
+                <strong>
+                  {pendientesCola} {pendientesCola === 1 ? 'movimiento no pudo' : 'movimientos no pudieron'} subir
+                </strong>
+                {' '}· no es el internet: el servidor no {pendientesCola === 1 ? 'lo' : 'los'} está
+                aceptando. {pendientesCola === 1 ? 'Está guardado' : 'Están guardados'} en esta
+                computadora — avisale a Veltronik
+              </span>
+            </p>
+          )}
+          {pendientesCola > 0 && !cola.trabada && (
             <p className={`copia-local ${cola.dias >= 3 ? 'is-muy-vieja' : 'is-vieja'}`}>
               <Icon name={cola.dias >= 3 ? 'alertTriangle' : 'wifiOff'} size="0.9em" />
               <span>

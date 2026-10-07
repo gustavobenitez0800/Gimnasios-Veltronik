@@ -195,18 +195,39 @@ function contar(tenantId, conexion) {
  *
  * <p>`MIN` sobre el texto alcanza: `ocurrido_en` es `YYYY-MM-DDTHH:mm:ss`, que ordena igual
  * alfabéticamente que cronológicamente. Por eso ese formato y no uno "más lindo".</p>
+ *
+ * <p><b>⭐ Y cómo viene EL PRIMERO, que es el que decide.</b> La cola sube en orden y se corta
+ * en el primero que falla, así que si algo la tiene trabada es siempre el de adelante. Cuántas
+ * veces falló y qué le contestaron es lo único que distingue "no hay internet" de "el servidor
+ * lo rechaza": sin ese dato la pantalla solo sabía decir lo primero, y un gimnasio estuvo 36
+ * horas creyendo que era su conexión (Santo Sport, 05/10/2026).</p>
  */
 function resumen(tenantId, conexion) {
     const db = conexion || abrir();
-    if (!db) return { cuantos: 0, masViejo: null };
+    if (!db) return { cuantos: 0, masViejo: null, primero: null };
     try {
         const fila = tenantId
             ? db.prepare(`SELECT COUNT(*) AS n, MIN(ocurrido_en) AS viejo FROM cola
                           WHERE tenant_id IS NULL OR tenant_id = ?`).get(String(tenantId))
             : db.prepare('SELECT COUNT(*) AS n, MIN(ocurrido_en) AS viejo FROM cola').get();
-        return { cuantos: fila.n, masViejo: fila.viejo || null };
+
+        // El mismo orden que `pendientes`: el de adelante acá es el que el vaciado manda primero.
+        const adelante = !fila.n ? null : tenantId
+            ? db.prepare(`SELECT tipo, intentos, ultimo_error FROM cola
+                          WHERE tenant_id IS NULL OR tenant_id = ?
+                          ORDER BY ocurrido_en, creado_en LIMIT 1`).get(String(tenantId))
+            : db.prepare(`SELECT tipo, intentos, ultimo_error FROM cola
+                          ORDER BY ocurrido_en, creado_en LIMIT 1`).get();
+
+        return {
+            cuantos: fila.n,
+            masViejo: fila.viejo || null,
+            primero: adelante
+                ? { tipo: adelante.tipo, intentos: adelante.intentos || 0, ultimoError: adelante.ultimo_error || null }
+                : null,
+        };
     } catch {
-        return { cuantos: 0, masViejo: null };
+        return { cuantos: 0, masViejo: null, primero: null };
     }
 }
 

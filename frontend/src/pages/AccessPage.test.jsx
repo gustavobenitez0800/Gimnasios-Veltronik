@@ -93,9 +93,11 @@ vi.mock('../components/Icon', () => ({ default: () => null }));
 
 // La cola: por defecto vacía, que es lo que ve el 99% de los días. Los tests del aviso la
 // cambian para simular un gimnasio que hace días no puede subir nada.
-const colaFalsa = { cuantos: 0, dias: 0, sociosConCobro: [] };
+const colaFalsa = { cuantos: 0, dias: 0, trabada: null, sociosConCobro: [] };
 vi.mock('../lib/colaAccesos', () => ({
-  resumenDeCola: async () => ({ cuantos: colaFalsa.cuantos, dias: colaFalsa.dias }),
+  resumenDeCola: async () => (
+    { cuantos: colaFalsa.cuantos, dias: colaFalsa.dias, desde: null, trabada: colaFalsa.trabada }
+  ),
   sociosConCobroPendiente: async () => [...colaFalsa.sociosConCobro],
 }));
 
@@ -171,6 +173,7 @@ beforeEach(() => {
   mostrador.refrescos = 0;
   colaFalsa.cuantos = 0;
   colaFalsa.dias = 0;
+  colaFalsa.trabada = null;
   colaFalsa.sociosConCobro = [];
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
@@ -599,6 +602,64 @@ describe('⚠️ el aviso de la cola escala con los días', () => {
 
     expect(aviso().textContent).toContain('desde ayer');
     expect(container.querySelector('.copia-local.is-muy-vieja')).toBeNull();
+  });
+
+  describe('⭐⭐ cuando NO es el internet, no dice "al volver internet"', () => {
+    // Santo Sport, 05/10/2026. El servidor rechazaba una alta y detrás quedaron 139 movimientos.
+    // Este cartel dijo "139 accesos guardados sin conexión desde ayer · se mandan al volver
+    // internet" durante 36 horas, con el internet andando. El dueño llamó al técnico del router.
+
+    const TRABADA = { tipo: 'ALTA', status: 500, intentos: 288, error: 'HTTP 500 x288 · …' };
+
+    it('dice que no pudieron subir, que no es el internet y a quién avisar', async () => {
+      colaFalsa.cuantos = 139;
+      colaFalsa.dias = 1;
+      colaFalsa.trabada = TRABADA;
+
+      await pintar();
+
+      const texto = aviso().textContent;
+      expect(texto).toContain('139 movimientos no pudieron subir');
+      expect(texto).toContain('no es el internet');
+      expect(texto, 'que no se perdió nada es lo primero que hay que saber')
+        .toContain('guardados en esta computadora');
+      expect(texto).toContain('avisale a Veltronik');
+    });
+
+    it('⚠️ y NO promete que se arregla al volver internet, ni habla de "sin conexión"', async () => {
+      colaFalsa.cuantos = 139;
+      colaFalsa.dias = 1;
+      colaFalsa.trabada = TRABADA;
+
+      await pintar();
+
+      const texto = aviso().textContent;
+      expect(texto).not.toContain('al volver internet');
+      expect(texto).not.toContain('sin conexión');
+      expect(container.querySelectorAll('.copia-local.is-vieja, .copia-local.is-muy-vieja'),
+        'un solo cartel: los dos juntos se contradirían').toHaveLength(1);
+    });
+
+    it('alarma desde el primer momento: no espera tres días para cambiar de tono', async () => {
+      colaFalsa.cuantos = 4;
+      colaFalsa.dias = 0;
+      colaFalsa.trabada = TRABADA;
+
+      await pintar();
+
+      expect(container.querySelector('.copia-local.is-muy-vieja')).toBeTruthy();
+    });
+
+    it('con uno solo, habla en singular', async () => {
+      colaFalsa.cuantos = 1;
+      colaFalsa.trabada = TRABADA;
+
+      await pintar();
+
+      const texto = aviso().textContent;
+      expect(texto).toContain('1 movimiento no pudo subir');
+      expect(texto).toContain('Está guardado');
+    });
   });
 });
 

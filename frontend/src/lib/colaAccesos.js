@@ -45,8 +45,68 @@ export function disponible() {
   return nucleo() !== null;
 }
 
-/** Cuántos intentos fallidos antes de considerar que algo anda mal de verdad. */
-const AVISAR_TRAS_INTENTOS = 5;
+/**
+ * Cuántas veces SEGUIDAS tiene que rechazar el servidor al de adelante para dar la cola por
+ * trabada.
+ *
+ * <p>Una no alcanza: durante un despliegue el servidor contesta 502 o 503 un momento, y eso se
+ * arregla solo. Tres rechazos seguidos son más de diez minutos (el vaciado corre cada cinco)
+ * contestando que no, con el servidor del otro lado: eso ya no es un parpadeo.</p>
+ */
+export const RECHAZOS_PARA_DARLA_POR_TRABADA = 3;
+
+/**
+ * ⭐ CÓMO SE ANOTA UN FALLO: con el código adelante si el servidor llegó a contestar.
+ *
+ * <p><b>Es lo único que distingue "no hay internet" de "el servidor lo rechaza"</b>, y la
+ * cola no lo guardaba: anotaba el mensaje a secas. Por eso la pantalla solo sabía decir "se
+ * mandan al volver internet", y un gimnasio con la conexión perfecta estuvo 36 horas
+ * creyéndole —llamó al del router— mientras el servidor rechazaba la misma alta 288 veces
+ * (Santo Sport, 05/10/2026).</p>
+ *
+ * <p>Forma: {@code HTTP 500 x3 · el mensaje}. El {@code x3} son los rechazos SEGUIDOS: un
+ * corte de red en el medio lo vuelve a cero, porque ahí el servidor dejó de ser quien dice
+ * que no. Va en el texto y no en una columna para no migrar la base del terminal por un
+ * número.</p>
+ */
+function describirFallo(error, anotadoAntes) {
+  const status = error?.response?.status;
+  const texto = String(error?.response?.data?.message || error?.message || error || '');
+  if (!status) return texto;
+
+  const seguidos = (rechazoAnotado(anotadoAntes)?.seguidos || 0) + 1;
+  return `HTTP ${status} x${seguidos} · ${texto}`;
+}
+
+/**
+ * Lo que dice una anotación de fallo, si fue el servidor el que contestó.
+ * @returns {{status: number, seguidos: number} | null} null si fue la red (o no hay nada).
+ */
+export function rechazoAnotado(ultimoError) {
+  const m = /^HTTP (\d{3}) x(\d+)\b/.exec(String(ultimoError || ''));
+  return m ? { status: Number(m[1]), seguidos: Number(m[2]) } : null;
+}
+
+/**
+ * ¿La cola está trabada por el SERVIDOR? Mira al de adelante, que es el que decide: la cola
+ * sube en orden y se corta en el primero que falla.
+ *
+ * <p>Un 402 no cuenta: es el gimnasio bloqueado por falta de pago, que ya tiene su propio
+ * cartel y se destraba pagando. Decirle "es un problema nuestro" sería mentirle al revés.</p>
+ *
+ * @returns {{tipo: string, status: number, intentos: number, error: string} | null}
+ */
+function comoEstaTrabada(primero) {
+  const rechazo = rechazoAnotado(primero?.ultimoError);
+  if (!rechazo || rechazo.status === 402) return null;
+  if (rechazo.seguidos < RECHAZOS_PARA_DARLA_POR_TRABADA) return null;
+  return {
+    tipo: primero.tipo || 'ACCESO',
+    status: rechazo.status,
+    intentos: primero.intentos || rechazo.seguidos,
+    error: String(primero.ultimoError).slice(0, 200),
+  };
+}
 
 /**
  * Regla 3: un solo vaciado a la vez.
@@ -214,25 +274,31 @@ export async function pendientes(tenantId = orgActual()) {
  * guardando visitas en un solo disco desde hace tres semanas y nadie se enteró. El diseño
  * permite acumular 30 días; sin la antigüedad, esos 30 días pasan en silencio.</p>
  *
- * @returns {Promise<{cuantos: number, dias: number}>} `dias` es la edad de lo más viejo.
+ * <p><b>⭐ Y POR QUÉ no suben, cuando no es la conexión.</b> `trabada` viene con datos solo si
+ * el servidor viene rechazando al de adelante (ver {@link comoEstaTrabada}). Es lo que le
+ * permite a la pantalla dejar de culpar al internet y al terminal avisarnos.</p>
+ *
+ * @returns {Promise<{cuantos: number, dias: number, desde: string|null, trabada: object|null}>}
+ *          `dias` es la edad de lo más viejo y `desde` su momento (hora local, sin zona).
  */
 export async function resumenDeCola(tenantId = orgActual()) {
   const c = nucleo();
-  if (!c?.resumen) return { cuantos: 0, dias: 0 };
+  if (!c?.resumen) return { cuantos: 0, dias: 0, desde: null, trabada: null };
   try {
-    const { cuantos = 0, masViejo = null } = (await c.resumen(tenantId)) || {};
-    if (!cuantos || !masViejo) return { cuantos, dias: 0 };
+    const { cuantos = 0, masViejo = null, primero = null } = (await c.resumen(tenantId)) || {};
+    const trabada = cuantos ? comoEstaTrabada(primero) : null;
+    if (!cuantos || !masViejo) return { cuantos, dias: 0, desde: null, trabada };
 
     // `masViejo` viene sin zona (`YYYY-MM-DDTHH:mm:ss`), que es hora LOCAL del terminal.
     // `new Date()` sobre eso la interpreta como local, que es exactamente lo que corresponde:
     // el reloj con el que se anotó es el mismo con el que se mide.
     const cuando = new Date(masViejo).getTime();
-    if (!Number.isFinite(cuando)) return { cuantos, dias: 0 };
+    if (!Number.isFinite(cuando)) return { cuantos, dias: 0, desde: null, trabada };
 
     const dias = Math.floor((Date.now() - cuando) / (24 * 60 * 60 * 1000));
-    return { cuantos, dias: Math.max(0, dias) };
+    return { cuantos, dias: Math.max(0, dias), desde: masViejo, trabada };
   } catch {
-    return { cuantos: 0, dias: 0 };
+    return { cuantos: 0, dias: 0, desde: null, trabada: null };
   }
 }
 
@@ -388,13 +454,19 @@ export async function cuantosPendientes(tenantId = orgActual()) {
  * el backend lo contestaba con 401 —que ya se reintentaba—; pasó a 400 para no cerrar la
  * sesión, y sin esta excepción la cola tiraría un cobro o una visita real.
  *
+ * ⚠️⚠️ Y UN 402: el gimnasio está bloqueado por falta de pago. Eso NO dice nada del movimiento
+ * —el cobro y la visita son tan reales como siempre— y se arregla el día que paga. Estaba del
+ * lado de "no insistas": al gimnasio que se le vencía la suscripción con cosas en la cola, la
+ * cola se las TIRABA una por una, cobros incluidos, sin avisarle a nadie. Se encontró leyendo
+ * este código por otro motivo, antes de que le pasara a alguien.
+ *
  * @param {number} status el código HTTP
  * @param {string} [codigo] el `error` del cuerpo de la respuesta, si vino
  */
 export function esDefinitivo(status, codigo) {
   if (!status || status < 400 || status >= 500) return false;
   if (codigo === 'TENANT_CONTEXT_MISSING') return false;
-  return ![408, 429, 401, 403].includes(status);
+  return ![408, 429, 401, 403, 402].includes(status);
 }
 
 /**
@@ -461,7 +533,10 @@ export async function vaciar(enviadores, tenantId = orgActual()) {
         }
         // Error de red o del servidor: se anota y se CORTA la tanda. Seguir con el
         // siguiente rompería el orden, que es lo único que sostiene la corrección.
-        await c.anotarFallo(item.clientRef, String(error?.message || error || ''));
+        //
+        // Se anota QUIÉN dijo que no (ver describirFallo): si fue el servidor, de ahí sale
+        // que la pantalla deje de culpar al internet y que el terminal nos avise.
+        await c.anotarFallo(item.clientRef, describirFallo(error, item.ultimoError));
         break;
       }
     }
@@ -469,16 +544,6 @@ export async function vaciar(enviadores, tenantId = orgActual()) {
     candado = false;
   }
   return { enviados, quedan: await cuantosPendientes(tenantId), descartados, sinEnviador };
-}
-
-/** ¿Hay algo que viene fallando hace rato? La pantalla lo usa para avisar de verdad. */
-export async function hayProblema(tenantId = orgActual()) {
-  try {
-    const lista = await pendientes(tenantId);
-    return lista.some((i) => (i.intentos || 0) >= AVISAR_TRAS_INTENTOS);
-  } catch {
-    return false;
-  }
 }
 
 /**

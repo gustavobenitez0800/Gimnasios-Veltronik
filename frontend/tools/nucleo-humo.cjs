@@ -333,6 +333,19 @@ app.whenReady().then(() => {
     chequear('anota el fallo SIN sacarlo de la cola',
         cola.contar(GIMNASIO) === 2 && cola.pendientes(GIMNASIO)[0].intentos === 1);
 
+    // ⭐ EL RESUMEN DICE CÓMO VIENE EL DE ADELANTE. De ahí sale que la pantalla distinga "no
+    // hay internet" de "el servidor lo rechaza" (Santo Sport, 05/10/2026). 'humo-a' ocurrió
+    // primero aunque se encoló segundo, así que es el de adelante: el orden es el del vaciado.
+    const como = cola.resumen(GIMNASIO);
+    chequear('el resumen cuenta cómo viene el de adelante',
+        como.cuantos === 2 && como.primero && como.primero.tipo === 'ACCESO'
+            && como.primero.intentos === 1 && como.primero.ultimoError === 'Network Error',
+        JSON.stringify(como.primero));
+    cola.anotarFallo('humo-a', 'HTTP 500 x1 · could not initialize proxy');
+    chequear('y lo último que le contestaron, con el código del servidor adelante',
+        cola.resumen(GIMNASIO).primero.ultimoError === 'HTTP 500 x1 · could not initialize proxy'
+            && cola.resumen(GIMNASIO).primero.intentos === 2);
+
     chequear('sacar saca uno solo', cola.sacar('humo-a') && cola.contar(GIMNASIO) === 1);
 
     cola.olvidar();

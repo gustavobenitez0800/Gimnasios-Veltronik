@@ -20,7 +20,10 @@ import { createRoot } from 'react-dom/client';
 
 const toast = { showToast: vi.fn() };
 const accessService = { enviarEncolado: vi.fn() };
-const cola = { vaciar: vi.fn(), disponible: vi.fn(() => true) };
+const SIN_ATASCO = { cuantos: 0, dias: 0, desde: null, trabada: null };
+const cola = { vaciar: vi.fn(), disponible: vi.fn(() => true), resumen: vi.fn(async () => SIN_ATASCO) };
+/** El aviso al servidor de que la cola está trabada (lib/colaTrabada). */
+const aviso = { avisar: vi.fn(async () => true), olvidar: vi.fn() };
 const sesion = { orgId: '11111111-1111-1111-1111-111111111111' };
 
 vi.mock('../contexts/ToastContext', () => ({ useToast: () => toast }));
@@ -29,6 +32,11 @@ vi.mock('../services', () => ({ accessService }));
 vi.mock('../lib/colaAccesos', () => ({
   vaciar: (...a) => cola.vaciar(...a),
   disponible: () => cola.disponible(),
+  resumenDeCola: (...a) => cola.resumen(...a),
+}));
+vi.mock('../lib/colaTrabada', () => ({
+  avisarColaTrabada: (...a) => aviso.avisar(...a),
+  olvidarAvisoDeColaTrabada: (...a) => aviso.olvidar(...a),
 }));
 
 /**
@@ -73,6 +81,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   cola.disponible.mockReturnValue(true);
   cola.vaciar.mockResolvedValue({ enviados: 0, quedan: 0, descartados: 0 });
+  cola.resumen.mockResolvedValue(SIN_ATASCO);
+  aviso.avisar.mockResolvedValue(true);
   sinRed(true);
   conexion.cortado = false;
   sesion.orgId = '11111111-1111-1111-1111-111111111111';
@@ -263,5 +273,122 @@ describe('⭐ al volver la conexión, todo se pone al día solo', () => {
   it('y si no subió nada, no molesta a las pantallas', async () => {
     await montar();
     expect(alDia.refrescarTodo).not.toHaveBeenCalled();
+  });
+});
+
+describe('⭐⭐ una cola trabada por el servidor no se queda callada', () => {
+  // Santo Sport, 05/10/2026: el servidor rechazó la misma alta 288 veces en 36 horas, con 139
+  // movimientos esperando detrás. El terminal no se lo contó a nadie y la pantalla culpaba al
+  // internet. Nos enteramos por el WhatsApp del dueño.
+
+  const TRABADA = {
+    cuantos: 139,
+    dias: 1,
+    desde: '2026-10-05T19:47:13',
+    trabada: { tipo: 'ALTA', status: 500, intentos: 3, error: 'HTTP 500 x3 · could not initialize proxy' },
+  };
+
+  /** Deja pasar las esperas encadenadas del vaciado (subir, mirar cómo quedó, avisar). */
+  async function asentar() {
+    for (let i = 0; i < 5; i += 1) await act(async () => { await Promise.resolve(); });
+  }
+
+  /** Otra vuelta del vaciado, como la del temporizador de cada cinco minutos. */
+  async function otraVuelta() {
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    await asentar();
+  }
+
+  it('le avisa al servidor qué la traba y cuánto hay detrás', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+
+    await montar();
+    await asentar();
+
+    expect(aviso.avisar).toHaveBeenCalledWith(TRABADA);
+  });
+
+  it('y se lo dice a quien atiende, sin culpar al internet', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+
+    await montar();
+    await asentar();
+
+    const [texto, tipo] = toast.showToast.mock.calls.at(-1);
+    expect(tipo).toBe('warning');
+    expect(texto).toContain('no es por el internet');
+    expect(texto, 'lo que más importa: no se perdió').toContain('guardados en esta computadora');
+    expect(texto).toContain('Veltronik ya recibió el aviso');
+  });
+
+  it('⚠️ si el aviso no llegó, la pantalla NO dice que avisó: pide que avisen', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+    aviso.avisar.mockResolvedValue(false);
+
+    await montar();
+    await asentar();
+
+    const [texto] = toast.showToast.mock.calls.at(-1);
+    expect(texto).toContain('Avisale a Veltronik');
+    expect(texto).not.toContain('ya recibió');
+  });
+
+  it('se lo dice UNA vez por atasco: repetirlo cada cinco minutos es ruido', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+    await montar();
+    await asentar();
+
+    await otraVuelta();
+    await otraVuelta();
+
+    expect(toast.showToast).toHaveBeenCalledTimes(1);
+    expect(aviso.avisar, 'al servidor sí se le pregunta cada vez: él decide si repite').toHaveBeenCalledTimes(3);
+  });
+
+  it('cuando se destraba se olvida, y un atasco nuevo vuelve a avisar', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+    await montar();
+    await asentar();
+
+    cola.resumen.mockResolvedValue(SIN_ATASCO);
+    await otraVuelta();
+    expect(aviso.olvidar).toHaveBeenCalled();
+
+    cola.resumen.mockResolvedValue(TRABADA);
+    await otraVuelta();
+
+    expect(toast.showToast, 'es un problema nuevo').toHaveBeenCalledTimes(2);
+  });
+
+  it('con la cola sana no avisa nada', async () => {
+    await montar();
+    await asentar();
+
+    expect(aviso.avisar).not.toHaveBeenCalled();
+    expect(toast.showToast).not.toHaveBeenCalled();
+  });
+
+  it('sin conexión no acusa al servidor: ahí sí es el internet', async () => {
+    cola.resumen.mockResolvedValue(TRABADA);
+    conexion.cortado = true;
+
+    await montar();
+    await asentar();
+
+    expect(aviso.avisar).not.toHaveBeenCalled();
+    expect(toast.showToast).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ que falle el aviso no puede romper el vaciado', async () => {
+    cola.resumen.mockRejectedValue(new Error('el núcleo no contesta'));
+    let avisos = 0;
+    const alCambiar = () => { avisos += 1; };
+    window.addEventListener(EVENTO_COLA_CAMBIO, alCambiar);
+
+    await montar();
+    await asentar();
+    window.removeEventListener(EVENTO_COLA_CAMBIO, alCambiar);
+
+    expect(avisos, 'la pantalla de Acceso igual se entera de que la cola cambió').toBe(1);
   });
 });

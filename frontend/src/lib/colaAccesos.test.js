@@ -15,7 +15,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   encolar, pendientes, cuantosPendientes, vaciar, esDefinitivo,
-  momentoLocal, disponible, olvidarCola, resumenDeCola,
+  momentoLocal, disponible, olvidarCola, resumenDeCola, rechazoAnotado,
+  RECHAZOS_PARA_DARLA_POR_TRABADA,
 } from './colaAccesos';
 
 const GIMNASIO = '11111111-1111-1111-1111-111111111111';
@@ -197,6 +198,15 @@ describe('qué error dice "no insistas"', () => {
     expect(esDefinitivo(undefined)).toBe(false);
   });
 
+  it('⚠️⚠️ un 402 NO es definitivo: el gimnasio bloqueado no puede perder lo que cobró', () => {
+    // El 402 lo contesta el servidor cuando la suscripción está vencida. No dice nada del
+    // movimiento: el cobro y la visita pasaron igual, y se arregla el día que el gimnasio paga.
+    // Estaba del lado de "no insistas", así que la cola TIRABA uno por uno los movimientos de
+    // un gimnasio que se quedaba sin suscripción — cobros incluidos, sin avisarle a nadie.
+    expect(esDefinitivo(402)).toBe(false);
+    expect(esDefinitivo(402, 'PAYMENT_REQUIRED')).toBe(false);
+  });
+
   it('⭐ un 400 por falta de sucursal NO es definitivo: se arregla cuando llega la sucursal', () => {
     // Hasta la fase A de la sesión, el backend contestaba "falta la sucursal" con 401 (que
     // la cola ya reintentaba). Ahora es 400 + TENANT_CONTEXT_MISSING, para que no cierre la
@@ -246,7 +256,7 @@ describe('⚠️ desde cuándo esperan, no solo cuántos son', () => {
 
   it('con la cola vacía no hay antigüedad que informar', async () => {
     elNucleoDice({ cuantos: 0, masViejo: null });
-    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
+    expect(await resumenDeCola()).toMatchObject({ cuantos: 0, dias: 0, trabada: null });
   });
 
   it('lo de recién es de hoy: cero días', async () => {
@@ -267,7 +277,7 @@ describe('⚠️ desde cuándo esperan, no solo cuántos son', () => {
   it('un momento ilegible no inventa una antigüedad', async () => {
     // Preferible decir "0 días" que asustar con un número inventado — o peor, mostrar NaN.
     elNucleoDice({ cuantos: 3, masViejo: 'no-es-una-fecha' });
-    expect(await resumenDeCola()).toEqual({ cuantos: 3, dias: 0 });
+    expect(await resumenDeCola()).toMatchObject({ cuantos: 3, dias: 0 });
   });
 
   it('un reloj adelantado no da días negativos', async () => {
@@ -277,14 +287,14 @@ describe('⚠️ desde cuándo esperan, no solo cuántos son', () => {
 
   it('en la web, donde no hay cola, contesta cero sin romperse', async () => {
     delete window.electronAPI;
-    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
+    expect(await resumenDeCola()).toMatchObject({ cuantos: 0, dias: 0, trabada: null });
   });
 
   it('una versión vieja del núcleo, sin `resumen`, tampoco rompe', async () => {
     // El escritorio se actualiza solo, pero no todos a la vez: durante un rato hay terminales
     // con el preload viejo. Pedirle algo que no tiene no puede tumbar la pantalla.
     window.electronAPI = { nucleo: { cola } };
-    expect(await resumenDeCola()).toEqual({ cuantos: 0, dias: 0 });
+    expect(await resumenDeCola()).toMatchObject({ cuantos: 0, dias: 0, trabada: null });
   });
 });
 
@@ -378,5 +388,122 @@ describe('⚠️ un tipo sin enviador se queda, y CORTA la tanda', () => {
     expect(vistos, 'el acceso de después NO puede adelantarse').toEqual([]);
     expect(r.enviados).toBe(0);
     expect(cola.filas()).toHaveLength(2);
+  });
+});
+
+describe('⭐⭐ trabada por el SERVIDOR no es "sin internet"', () => {
+  // Santo Sport, 05/10/2026. Un alta que el servidor contestaba con 500 dejó detrás 139
+  // entradas, cobros y el cierre de caja durante 36 horas. El terminal la reintentó 288 veces
+  // y la pantalla decía "se mandan al volver internet" con el internet andando: el dueño llamó
+  // al técnico del router. La cola anotaba el mensaje del error pero no QUIÉN había dicho que
+  // no, así que no tenía con qué distinguir un caso del otro.
+
+  /** Un error con respuesta del servidor, como los que arma axios. */
+  function rechazo(status, mensaje = 'Error interno') {
+    const e = new Error(mensaje);
+    e.response = { status, data: { message: mensaje } };
+    return e;
+  }
+
+  /** El resumen como lo arma el núcleo: cuántos, desde cuándo, y cómo viene el de adelante. */
+  async function resumenReal() {
+    const filas = await cola.pendientes(GIMNASIO);
+    const primero = filas[0] || null;
+    window.electronAPI = { nucleo: { cola: { ...cola, resumen: vi.fn(async () => ({
+      cuantos: filas.length,
+      masViejo: primero?.ocurridoEn || null,
+      primero: primero && { tipo: primero.tipo, intentos: primero.intentos, ultimoError: primero.ultimoError },
+    })) } } };
+    return resumenDeCola();
+  }
+
+  beforeEach(async () => {
+    await encolar({ memberId: 'm1', clientRef: 'adelante' });
+    await encolar({ memberId: 'm2', clientRef: 'atras' });
+  });
+
+  it('anota QUIÉN dijo que no: el código del servidor va adelante', async () => {
+    await vaciar(async () => { throw rechazo(500, 'could not initialize proxy'); });
+
+    expect(cola.filas()[0].ultimoError).toBe('HTTP 500 x1 · could not initialize proxy');
+    expect(rechazoAnotado(cola.filas()[0].ultimoError)).toEqual({ status: 500, seguidos: 1 });
+  });
+
+  it('un corte de red se anota sin código: ahí el servidor no dijo nada', async () => {
+    await vaciar(async () => { throw new Error('Network Error'); });
+
+    expect(cola.filas()[0].ultimoError).toBe('Network Error');
+    expect(rechazoAnotado(cola.filas()[0].ultimoError)).toBeNull();
+  });
+
+  it('cuenta los rechazos SEGUIDOS, y un corte en el medio los vuelve a cero', async () => {
+    await vaciar(async () => { throw rechazo(500); });
+    await vaciar(async () => { throw rechazo(500); });
+    expect(rechazoAnotado(cola.filas()[0].ultimoError).seguidos).toBe(2);
+
+    await vaciar(async () => { throw new Error('Network Error'); });
+    await vaciar(async () => { throw rechazo(500); });
+
+    expect(rechazoAnotado(cola.filas()[0].ultimoError).seguidos,
+      'después del corte, el servidor recién lleva uno').toBe(1);
+  });
+
+  it('con un rechazo o dos todavía no se da por trabada: un despliegue contesta 503 un momento', async () => {
+    for (let i = 1; i < RECHAZOS_PARA_DARLA_POR_TRABADA; i += 1) {
+      await vaciar(async () => { throw rechazo(503); });
+    }
+
+    expect((await resumenReal()).trabada).toBeNull();
+  });
+
+  it('⭐ al tercer rechazo seguido está trabada, y dice por qué', async () => {
+    for (let i = 0; i < RECHAZOS_PARA_DARLA_POR_TRABADA; i += 1) {
+      await vaciar(async () => { throw rechazo(500, 'could not initialize proxy'); });
+    }
+
+    const r = await resumenReal();
+
+    expect(r.cuantos, 'los de atrás siguen esperando detrás del que traba').toBe(2);
+    expect(r.trabada).toMatchObject({ tipo: 'ACCESO', status: 500, intentos: 3 });
+    expect(r.trabada.error).toContain('could not initialize proxy');
+    expect(r.desde, 'y desde cuándo, para poder avisarlo').toBeTruthy();
+  });
+
+  it('sin internet NO está trabada por el servidor, falle las veces que falle', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await vaciar(async () => { throw new Error('Network Error'); });
+    }
+
+    expect((await resumenReal()).trabada, 'eso sí se arregla al volver internet').toBeNull();
+  });
+
+  it('⚠️ un 402 no es "un problema nuestro": es el gimnasio sin pagar, y tiene su cartel', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await vaciar(async () => { throw rechazo(402, 'Sistema bloqueado'); });
+    }
+
+    expect(cola.filas(), 'y no se tira nada: se sube cuando pague').toHaveLength(2);
+    expect((await resumenReal()).trabada).toBeNull();
+  });
+
+  it('cuando el de adelante por fin pasa, deja de estar trabada', async () => {
+    for (let i = 0; i < RECHAZOS_PARA_DARLA_POR_TRABADA; i += 1) {
+      await vaciar(async () => { throw rechazo(500); });
+    }
+    expect((await resumenReal()).trabada).not.toBeNull();
+
+    await vaciar(async () => {});
+
+    const r = await resumenReal();
+    expect(r.cuantos).toBe(0);
+    expect(r.trabada).toBeNull();
+  });
+
+  it('un núcleo que no cuenta cómo viene el de adelante no inventa un atasco', async () => {
+    window.electronAPI = { nucleo: { cola: { ...cola, resumen: vi.fn(async () => (
+      { cuantos: 2, masViejo: momentoLocal() }
+    )) } } };
+
+    expect((await resumenDeCola()).trabada).toBeNull();
   });
 });
