@@ -1,7 +1,7 @@
 # 📋 Tareas manuales — Gustavo
 
 > Lo que **solo vos** podés hacer: paneles, credenciales, pruebas con la app en la mano y
-> decisiones. Actualizado: **2026-10-07**. Tachá con `[x]` a medida que avances.
+> decisiones. Actualizado: **2026-10-08**. Tachá con `[x]` a medida que avances.
 >
 > La versión anterior (19/09) se reemplazó entera: daba por pendiente la renovación de SEKUR
 > y por posible apagar Railway. Está en la historia de git si hace falta.
@@ -10,6 +10,17 @@
 
 ## ▶️ 0. Esta semana, en este orden
 
+- [ ] **Publicar la 2.6.47: es un comando.** El commit de la versión está en `main` desde el
+      7/10, pero el tag nunca se subió: los equipos siguen en la 2.6.46. Lleva el arreglo de
+      la Caja: "Anotar" (gasto e ingreso) y "Anular" no hacían nada desde el 2/9. Desde tu
+      PC, en la carpeta del repo:
+
+      ```
+      git fetch origin && git tag v2.6.47 591c8c3 && git push origin v2.6.47
+      ```
+
+      Después, en *Actions* → **Release Electron (Windows)**: el run tiene que terminar en
+      verde (su último paso verifica que los equipos la vean en los dos repos).
 - [ ] **SEKUR actualiza su PC** (ver §2). Cinco minutos de ellos; destraba Railway y la
       rotación de la contraseña.
 - [ ] **Dos cuentas de prueba en Mercado Pago** (vendedor y comprador, Argentina) y sus
@@ -152,6 +163,9 @@ Lo que los tests no pueden ver: el estado REAL de producción.
       deja de ser cierto, hay que sacarlo de la landing.
 - [ ] **"La app arranca sola con la computadora".** La landing lo dice, y es una opción que
       viene apagada. O se prende por defecto, o se suaviza la frase.
+- [ ] **"Sin tarjeta", en la portada de la landing.** Hoy es cierto. Si la suscripción
+      programada (§8) pide la tarjeta como requisito para la prueba, deja de serlo: o la
+      tarjeta queda opcional, o la frase cambia el mismo día.
 - [ ] **Pago adelantado: ¿se suma o arranca de cero?** Hoy se suma (31 días que quedaban + 31
       nuevos = 62). Abierto desde el 7/09.
 - [ ] **Las 6 preguntas al proveedor de hardware.** La sexta —¿da plazo de pago?— decide el
@@ -162,15 +176,14 @@ Lo que los tests no pueden ver: el estado REAL de producción.
       - **Tiempo 1 (mudar los instaladores):** van a un repo público aparte,
         `veltronik-releases`, que solo tiene instaladores. La "versión puente" sale por los
         dos repos: por este le llega a cada equipo, y desde ella ese equipo mira el nuevo.
-        - [ ] **El token `RELEASES_TOKEN`** (lo creás vos, 3 minutos; no se pega en ningún
-              chat). GitHub → tu foto → *Settings* → *Developer settings* → *Personal access
-              tokens* → *Fine-grained tokens* → *Generate new token*. Nombre: `veltronik-releases`.
-              *Repository access*: *Only select repositories* → `veltronik-releases`.
-              *Permissions* → *Repository permissions* → **Contents: Read and write** (nada
-              más). Copiás el token y lo pegás en este repo: *Settings* → *Secrets and
-              variables* → *Actions* → *New repository secret* → nombre `RELEASES_TOKEN`.
-              **Anotá cuándo vence**: el día que venza no sale ninguna versión nueva (el
-              flujo se pone en rojo y lo dice; no rompe nada instalado).
+        - [x] **El token `RELEASES_TOKEN`** está cargado: la 2.6.46 pasó su control y salió
+              el 7/10 por los dos repos. **La 2.6.46 es la versión puente.**
+        - [ ] **Anotá acá cuándo vence el token:** ________. Ese día no sale ninguna versión
+              nueva (el flujo se pone en rojo y lo dice; no rompe nada instalado). Para
+              renovarlo: GitHub → tu foto → *Settings* → *Developer settings* → *Personal
+              access tokens* → *Fine-grained tokens* → el de `veltronik-releases` →
+              *Regenerate*, y pegarlo de nuevo en este repo: *Settings* → *Secrets and
+              variables* → *Actions* → `RELEASES_TOKEN`. No se pega en ningún chat.
       - **Tiempo 2 (el candado):** recién cuando TODOS los equipos reporten la versión puente
         o una posterior. Un equipo que no pasó por la puente queda sin actualizaciones para
         siempre y hay que reinstalarle a mano.
@@ -191,8 +204,9 @@ Lo que los tests no pueden ver: el estado REAL de producción.
   salga el día en que termina; hoy no hay ningún botón para pagar antes del bloqueo. Mercado
   Pago acepta agendar el cobro en una suscripción por link; falta probarlo con tarjeta, y
   para eso hacen falta las cuentas de prueba de §0. Tiene que estar antes del 5/11.
-- **La sesión que no se cierra sola.** Faltan dos fases: que un corte de red no se tome por
-  sesión muerta (~5 h) y registrar en el servidor por qué se cerró cada sesión (~2 h).
+- **La sesión que no se cierra sola.** Falta una fase: que un corte de red no se tome por
+  sesión muerta (~5 h). El registro en el servidor de por qué se cerró cada sesión salió el
+  7/10 (V89, tabla `sesion_cierre`): el próximo "me sacó sola" ya tiene su motivo anotado.
 
 **Para después:**
 
@@ -205,3 +219,10 @@ Lo que los tests no pueden ver: el estado REAL de producción.
   parches propios. Pasar a la 4 es un proyecto aparte.
 - **electron-updater.** Quedan 5 avisos de seguridad, todos sin exposición real hoy. Se
   actualiza junto con la mudanza de releases, que obliga a probar una actualización real.
+- **Lo que el pulido de septiembre (PR #49) dejó afuera a propósito:**
+  - Supabase avisa `SIGNED_IN` cada vez que la ventana vuelve al frente, y `AuthContext`
+    recarga la sucursal entera. Lo mismo con cada `TOKEN_REFRESHED`. Va con la fase de
+    sesión que queda.
+  - El ícono del instalador (`frontend/assets/icon.png`) sigue azul marino: sobre la barra
+    de tareas oscura casi no se ve.
+  - El recorrido del mostrador por dentro (necesita iniciar sesión y enrolar un terminal).

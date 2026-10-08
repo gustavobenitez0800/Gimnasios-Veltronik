@@ -42,7 +42,7 @@ Casi nada está escrito a mano. Se lee en **build time** (no en el navegador):
 | Dato | Fuente |
 |---|---|
 | Precio y features del plan | `GET /api/public/plans` del backend en Cloud Run |
-| Versión y peso del instalador | API de GitHub Releases |
+| Versión y peso del instalador | API de GitHub Releases (`veltronik-releases`; si no tiene ninguna, el repo del código). `/api/version` la corrige al abrir `/descargar` |
 | Link de descarga | `/api/descargar` lo resuelve en cada click |
 
 **Por qué no se hardcodea el precio:** ya pasó una vez en el portal — el precio estaba
@@ -65,7 +65,10 @@ el build **no se rompe** (ver `src/lib/plans.js` y `src/lib/release.js`).
 
 ## El link de descarga
 
-`veltronik.com.ar/api/descargar` es la **única** ruta que corre en el servidor.
+`veltronik.com.ar/api/descargar` y `/api/version` son las **únicas** rutas que corren en el
+servidor. La segunda existe porque el sitio se arma cuando cambia la landing, no cuando sale
+una versión: sin ella, `/descargar` mostraba la versión del último armado mientras el botón
+bajaba una más nueva.
 
 Tiene que ser dinámica porque el instalador se llama `Veltronik-Setup-2.6.30.exe`, con
 la versión adentro. El atajo clásico de GitHub (`/releases/latest/download/<nombre>`)
@@ -74,10 +77,10 @@ no sirve: el nombre cambia en cada release y el link quedaría muerto.
 La gracia es que **este link nunca cambia**. Se puede poner en un mail, un cartel o un
 WhatsApp y va a seguir bajando la última versión dentro de dos años.
 
-> Devuelve el último release **publicado**. Los borradores no cuentan — y el workflow de
-> release deja la release en borrador, así que si alguien se olvida de publicarla, acá
-> sigue saliendo la anterior. Es lo correcto: mejor ofrecer una versión vieja que una que
-> nadie revisó.
+> Devuelve el último release **publicado**. Los borradores no cuentan: electron-builder
+> crea el release en borrador y el workflow lo publica recién al final, después de armar y
+> subir el instalador. Si ese paso fallara, acá sigue saliendo la anterior. Es lo correcto:
+> mejor ofrecer una versión vieja que una a medio subir.
 
 ---
 
@@ -115,10 +118,10 @@ Proyecto **nuevo**, distinto al del portal.
 - [x] **Google Search Console**: verificar el dominio y mandar
       `https://veltronik.com.ar/sitemap-index.xml`. (Propiedad de prefijo de URL,
       verificada con la etiqueta `google-site-verification` de `Base.astro`.)
-- [ ] **Poner el portal en `noindex`** (`frontend/index.html`). Hoy tiene
-      `<meta name="robots" content="index, follow">` y compite contra la landing por las
-      mismas búsquedas — con una página que es un formulario de login.
-- [ ] **Imagen para compartir** (`public/og.png`, 1200×630). Hoy el OG usa el logo, que
-      en WhatsApp y Facebook se ve chico y descentrado.
-- [ ] **WhatsApp comercial** en `src/lib/site.js` (`CONTACTO.whatsapp`, vacío hoy).
-- [ ] **Perfil de Empresa en Google**.
+- [x] **Poner el portal en `noindex`** (`frontend/index.html`): ya no compite contra la
+      landing por las mismas búsquedas con una página que es un formulario de login.
+- [x] **Imagen para compartir** (`public/og.png`, 1200×630), con el mismo mensaje que el
+      hero. La regenera `tools/generar-imagenes.mjs`.
+- [x] **WhatsApp comercial** en `src/lib/site.js` (`CONTACTO.whatsapp`).
+- [ ] **Perfil de Empresa en Google**: falta verificarlo (pide un video). Está en
+      `TAREAS-MANUALES.md` §6.
