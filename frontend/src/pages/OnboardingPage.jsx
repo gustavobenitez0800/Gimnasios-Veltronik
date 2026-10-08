@@ -24,7 +24,7 @@ import { DEFAULT_LOGO_EMOJI } from '../lib/logo';
 
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
-import { useMonthlyPriceLabel } from '../hooks/useMonthlyPrice';
+import { obtenerPlanes, preciosDeLosPlanes } from '../lib/planes';
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
@@ -49,7 +49,16 @@ export default function OnboardingPage() {
     return () => { active = false; };
   }, []);
 
-  const monthlyPrice = useMonthlyPriceLabel(); // lo dice el backend, no el build
+  // Lo que se va a cobrar por una sucursal adicional: los MISMOS planes que ofrece la página
+  // de activación, con sus precios. Acá decía solo el del básico ("$55.000/mes por sucursal")
+  // y al activar aparecían los dos planes. Mientras no llegan (o si no llegan) no se dice
+  // ningún número: un precio equivocado es peor que ninguno.
+  const [precios, setPrecios] = useState('');
+  useEffect(() => {
+    let vigente = true;
+    obtenerPlanes().then((planes) => { if (vigente) setPrecios(preciosDeLosPlanes(planes)); });
+    return () => { vigente = false; };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -160,7 +169,10 @@ export default function OnboardingPage() {
                   borderRadius: '0.75rem', textAlign: 'center'
                 }}>
                   <p style={{ color: '#f59e0b', fontWeight: 600, margin: 0, fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Icon name="creditCard" size="1em" /> Sucursal adicional • Se activa al pagar • ${monthlyPrice}/mes por sucursal
+                    <Icon name="creditCard" size="1em" /> Sucursal adicional · Se activa al pagar
+                  </p>
+                  <p style={{ color: '#f59e0b', fontWeight: 500, margin: '0.35rem 0 0', fontSize: '0.8125rem', opacity: 0.85 }}>
+                    {precios ? `Al activarla elegís el plan: ${precios}` : 'Al activarla elegís el plan'}
                   </p>
                 </div>
               )}
