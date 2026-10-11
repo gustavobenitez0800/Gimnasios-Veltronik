@@ -16,10 +16,16 @@
 //   · los 30 días del borrado ...... AccountDeletionService + AccountPurgeJob
 //   · dejar de pagar no borra ...... el kill switch bloquea, no borra
 //   · San Pablo .................... deploy-cloudrun.yml (southamerica-east1) y la base (sa-east-1)
-//   · sin cookies de seguimiento ... no hay ninguna librería de analítica en landing/ ni en frontend/
+//   · las cookies de medición ...... components/Cookies.astro y `MEDICION` (lib/site.js). El
+//                                    portal y la app no tienen ninguna librería de analítica.
 // Si se suma un proveedor que toque datos (o se da de baja uno), va en `proveedores`.
+//
+// LO DE LAS COOKIES SE ESCRIBE SOLO. Todo lo que esta página dice de Google Analytics y de
+// Meta depende de `MEDICION`: con los identificadores vacíos dice que el sitio no usa cookies
+// de seguimiento, y al cargar uno aparecen la sección, el proveedor y el renglón del resumen,
+// en el mismo armado en que el sitio empieza a medir. No hay forma de que queden desfasados.
 import Base from '../layouts/Base.astro';
-import { CONTACTO, CIUDAD, waLink } from '../lib/site.js';
+import { CONTACTO, CIUDAD, waLink, MEDICION, HAY_MEDICION } from '../lib/site.js';
 
 // Desde cuándo rige. Se cambia a mano, junto con el texto: una fecha que se actualiza sola
 // diría "vigente desde hoy" sobre un texto que nadie tocó.
@@ -32,7 +38,9 @@ const wa = waLink(mensaje);
 const resumen = [
   'Los datos de tu gimnasio son tuyos. No los vendemos ni los usamos para publicidad.',
   'No guardamos tarjetas. El pago de la suscripción lo procesa Mercado Pago.',
-  'Este sitio y el sistema no usan cookies de publicidad ni de seguimiento.',
+  HAY_MEDICION
+    ? 'El sistema no usa cookies de publicidad. Este sitio mide las visitas y las campañas solo si aceptás las cookies.'
+    : 'Este sitio y el sistema no usan cookies de publicidad ni de seguimiento.',
   'Podés borrar tu cuenta desde el sistema cuando quieras.',
 ];
 
@@ -43,7 +51,9 @@ const proveedores = [
   { nombre: 'Mercado Pago', hace: 'Cobra la suscripción.' },
   { nombre: 'Microsoft OneDrive', hace: 'Guarda una de las copias de seguridad.' },
   { nombre: 'GitHub', hace: 'De ahí se bajan el instalador y las actualizaciones de la app. No recibe datos de tu gimnasio.' },
-];
+  MEDICION.ga4 && { nombre: 'Google Analytics', hace: 'Mide las visitas a este sitio, solo si aceptás las cookies. No está en el portal ni en la app.' },
+  MEDICION.metaPixel && { nombre: 'Meta', hace: 'Mide el resultado de nuestras campañas en Instagram y Facebook, solo si aceptás las cookies. No está en el portal ni en la app.' },
+].filter(Boolean);
 
 const indice = [
   ['responsable', 'Quién responde por tus datos'],
@@ -54,11 +64,12 @@ const indice = [
   ['facial', 'El molinete con reconocimiento facial'],
   ['terceros', 'Con quién los compartimos'],
   ['equipo', 'Lo que queda en tu computadora y en tu navegador'],
+  HAY_MEDICION && ['cookies', 'Las cookies de este sitio'],
   ['plazo', 'Cuánto tiempo los guardamos'],
   ['cuidado', 'Cómo los cuidamos'],
   ['derechos', 'Tus derechos'],
   ['cambios', 'Cambios en esta política'],
-];
+].filter(Boolean);
 ---
 
 <Base
@@ -224,10 +235,54 @@ const indice = [
       </p>
       <p>
         En el navegador, el portal guarda la sesión iniciada en el almacenamiento del
-        propio navegador. No usamos cookies de publicidad ni de seguimiento, ni en el
-        portal ni en este sitio. En la pantalla de pago se carga el formulario de Mercado
-        Pago, que puede usar sus propias cookies para prevenir fraudes.
+        propio navegador.
+        {HAY_MEDICION
+          ? <>El portal y la app no usan cookies de publicidad ni de seguimiento; las de este sitio están explicadas <a href="#cookies">acá abajo</a>.</>
+          : <>No usamos cookies de publicidad ni de seguimiento, ni en el portal ni en este sitio.</>}
+        En la pantalla de pago se carga el formulario de Mercado Pago, que puede usar sus
+        propias cookies para prevenir fraudes.
       </p>
+
+      {HAY_MEDICION && (
+        <>
+          <h2 id="cookies">Las cookies de este sitio</h2>
+          <p>
+            Al entrar a este sitio te preguntamos si aceptás cookies de medición. Si decís
+            que no, no se carga ninguna y el sitio anda igual. Si tu navegador avisa que no
+            querés ser rastreado, ni te preguntamos.
+          </p>
+          <p>Si aceptás, se cargan:</p>
+          <ul>
+            {MEDICION.ga4 && (
+              <li>
+                <strong>Google Analytics.</strong> Cuenta las visitas: qué páginas se ven,
+                desde dónde llegó cada una (un buscador, una red social, una campaña), con
+                qué tipo de dispositivo y desde qué zona aproximada.
+              </li>
+            )}
+            {MEDICION.metaPixel && (
+              <li>
+                <strong>El píxel de Meta.</strong> Le avisa a Instagram y a Facebook que
+                alguien visitó el sitio. Sirve para saber si nuestras publicidades funcionan
+                y para mostrarles nuestros avisos a quienes ya pasaron por acá.
+              </li>
+            )}
+          </ul>
+          <p>
+            Guardan en tu navegador un identificador, no tu nombre, y reciben tu dirección
+            IP. También anotamos, sin saber quién sos, si tocaste "Probar gratis", el botón
+            de WhatsApp o la descarga.
+          </p>
+          <p>
+            Tu respuesta se recuerda seis meses en este navegador y la podés cambiar cuando
+            quieras: <button type="button" class="legal-boton" data-cookies-abrir>cambiar mi elección</button>.
+          </p>
+          <p>
+            El portal y la app de Windows no tienen estas cookies: ahí no hay código de
+            medición ni de publicidad de terceros.
+          </p>
+        </>
+      )}
 
       <h2 id="plazo">Cuánto tiempo los guardamos</h2>
       <p>
@@ -308,6 +363,12 @@ const indice = [
   .legal-col p a, .legal-col li a { text-decoration: underline; text-underline-offset: 3px; }
 
   .legal-fecha { margin: 1.2rem 0 0; font-size: .9rem; color: var(--dim); }
+  /* "Cambiar mi elección" es un botón (reabre el aviso de cookies) que se lee como enlace. */
+  .legal-boton {
+    padding: 0; border: 0; background: none; cursor: pointer;
+    color: var(--blue-400); text-decoration: underline; text-underline-offset: 3px;
+  }
+  .legal-boton:hover { color: var(--blue-300); }
 
   .legal-resumen {
     margin: 2.4rem 0 0; padding: 1.4rem 1.5rem;

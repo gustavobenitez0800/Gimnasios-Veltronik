@@ -4,9 +4,10 @@
 // Cada página está OBLIGADA a pasar su propio title y description: dos páginas con el
 // mismo título compiten entre sí en Google y ninguna gana. Por eso no hay valores por
 // defecto para esos dos — si falta uno, se ve en el build.
-import { SITE_URL, appRoute, NAV, CONTACTO, REDES, CIUDAD, waLink } from '../lib/site.js';
+import { SITE_URL, appRoute, NAV, CONTACTO, REDES, CIUDAD, waLink, HAY_MEDICION } from '../lib/site.js';
 import Marca from '../components/Marca.astro';
 import Icon from '../components/Icon.astro';
+import Cookies from '../components/Cookies.astro';
 import '../styles/global.css';
 
 // La tarjeta que muestran WhatsApp, Facebook y LinkedIn al pegar el link. Antes era el logo
@@ -171,6 +172,8 @@ const wa = waLink(mensajeWa);
           <span>© {year} Veltronik. Todos los derechos reservados.</span>
           {/* Tiene que estar en la portada: Google lo exige para verificar la marca. */}
           <a href="/privacidad">Política de privacidad</a>
+          {/* Reabre el aviso para cambiar la elección. Sin JavaScript lleva a la explicación. */}
+          {HAY_MEDICION && <a href="/privacidad#cookies" data-cookies-abrir>Cookies</a>}
           <span>Precios en pesos argentinos, por sucursal.</span>
         </div>
       </div>
@@ -187,6 +190,9 @@ const wa = waLink(mensajeWa);
         )}
       </div>
     )}
+
+    {/* El aviso de cookies y la medición. Sin identificadores cargados no escribe nada. */}
+    <Cookies />
 
     <script>
       // Dos detalles de la navegación, sin librerías:

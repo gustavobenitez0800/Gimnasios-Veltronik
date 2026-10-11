@@ -1,0 +1,187 @@
+---
+// ============================================
+// EL AVISO DE COOKIES Y LA MEDICIÓN
+// ============================================
+// Para saber cuánta gente entra al sitio, de dónde viene y qué campaña la trajo: Google
+// Analytics y el píxel de Meta. Los identificadores están en `MEDICION` (lib/site.js).
+//
+// LA REGLA: NADA DE TERCEROS SE CARGA ANTES DE QUE EL VISITANTE DIGA QUE SÍ. Ni el código de
+// Google ni el de Meta: hasta el "Aceptar" este sitio no le habla a ninguno de los dos. Es
+// lo que promete la política de privacidad (pages/privacidad.astro, sección "cookies"), y
+// las dos cosas se tocan juntas.
+//
+//  · Sin identificadores cargados, este componente no escribe nada: ni aviso ni código.
+//  · Dijo que no: no se carga nada y no se le vuelve a preguntar por seis meses.
+//  · El navegador avisa que no quiere ser rastreado (Global Privacy Control): ni se pregunta.
+//  · Cambió de idea: el enlace "Cookies" del pie y el botón de la política reabren el aviso
+//    (cualquier cosa con `data-cookies-abrir`). De sí a no, además se borran las cookies
+//    que ya habían quedado y se recarga la página, porque un código ya cargado no se descarga.
+//
+// QUÉ SE MIDE, además de las visitas: los tres clics que importan, sin saber de quién son.
+//   "Probar gratis" (va al registro del portal), el WhatsApp y la descarga.
+// El registro en sí pasa en el portal, que es otro dominio y no tiene medición: lo que se
+// ve acá es la intención, no la cuenta creada.
+//
+// Solo en este sitio. El portal y la app NO llevan esto: tienen datos de socios en pantalla.
+import { MEDICION, HAY_MEDICION } from '../lib/site.js';
+---
+
+{HAY_MEDICION && (
+  <div class="cookies" id="aviso-cookies" role="region" aria-label="Aviso de cookies" hidden>
+    <p>
+      <strong>¿Nos dejás medir tu visita?</strong>
+      Usamos cookies para saber cuánta gente entra al sitio y qué campañas funcionan. Si
+      decís que no, el sitio anda igual.
+      <a href="/privacidad#cookies">Cómo las usamos</a>
+    </p>
+    <div class="cookies-botones">
+      <button type="button" class="btn btn-borde" data-cookies="no">No, gracias</button>
+      <button type="button" class="btn btn-primario" data-cookies="si">Aceptar</button>
+    </div>
+  </div>
+)}
+
+{HAY_MEDICION && (
+  <script is:inline define:vars={{ ga4: MEDICION.ga4, metaPixel: MEDICION.metaPixel }}>
+    (function () {
+      var CLAVE = 'veltronik_cookies';
+      var SEIS_MESES = 180 * 24 * 60 * 60 * 1000;
+      var aviso = document.getElementById('aviso-cookies');
+
+      // El almacenamiento puede faltar (ventana privada, sitio bloqueado). Sin él no hay
+      // dónde anotar la respuesta: se vuelve a preguntar, y mientras tanto no se mide.
+      function leer() {
+        try {
+          var d = JSON.parse(localStorage.getItem(CLAVE) || 'null');
+          return d && Date.now() - d.t < SEIS_MESES ? d.v : null;
+        } catch (e) { return null; }
+      }
+      function guardar(v) {
+        try { localStorage.setItem(CLAVE, JSON.stringify({ v: v, t: Date.now() })); } catch (e) { /* sin almacenamiento */ }
+      }
+
+      var cargado = false;
+      function cargar() {
+        if (cargado) return;
+        cargado = true;
+        if (ga4) {
+          window.dataLayer = window.dataLayer || [];
+          window.gtag = function () { window.dataLayer.push(arguments); };
+          window.gtag('js', new Date());
+          window.gtag('config', ga4);
+          var g = document.createElement('script');
+          g.async = true;
+          g.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(ga4);
+          document.head.appendChild(g);
+        }
+        if (metaPixel) {
+          // La cola que el código de Meta espera encontrar: guarda los pedidos hasta que carga.
+          var fbq = window.fbq = function () {
+            fbq.callMethod ? fbq.callMethod.apply(fbq, arguments) : fbq.queue.push(arguments);
+          };
+          window._fbq = fbq; fbq.push = fbq; fbq.loaded = true; fbq.version = '2.0'; fbq.queue = [];
+          var m = document.createElement('script');
+          m.async = true;
+          m.src = 'https://connect.facebook.net/en_US/fbevents.js';
+          document.head.appendChild(m);
+          fbq('init', metaPixel);
+          fbq('track', 'PageView');
+        }
+      }
+
+      // Las cookies que dejan Google y Meta, para cuando alguien pasa de sí a no.
+      function borrarCookies() {
+        var dominio = location.hostname.replace(/^www\./, '');
+        document.cookie.split(';').forEach(function (c) {
+          var nombre = c.split('=')[0].trim();
+          if (!/^(_ga|_gid|_gat|_gcl|_fbp|_fbc)/.test(nombre)) return;
+          ['', '; domain=' + dominio, '; domain=.' + dominio].forEach(function (d) {
+            document.cookie = nombre + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/' + d;
+          });
+        });
+      }
+
+      function evento(nombre, deMeta) {
+        if (!cargado) return;
+        if (ga4 && window.gtag) window.gtag('event', nombre);
+        if (metaPixel && deMeta && window.fbq) window.fbq('track', deMeta);
+      }
+
+      var eleccion = leer();
+      var noQuiereRastreo = navigator.globalPrivacyControl === true;
+      if (eleccion === 'si') cargar();
+      else if (eleccion === null && !noQuiereRastreo && aviso) aviso.hidden = false;
+
+      document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+
+        var boton = t.closest('[data-cookies]');
+        if (boton && aviso) {
+          var v = boton.getAttribute('data-cookies');
+          guardar(v);
+          aviso.hidden = true;
+          if (v === 'si') cargar();
+          else if (cargado) { borrarCookies(); location.reload(); }
+          return;
+        }
+
+        if (t.closest('[data-cookies-abrir]') && aviso) {
+          e.preventDefault();
+          aviso.hidden = false;
+          aviso.querySelector('button').focus();
+          return;
+        }
+
+        var a = t.closest('a[href]');
+        if (!a) return;
+        var h = a.getAttribute('href') || '';
+        if (h.indexOf('/#/register') !== -1) evento('clic_probar_gratis', 'Lead');
+        else if (h.indexOf('wa.me/') !== -1) evento('clic_whatsapp', 'Contact');
+        else if (h.indexOf('/api/descargar') !== -1) evento('clic_descargar');
+      });
+    })();
+  </script>
+)}
+
+<style>
+  /* Abajo, sin tapar el título ni el primer botón de la página. En el celular va a lo ancho
+     y por encima de la barra de "Probar gratis" (que tiene z-index 60). */
+  .cookies {
+    position: fixed; left: 20px; bottom: 20px; z-index: 70;
+    width: min(430px, calc(100vw - 40px));
+    padding: 1.1rem 1.15rem;
+    background: var(--bg-3); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+    box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .85);
+    font-size: .92rem; line-height: 1.5; color: var(--text-2);
+  }
+  .cookies[hidden] { display: none; }
+  .cookies p { margin: 0 0 .9rem; }
+  .cookies strong { display: block; margin-bottom: .25rem; font-size: 1rem; }
+  .cookies a { text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+  /* Los dos del mismo tamaño: decir que no cuesta lo mismo que decir que sí. */
+  .cookies-botones { display: flex; gap: .6rem; }
+  .cookies-botones .btn { flex: 1; padding: .7rem 1rem; font-size: .93rem; }
+  @media (max-width: 760px) {
+    .cookies {
+      left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+      width: auto;
+    }
+  }
+  /* En una pantalla ancha, una franja baja: el texto a la izquierda y los botones al lado.
+     La tarjeta de 190 px de alto llegaba a morder el botón de "Probar gratis" de la portada
+     en un monitor de 800 de alto; así ocupa menos de la mitad. */
+  @media (min-width: 900px) {
+    .cookies {
+      left: 50%; transform: translateX(-50%);
+      width: min(920px, calc(100vw - 40px));
+      display: flex; align-items: center; gap: 1.4rem;
+      padding: .85rem 1rem .85rem 1.3rem;
+    }
+    .cookies[hidden] { display: none; }
+    .cookies p { flex: 1; margin: 0; }
+    .cookies strong { display: inline; margin: 0 .3rem 0 0; font-size: inherit; }
+    .cookies-botones { flex: none; }
+    .cookies-botones .btn { flex: none; }
+  }
+</style>

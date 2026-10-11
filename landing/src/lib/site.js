@@ -75,6 +75,31 @@ export const REDES = {
   youtube: 'https://www.youtube.com/@Veltronik-p5r',
 };
 
+/**
+ * La medición de visitas y de campañas. Solo en ESTE sitio, nunca en el portal ni en la app:
+ * ahí hay datos de socios en pantalla y un código de publicidad no tiene nada que hacer.
+ *
+ * <p>Son identificadores públicos (viajan a la vista en el HTML de cualquier sitio que los
+ * usa), no claves: por eso pueden estar escritos acá.</p>
+ *
+ * <p><b>Vacío = esa herramienta no existe.</b> Con los dos vacíos no se carga nada, no
+ * aparece el aviso de cookies y la política de privacidad dice que el sitio no las usa. Al
+ * cargar uno cambian las tres cosas juntas, en el mismo armado: la política no puede quedar
+ * diciendo algo distinto de lo que el sitio hace. Ver components/Cookies.astro.</p>
+ *
+ * <p>Las variables `PUBLIC_*` están para probar en local con un identificador de mentira
+ * sin tocar este archivo.</p>
+ */
+export const MEDICION = {
+  /** Google Analytics 4: el "ID de medición", con la forma `G-XXXXXXXXXX`. */
+  ga4: import.meta.env.PUBLIC_GA4_ID || '',
+  /** Meta (Instagram y Facebook): el "ID del píxel", un número de unas 15 cifras. */
+  metaPixel: import.meta.env.PUBLIC_META_PIXEL_ID || '',
+};
+
+/** ¿Hay algo que medir? Lo preguntan el aviso de cookies, el pie y la política. */
+export const HAY_MEDICION = Boolean(MEDICION.ga4 || MEDICION.metaPixel);
+
 export const NAV = [
   { href: '/#un-dia', label: 'Cómo funciona' },
   { href: '/#precios', label: 'Precios' },
