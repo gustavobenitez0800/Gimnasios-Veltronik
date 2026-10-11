@@ -25,6 +25,8 @@ scripts/
 .DS_Store
 Thumbs.db
 *.swp
+# La configuración del editor de cada uno (IntelliJ): no es del proyecto.
+.idea/
 
 # Tooling local (preview server, etc.)
 .claude/
