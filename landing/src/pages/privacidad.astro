@@ -1,0 +1,344 @@
+---
+// La política de privacidad.
+//
+// POR QUÉ EXISTE. Google no muestra el nombre ni el logo de Veltronik en la pantalla de
+// "Elegí una cuenta" (muestra `<proyecto>.supabase.co`) hasta verificar la marca, y para
+// verificarla exige una política de privacidad en el dominio, enlazada desde la portada.
+// Hasta el 2026-10-11 el sitio no tenía ninguna.
+//
+// ⚠️ CADA FRASE DE ACÁ ES UN COMPROMISO PUBLICADO, y cada una salió de mirar el código, no
+// de una plantilla. Si cambia lo que el sistema guarda, dónde lo guarda o cuánto tiempo,
+// esta página se toca en el mismo cambio. De dónde sale lo que no es obvio:
+//   · la ficha del socio ........... frontend/src/controllers/formSocio.js
+//   · el QR pide el documento ...... PublicCheckinController + CheckinPage (lo recuerda el celular)
+//   · la cara no pasa por Veltronik  frontend/electron/molinete.cjs (`/face/takeImg` es del equipo)
+//   · el PIN del mostrador ......... Cashier.pinHash (BCrypt)
+//   · los 30 días del borrado ...... AccountDeletionService + AccountPurgeJob
+//   · dejar de pagar no borra ...... el kill switch bloquea, no borra
+//   · San Pablo .................... deploy-cloudrun.yml (southamerica-east1) y la base (sa-east-1)
+//   · sin cookies de seguimiento ... no hay ninguna librería de analítica en landing/ ni en frontend/
+// Si se suma un proveedor que toque datos (o se da de baja uno), va en `proveedores`.
+import Base from '../layouts/Base.astro';
+import { CONTACTO, CIUDAD, waLink } from '../lib/site.js';
+
+// Desde cuándo rige. Se cambia a mano, junto con el texto: una fecha que se actualiza sola
+// diría "vigente desde hoy" sobre un texto que nadie tocó.
+const VIGENTE = '11 de octubre de 2026';
+const RESPONSABLE = 'Gustavo Gabriel Benitez Aguilera';
+
+const mensaje = 'Hola! Tengo una consulta sobre mis datos en Veltronik.';
+const wa = waLink(mensaje);
+
+const resumen = [
+  'Los datos de tu gimnasio son tuyos. No los vendemos ni los usamos para publicidad.',
+  'No guardamos tarjetas. El pago de la suscripción lo procesa Mercado Pago.',
+  'Este sitio y el sistema no usan cookies de publicidad ni de seguimiento.',
+  'Podés borrar tu cuenta desde el sistema cuando quieras.',
+];
+
+const proveedores = [
+  { nombre: 'Supabase', hace: 'La base de datos y las cuentas de usuario. Sus servidores están en San Pablo, Brasil.' },
+  { nombre: 'Google Cloud', hace: 'El servidor del sistema, también en San Pablo. Y el ingreso con Google, si lo elegís.' },
+  { nombre: 'Vercel', hace: 'Sirve este sitio y el portal web.' },
+  { nombre: 'Mercado Pago', hace: 'Cobra la suscripción.' },
+  { nombre: 'Microsoft OneDrive', hace: 'Guarda una de las copias de seguridad.' },
+  { nombre: 'GitHub', hace: 'De ahí se bajan el instalador y las actualizaciones de la app. No recibe datos de tu gimnasio.' },
+];
+
+const indice = [
+  ['responsable', 'Quién responde por tus datos'],
+  ['datos', 'Qué datos guardamos'],
+  ['google', 'Si entrás con Google'],
+  ['uso', 'Para qué los usamos'],
+  ['socios', 'Si sos socio de un gimnasio'],
+  ['facial', 'El molinete con reconocimiento facial'],
+  ['terceros', 'Con quién los compartimos'],
+  ['equipo', 'Lo que queda en tu computadora y en tu navegador'],
+  ['plazo', 'Cuánto tiempo los guardamos'],
+  ['cuidado', 'Cómo los cuidamos'],
+  ['derechos', 'Tus derechos'],
+  ['cambios', 'Cambios en esta política'],
+];
+---
+
+<Base
+  title="Política de privacidad | Veltronik"
+  description="Qué datos guarda Veltronik, para qué los usa, con quién los comparte y cómo se borran. Escrito para que se entienda."
+  mensajeWa={mensaje}
+  barraMovil={false}
+>
+  <section class="legal">
+    <div class="wrap legal-col">
+      <p class="rotulo">Veltronik</p>
+      <h1>Política de privacidad</h1>
+      <p class="lead">
+        Qué datos guardamos, para qué los usamos, con quién los compartimos y cómo se
+        borran. Escrito para que se entienda.
+      </p>
+      <p class="legal-fecha">Vigente desde el {VIGENTE}.</p>
+
+      <div class="legal-resumen">
+        <h2>En pocas palabras</h2>
+        <ul>
+          {resumen.map((r) => <li>{r}</li>)}
+        </ul>
+      </div>
+
+      <nav class="legal-indice" aria-label="En esta página">
+        <ol>
+          {indice.map(([id, texto]) => <li><a href={`#${id}`}>{texto}</a></li>)}
+        </ol>
+      </nav>
+
+      <h2 id="responsable">Quién responde por tus datos</h2>
+      <p>
+        Veltronik es un servicio de {RESPONSABLE}, con base en {CIUDAD}, Argentina. Esta
+        política vale para este sitio, para el portal web y para la app de Windows.
+      </p>
+      <p>
+        Para cualquier consulta sobre tus datos, escribinos a
+        <a href={`mailto:${CONTACTO.email}`}>{CONTACTO.email}</a>{wa && <> o por <a href={wa}>WhatsApp</a></>}.
+      </p>
+
+      <h2 id="datos">Qué datos guardamos</h2>
+
+      <h3>De tu cuenta</h3>
+      <p>
+        Tu nombre, tu mail y tu contraseña. La contraseña se guarda cifrada de una forma
+        que no se puede revertir: nadie la puede leer, tampoco nosotros.
+      </p>
+
+      <h3>De tu gimnasio y tu equipo</h3>
+      <p>
+        El nombre del gimnasio, la dirección, el teléfono, el mail, el logo y el color que
+        elijas. De las personas de tu equipo, el nombre y el mail con el que entran. De
+        quienes atienden el mostrador, el nombre y un PIN de cuatro dígitos, que se guarda
+        cifrado igual que las contraseñas.
+      </p>
+
+      <h3>De tus socios</h3>
+      <p>
+        Lo que cargás en cada ficha: nombre y apellido, documento, teléfono, mail, fecha
+        de nacimiento, el arancel, los días que asiste y las notas que escribas. Además,
+        sus cobros (monto, medio de pago y fecha) y sus entradas y salidas (día, hora y por
+        dónde entró).
+      </p>
+      <p>
+        Veltronik no pide datos de salud. Las notas son texto libre: lo que escribas ahí
+        queda a tu criterio.
+      </p>
+
+      <h3>Del pago de tu suscripción</h3>
+      <p>
+        El mail con el que pagás en Mercado Pago, el estado de la suscripción y el
+        resultado de cada cobro. El número de tu tarjeta lo cargás en el formulario de
+        Mercado Pago: no llega a nuestros servidores y no lo guardamos.
+      </p>
+
+      <h3>Datos técnicos</h3>
+      <p>
+        Cada computadora o navegador desde donde entrás recibe un identificador al azar,
+        que viaja en cada pedido junto con la versión de la app. Los servidores anotan además la
+        dirección IP, la fecha, la hora y los errores. Sirven para encontrar fallas y
+        cuidar el sistema.
+      </p>
+
+      <h2 id="google">Si entrás con Google</h2>
+      <p>
+        Google nos pasa tu nombre, tu mail y tu foto de perfil. Los usamos solo para crear
+        tu cuenta y reconocerte cuando volvés.
+      </p>
+      <ul>
+        <li>No recibimos tu contraseña de Google.</li>
+        <li>No pedimos acceso a tu correo, tus contactos, tus archivos ni tu calendario.</li>
+        <li>
+          No compartimos esos datos con nadie, salvo con los proveedores que alojan el
+          sistema, que figuran <a href="#terceros">más abajo</a>.
+        </li>
+      </ul>
+
+      <h2 id="uso">Para qué los usamos</h2>
+      <ul>
+        <li>Para que el sistema funcione: mostrar tus socios, cobrar las cuotas, registrar las entradas y cerrar la caja.</li>
+        <li>Para cobrar tu suscripción.</li>
+        <li>
+          Para ayudarte cuando nos escribís, o para importar tus socios si nos lo pedís. En
+          esos casos podemos ver los datos de tu gimnasio, y los miramos solo para eso.
+        </li>
+        <li>Para avisarte de cosas del servicio, como un cobro que no pasó.</li>
+        <li>Para encontrar fallas y cuidar la seguridad.</li>
+      </ul>
+      <p>
+        <strong>No vendemos datos, no hacemos publicidad con ellos y no les escribimos a
+        tus socios.</strong>
+      </p>
+
+      <h2 id="socios">Si sos socio de un gimnasio</h2>
+      <p>
+        Tus datos los cargó tu gimnasio y es él quien decide sobre ellos: es el
+        responsable. Nosotros los guardamos por su encargo. Para verlos, corregirlos o
+        pedir que se borren, hablá primero con tu gimnasio. Si no te responde, escribinos y
+        le pasamos tu pedido.
+      </p>
+      <p>
+        Cuando escaneás el QR de la puerta, la página te pide el documento para encontrarte
+        y registrar tu entrada. No tenés que crear una cuenta ni instalar nada. Tu celular
+        recuerda el documento para no pedírtelo cada vez: ese dato queda en tu teléfono.
+      </p>
+
+      <h2 id="facial">El molinete con reconocimiento facial</h2>
+      <p>
+        Si tu gimnasio tiene el molinete con lector facial, la foto de la cara la saca y la
+        guarda el propio equipo, dentro del gimnasio. No pasa por los servidores de
+        Veltronik ni se guarda en ellos. Nosotros solo registramos el paso: quién, cuándo y
+        si se le abrió o no.
+      </p>
+
+      <h2 id="terceros">Con quién los compartimos</h2>
+      <p>
+        Con nadie que no haga falta para dar el servicio. Estos son los proveedores que
+        usamos:
+      </p>
+      <dl class="legal-lista">
+        {proveedores.map((p) => (
+          <div>
+            <dt>{p.nombre}</dt>
+            <dd>{p.hace}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>
+        Mercado Pago es una empresa argentina; las demás son de Estados Unidos. Cada una
+        tiene su propia política de privacidad.
+      </p>
+      <p>
+        Fuera de eso, solo entregamos datos si una autoridad competente lo exige por ley.
+      </p>
+
+      <h2 id="equipo">Lo que queda en tu computadora y en tu navegador</h2>
+      <p>
+        La app de Windows guarda en la computadora una copia de los socios y los
+        movimientos que todavía no subieron. Es lo que le permite seguir andando sin
+        internet. Esa copia queda en la computadora, al cuidado del gimnasio, igual que la
+        sesión iniciada.
+      </p>
+      <p>
+        En el navegador, el portal guarda la sesión iniciada en el almacenamiento del
+        propio navegador. No usamos cookies de publicidad ni de seguimiento, ni en el
+        portal ni en este sitio. En la pantalla de pago se carga el formulario de Mercado
+        Pago, que puede usar sus propias cookies para prevenir fraudes.
+      </p>
+
+      <h2 id="plazo">Cuánto tiempo los guardamos</h2>
+      <p>
+        Mientras tengas la cuenta. Si dejás de pagar, el sistema se bloquea pero tus datos
+        no se borran: quedan guardados hasta que vuelvas o pidas el borrado.
+      </p>
+      <p>
+        Podés borrar la cuenta desde el sistema. Se cierra en el momento y a los
+        <span class="num">30</span> días se borra del todo, con los gimnasios, los socios y
+        los cobros. Durante esos <span class="num">30</span> días podés arrepentirte y
+        recuperarla. También podés borrar una sola sucursal, con el mismo plazo.
+      </p>
+      <p>
+        Hacemos una copia de seguridad por día y cada copia se guarda
+        <span class="num">30</span> días. Por eso un dato borrado puede seguir hasta
+        <span class="num">30</span> días más dentro de esas copias, hasta que vencen.
+      </p>
+
+      <h2 id="cuidado">Cómo los cuidamos</h2>
+      <ul>
+        <li>Toda la comunicación con el sistema viaja cifrada.</li>
+        <li>Cada gimnasio ve solo sus propios datos.</li>
+        <li>Las contraseñas y los PIN se guardan cifrados de forma irreversible.</li>
+        <li>Hacemos copias de seguridad todos los días y probamos que se puedan restaurar.</li>
+      </ul>
+      <p>
+        Ningún sistema conectado a internet es infalible. Cuidá tu contraseña y no la
+        compartas: cada persona de tu equipo puede tener su propio acceso.
+      </p>
+
+      <h2 id="derechos">Tus derechos</h2>
+      <p>
+        Podés pedir ver tus datos, corregirlos, actualizarlos o que se borren. Escribinos a
+        <a href={`mailto:${CONTACTO.email}`}>{CONTACTO.email}</a> y te respondemos dentro de
+        los plazos que fija la ley.
+      </p>
+      <p class="legal-ley">
+        El titular de los datos personales tiene la facultad de ejercer el derecho de
+        acceso a los mismos en forma gratuita a intervalos no inferiores a seis meses,
+        salvo que se acredite un interés legítimo al efecto conforme lo establecido en el
+        artículo 14, inciso 3 de la Ley N.º 25.326.
+      </p>
+      <p class="legal-ley">
+        La Agencia de Acceso a la Información Pública, en su carácter de Órgano de Control
+        de la Ley N.º 25.326, tiene la atribución de atender las denuncias y reclamos que
+        interpongan quienes resulten afectados en sus derechos por incumplimiento de las
+        normas vigentes en materia de protección de datos personales.
+      </p>
+
+      <h2 id="cambios">Cambios en esta política</h2>
+      <p>
+        Si cambiamos esta política, publicamos la versión nueva en esta página, con su
+        fecha.
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* Una página para LEER, no para vender: una sola columna angosta y los títulos a escala de
+     texto. El h1 y el h2 del sitio están pensados para un titular de portada (hasta 5,6 rem):
+     acá un índice de doce puntos a ese tamaño sería un cartel por pantalla. */
+  .legal { padding-top: clamp(40px, 6vw, 84px); }
+  .legal-col { max-width: 760px; }
+
+  .legal h1 { font-size: clamp(2.2rem, 5.4vw, 3.4rem); line-height: 1.02; margin-bottom: 1.1rem; }
+  .legal h2 {
+    font-size: clamp(1.35rem, 2.6vw, 1.7rem); line-height: 1.2; letter-spacing: -0.025em;
+    margin: 2.8rem 0 .9rem;
+    /* El salto desde el índice no deja el título debajo de la barra fija. */
+    scroll-margin-top: 96px;
+  }
+  .legal h3 { font-size: 1.05rem; margin: 1.6rem 0 .45rem; color: var(--text); }
+  .legal p, .legal li, .legal dd { max-width: 68ch; }
+  .legal ul { margin: 0 0 1rem; padding-left: 1.2rem; display: grid; gap: .5rem; }
+  .legal li::marker { color: var(--blue-400); }
+  /* En un texto corrido el enlace se subraya: el color solo no alcanza para verlo. */
+  .legal-col p a, .legal-col li a { text-decoration: underline; text-underline-offset: 3px; }
+
+  .legal-fecha { margin: 1.2rem 0 0; font-size: .9rem; color: var(--dim); }
+
+  .legal-resumen {
+    margin: 2.4rem 0 0; padding: 1.4rem 1.5rem;
+    background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+  }
+  .legal-resumen h2 { font-size: 1.05rem; letter-spacing: -0.01em; margin: 0 0 .9rem; }
+  .legal-resumen ul { margin: 0; color: var(--text); }
+  .legal-resumen li::marker { color: var(--verde); }
+
+  .legal-indice { margin: 2rem 0 0; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
+  .legal-indice ol {
+    margin: 0 0 1.4rem; padding-left: 1.4rem; font-size: .95rem;
+    display: grid; gap: .35rem 2rem;
+  }
+  @media (min-width: 640px) { .legal-indice ol { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .legal-indice li::marker { color: var(--dim); font-variant-numeric: tabular-nums; }
+  /* El índice es una lista de enlaces y nada más: ahí el subrayado sobra. */
+  .legal-indice li a { color: var(--text-2); text-decoration: none; }
+  .legal-indice li a:hover { color: var(--blue-300); }
+
+  /* Los proveedores: nombre y qué hace. En el celular uno debajo del otro. */
+  .legal-lista { margin: 0 0 1.2rem; border-top: 1px solid var(--line); }
+  .legal-lista > div { display: grid; gap: .15rem 1.5rem; padding: .8rem 0; border-bottom: 1px solid var(--line); }
+  @media (min-width: 640px) { .legal-lista > div { grid-template-columns: 11rem minmax(0, 1fr); } }
+  .legal-lista dt { color: var(--text); font-weight: 600; }
+  .legal-lista dd { margin: 0; }
+
+  /* Los dos párrafos que la ley manda poner textuales: se distinguen del resto porque no
+     están escritos con nuestra voz. */
+  .legal-ley {
+    font-size: .92rem; color: var(--muted);
+    padding-left: 1rem; border-left: 2px solid var(--line-2);
+  }
+</style>

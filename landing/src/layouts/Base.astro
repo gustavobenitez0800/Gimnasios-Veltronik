@@ -17,6 +17,9 @@ const {
   // El mensaje con el que se abre WhatsApp desde la barra del celular: cada página dice de
   // dónde viene la consulta, que es media respuesta adelantada.
   mensajeWa = 'Hola! Vi Veltronik en la web y quiero saber más.',
+  // La barra de "Probar gratis" que acompaña en el celular. Una página que es para leer
+  // (la política de privacidad) la apaga: ahí taparía el texto para vender otra cosa.
+  barraMovil = true,
 } = Astro.props;
 const esLaTarjeta = image === '/og.png';
 
@@ -166,20 +169,24 @@ const wa = waLink(mensajeWa);
 
         <div class="foot-legal">
           <span>© {year} Veltronik. Todos los derechos reservados.</span>
+          {/* Tiene que estar en la portada: Google lo exige para verificar la marca. */}
+          <a href="/privacidad">Política de privacidad</a>
           <span>Precios en pesos argentinos, por sucursal.</span>
         </div>
       </div>
     </footer>
 
     {/* La acción a un pulgar, en el celular (ver .barra-movil en global.css). */}
-    <div class="barra-movil" id="barra-movil" aria-hidden="true">
-      <a class="btn btn-primario" href={appRoute('/register')} tabindex="-1">Probar 14 días gratis</a>
-      {wa && (
-        <a class="btn btn-wa" href={wa} tabindex="-1" aria-label="Escribinos por WhatsApp">
-          <Icon name="wa" size={18} /> WhatsApp
-        </a>
-      )}
-    </div>
+    {barraMovil && (
+      <div class="barra-movil" id="barra-movil" aria-hidden="true">
+        <a class="btn btn-primario" href={appRoute('/register')} tabindex="-1">Probar 14 días gratis</a>
+        {wa && (
+          <a class="btn btn-wa" href={wa} tabindex="-1" aria-label="Escribinos por WhatsApp">
+            <Icon name="wa" size={18} /> WhatsApp
+          </a>
+        )}
+      </div>
+    )}
 
     <script>
       // Dos detalles de la navegación, sin librerías:
