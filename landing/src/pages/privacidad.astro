@@ -21,6 +21,8 @@
 //                                    que la propia CORRA: es ella la que borra las viejas.
 //   · las cookies de medición ...... components/Cookies.astro y `MEDICION` (lib/site.js). El
 //                                    portal y la app no tienen ninguna librería de analítica.
+//   · los 14 meses de Analytics .... es un ajuste de la propiedad (Administrar → Conservación
+//                                    de datos), puesto el 2026-10-11. Si se cambia allá, acá.
 // Si se suma un proveedor que toque datos (o se da de baja uno), va en `proveedores`.
 //
 // LO DE LAS COOKIES SE ESCRIBE SOLO. Todo lo que esta página dice de Google Analytics y de
@@ -263,7 +265,8 @@ const indice = [
               <li>
                 <strong>Google Analytics.</strong> Cuenta las visitas: qué páginas se ven,
                 desde dónde llegó cada una (un buscador, una red social, una campaña), con
-                qué tipo de dispositivo y desde qué zona aproximada.
+                qué tipo de dispositivo y desde qué zona aproximada. Guarda esos datos
+                hasta <span class="num">14</span> meses.
               </li>
             )}
             {MEDICION.metaPixel && (
