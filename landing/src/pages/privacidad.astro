@@ -16,6 +16,9 @@
 //   · los 30 días del borrado ...... AccountDeletionService + AccountPurgeJob
 //   · dejar de pagar no borra ...... el kill switch bloquea, no borra
 //   · San Pablo .................... deploy-cloudrun.yml (southamerica-east1) y la base (sa-east-1)
+//   · las copias de seguridad ...... la diaria de Supabase (7 días) y la propia (30 días, se
+//                                    copia a OneDrive). "Ninguna más de 30 días" depende de
+//                                    que la propia CORRA: es ella la que borra las viejas.
 //   · las cookies de medición ...... components/Cookies.astro y `MEDICION` (lib/site.js). El
 //                                    portal y la app no tienen ninguna librería de analítica.
 // Si se suma un proveedor que toque datos (o se da de baja uno), va en `proveedores`.
@@ -50,6 +53,9 @@ const proveedores = [
   { nombre: 'Vercel', hace: 'Sirve este sitio y el portal web.' },
   { nombre: 'Mercado Pago', hace: 'Cobra la suscripción.' },
   { nombre: 'Microsoft OneDrive', hace: 'Guarda una de las copias de seguridad.' },
+  // ⏳ SACAR ESTE RENGLÓN el día que se apague Railway (después de reinstalar la última PC
+  // que le habla: ver TAREAS-MANUALES.md). Mientras atienda a un cliente, figura.
+  { nombre: 'Railway', hace: 'Un servidor anterior que todavía atiende a una versión vieja de la app. Está en proceso de baja.' },
   { nombre: 'GitHub', hace: 'De ahí se bajan el instalador y las actualizaciones de la app. No recibe datos de tu gimnasio.' },
   MEDICION.ga4 && { nombre: 'Google Analytics', hace: 'Mide las visitas a este sitio, solo si aceptás las cookies. No está en el portal ni en la app.' },
   MEDICION.metaPixel && { nombre: 'Meta', hace: 'Mide el resultado de nuestras campañas en Instagram y Facebook, solo si aceptás las cookies. No está en el portal ni en la app.' },
@@ -296,7 +302,7 @@ const indice = [
         recuperarla. También podés borrar una sola sucursal, con el mismo plazo.
       </p>
       <p>
-        Hacemos una copia de seguridad por día y cada copia se guarda
+        Se hace una copia de seguridad por día y ninguna se guarda más de
         <span class="num">30</span> días. Por eso un dato borrado puede seguir hasta
         <span class="num">30</span> días más dentro de esas copias, hasta que vencen.
       </p>
