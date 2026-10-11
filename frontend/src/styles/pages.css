@@ -1218,28 +1218,40 @@
   line-height: 1.5;
 }
 
-/* Modal de confirmación. La fricción de escribir el nombre es deliberada. */
-.borrado-modal { max-width: 30rem; }
+/* Modal de confirmación. La fricción de escribir el nombre es deliberada.
+
+   ⚠️ SE LEE DE ARRIBA ABAJO, ALINEADO A LA IZQUIERDA. `.modal-container` centra el texto porque
+   nació para confirmaciones de dos renglones. Este trae tres párrafos y una lista, y centrado
+   quedaba desparramado: las viñetas en el borde izquierdo, cada renglón flotando en el medio
+   y "Mejor no" pegado al campo, sin un píxel de aire. Reportado por el dueño el 2026-10-11.
+   Acá cada cosa tiene su distancia: la del título (--aire-titulo) entre párrafos, la de los
+   bloques (--aire-bloques) antes del campo y antes de los botones. */
+.borrado-modal { max-width: 30rem; text-align: left; }
+.borrado-modal > p { margin: 0 0 var(--aire-titulo); line-height: 1.55; }
 .borrado-modal-titulo {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: var(--danger-500, #ef4444);
   font-size: 1.25rem;
-  margin: 0 0 1rem;
+  margin: 0 0 var(--aire-titulo);
 }
 .borrado-modal-lista {
-  margin: 0.5rem 0 1rem;
+  margin: 0 0 var(--aire-titulo);
   padding-left: 1.25rem;
   color: var(--text-secondary);
   line-height: 1.7;
 }
 .borrado-modal-label {
   display: block;
-  margin: 1rem 0 0.4rem;
+  margin: var(--aire-bloques) 0 0.4rem;
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
+/* Los dos botones se reparten el ancho: "Sí, borrar mi cuenta" no entra en los 180 px que
+   les da la regla general de las ventanas. */
+.borrado-modal .modal-actions { margin-top: var(--aire-bloques); }
+.borrado-modal .modal-actions .btn { max-width: none; }
 
 /* Borrar la cuenta, al pie del Lobby. Discreto a propósito: no es algo que se busque
    seguido, y ponerlo cerca de las tarjetas invitaría a confundirlo con cerrar una sola
@@ -1264,20 +1276,13 @@
 .lobby-borrar-cuenta:hover { color: var(--error-500, #ef4444); }
 .lobby-borrar-cuenta:focus-visible { outline: 2px solid var(--error-500, #ef4444); outline-offset: 2px; }
 
-.lobby-cuenta-nota {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
 /* El aparte del modal que manda a cerrar UNA sucursal. Separado del cuerpo porque es una
    salida, no una advertencia: mucha gente va a llegar acá queriendo cerrar un local. */
-.borrado-modal-aparte {
+.borrado-modal > p.borrado-modal-aparte {
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
-  margin: 1rem 0 0;
+  margin: 0;
   padding: 0.75rem;
   border-radius: var(--border-radius-md);
   background: var(--bg-tertiary);

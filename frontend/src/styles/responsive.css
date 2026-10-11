@@ -571,6 +571,19 @@ button, a, input, select, textarea, [role="button"] {
     padding-bottom: 1.75rem;
   }
 
+  /* La misma excepción para "Borrar mi cuenta", que también pide escribir: como hoja pegada
+     abajo, el campo y los dos botones quedaban justo donde sale el teclado. Va centrada,
+     flotante y sin el asa de arrastrar. Usa el `.modal-overlay` común, así que se la reconoce
+     por lo que tiene adentro. */
+  .modal-overlay:has(> .borrado-modal) { align-items: center; padding: 1rem; }
+  .modal-container.borrado-modal {
+    border-radius: 24px;
+    max-height: calc(100dvh - 2rem);
+    padding: var(--aire-bloques) var(--aire-tarjeta);
+    animation: modalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .modal-container.borrado-modal::before { display: none; }
+
   /* ── Toasts: ancho completo arriba, bajo el notch ── */
   .toast-container {
     left: 0.85rem;
@@ -745,6 +758,22 @@ button, a, input, select, textarea, [role="button"] {
 
   /* Selector de días: que entren los 7 en una fila si se puede */
   .days-selector { gap: 0.4rem; }
+
+  /* ⚠️ EL PAGINADOR ENSANCHABA LA PÁGINA ENTERA. "Anterior", cinco números de 40 px y
+     "Siguiente" en un solo renglón miden unos 390 px: en un celular de 360 sobresalía por los
+     dos lados, la página quedaba más ancha que la pantalla y Socios "se corría hacia un
+     costado" al tocarla (reportado por el dueño el 2026-10-11). Ahora los números van arriba,
+     centrados, y los dos botones abajo, repartiéndose el ancho: entra en 320 px. */
+  .pagination-container { padding: var(--aire-tarjeta); }
+  .pagination-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+  /* Con su renglón dicho a mano: sin eso "Anterior" queda solo arriba y "Siguiente" solo abajo. */
+  .pagination-pages { grid-row: 1; grid-column: 1 / -1; justify-content: center; flex-wrap: wrap; }
+  .pagination-controls > .btn { width: 100%; }
 }
 
 /* ────────────────────────────────────────────

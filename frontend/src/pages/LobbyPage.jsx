@@ -670,16 +670,14 @@ export default function LobbyPage() {
             ofrecerlo desde una sola era incoherente — entrabas a "Centro", tocabas un botón,
             y desaparecían Centro, Norte y Sur. Acá el dueño está mirando la lista completa
             de lo que está por perder.
-            Discreto y al final, lejos de las tarjetas: no es algo que se busque seguido. */}
+            Discreto y al final, lejos de las tarjetas: no es algo que se busque seguido.
+            Sin explicación debajo (el dueño la sacó el 2026-10-11): lo que se borra, los 30 días
+            y cómo cerrar una sola sucursal lo dice la ventana que se abre al apretarlo. */}
         {orgs.length > 0 && (
           <div className="lobby-cuenta">
             <button className="lobby-borrar-cuenta" onClick={() => setModalBorrarCuenta(true)}>
               Borrar mi cuenta de Veltronik
             </button>
-            <p className="lobby-cuenta-nota">
-              Se elimina todo, con 30 días para arrepentirte. Si solo querés cerrar una
-              sucursal, usá el botón de eliminar en su tarjeta.
-            </p>
           </div>
         )}
       </div>
