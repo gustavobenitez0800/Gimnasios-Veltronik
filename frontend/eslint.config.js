@@ -18,6 +18,8 @@ export default defineConfig([
         ...globals.browser,
         // Inyectada por Vite (define) con la versión del package.json.
         __APP_VERSION__: 'readonly',
+        // Inyectada por Vite (define): el commit, solo en una vista previa de Vercel.
+        __APP_PREVIEW__: 'readonly',
         // Inyectada por Vite (define): true solo en el build de escritorio (Fase 4).
         __IS_DESKTOP__: 'readonly',
       },

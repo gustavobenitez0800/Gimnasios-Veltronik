@@ -19,7 +19,12 @@ body {
   line-height: 1.6;
   color: var(--text-primary);
   background: var(--bg-primary);
+  /* 100dvh y no 100vh a secas: en un celular `vh` es el alto con la barra de direcciones
+     ESCONDIDA. Con la barra a la vista el <body> quedaba unos 56 px más alto que la pantalla,
+     y cualquier página que entraba justa (el login) se podía arrastrar hacia abajo. La
+     primera línea queda para los navegadores que no conocen `dvh`. */
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

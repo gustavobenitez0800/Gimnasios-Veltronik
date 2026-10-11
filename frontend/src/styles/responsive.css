@@ -605,12 +605,22 @@ button, a, input, select, textarea, [role="button"] {
 
      2) Se compacta el aire de la tarjeta. Cada bloque cede unos píxeles y el conjunto
         entra cómodo hasta en un teléfono de 667px de alto (el piso realista hoy). */
+  /* ⚠️ 3) Y ES FIJA: NO SE PUEDE MOVER (pedido del dueño, 2026-10-11, con captura de su
+        Android). Aun entrando entero, el login se deslizaba hacia abajo y dejaba un hueco
+        negro al pie. La causa no estaba acá: el <body> medía 100vh, que en el celular es el
+        alto CON la barra de direcciones escondida, unos 56 px más que lo que se ve. Esa
+        diferencia era una página que se podía arrastrar. Se arregló en el <body> (base.css)
+        y además la pantalla se clava a los cuatro bordes: aunque algo vuelva a hacer crecer
+        el documento, esto no se mueve con él. `overscroll-behavior` evita que el gesto de
+        arrastrar tire de la página o dispare "deslizá para recargar". */
   .auth-wrapper {
-    height: 100vh;
-    height: 100dvh;
+    position: fixed;
+    inset: 0;
+    height: auto;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: none;
     padding: 1.25rem;
     padding-top: calc(1.25rem + env(safe-area-inset-top));
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
@@ -621,6 +631,9 @@ button, a, input, select, textarea, [role="button"] {
   }
 
   .auth-wrapper::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Mientras se ve el login, la página de atrás tampoco responde al arrastre. */
+  html:has(.auth-wrapper) { overscroll-behavior: none; }
 
   .auth-card { padding: 1.5rem 1.35rem; }
 

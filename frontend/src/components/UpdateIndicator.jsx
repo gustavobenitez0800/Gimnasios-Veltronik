@@ -11,6 +11,10 @@ import Icon from './Icon';
 
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
 
+// El commit, si esto es una VISTA PREVIA de Vercel (vacío en el portal publicado y en el
+// escritorio). Es lo único que la distingue a simple vista: ver vite.config.js.
+const PRUEBA = typeof __APP_PREVIEW__ !== 'undefined' ? __APP_PREVIEW__ : '';
+
 // Estados del indicador
 const STATE = {
   IDLE: 'idle',            // al día
@@ -134,7 +138,9 @@ export default function UpdateIndicator({ soloAvisos = false }) {
   // nada de lo que hay en pantalla. Se aclara al pasarle el mouse por encima.
   return (
     <div className="update-indicator update-indicator-idle" role="status" title="Tu sistema está actualizado">
-      <span className="update-indicator-sub">v{version}{isElectron ? ' · al día' : ''}</span>
+      <span className="update-indicator-sub">
+        v{version}{isElectron ? ' · al día' : ''}{PRUEBA ? ` · prueba ${PRUEBA}` : ''}
+      </span>
     </div>
   );
 }

@@ -1,8 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
+import process from 'node:process'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+
+// ¿Esto es una VISTA PREVIA de Vercel? Entonces, de qué commit. Vacío en producción, en local
+// y en el escritorio.
+//
+// Existe porque la vista previa y el portal publicado son idénticos a la vista —mismo número
+// de versión, misma pantalla de login— y entrar con Google desde la vista previa puede
+// devolverte al publicado sin avisar. El 2026-10-11 el dueño estuvo mirando arreglos "que
+// seguían igual": estaba en el publicado. Con esto la marca de versión dice "prueba abc1234".
+const vistaPrevia = process.env.VERCEL_ENV === 'preview'
+  ? String(process.env.VERCEL_GIT_COMMIT_SHA || 'sin-commit').slice(0, 7)
+  : ''
 
 // Config del build WEB (el portal, lo que deploya Vercel). El build de ESCRITORIO
 // hereda de acá y pisa lo justo: ver vite.desktop.config.js.
@@ -16,6 +28,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_PREVIEW__: JSON.stringify(vistaPrevia),
     // ¿Este bundle es el de la app de escritorio? Lo decide el BUILD, no el runtime.
     // Ojo con no confundirlo con "¿corre dentro de Electron?" (window.electronAPI):
     // son cosas distintas — el bundle web abierto en Electron sigue siendo el web.
