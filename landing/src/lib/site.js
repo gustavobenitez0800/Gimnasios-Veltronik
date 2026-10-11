@@ -91,8 +91,12 @@ export const REDES = {
  * sin tocar este archivo.</p>
  */
 export const MEDICION = {
-  /** Google Analytics 4: el "ID de medición", con la forma `G-XXXXXXXXXX`. */
-  ga4: import.meta.env.PUBLIC_GA4_ID || '',
+  /**
+   * Google Analytics 4: el "ID de medición", con la forma `G-XXXXXXXXXX`.
+   * El de acá es el flujo "Landing" de la propiedad "Veltronik web" (cuenta "Veltronik"),
+   * creada por el dueño el 2026-10-11.
+   */
+  ga4: import.meta.env.PUBLIC_GA4_ID || 'G-7ESRTG1F87',
   /** Meta (Instagram y Facebook): el "ID del píxel", un número de unas 15 cifras. */
   metaPixel: import.meta.env.PUBLIC_META_PIXEL_ID || '',
 };
