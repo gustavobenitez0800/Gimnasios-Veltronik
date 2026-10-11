@@ -1164,14 +1164,6 @@
   color: white;
 }
 
-.text-muted {
-  color: #6b7280 !important;
-}
-
-.text-muted:hover {
-  color: #ef4444 !important;
-}
-
 @media (max-width: 900px) {
   .premium-blocked-content {
     grid-template-columns: 1fr;

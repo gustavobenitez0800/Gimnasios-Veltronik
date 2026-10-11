@@ -141,8 +141,8 @@ export default function TeamPage() {
         <>
           {/* Invite Section (owner / admin) */}
           {canManageTeam && (
-            <div className="card mb-3" style={{ padding: '1.25rem' }}>
-              <h3 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Sumar al equipo</h3>
+            <div className="card mb-3">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="send" size="1em" /> Sumar al equipo</h3>
               <p className="text-muted mb-2" style={{ fontSize: 'var(--font-size-sm)' }}>
                 Poné su nombre y su email. Si todavía no tiene cuenta en Veltronik, se la creamos
                 acá mismo y te damos una contraseña para pasarle. No necesita registrarse por su cuenta.

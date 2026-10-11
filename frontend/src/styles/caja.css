@@ -2,8 +2,6 @@
    (Las reglas del arqueo a ciegas —conteo, resultado, líneas— se fueron el 2026-09-22: el
    cierre diario las reemplazó el 2026-09-02 y ninguna pantalla las usaba.) */
 
-.caja-historial { padding: 1.25rem; }
-
 /* El campo del retiro: grande, porque es el único número que se escribe acá. */
 .caja-monto {
   font-size: 1.6rem;
@@ -49,10 +47,13 @@
    se decide es cuánto se retira del cajón.
    ════════════════════════════════════════════════════════════════════════════ */
 
-.caja-page > .card { margin-bottom: 1.25rem; }
+/* El relleno de cada tarjeta, el tamaño de su título y la distancia al contenido son los de
+   todo el sistema (--aire-tarjeta, --aire-titulo). La Caja tenía los suyos: 1,25rem de
+   relleno y títulos de 1,05rem, distintos a los de cualquier otra pantalla. */
+.caja-page > .card { margin-bottom: var(--aire-bloques); }
 .caja-page .card h3 {
   display: flex; align-items: center; gap: 8px;
-  margin: 0 0 1rem; font-size: 1.05rem;
+  margin: 0 0 var(--aire-titulo);
 }
 
 .caja-alerta {
@@ -60,15 +61,14 @@
   background: rgba(251, 191, 36, 0.08);
   border: 1px solid rgba(251, 191, 36, 0.25);
   border-radius: var(--border-radius-md);
-  padding: 0.75rem 0.9rem; margin-bottom: 1.25rem;
+  padding: 0.75rem 0.9rem; margin-bottom: var(--aire-bloques);
   color: #fbbf24; font-size: var(--font-size-sm);
 }
 
 /* ─── Balance de ingresos: hoy / mes ─── */
-.caja-balance { padding: 1.25rem; }
 .caja-balance-cabecera {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: var(--aire-titulo);
 }
 .caja-balance-cabecera h3 { margin: 0; }
 
@@ -96,8 +96,6 @@
 /* El total, con el mismo borde en neutro: las tres cifras arrancan a la misma altura. */
 .caja-cifra.es-total    { border-left: 3px solid var(--border-color); }
 
-.caja-resumen { padding: 1.25rem; }
-
 /* ─── La cuenta del cajón, renglón por renglón ─── */
 .caja-cuenta { list-style: none; margin: 0 0 1.25rem; padding: 0; }
 .caja-cuenta li {
@@ -113,7 +111,6 @@
 .caja-cuenta-total strong { font-size: 1.35rem; }
 
 /* ─── Retiro / queda ─── */
-.caja-distribucion { padding: 1.25rem; }
 .caja-reparto {
   display: grid; gap: 1rem; align-items: start;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -184,14 +181,13 @@
 .caja-card-cabecera {
   display: flex; align-items: center; justify-content: space-between;
   gap: 0.75rem 1rem; flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: var(--aire-titulo);
 }
 .caja-page .caja-card-cabecera h3 { margin: 0; }
 .caja-card-total {
   font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums;
   color: var(--text-primary);
 }
-.caja-cobros, .caja-movimientos { padding: 1.25rem; }
 .caja-acciones { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 
 .caja-cargando, .caja-vacio { margin: 0; padding: 0.25rem 0 0.5rem; }

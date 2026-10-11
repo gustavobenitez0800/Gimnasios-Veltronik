@@ -91,6 +91,26 @@
   --border-radius-xl: 20px;
   --border-radius-full: 9999px;
 
+  /* ─── El espaciado ───
+     Una escala, y cuatro distancias con nombre que todo el sistema comparte.
+     Hasta el 2026-10-07 cada pantalla ponía las suyas. Medido en el celular: del título de una
+     tarjeta a su contenido había 0, 8, 12, 16, 25 o 33 px según la pantalla (en Accesos,
+     "Registrar entrada" iba pegado al campo), y el relleno de una tarjeta tenía cuatro valores.
+     Las cuatro distancias se achican con la pantalla en UN lugar (responsive.css), no regla
+     por regla: una pantalla nueva que las use queda ordenada sola. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --aire-pagina: 2rem;      /* del borde de la pantalla al contenido */
+  --aire-tarjeta: 1.5rem;   /* el relleno de una tarjeta */
+  --aire-bloques: 1.5rem;   /* de una tarjeta a la siguiente */
+  --aire-titulo: 1rem;      /* del título de una tarjeta a lo que titula */
+
   /* Shadows — elevación real para UI oscura (sombras profundas y suaves, sin glow).
      --shadow-glow se mantiene como token por compatibilidad, pero ahora es una
      sombra sutil neutra (ya NO un halo de neón). */

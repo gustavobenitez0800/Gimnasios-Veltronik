@@ -12,12 +12,12 @@
 .mb-0 { margin-bottom: 0; }
 .mb-1 { margin-bottom: 0.5rem; }
 .mb-2 { margin-bottom: 1rem; }
-.mb-3 { margin-bottom: 1.5rem; }
+.mb-3 { margin-bottom: var(--aire-bloques); }
 .mb-4 { margin-bottom: 2rem; }
 .mt-0 { margin-top: 0; }
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }
-.mt-3 { margin-top: 1.5rem; }
+.mt-3 { margin-top: var(--aire-bloques); }
 .mt-4 { margin-top: 2rem; }
 
 .flex { display: flex; }

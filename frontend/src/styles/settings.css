@@ -6,7 +6,7 @@
   display: grid;
   /* 2 por fila (o 4 en monitores anchos), nunca 3+1. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
+  gap: var(--aire-bloques);
 }
 @media (min-width: 1400px) { .reports-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 640px)  { .reports-grid { grid-template-columns: 1fr; } }
@@ -15,7 +15,7 @@
   background: var(--bg-secondary);
   border-radius: var(--border-radius-lg);
   border: 1px solid var(--border-color);
-  padding: 1.5rem;
+  padding: var(--aire-tarjeta);
   transition: all var(--transition-fast);
   /* En columna: los botones quedan abajo, a la misma altura en las cuatro tarjetas. */
   display: flex; flex-direction: column;
@@ -37,7 +37,7 @@
 .team-tabs {
   display: flex; gap: 0.25rem;
   background: rgba(255,255,255,0.04); border-radius: 12px;
-  padding: 4px; margin-bottom: 1.5rem;
+  padding: 4px; margin-bottom: var(--aire-bloques);
 }
 .team-tab {
   flex: 1; padding: 0.6rem 1rem; border: none; background: transparent;
@@ -52,7 +52,7 @@
 
 .member-card {
   background: var(--bg-secondary); border: 1px solid var(--border-color);
-  border-radius: 14px; padding: 1.25rem; transition: all var(--transition-fast);
+  border-radius: 14px; padding: var(--aire-tarjeta); transition: all var(--transition-fast);
 }
 .member-card:hover { border-color: rgba(139, 92, 246, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 .member-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
@@ -85,7 +85,7 @@
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.5rem;
+  gap: var(--aire-bloques);
 }
 
 @media (max-width: 900px) {
@@ -96,15 +96,15 @@
    PHASE 4: SETTINGS PAGE
    ============================================ */
 
-.settings-grid { display: grid; gap: 1.5rem; max-width: 800px; }
+.settings-grid { display: grid; gap: var(--aire-bloques); max-width: 800px; }
 
 .settings-section {
   background: var(--bg-secondary); border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg); padding: 1.5rem;
+  border-radius: var(--border-radius-lg); padding: var(--aire-tarjeta);
 }
 .settings-section-title {
-  font-size: var(--font-size-lg); font-weight: 600; margin-bottom: 1rem;
-  padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-size-lg); font-weight: 600; margin-bottom: var(--aire-titulo);
+  padding-bottom: var(--aire-titulo); border-bottom: 1px solid var(--border-color);
   display: flex; align-items: center; gap: 0.5rem;
 }
 
@@ -134,11 +134,11 @@
   border-radius: var(--border-radius-lg); overflow: hidden; margin-top: 1rem;
 }
 .danger-header {
-  padding: 1.5rem; border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  padding: var(--aire-tarjeta); border-bottom: 1px solid rgba(239, 68, 68, 0.2);
   display: flex; align-items: center; gap: 0.75rem; background: rgba(239, 68, 68, 0.1);
 }
 .danger-title { color: var(--error-500); font-weight: 700; font-size: 1.1rem; margin: 0; display: flex; align-items: center; gap: 0.5rem; }
-.danger-content { padding: 1.5rem; }
+.danger-content { padding: var(--aire-tarjeta); }
 .danger-item {
   display: flex; justify-content: space-between; align-items: center;
   gap: 1.5rem; padding: 1rem 0;

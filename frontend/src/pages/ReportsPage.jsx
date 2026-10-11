@@ -149,8 +149,8 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <div className="card mt-3" style={{ padding: '1.25rem' }}>
-        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Icon name="folder" size="1em" /> Lo último que se bajó</h3>
+      <div className="card mt-3">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Icon name="folder" size="1em" /> Lo último que se bajó</h3>
         {exportHistory.length === 0 ? (
           <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Lo que bajes aparece acá.</div>
         ) : (

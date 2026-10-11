@@ -174,7 +174,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: var(--aire-bloques);
   padding: 1.5rem 0;
   border-bottom: 1px solid var(--border-color);
   

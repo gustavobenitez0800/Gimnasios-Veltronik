@@ -98,8 +98,12 @@ button, a, input, select, textarea, [role="button"] {
    ellos y el select de Arancel los que ponen el piso, no el texto de las celdas— y
    recién después esconder columnas. Bajar más el padding ya no mueve la aguja: medido. */
 @media (min-width: 769px) and (max-width: 1400px) {
-  .page-content { padding: 1.25rem; }
-  .card:has(> .table-container) { padding: 1rem; }
+  /* ⚠️ TODAS las tarjetas ceden, no solo la que tiene una tabla (2026-10-07). Antes cedía solo
+     esa (16 px contra 24 de las demás): en la Caja, donde se apilan una con tabla y otra sin,
+     los títulos quedaban corridos 8 px entre una tarjeta y la siguiente. Con 20 px en todas
+     quedan alineados; la tabla pierde 8 px, y sus columnas ya se acomodan solas al ancho que
+     les queda (container queries, más abajo). */
+  :root { --aire-pagina: 1.25rem; --aire-tarjeta: 1.25rem; }
 }
 
 /* ── LA TABLA DE SOCIOS MIRA SU PROPIO ANCHO, NO EL DE LA VENTANA (2026-09-22) ──
@@ -268,7 +272,8 @@ button, a, input, select, textarea, [role="button"] {
   .sidebar-user { flex-direction: column; gap: 0.5rem; }
   .sidebar-user-info { display: none; }
 
-  .page-content { padding: 1.75rem; }
+  /* Con el menú en riel sobra ancho: el aire de la página vuelve a crecer. */
+  :root { --aire-pagina: 1.75rem; }
 }
 
 /* ────────────────────────────────────────────
@@ -277,11 +282,31 @@ button, a, input, select, textarea, [role="button"] {
 
 @media (max-width: 768px) {
 
+  /* ── UN POCO MÁS CHICO, Y CON AIRE (2026-10-07) ──
+     Pedido del dueño: en el celular "no hay espacio y todo está muy junto". Dos cosas:
+
+     1. La base baja de 16 a 15 px. Casi todo el sistema está medido en rem, así que letras,
+        botones, rellenos y distancias se achican juntos un 6 %, sin desproporcionar nada.
+
+     2. Las cuatro distancias con nombre (variables.css) toman su valor de celular acá, en un
+        solo lugar: la tarjeta pierde relleno (de 24 px a 15: el contenido gana 18 px de ancho
+        en una pantalla de 375) y lo que se gana se reparte ENTRE las cosas. */
+  html { font-size: 15px; }
+
   :root {
     --font-size-4xl: 1.875rem;
     --font-size-3xl: 1.5rem;
     --font-size-2xl: 1.25rem;
+
+    --aire-pagina: 1rem;
+    --aire-tarjeta: 1rem;
+    --aire-bloques: 1rem;
+    --aire-titulo: 0.85rem;
   }
+
+  /* ⚠️ Los campos NO bajan de 16 px: con letra más chica, el iPhone agranda la pantalla
+     entera al tocarlos y hay que alejarla a mano después de cada dato. */
+  .form-input, .form-select, .form-textarea { font-size: 16px; }
 
   /* ── Sidebar como drawer ── */
   .sidebar {
@@ -321,9 +346,9 @@ button, a, input, select, textarea, [role="button"] {
 
   /* ── Contenido ── */
   .page-content {
-    padding: 1rem;
-    padding-left: calc(1rem + env(safe-area-inset-left));
-    padding-right: calc(1rem + env(safe-area-inset-right));
+    padding: var(--aire-pagina);
+    padding-left: calc(var(--aire-pagina) + env(safe-area-inset-left));
+    padding-right: calc(var(--aire-pagina) + env(safe-area-inset-right));
     padding-bottom: calc(2rem + env(safe-area-inset-bottom));
   }
 
@@ -335,7 +360,6 @@ button, a, input, select, textarea, [role="button"] {
     align-items: stretch;
     gap: 0.85rem;
     padding: 0.5rem 0 1rem;
-    margin-bottom: 1.25rem;
     background: transparent;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -367,10 +391,18 @@ button, a, input, select, textarea, [role="button"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-rows: auto;
     gap: 0.75rem;
-    margin-bottom: 1.25rem;
   }
 
-  .stat-card { padding: 1rem; gap: 0.75rem; }
+  /* Tres tarjetas en dos columnas dejaban la tercera sola a la izquierda, con medio renglón
+     vacío al lado (Pagos, En el gimnasio, el resumen del dueño). La que queda sola ocupa el
+     renglón entero, con el ícono al costado. */
+  .stats-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .stat-card { gap: 0.75rem; }
   .stat-icon { width: 40px; height: 40px; font-size: 1.05rem; }
 
   .dashboard-grid,
@@ -378,7 +410,6 @@ button, a, input, select, textarea, [role="button"] {
     /* minmax(0,1fr) y no 1fr: 1fr = minmax(auto,1fr) deja que el contenido (canvas)
        agrande el track y desborde a la derecha en mobile. minmax(0,...) lo permite encoger. */
     grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
   }
 
   .chart-container { height: 220px; }
@@ -612,6 +643,14 @@ button, a, input, select, textarea, [role="button"] {
     gap: 0.75rem;
   }
 
+  /* ⚠️ A 375 px "Salir" quedaba ENTERO fuera de la pantalla y "Resumen" cortado: el nombre y
+     el mail no cedían lugar y empujaban los botones. Ahora el mail se corta con "…" y, si aun
+     así no entran, los botones bajan a su propio renglón. */
+  .lobby-header { flex-wrap: wrap; }
+  .lobby-user, .lobby-user-info, .lobby-user-info > div:last-child { min-width: 0; }
+  .lobby-user-name, .lobby-user-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lobby-header-actions { gap: 0.6rem; margin-left: auto; }
+
   .lobby-user { gap: 0.85rem; }
   .lobby-user-info { gap: 0.75rem; }
   .lobby-logo { display: none; } /* el avatar ya identifica; el logo duplicaba */
@@ -641,6 +680,9 @@ button, a, input, select, textarea, [role="button"] {
 
   /* ── Acceso: lista de presentes con altura propia ── */
   .checked-in-list { max-height: 320px; }
+
+  /* El campo del mostrador medía 57 px de alto: en el celular era lo más grande de la pantalla. */
+  .search-input { padding: 0.8rem 0.9rem; }
 }
 
 @keyframes sheetUp {
@@ -659,14 +701,11 @@ button, a, input, select, textarea, [role="button"] {
 
 @media (max-width: 480px) {
 
-  .page-content { padding: 0.85rem; padding-bottom: calc(2rem + env(safe-area-inset-bottom)); }
-
   /* Stat cards en columna: número grande arriba del label, estilo bento */
   .stat-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.6rem;
-    padding: 0.9rem;
   }
   .stat-icon { width: 36px; height: 36px; }
 
@@ -774,3 +813,95 @@ button, a, input, select, textarea, [role="button"] {
 }
 .tabla-pagos .table .table-actions { display: flex; flex-wrap: nowrap; }
 .pago-estado { margin-top: 0.25rem; }
+
+/* ─── PAGOS EN EL CELULAR: EL NOMBRE ENTERO ───
+   En modo tarjeta, el nombre y el DNI compartían renglón con la etiqueta "SOCIO" y se cortaban
+   ("Tomás …  DNI 42…") con media tarjeta vacía al lado. Van uno arriba del otro, enteros. */
+@media (max-width: 768px) {
+  .tabla-pagos .table tbody td.col-socio {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.1rem 1rem;
+    max-width: none;
+  }
+  .tabla-pagos .table tbody td.col-socio::before { grid-row: 1 / span 2; align-self: start; padding-top: 0.2em; }
+  .tabla-pagos .table tbody td.col-socio > * { grid-column: 2; white-space: normal; }
+}
+
+/* ─── SOCIOS EN EL CELULAR: UNA FICHA, NO NUEVE RENGLONES (2026-10-07) ───
+   La regla general del celular (más arriba) convierte cada fila en una tarjeta con un renglón
+   "ETIQUETA — valor" por columna. Con las nueve columnas de Socios, cada socio medía 480 px:
+   en una pantalla de 812 entraba UNO y medio, y una página de 25 eran 12.000 px de scroll.
+
+   Acá cada socio es una ficha: el nombre y el estado arriba, y el resto en dos columnas, sin
+   etiqueta donde el dato se reconoce solo (un teléfono, "8d", los días de la semana).
+   Es solo CSS: son las mismas celdas de la tabla, ubicadas con una grilla.
+
+       [ ] Agustina Ayala                [AL DÍA]
+       DNI 24427200                    3764004022
+       Musculación 3 veces…                  [8d]
+       L M X J V S D             VENCE 15/10/2026
+       ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+                           [cobrar][editar][wa][⋯]                                        */
+@media (max-width: 768px) {
+  /* El :has() no cambia a quién le pega: está para ganarle en peso a la regla general de las
+     tarjetas (`.table:has(td[data-label]) tbody tr`), que deja cada fila en `display: block`. */
+  .tabla-socios .table:has(td[data-label]) tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem 0.75rem;
+    padding: 0.9rem 1rem 0.3rem;
+  }
+  .tabla-socios .table tbody td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .tabla-socios .table tbody td[data-label]::before { display: none; }
+
+  /* 1 · quién es y cómo está */
+  .tabla-socios .table tbody td.col-check { grid-area: 1 / 1; padding: 0; width: auto; }
+  .tabla-socios .table tbody td[data-label="Nombre"] { grid-area: 1 / 2; padding: 0; font-size: var(--font-size-base); }
+  .tabla-socios .table tbody tr:not(:has(.col-check)) td[data-label="Nombre"] { grid-column: 1 / 3; }
+  .tabla-socios .table tbody td.col-estado { grid-area: 1 / 3; justify-self: end; }
+
+  /* 2 · cómo ubicarlo */
+  .tabla-socios .table tbody td.col-dni { grid-area: 2 / 1 / auto / 3; }
+  /* El teléfono y el vencimiento ocupan desde la columna del medio y se pegan a la derecha:
+     si fueran solo de la tercera columna, su ancho ("VENCE 15/10/2026") le sacaría lugar al
+     nombre del renglón de arriba, que comparte esa columna, y lo partiría en dos. */
+  .tabla-socios .table tbody td.col-tel { grid-area: 2 / 2 / auto / -1; justify-self: end; }
+  .tabla-socios .table tbody td.col-dni,
+  .tabla-socios .table tbody td.col-tel,
+  .tabla-socios .table tbody td.col-vence { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+  /* 3 · qué paga y cuánto le queda */
+  .tabla-socios .table tbody td[data-label="Arancel"] { grid-area: 3 / 1 / auto / 3; }
+  .tabla-socios .table tbody td[data-label="Arancel"] .arancel-select { max-width: 100%; margin-left: -0.4rem; }
+  .tabla-socios .table tbody td[data-label="Días"] { grid-area: 3 / 3; justify-self: end; }
+
+  /* 4 · cuándo viene y cuándo vence */
+  .tabla-socios .table tbody td.col-asistencia { grid-area: 4 / 1 / auto / 3; }
+  .tabla-socios .table tbody td.col-vence { grid-area: 4 / 2 / auto / -1; justify-self: end; }
+
+  /* El DNI y el vencimiento son números que solos no dicen qué son: llevan su etiqueta, chica
+     y en el mismo renglón. (Van después de la regla que esconde las etiquetas: le ganan.) */
+  .tabla-socios .table tbody td.col-dni::before,
+  .tabla-socios .table tbody td.col-vence::before { display: inline; margin-right: 0.4rem; }
+  .tabla-socios .table tbody td.col-dni::before { content: 'DNI'; }
+  .tabla-socios .table tbody td.col-vence::before { content: 'Vence'; }
+
+  /* 5 · qué se le puede hacer */
+  .tabla-socios .table tbody td[data-label="Acciones"] {
+    grid-area: 5 / 1 / auto / -1;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.1rem;
+    padding: 0.65rem 0 0.55rem;
+  }
+
+  /* "Cargando…" y "no hay socios": una celda sola, a lo ancho. */
+  .tabla-socios .table tbody td[colspan] { grid-column: 1 / -1; padding: 1.5rem 0; text-align: center; }
+}

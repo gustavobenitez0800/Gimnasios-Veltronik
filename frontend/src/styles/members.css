@@ -83,6 +83,16 @@
 
 .days-summary { margin-top: 0.5rem; font-size: var(--font-size-xs); color: var(--text-muted); }
 
+/* ─── Los días que viene cada socio, en la lista (solo lectura) ───
+   Las siete letras, con los días que viene encendidos. Del 2026-07-29 al 2026-10-07 se veían
+   las siete iguales ("LMXJVSD") en todos los socios: estos estilos vivían en restaurant.css y
+   se fueron con la baja de ese rubro, aunque los usa DaySelector.
+   Son letras y no cajitas a propósito: ocupan lo mismo que el texto pelado, y los cortes de
+   ancho de la tabla de Socios (responsive.css) están medidos con ese ancho. */
+.attendance-pills { display: inline-flex; gap: 0.2em; font-size: var(--font-size-xs); font-weight: 600; }
+.day-pill { color: var(--text-muted); opacity: 0.45; }
+.day-pill.active { color: var(--primary-400); opacity: 1; font-weight: 800; }
+
 /* Action Buttons */
 .table-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 

@@ -187,7 +187,7 @@
   -webkit-backdrop-filter: var(--card-backdrop);
   border: var(--card-border);
   border-radius: var(--card-radius);
-  padding: 1.5rem;
+  padding: var(--aire-tarjeta);
   transition: all var(--transition-normal);
   /* Sombra de elevación + borde especular superior (glass), vía box-shadow para no
      necesitar overflow:hidden (no recorta tablas/menús dentro de la card). */
@@ -199,7 +199,7 @@
 .card.card-barra .table-header { padding: 0.75rem 1rem; }
 /* Una tarjeta con su encabezado arriba y la lista abajo: el encabezado usa el aire de la
    tarjeta en vez de sumar el suyo (eran 1,5rem + 1rem de cada lado). */
-.card > .table-header { padding: 0 0 1rem; }
+.card > .table-header { padding: 0 0 var(--aire-titulo); }
 .card.card-barra > .table-header { padding: 0.75rem 1rem; }
 
 /* ── Utilidad de superficie glass reutilizable ──
@@ -226,8 +226,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
+  margin-bottom: var(--aire-titulo);
+  padding-bottom: var(--aire-titulo);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -238,6 +238,13 @@
    página, y cada pantalla tenía su tamaño. Con :where() no le gana a ningún estilo propio
    (.empty-state-title, la caja, el mostrador). */
 :where(.card, .checkin-section) h3 { font-size: var(--font-size-lg); font-weight: 600; }
+
+/* ─── Del título de una tarjeta a lo que titula: una sola distancia ───
+   El título suelto (un <h3> hijo directo de la tarjeta) no traía margen: lo ponía cada pantalla
+   con un estilo en línea, o nadie. En Accesos, "Registrar entrada" quedaba a 0 px del campo.
+   Con :where() cualquier regla propia le gana (el título dentro de una cabecera con algo a la
+   derecha sigue en 0: ahí la distancia la pone la cabecera, con el mismo --aire-titulo). */
+:where(.card, .checkin-section) > :where(h3) { margin-bottom: var(--aire-titulo); }
 
 /* ─── Tables ─── */
 .table-container {
