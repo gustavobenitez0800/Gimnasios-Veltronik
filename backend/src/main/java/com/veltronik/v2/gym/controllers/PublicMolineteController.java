@@ -1,6 +1,7 @@
 package com.veltronik.v2.gym.controllers;
 
 import com.veltronik.v2.core.config.Escala;
+import com.veltronik.v2.core.security.FrenoPorMinuto;
 import com.veltronik.v2.gym.services.MolineteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,10 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Donde el molinete avisa cada reconocimiento. <b>Endpoint público sin login</b>: el que llama
@@ -59,17 +57,19 @@ public class PublicMolineteController {
      */
     private static final int MAX_AVISOS_POR_MINUTO_POR_INSTANCIA = 300;
 
-    private final ConcurrentHashMap<String, Ventana> frenos = new ConcurrentHashMap<>();
-
-    private static final class Ventana {
-        volatile long desde = Instant.now().getEpochSecond();
-        final AtomicInteger total = new AtomicInteger();
-    }
+    /** Con techo de memoria: ver por qué en {@link FrenoPorMinuto}. */
+    private final FrenoPorMinuto frenos = new FrenoPorMinuto();
 
     @PostMapping("/molinete/{token}")
     public ResponseEntity<?> aviso(@PathVariable String token,
                                    @RequestParam Map<String, String> query,
                                    @RequestBody(required = false) Map<String, Object> body) {
+        // Más largo que cualquier token nuestro: es un aviso sin arreglo, y como tal se contesta
+        // 200 (que el equipo no lo reintente), sin tocar el freno, la base ni los registros.
+        if (token.length() > FrenoPorMinuto.MAX_LARGO_CLAVE) {
+            return ResponseEntity.ok(Map.of("result", 1, "success", true,
+                    "estado", MolineteService.Resultado.NO_AUTORIZADO.name()));
+        }
         if (frenado(token)) {
             log.warn("Molinete frenado: esta copia llegó a los {} avisos del minuto. El tope es POR COPIA y hay hasta {} (token …{}).",
                     MAX_AVISOS_POR_MINUTO_POR_INSTANCIA, Escala.MAX_INSTANCIAS, cola(token));
@@ -111,22 +111,12 @@ public class PublicMolineteController {
     }
 
     private boolean frenado(String token) {
-        Ventana v = frenos.get(token);
-        if (v == null) return false;
-        if (Instant.now().getEpochSecond() - v.desde >= 60) {
-            frenos.remove(token);
-            return false;
-        }
-        return v.total.get() >= MAX_AVISOS_POR_MINUTO_POR_INSTANCIA;
+        // Acá no hay tope de fallos: el equipo no "falla", avisa lo que vio.
+        return frenos.frenado(token, MAX_AVISOS_POR_MINUTO_POR_INSTANCIA, Integer.MAX_VALUE);
     }
 
     private void registrarAviso(String token) {
-        Ventana v = frenos.computeIfAbsent(token, k -> new Ventana());
-        if (Instant.now().getEpochSecond() - v.desde >= 60) {
-            v.desde = Instant.now().getEpochSecond();
-            v.total.set(0);
-        }
-        v.total.incrementAndGet();
+        frenos.registrar(token, false);
     }
 
     /** Últimos caracteres del token, para rastrear en los logs sin publicarlo entero. */

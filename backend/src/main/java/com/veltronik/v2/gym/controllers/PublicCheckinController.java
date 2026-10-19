@@ -1,6 +1,7 @@
 package com.veltronik.v2.gym.controllers;
 
 import com.veltronik.v2.core.config.Escala;
+import com.veltronik.v2.core.security.FrenoPorMinuto;
 import com.veltronik.v2.gym.services.CheckinService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,11 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * El check-in del socio. <b>Endpoint público sin login</b>: el que llama es alguien con un
@@ -80,20 +78,15 @@ public class PublicCheckinController {
      */
     private static final int MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA = 40;
 
-    private final ConcurrentHashMap<String, Ventana> frenos = new ConcurrentHashMap<>();
-
-    private static final class Ventana {
-        volatile long desde = Instant.now().getEpochSecond();
-        final AtomicInteger fallos = new AtomicInteger();
-        final AtomicInteger total = new AtomicInteger();
-    }
+    /** Con techo de memoria: ver por qué en {@link FrenoPorMinuto}. */
+    private final FrenoPorMinuto frenos = new FrenoPorMinuto();
 
     @PostMapping("/checkin")
     public ResponseEntity<?> checkin(@RequestBody Map<String, String> body) {
         String token = body.get("token");
         String documento = body.get("documento");
 
-        if (token == null || token.isBlank()) {
+        if (noPuedeSerUnToken(token)) {
             return ResponseEntity.badRequest().body(Map.of(
                     "ok", false,
                     "titulo", "Código inválido",
@@ -151,7 +144,7 @@ public class PublicCheckinController {
     @PostMapping("/checkin/estado")
     public ResponseEntity<?> estado(@RequestBody Map<String, String> body) {
         String token = body.get("token");
-        if (token == null || token.isBlank()) {
+        if (noPuedeSerUnToken(token)) {
             return ResponseEntity.ok(Map.of("adentro", false));
         }
         if (frenado(token)) {
@@ -161,26 +154,17 @@ public class PublicCheckinController {
         return ResponseEntity.ok(checkinService.estado(token, body.get("documento")));
     }
 
+    /** Vacío, o más largo que cualquier token nuestro: no vale ni la consulta a la base. */
+    private static boolean noPuedeSerUnToken(String token) {
+        return token == null || token.isBlank() || token.length() > FrenoPorMinuto.MAX_LARGO_CLAVE;
+    }
+
     private boolean frenado(String token) {
-        Ventana v = frenos.get(token);
-        if (v == null) return false;
-        if (Instant.now().getEpochSecond() - v.desde >= 60) {
-            frenos.remove(token);
-            return false;
-        }
-        return v.fallos.get() >= MAX_FALLOS_POR_MINUTO_POR_INSTANCIA
-                || v.total.get() >= MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA;
+        return frenos.frenado(token, MAX_ESCANEOS_POR_MINUTO_POR_INSTANCIA, MAX_FALLOS_POR_MINUTO_POR_INSTANCIA);
     }
 
     private void registrarIntento(String token, boolean ok) {
-        Ventana v = frenos.computeIfAbsent(token, k -> new Ventana());
-        if (Instant.now().getEpochSecond() - v.desde >= 60) {
-            v.desde = Instant.now().getEpochSecond();
-            v.fallos.set(0);
-            v.total.set(0);
-        }
-        v.total.incrementAndGet();
-        if (!ok) v.fallos.incrementAndGet();
+        frenos.registrar(token, !ok);
     }
 
     /** Últimos caracteres del token, para poder rastrear en los logs sin publicarlo entero. */
