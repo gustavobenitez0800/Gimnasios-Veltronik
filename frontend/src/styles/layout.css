@@ -2,14 +2,19 @@
    SIDEBAR
    ============================================ */
 
+/* Un panel de vidrio que flota sobre la foto, separado de los bordes como las tarjetas. */
 .sidebar {
   position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  left: var(--sidebar-margen);
+  top: var(--sidebar-margen);
+  bottom: var(--sidebar-margen);
   width: var(--sidebar-width);
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
+  background: var(--vidrio);
+  backdrop-filter: var(--vidrio-desenfoque);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 20px;
+  box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--vidrio-brillo);
   display: flex;
   flex-direction: column;
   z-index: 100;
@@ -124,8 +129,11 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--border-radius-sm);
+  /* El píxel del borde sale del relleno: el renglón mide lo mismo que antes. */
+  padding: calc(0.55rem - 1px) calc(0.75rem - 1px);
+  border-radius: var(--border-radius-md);
+  /* Transparente y no "sin borde": así el activo suma su borde sin que el texto se corra. */
+  border: 1px solid transparent;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: 500;
@@ -147,6 +155,7 @@
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--primary-500) 14%, transparent),
     color-mix(in srgb, var(--primary-500) 6%, transparent));
+  border-color: color-mix(in srgb, var(--primary-500) 22%, transparent);
   color: var(--primary-400);
   font-weight: 600;
 }
@@ -276,6 +285,17 @@
 .app-layout {
   display: flex;
   min-height: 100vh;
+
+  /* ⭐ ADENTRO DEL SISTEMA LAS CAPAS SON VIDRIO.
+     Estos tres fondos eran grises sólidos pensados para apilarse sobre el negro liso: una
+     fila de tabla, un campo, un botón secundario. Sobre la foto, un gris sólido adentro de
+     una tarjeta de vidrio se ve como un parche. Acá pasan a ser un velo claro que deja ver
+     el vidrio de abajo; afuera (login, lobby) siguen como estaban.
+     ⚠️ Lo que se abre ENCIMA de otra cosa (un desplegable, un cartel) no puede usar estos:
+     se leería lo de abajo. Para eso está --superficie-flotante. */
+  --bg-secondary: rgba(255, 255, 255, 0.035);
+  --bg-tertiary: rgba(255, 255, 255, 0.06);
+  --bg-elevated: rgba(255, 255, 255, 0.10);
 }
 
 .main-content {
@@ -284,7 +304,7 @@
      min-width:auto): un canvas de Chart.js o una tabla ancha estiran .main-content
      más allá del viewport y, con overflow-x:hidden del body, recortan la derecha. */
   min-width: 0;
-  margin-left: var(--sidebar-width);
+  margin-left: calc(var(--sidebar-width) + var(--sidebar-margen));
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -299,8 +319,10 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--vidrio-fuerte);
+  backdrop-filter: var(--vidrio-desenfoque);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  border-bottom: 1px solid var(--vidrio-borde);
   position: sticky;
   top: 0;
   z-index: 50;

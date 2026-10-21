@@ -59,11 +59,23 @@
   .stats-grid:not(.stats-grid-3):not(.stats-grid-2) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* ⭐ La tarjeta de número (2026-10-21): arriba el nombre con su ícono a la derecha, abajo el
+   número grande, y debajo la comparación. Antes el ícono iba a la izquierda y el nombre debajo
+   del número. Se arma con una grilla y `.stat-content { display: contents }`, sin tocar el
+   JSX: así sirve igual para StatCard y para las tarjetas-botón del resumen del dueño, que
+   repiten las mismas clases. */
 .stat-card {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label  icon"
+    "value  value"
+    "detail detail"
+    "nota   nota";
+  align-content: start;
+  column-gap: 0.75rem;
+  text-align: left;
   background: var(--card-bg);
   backdrop-filter: var(--card-backdrop);
   -webkit-backdrop-filter: var(--card-backdrop);
@@ -97,14 +109,17 @@
 .stat-card:hover::before { opacity: 1; }
 
 .stat-icon {
-  width: 48px;
-  height: 48px;
+  grid-area: icon;
+  width: 38px;
+  height: 38px;
   border-radius: var(--border-radius-md);
+  /* El borde toma el color del ícono: la casilla se ve teñida, no un cuadrado gris. */
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   transition: transform var(--transition-bounce);
 }
 
@@ -117,14 +132,14 @@
 .stat-icon-error   { background: rgba(239, 68, 68, 0.15); color: var(--error-500); }
 .stat-icon-neutral { background: var(--bg-tertiary); color: var(--text-muted); }
 
-.stat-content {
-  min-width: 0; /* clave: permite que el valor se ajuste dentro de la card flex (sin esto, desborda y se corta) */
-  flex: 1;
-}
+/* La caja de los textos no dibuja nada: sus hijos se ubican directo en la grilla de la tarjeta. */
+.stat-content { display: contents; }
 
 /* Tamaño base = números cortos ("221"). StatCard agrega .stat-value-sm/-xs según la
    longitud del valor para que montos grandes ("$ 1.234.567") siempre entren completos. */
 .stat-value {
+  grid-area: value;
+  margin-top: 0.85rem;
   font-size: clamp(1.6rem, 1rem + 2vw, 2.25rem);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -139,20 +154,35 @@
 .stat-value.stat-value-xs { font-size: clamp(0.95rem, 0.5rem + 1.1vw, 1.25rem); }
 
 .stat-label {
+  grid-area: label;
+  align-self: center;
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 /* La segunda línea opcional de una tarjeta: "+3% frente al 1 al 21 de agosto". */
 .stat-detail {
-  margin-top: 0.2rem;
+  grid-area: detail;
+  justify-self: start;
+  margin-top: 0.6rem;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+}
+/* Si dice si subió o bajó, va en una pastilla del color de la noticia. Radio de 10 y no
+   redonda del todo: el texto es largo y en una tarjeta angosta parte en dos renglones. */
+.stat-detail.is-up,
+.stat-detail.is-down {
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-weight: 600;
 }
 .stat-detail.is-up { color: var(--success-500); }
 .stat-detail.is-down { color: var(--warning-500); }
 /* De qué está hecho el número: apagado, no compite con la comparación de arriba. */
-.stat-detail.stat-nota { color: var(--text-muted); font-weight: 400; }
+.stat-detail.stat-nota { grid-area: nota; margin-top: 0.35rem; color: var(--text-muted); font-weight: 400; }
 
 /* AI Section */
 /* Un título suelto (fuera de una tarjeta) abre un tramo nuevo de la página: se separa de lo de
@@ -189,10 +219,12 @@
 }
 
 .prediction-card {
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
   border: 1px solid var(--border-color);
   border-left: 3px solid var(--primary-500);
-  border-radius: var(--border-radius-md);
+  border-radius: var(--card-radius);
   padding: var(--aire-tarjeta);
   position: relative;
   overflow: hidden;

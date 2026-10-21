@@ -12,7 +12,9 @@
 @media (max-width: 640px)  { .reports-grid { grid-template-columns: 1fr; } }
 
 .report-card {
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
   border-radius: var(--border-radius-lg);
   border: 1px solid var(--border-color);
   padding: var(--aire-tarjeta);
@@ -51,7 +53,8 @@
 .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
 
 .member-card {
-  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  background: var(--card-bg); border: 1px solid var(--border-color);
+  backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop);
   border-radius: 14px; padding: var(--aire-tarjeta); transition: all var(--transition-fast);
 }
 .member-card:hover { border-color: rgba(139, 92, 246, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
@@ -99,7 +102,8 @@
 .settings-grid { display: grid; gap: var(--aire-bloques); max-width: 800px; }
 
 .settings-section {
-  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  background: var(--card-bg); border: 1px solid var(--border-color);
+  backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop);
   border-radius: var(--border-radius-lg); padding: var(--aire-tarjeta);
 }
 .settings-section-title {

@@ -33,6 +33,46 @@ body {
   overflow-x: hidden;
 }
 
+/* ─── El fondo: un gimnasio detrás del vidrio (2026-10-21) ───
+   Antes era el color liso de --bg-primary. Ahora es una foto, con un velo oscuro encima para
+   que el texto de los paneles se lea igual en cualquier parte de la pantalla.
+   Foto: Salman Sidheek en Unsplash (licencia de Unsplash: uso comercial libre, sin pedir
+   permiso): https://unsplash.com/photos/iW79tgCbiMs — va empaquetada, así el escritorio la
+   muestra sin internet. Dos recortes: apaisado para monitores, vertical para el celular.
+
+   Una capa fija aparte y no el fondo del <body>:
+   · `background-attachment: fixed` hace que el navegador repinte la pantalla entera en cada
+     paso del scroll, y el iPhone directamente lo ignora.
+   · Alto `lvh` (el de la pantalla con la barra de direcciones escondida) y no `inset: 0`: en
+     el celular la barra aparece y se esconde al scrollear, y con `inset: 0` la foto se
+     re-escalaba a cada rato, como un zoom que va y viene. */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5, 6, 9, 0.55) 100%),
+    linear-gradient(180deg, rgba(7, 9, 13, 0.50) 0%, rgba(7, 9, 13, 0.70) 100%),
+    url('../assets/fondo/gimnasio.webp') center / cover no-repeat,
+    var(--bg-primary);
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  body::before {
+    background:
+      radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5, 6, 9, 0.55) 100%),
+      linear-gradient(180deg, rgba(7, 9, 13, 0.50) 0%, rgba(7, 9, 13, 0.70) 100%),
+      url('../assets/fondo/gimnasio-celular.webp') center / cover no-repeat,
+      var(--bg-primary);
+  }
+}
+
 /* Los controles de formulario NO heredan la tipografía: el navegador les pone la suya. Sin
    esto, todo botón o campo sin .btn / .form-input salía en Arial (el QR del socio, los menús). */
 button,

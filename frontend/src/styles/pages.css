@@ -168,26 +168,31 @@
   font-size: var(--font-size-xs);
 }
 
-/* ─── Page Header (Sticky Glassmorphism) ─── */
+/* ─── La cabecera de cada página: una barra de vidrio que flota ─── */
 .page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: var(--aire-bloques);
-  padding: 1.5rem 0;
-  border-bottom: 1px solid var(--border-color);
-  
-  /* Queda arriba al scrollear.
-     ⚠️ OPACO Y DEL MISMO COLOR QUE LA PÁGINA. Era vidrio: negro al 80% más un desenfoque.
-     Donde el desenfoque no se dibuja (Windows en "mejor rendimiento", algunas placas de video)
-     el contenido se LEÍA por debajo del título: en la Caja, "Distribución del efectivo"
-     aparecía montado sobre "Cierre de caja". Y el negro no era el del fondo, así que en Accesos
-     se veía un rectángulo oscuro detrás del título. Opaco no depende de la placa de video. */
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--vidrio-borde);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--vidrio-brillo);
+
+  /* Queda arriba al scrollear, separada del borde como el menú.
+     ⚠️ VIDRIO FUERTE, NO EL DE LAS TARJETAS. Hasta el 2026-10-21 era opaca, del color liso de
+     la página: antes de eso había sido negro al 80% con desenfoque, y donde el desenfoque no
+     se dibujaba el contenido se LEÍA por debajo del título (en la Caja, "Distribución del
+     efectivo" montado sobre "Cierre de caja"). Con la foto de fondo, una barra opaca se veía
+     como un agujero, así que vuelve a ser vidrio, pero más tapado que una tarjeta (82%): sin
+     desenfoque, lo de abajo queda como una sombra y no como texto encimado. */
   position: sticky;
-  top: 0;
+  top: var(--sidebar-margen);
   z-index: 40;
-  background: var(--bg-primary);
+  background: var(--vidrio-fuerte);
+  backdrop-filter: var(--vidrio-desenfoque);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
 }
 
 .page-header-info {
@@ -211,10 +216,21 @@
   margin-bottom: 0;
 }
 
+/* Los botones bajan de renglón antes que salirse de la barra. Con `flex-shrink: 0` y sin
+   partir, los cuatro de Socios medían 572 px y se salían por la derecha en cualquier pantalla
+   de menos de ~1100 (medido el 2026-10-21 a 790 px: la página entera se corría de costado). */
 .page-header-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.75rem;
-  flex-shrink: 0;
+  min-width: 0;
+}
+/* Varias páginas agrupan sus botones en un <div> (Socios): el grupo también parte renglón,
+   si no se sale hacia la izquierda y se monta sobre el título. */
+.page-header-actions > div {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* ─── Empty State (Bento Box / Delightful) ─── */
@@ -225,7 +241,9 @@
   justify-content: center;
   padding: 5rem 2rem;
   text-align: center;
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
   border: 2px dashed var(--border-color);
   border-radius: var(--border-radius-xl);
   margin: 2rem 0;
@@ -234,7 +252,6 @@
 
 .empty-state:hover {
   border-color: var(--primary-400);
-  background: var(--bg-tertiary);
 }
 
 .empty-state-icon {
@@ -320,7 +337,8 @@
 
 .lobby-wrapper {
   min-height: 100vh;
-  background: var(--bg-primary);
+  /* Sin fondo propio: se ve la foto del gimnasio (base.css). */
+  background: transparent;
   padding: 2rem;
   position: relative;
   overflow: hidden;
@@ -335,7 +353,6 @@
   inset: 0;
   overflow: hidden;
   z-index: 0;
-  background: var(--bg-primary);
   background-image:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
     radial-gradient(130% 70% at 50% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 55%);
@@ -1297,7 +1314,9 @@
    al día y un cartel que grita se vuelve ruido a la semana. */
 .avisos-mostrador {
   grid-column: 1 / -1;
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
   border: 1px solid var(--warning-500, #f59e0b);
   border-left: 4px solid var(--warning-500, #f59e0b);
   border-radius: var(--border-radius-md);
@@ -1368,7 +1387,9 @@
    chica pasa a columna: la tablet del mostrador es lo más común después de la PC. */
 .qr-panel {
   grid-column: 1 / -1;
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   padding: 1.25rem;

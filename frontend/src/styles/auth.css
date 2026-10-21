@@ -10,7 +10,8 @@
   padding: 2rem;
   position: relative;
   overflow: hidden;
-  background: #0a0e1a;
+  /* Sin fondo propio: se ve la foto del gimnasio de base.css, con la aurora encima. */
+  background: transparent;
 
   /* Los tokens se repiten acá aunque hoy sean los mismos que en :root: el fondo
      aurora está hardcodeado en esta pantalla, así que su texto no puede depender de

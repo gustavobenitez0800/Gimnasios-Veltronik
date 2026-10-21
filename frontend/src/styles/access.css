@@ -16,7 +16,7 @@
   width: 100%; padding: 1rem;
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius-lg);
-  background: var(--bg-primary); color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.25); color: var(--text-primary);
   font-size: var(--font-size-lg); transition: all var(--transition-fast);
 }
 .search-input:focus { border-color: var(--primary-500); outline: none; box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2); }
@@ -123,7 +123,8 @@
   justify-content: space-between;
   padding: 1.25rem;
   border-radius: var(--border-radius-lg);
-  background: var(--bg-elevated);
+  /* Sólido: aparece encima del buscador y de la lista, y lo de abajo no puede leerse. */
+  background: var(--superficie-flotante);
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--success-500);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
@@ -374,22 +375,34 @@
   gap: var(--aire-bloques);
 }
 
-/* El título y el botón del cartel del QR, en una sola línea. */
+/* El título y el botón del cartel del QR, en una sola línea: la barra de vidrio de esta
+   pantalla es la fila entera, igual que la cabecera de las demás (pages.css). */
 .access-barra {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: var(--vidrio-fuerte);
+  backdrop-filter: var(--vidrio-desenfoque);
+  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  border: 1px solid var(--vidrio-borde);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--vidrio-brillo);
 }
-/* Esta pantalla no scrollea: el título no necesita quedar fijo arriba. Sin esto se veía un
-   rectángulo con su propia línea abajo detrás de "Control de Acceso", del ancho del texto. */
+/* Esta pantalla no scrollea: el título no necesita quedar fijo arriba. Y adentro de la barra
+   no lleva su propio vidrio: serían dos paneles uno dentro del otro. */
 .access-barra .page-header {
   margin-bottom: 0;
   position: static;
   padding: 0;
-  border-bottom: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .access-cuerpo {

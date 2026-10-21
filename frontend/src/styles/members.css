@@ -41,7 +41,7 @@
   height: 32px;
   padding: 0 0.5rem;
   border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: rgba(0, 0, 0, 0.25);
   color: var(--text-primary);
   border-radius: var(--border-radius-sm);
   cursor: pointer;
@@ -63,7 +63,7 @@
   height: 42px;
   border-radius: 50%;
   border: 2px solid var(--border-color);
-  background: var(--bg-primary);
+  background: rgba(0, 0, 0, 0.25);
   color: var(--text-muted);
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -252,7 +252,8 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--bg-secondary);
+  /* Sólido: se abre encima del formulario. */
+  background: var(--superficie-flotante);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -482,7 +483,9 @@
   margin-bottom: 1rem;
   border: 1px solid var(--primary-500);
   border-radius: var(--border-radius-md);
-  background: var(--bg-secondary);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
 }
 
 .seleccion-cuantos {
