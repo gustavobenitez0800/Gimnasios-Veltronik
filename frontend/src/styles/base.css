@@ -87,6 +87,19 @@ textarea {
    el suyo. (El select no: en Windows su lista se abre sobre blanco.) */
 button { color: inherit; }
 
+/* ─── La lista que abre un <select> ───
+   No es parte de la página: la dibuja Windows. Toma el fondo del campo cuando es sólido, pero
+   adentro del sistema los campos son translúcidos (layout.css) y ahí la lista caía al blanco
+   con las opciones en letra clara: blanco sobre blanco (2026-10-22, el tipo de documento del
+   cobro). `color-scheme: dark` le pide al navegador la lista oscura, y las opciones llevan
+   fondo y letra propios por si lo ignora. */
+select { color-scheme: dark; }
+select option {
+  background-color: var(--superficie-flotante);
+  color: var(--text-primary);
+}
+select option:disabled { color: var(--text-muted); }
+
 /* ─── Tabular numbers ─── */
 /* Cifras de ancho fijo: importante en una app de dinero/datos. Montos, fechas,
    contadores y métricas alinean verticalmente y no "saltan" al actualizarse. */
