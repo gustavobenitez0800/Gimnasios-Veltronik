@@ -33,6 +33,24 @@ export function planDe(planes, codigo) {
 }
 
 /**
+ * El plan que el backend va a COBRAR si se le manda este código: espejo de
+ * `PlanCatalog.resolverPedido` (backend). Sin código, con uno desconocido o con un plan que no
+ * está a la venta (y por eso no viene en /public/plans), el backend cobra el básico; acá
+ * también.
+ *
+ * <p>⭐ Es lo que hace que la pantalla y el cobro digan lo mismo. Hasta el 2026-10-22 "Cambiar
+ * la tarjeta" en Ajustes mostraba "$ 145.000" arriba (el plan de la sucursal), "Pagar $ 55.000"
+ * en el formulario (el precio base) y no mandaba el plan: el backend lo resolvía como básico y
+ * una sucursal Premium que cambiaba la tarjeta pasaba a Básico sin saberlo.</p>
+ *
+ * @returns el plan, o null si la lista no trae ni el pedido ni el básico (no hay con qué
+ *          decir un precio: quien la use no debe dejar pagar).
+ */
+export function planQueSeCobra(planes, codigo) {
+  return planDe(planes, String(codigo || '').trim().toUpperCase() || null) || planDe(planes, 'BASICO');
+}
+
+/**
  * Los planes con su precio, en una frase: "Veltronik $55.000/mes o Veltronik Premium
  * $145.000/mes".
  *

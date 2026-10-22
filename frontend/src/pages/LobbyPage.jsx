@@ -29,7 +29,7 @@ import CONFIG from '../lib/config';
 import { openPortal } from '../lib/portal';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
-import { obtenerPlanes } from '../lib/planes';
+import { obtenerPlanes, planQueSeCobra, preciosDeLosPlanes } from '../lib/planes';
 
 // ¿Es un dispositivo táctil? Decide si el campo de confirmación se enfoca solo:
 // en escritorio ahorra un click, en un teléfono abre el teclado a destiempo.
@@ -117,6 +117,10 @@ export default function LobbyPage() {
   // El spinner de pantalla completa solo corresponde a la PRIMERA carga; los refrescos
   // (focus, polling del muro de pago) actualizan en silencio sin parpadear la grilla.
   const hasLoadedOnceRef = useRef(false);
+  // El plan de la sucursal bloqueada que se está mirando (null si nunca tuvo uno).
+  const planDelBloqueado = blockedOrg?.accessStatus?.planCode
+    ? planQueSeCobra(planes, blockedOrg.accessStatus.planCode)
+    : null;
 
   // ─── Load all organizations + their subscription statuses ───
   const loadOrgs = useCallback(async () => {
@@ -414,7 +418,8 @@ export default function LobbyPage() {
   // ─── Render de una card de negocio (extraído para poder agrupar) ───
   const renderOrgCard = (org) => {
     const accessStatus = orgStatuses[org.id];
-    const plan = planes.find((p) => p.code === accessStatus?.planCode) || null;
+    // La misma regla que el cobro (planQueSeCobra): el precio de la tarjeta es el que se cobra.
+    const plan = planQueSeCobra(planes, accessStatus?.planCode);
     const price = Number(plan?.price) > 0 ? Number(plan.price) : precioMensual;
     const isBlocked = accessStatus && !accessStatus.canAccess;
 
@@ -723,10 +728,22 @@ export default function LobbyPage() {
               </div>
             )}
 
-            {/* Price info */}
+            {/* El precio: el del plan que esta sucursal ya tiene, que es el que se le vuelve a
+                cobrar. Decía siempre el del básico, y una sucursal Premium leía $55.000 acá y
+                pagaba $145.000 en la pantalla siguiente. Sin plan (una sucursal nueva), los
+                dos: en Planes elige. */}
             <div className="lobby-blocked-price-info">
-              <span>Precio del sistema:</span>
-              <strong>${precioMensual.toLocaleString('es-AR')}/mes</strong>
+              {planDelBloqueado ? (
+                <>
+                  <span>Tu plan, {planDelBloqueado.name}:</span>
+                  <strong>${Number(planDelBloqueado.price).toLocaleString('es-AR')}/mes</strong>
+                </>
+              ) : (
+                <>
+                  <span>Precio del sistema:</span>
+                  <strong>{preciosDeLosPlanes(planes) || `$${precioMensual.toLocaleString('es-AR')}/mes`}</strong>
+                </>
+              )}
             </div>
 
             {/* Actions */}

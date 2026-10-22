@@ -2,8 +2,8 @@
 // VELTRONIK - SECCIÓN DE SUSCRIPCIÓN (variante WEB)
 // ============================================
 // La sección de Ajustes → Suscripción completa, tal como la ve el dueño en el portal:
-// el plan, el estado de cobro, el próximo vencimiento, el monto mensual, y el Card
-// Payment Brick de Mercado Pago para cambiar la tarjeta sin salir de la página.
+// el plan, el estado de cobro, el próximo vencimiento, el monto mensual, y el formulario de
+// tarjeta (CardCheckout) para cambiarla sin salir de la página.
 //
 // Vive en un archivo aparte —y no dentro de SettingsPage— por dos razones distintas:
 //
@@ -23,14 +23,19 @@
 import { useState } from 'react';
 import CardCheckout from '../CardCheckout';
 import Icon from '../Icon';
-import { useMonthlyPrice } from '../../hooks/useMonthlyPrice';
 
+/**
+ * @param planCode  el plan de la suscripción de esta sucursal. Va al formulario de tarjeta,
+ *                  que de ahí saca el monto y lo manda al backend: cambiar la tarjeta sigue
+ *                  cobrando ESTE plan. Hasta el 2026-10-22 no viajaba, el formulario mostraba
+ *                  el precio base y el backend lo resolvía como básico: una sucursal Premium
+ *                  que cambiaba la tarjeta pasaba a Básico.
+ */
 export default function SubscriptionActionsWeb({
-  plan, statusLabel, blocked, nextPayment, monthlyAmountLabel,
+  plan, planCode, statusLabel, blocked, nextPayment, monthlyAmountLabel,
   hasSubscription, verifying, onVerify, onCardSuccess,
 }) {
   const [showCardForm, setShowCardForm] = useState(false);
-  const precioMensual = useMonthlyPrice(); // el monto real del backend, no el del build
 
   const handleSuccess = async () => {
     setShowCardForm(false);
@@ -98,7 +103,7 @@ export default function SubscriptionActionsWeb({
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '0.75rem' }}>
                 Ingresá la tarjeta nueva. El cobro mensual seguirá siendo {monthlyAmountLabel}.
               </p>
-              <CardCheckout amount={precioMensual} concepto="Tu suscripción mensual" onSuccess={handleSuccess} />
+              <CardCheckout plan={planCode} onSuccess={handleSuccess} />
             </div>
           )}
         </>

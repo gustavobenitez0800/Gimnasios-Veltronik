@@ -15,8 +15,8 @@
 
 import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { loadMercadoPago } from '@mercadopago/sdk-js';
-import CONFIG from '../lib/config';
 import { subscriptionService } from '../services/SubscriptionService';
+import { obtenerPlanes, planQueSeCobra } from '../lib/planes';
 import { mpRejectionMessage } from '../lib/mpStatusDetail';
 import { getMpPublicKey } from '../lib/paymentConfig';
 import { formatCurrency } from '../lib/utils';
@@ -77,11 +77,14 @@ const ESTILO_CAMPO = {
 const TIPOS_DOC_BASE = [{ id: 'DNI', name: 'DNI' }];
 
 /**
- * @param plan  código del plan que se está comprando (BASICO / PREMIUM). Viaja el CÓDIGO, no el
- *              precio: el monto lo pone el catálogo del backend. Si el importe viniera de acá,
- *              cualquiera contrataría el premium por mil pesos editando la request. El `amount`
- *              es solo para mostrar la cifra correcta en pantalla.
- * @param concepto  qué se paga, para el resumen debajo de la tarjeta ("Plan Premium").
+ * @param plan  código del plan que se paga (BASICO / PREMIUM). Es lo ÚNICO que dice qué se
+ *              cobra: el nombre y el monto que se muestran salen del catálogo para ese código,
+ *              con la misma regla que el backend (lib/planes → planQueSeCobra), y al backend
+ *              viaja el código ya resuelto. Viaja el CÓDIGO, no el precio: si el importe viniera
+ *              de acá, cualquiera contrataría el premium por mil pesos editando la request.
+ *              ⚠️ Hasta el 2026-10-22 el monto llegaba aparte, como `amount`, y podía no
+ *              coincidir con el plan: en Ajustes se mostraba $ 55.000 y no viajaba el plan, así
+ *              que una sucursal Premium que cambiaba la tarjeta pasaba a Básico.
  * @param onBusyChange  avisa true mientras NO conviene desmontar este componente, y false
  *              cuando ya se puede. La página de planes lo usa para no dejar cambiar de plan
  *              en el medio.
@@ -95,9 +98,7 @@ const TIPOS_DOC_BASE = [{ id: 'DNI', name: 'DNI' }];
  * Quien ofrezca dos cobros en la misma pantalla muestra un formulario por vez y espera a
  * `onBusyChange(false)` antes de cambiarlo.
  */
-export default function CardCheckout({
-  amount = CONFIG.SUBSCRIPTION_PRICE, plan, concepto = 'Suscripción a Veltronik', onSuccess, onError, onBusyChange,
-}) {
+export default function CardCheckout({ plan, onSuccess, onError, onBusyChange }) {
   // El contexto directo y no useAuth(): sin sesión (un test, una pantalla suelta) el cobro
   // anda igual, solo que sin el email precargado.
   const auth = useContext(AuthContext);
@@ -122,7 +123,19 @@ export default function CardCheckout({
   const [email, setEmail] = useState(() => auth?.user?.email || '');
   const [intentoPagar, setIntentoPagar] = useState(false); // desde acá se marcan todos los faltantes
 
-  const propsRef = useRef({ amount, plan, onSuccess, onError, onBusyChange });
+  // Qué se cobra: el plan del catálogo para este código (null mientras llega la lista). Sin
+  // plan resuelto no se deja pagar: no hay con qué decir un precio.
+  const [planes, setPlanes] = useState(null);
+  useEffect(() => {
+    let vigente = true;
+    obtenerPlanes().then((lista) => { if (vigente) setPlanes(lista); });
+    return () => { vigente = false; };
+  }, []);
+  const planCobrado = planes ? planQueSeCobra(planes, plan) : null;
+  const monto = Number(planCobrado?.price) || 0;
+  const sinPrecio = planes !== null && !planCobrado;
+
+  const propsRef = useRef({ onSuccess, onError, onBusyChange });
   const pollRef = useRef(null);
   const statusRef = useRef(status);
   const mpRef = useRef(null);
@@ -139,7 +152,7 @@ export default function CardCheckout({
   // valores vigentes sin re-suscribirse. Se sincronizan en un effect (no durante el render) y
   // ANTES del effect de los campos, que los consume.
   useEffect(() => {
-    propsRef.current = { amount, plan, onSuccess, onError, onBusyChange };
+    propsRef.current = { onSuccess, onError, onBusyChange };
     statusRef.current = status;
   });
 
@@ -304,7 +317,9 @@ export default function CardCheckout({
 
   const pagar = async (e) => {
     e.preventDefault();
-    if (status !== S.READY) return;
+    if (status !== S.READY || !planCobrado) return;
+    // El plan se fija acá: lo que viaja es exactamente lo que dice la pantalla en este momento.
+    const codigoDelPlan = planCobrado.code;
     setIntentoPagar(true);
     if (faltaTarjeta || faltaNombre || faltaDocumento || !emailValido) {
       setMessage('Revisá los datos marcados.');
@@ -338,11 +353,12 @@ export default function CardCheckout({
 
     try {
       // Crea la suscripción (NO activa). Arranca el polling del cobro real. Sin email, el
-      // backend usa el de la cuenta.
+      // backend usa el de la cuenta. El plan va SIEMPRE, ya resuelto: sin él el backend cobra
+      // el básico, aunque la pantalla dijera otra cosa.
       await subscriptionService.subscribeWithCard({
         card_token: t.id,
         payer_email: email.trim() || undefined,
-        plan: propsRef.current.plan,
+        plan: codigoDelPlan,
       });
       startPolling();
     } catch (err) {
@@ -397,11 +413,11 @@ export default function CardCheckout({
             foco={fase === 'formulario' ? ZONA[foco] : null}
           />
 
-          {fase === 'formulario' && (
+          {fase === 'formulario' && planCobrado && (
             <div className="cobro-resumen">
               <div className="cobro-resumen-fila">
-                <span>{concepto}</span>
-                <span className="tabular-nums">{formatCurrency(amount)}</span>
+                <span>{planCobrado.name}</span>
+                <span className="tabular-nums">{formatCurrency(monto)}</span>
               </div>
               <div className="cobro-resumen-fila es-apagada">
                 <span>Se cobra</span>
@@ -409,7 +425,7 @@ export default function CardCheckout({
               </div>
               <div className="cobro-resumen-total">
                 <span>Total por mes</span>
-                <strong className="tabular-nums">{formatCurrency(amount)}</strong>
+                <strong className="tabular-nums">{formatCurrency(monto)}</strong>
               </div>
             </div>
           )}
@@ -418,7 +434,7 @@ export default function CardCheckout({
             <Resultado
               status={status}
               message={message}
-              amount={amount}
+              monto={monto}
               marca={marca}
               ultimos4={token?.ultimos4}
               onReintentar={retry}
@@ -516,14 +532,21 @@ export default function CardCheckout({
             {intentoPagar && !emailValido && <p className="form-error">Ese email no parece completo.</p>}
           </div>
 
-          <button type="submit" className="btn btn-primary btn-lg cobro-pagar" disabled={status !== S.READY}>
-            {status === S.LOADING && <><span className="spinner" /> Cargando pago seguro…</>}
+          <button type="submit" className="btn btn-primary btn-lg cobro-pagar" disabled={status !== S.READY || !planCobrado}>
+            {(status === S.LOADING || (status === S.READY && planes === null)) && <><span className="spinner" /> Cargando pago seguro…</>}
             {status === S.SUBMITTING && <><span className="spinner" /> Validando la tarjeta…</>}
-            {status === S.READY && (
-              <><Icon name="lock" size="1em" /> Pagar {formatCurrency(amount)} <Icon name="arrowRight" size="1em" /></>
+            {status === S.READY && planCobrado && (
+              <><Icon name="lock" size="1em" /> Pagar {formatCurrency(monto)} <Icon name="arrowRight" size="1em" /></>
             )}
+            {status === S.READY && sinPrecio && 'Pagar'}
           </button>
 
+          {/* Sin la lista de planes no se sabe cuánto se cobra: se dice, y no se deja pagar. */}
+          {sinPrecio && fase === 'formulario' && (
+            <p className="cobro-aviso" role="alert">
+              No pudimos confirmar el precio del plan. Recargá la página en un momento.
+            </p>
+          )}
           {message && fase === 'formulario' && <p className="cobro-aviso" role="alert">{message}</p>}
 
           <p className="cobro-seguridad">
@@ -554,12 +577,12 @@ function CampoSeguro({ id, icono, foco, error, children }) {
 }
 
 /** Lo que se ve debajo de la tarjeta una vez que salió el pago. */
-function Resultado({ status, message, amount, marca, ultimos4, onReintentar, onVerificar }) {
+function Resultado({ status, message, monto, marca, ultimos4, onReintentar, onVerificar }) {
   if (status === S.SUCCESS) {
     return (
       <div className="cobro-resultado es-ok" role="status">
         <span className="cobro-sello"><Icon name="check" size="1.2em" /></span>
-        <strong>Pagado {formatCurrency(amount)}</strong>
+        <strong>Pagado {formatCurrency(monto)}</strong>
         <p>
           {marca?.nombre || 'Tarjeta'}{ultimos4 ? ` terminada en ${ultimos4}` : ''}. Activando tu cuenta…
         </p>

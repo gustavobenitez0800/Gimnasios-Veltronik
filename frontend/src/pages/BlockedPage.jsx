@@ -1,7 +1,7 @@
 // ============================================
 // VELTRONIK V2 - BLOCKED PAGE (MURO DE PAGO)
 // ============================================
-// Cobro principal: el cliente pone la tarjeta acá mismo (Card Payment Brick) y queda
+// Cobro principal: el cliente pone la tarjeta acá mismo (CardCheckout) y queda
 // suscripto, sin login de MP ni email que coincida. Se deja el link de MP como respaldo.
 
 import { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ import CardCheckout from '../components/CardCheckout';
 import Icon from '../components/Icon';
 import CONFIG from '../lib/config';
 import { useMonthlyPrice } from '../hooks/useMonthlyPrice';
-import { obtenerPlanes, planDe } from '../lib/planes';
+import { obtenerPlanes, planQueSeCobra } from '../lib/planes';
 
 export default function BlockedPage() {
   const { logout, subscription } = useAuth();
@@ -26,10 +26,12 @@ export default function BlockedPage() {
 
   // ⭐ Se reactiva EL PLAN QUE TENÍA. Sin decirle cuál, el cobro salía como básico (es lo que
   // hace el backend ante un pedido sin plan): una sucursal Premium que se atrasaba volvía
-  // pagando el básico y perdía la puerta. Si su plan ya no está a la venta, va el básico.
+  // pagando el básico y perdía la puerta. Si su plan ya no está a la venta, va el básico: la
+  // misma regla que el backend y que el formulario (planQueSeCobra), así el texto de acá dice
+  // el mismo monto que el botón de pagar.
   const [planes, setPlanes] = useState(null);
   useEffect(() => { obtenerPlanes().then(setPlanes); }, []);
-  const plan = planDe(planes, subscription?.planCode);
+  const plan = planQueSeCobra(planes, subscription?.planCode);
   const precioNumero = Number(plan?.price) > 0 ? Number(plan.price) : precioBase;
   const precio = precioNumero.toLocaleString('es-AR');
 
@@ -98,7 +100,7 @@ export default function BlockedPage() {
             el del básico. (obtenerPlanes nunca falla: sin respuesta da [] y va el básico.) */}
         {planes === null
           ? <p style={{ color: '#9ca3af' }}><span className="spinner" /> Cargando pago seguro…</p>
-          : <CardCheckout amount={precioNumero} plan={plan?.code} concepto={plan?.name ? `Plan ${plan.name}` : undefined} onSuccess={handleSuccess} />}
+          : <CardCheckout plan={plan?.code} onSuccess={handleSuccess} />}
 
         {/* Respaldo: link clásico de Mercado Pago */}
         <button

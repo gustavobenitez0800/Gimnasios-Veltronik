@@ -21,6 +21,17 @@ const servidor = vi.hoisted(() => ({ subscribeWithCard: vi.fn(), getBillingStatu
 vi.mock('../services/SubscriptionService', () => ({ subscriptionService: servidor }));
 vi.mock('../lib/paymentConfig', () => ({ getMpPublicKey: async () => 'APP_USR-clave-de-mentira' }));
 vi.mock('@mercadopago/sdk-js', () => ({ loadMercadoPago: async () => {} }));
+// El catálogo de planes que devolvería /public/plans. La regla para elegir (planQueSeCobra) es
+// la real: es justo lo que se prueba.
+const catalogo = vi.hoisted(() => ({ planes: [] }));
+vi.mock('../lib/planes', async (importOriginal) => ({
+  ...(await importOriginal()),
+  obtenerPlanes: () => Promise.resolve(catalogo.planes),
+}));
+const CATALOGO = [
+  { code: 'BASICO', name: 'Veltronik', price: 55000 },
+  { code: 'PREMIUM', name: 'Veltronik Premium', price: 145000 },
+];
 
 const { default: CardCheckout } = await import('./CardCheckout');
 
@@ -76,7 +87,7 @@ async function pintar(props = {}) {
   await act(async () => {
     root.render(
       <AuthContext.Provider value={{ user: { email: 'duenio@fenix.gym' } }}>
-        <CardCheckout amount={145000} plan="PREMIUM" concepto="Plan Premium" onSuccess={alPagar} {...props} />
+        <CardCheckout plan="PREMIUM" onSuccess={alPagar} {...props} />
       </AuthContext.Provider>,
     );
   });
@@ -111,6 +122,7 @@ async function pagar() {
 
 beforeEach(() => {
   vi.useRealTimers();
+  catalogo.planes = CATALOGO;
   servidor.subscribeWithCard.mockReset().mockResolvedValue({ ok: true, state: 'processing' });
   servidor.getBillingStatus.mockReset().mockResolvedValue({ state: 'processing' });
   instalarMercadoPago();
@@ -132,8 +144,35 @@ describe('CardCheckout', () => {
     expect(botonPagar().disabled).toBe(false);
     expect(botonPagar().textContent).toContain('Pagar $');
     expect(botonPagar().textContent).toContain('145.000');
-    // El resumen dice qué se paga.
-    expect(container.textContent).toContain('Plan Premium');
+    // El resumen dice qué se paga: el plan del catálogo para ese código.
+    expect(container.querySelector('.cobro-resumen').textContent).toContain('Veltronik Premium');
+  });
+
+  it('⭐ sin plan, la pantalla dice el básico y al backend va BASICO: lo mismo que cobraría', async () => {
+    await pintar({ plan: undefined });
+    await todoListo();
+    expect(botonPagar().textContent).toContain('55.000');
+    expect(container.querySelector('.cobro-resumen').textContent).toContain('Veltronik');
+    expect(container.querySelector('.cobro-resumen').textContent).not.toContain('Premium');
+
+    await tarjetaValida();
+    await escribir(inputTitular(), 'María López');
+    await escribir(inputDocumento(), '30111222');
+    await pagar();
+    expect(servidor.subscribeWithCard).toHaveBeenCalledWith(expect.objectContaining({ plan: 'BASICO' }));
+  });
+
+  it('⭐ sin la lista de planes no hay precio: no deja pagar y lo dice', async () => {
+    catalogo.planes = [];
+    await pintar();
+    await todoListo();
+    expect(botonPagar().disabled).toBe(true);
+    expect(botonPagar().textContent).not.toContain('$');
+    expect(container.textContent).toContain('No pudimos confirmar el precio del plan');
+
+    await pagar();
+    expect(mp.fields.createCardToken).not.toHaveBeenCalled();
+    expect(servidor.subscribeWithCard).not.toHaveBeenCalled();
   });
 
   it('la tarjeta dibujada muestra la marca y los primeros dígitos, nunca más', async () => {

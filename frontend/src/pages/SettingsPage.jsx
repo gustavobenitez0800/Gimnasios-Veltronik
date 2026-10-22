@@ -17,7 +17,7 @@ import { getDeviceId } from '../lib/deviceId';
 import { PageHeader, ConfirmDialog } from '../components/Layout';
 import { apiCall } from '../lib/api';
 import apiClient from '../lib/apiClient';
-import { obtenerPlanes, planDe } from '../lib/planes';
+import { obtenerPlanes, planQueSeCobra } from '../lib/planes';
 import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
 import Icon from '../components/Icon';
@@ -55,7 +55,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
-    plan: 'Veltronik', status: 'active', nextPayment: '--', amount: '--',
+    plan: 'Veltronik', planCode: null, status: 'active', nextPayment: '--', amount: '--',
     hasSubscription: false
   });
 
@@ -142,8 +142,10 @@ export default function SettingsPage({ SubscriptionActions }) {
       // viejo mostraba para siempre el precio con el que se compiló.)
       // ⭐ El plan y el precio de ESTA sucursal. Decía "Veltronik Pro" con el precio del básico
       // a todos, aunque la sucursal pagara Premium.
+      // Con la misma regla que el backend y que el formulario de tarjeta (planQueSeCobra): lo que
+      // dice "Monto mensual" es lo que cobra "Cambiar la tarjeta", y el plan que viaja es este.
       const [config, planes] = await Promise.all([getPaymentConfig(), obtenerPlanes()]);
-      const plan = planDe(planes, suscripcion?.planCode);
+      const plan = planQueSeCobra(planes, suscripcion?.planCode);
       const amount = Number(plan?.price) > 0 ? Number(plan.price) : config.monthlyPrice;
 
       // El DTO del tenant expone `active` (boolean), NO `status`. Derivamos el estado
@@ -151,6 +153,9 @@ export default function SettingsPage({ SubscriptionActions }) {
       const isActive = (gymData.active ?? gymData.isActive) !== false;
       setSubscriptionInfo({
         plan: plan?.name || 'Veltronik',
+        // El código de la suscripción tal cual, no el resuelto: si la lista de planes fallara
+        // acá, el resuelto quedaría vacío y el formulario cobraría el básico.
+        planCode: suscripcion?.planCode || null,
         status: isActive ? 'active' : 'blocked',
         nextPayment: nextPaymentText,
         amount: formatCurrency(amount),
@@ -493,6 +498,7 @@ export default function SettingsPage({ SubscriptionActions }) {
         {(currentRole === 'owner' || currentRole === 'admin') && SubscriptionActions && (
           <SubscriptionActions
             plan={subscriptionInfo.plan}
+            planCode={subscriptionInfo.planCode}
             statusLabel={statusLabels[subscriptionInfo.status] || subscriptionInfo.status}
             blocked={subscriptionInfo.status === 'blocked'}
             nextPayment={subscriptionInfo.nextPayment}

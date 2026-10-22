@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const get = vi.fn();
 vi.mock('./apiClient', () => ({ default: { get: (...a) => get(...a) } }));
 
-const { obtenerPlanes, planDe, olvidarPlanes, preciosDeLosPlanes } = await import('./planes');
+const { obtenerPlanes, planDe, olvidarPlanes, preciosDeLosPlanes, planQueSeCobra } = await import('./planes');
 
 const CATALOGO = [
   { code: 'BASICO', name: 'Veltronik', price: 55000 },
@@ -41,6 +41,30 @@ describe('los planes del backend', () => {
     expect(planDe(CATALOGO, 'ORO')).toBeNull();
     expect(planDe(CATALOGO, null)).toBeNull();
     expect(planDe(null, 'BASICO')).toBeNull();
+  });
+});
+
+// Espejo de PlanCatalog.resolverPedido: lo que se muestra al pagar tiene que ser lo que el
+// backend cobra con ese código.
+describe('el plan que se cobra', () => {
+  it('el pedido, si está a la venta', () => {
+    expect(planQueSeCobra(CATALOGO, 'PREMIUM')).toMatchObject({ code: 'PREMIUM', price: 145000 });
+    expect(planQueSeCobra(CATALOGO, ' premium ')).toMatchObject({ code: 'PREMIUM' });
+  });
+
+  it('⭐ sin código, el básico: es lo que cobra el backend si no le llega el plan', () => {
+    expect(planQueSeCobra(CATALOGO, null)).toMatchObject({ code: 'BASICO', price: 55000 });
+    expect(planQueSeCobra(CATALOGO, '')).toMatchObject({ code: 'BASICO' });
+  });
+
+  it('un código desconocido o un plan que no está a la venta también cae en el básico', () => {
+    expect(planQueSeCobra(CATALOGO, 'ORO')).toMatchObject({ code: 'BASICO' });
+    expect(planQueSeCobra([CATALOGO[0]], 'PREMIUM')).toMatchObject({ code: 'BASICO' });
+  });
+
+  it('sin lista no hay precio que decir: null', () => {
+    expect(planQueSeCobra([], 'PREMIUM')).toBeNull();
+    expect(planQueSeCobra(undefined, null)).toBeNull();
   });
 });
 
