@@ -28,7 +28,7 @@
 // LOS EGRESOS. Del cajón también sale plata. Sin restarlos, el día que se le paga a la
 // limpieza el cierre decía FALTANTE y acusaba a quien atendió.
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { cajaService } from '../services/CajaService';
@@ -38,7 +38,7 @@ import { formatCurrency, formatDate, toLocalDateString, sumarPlata, horaDe } fro
 import { nombreDeForma, esEfectivo } from '../lib/formasDePago';
 import { getShift } from '../lib/shift';
 import { descargarExcelDeCaja } from '../lib/excelDeCaja';
-import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
+import { useRangoDeFechas, problemaDelRango } from '../hooks/useRangoDeFechas';
 import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
 import { PageHeader, EmptyState } from '../components/Layout';
 import SelectorDeFechas from '../components/SelectorDeFechas';
@@ -108,6 +108,11 @@ export default function CajaPage() {
   const rango = useRangoDeFechas('today');
   const { desde: balanceDesde, hasta: balanceHasta } = rango;
   const [balance, setBalance] = useState(null);
+  // De qué rango son los números de `balance`. Mientras llega el del rango nuevo, los de antes
+  // se ven apagados: son de otras fechas que las que dice el título.
+  const [rangoDelBalance, setRangoDelBalance] = useState('');
+  const balanceAlDia = rangoDelBalance === `${balanceDesde}|${balanceHasta}`;
+  const ultimoPedidoDeBalance = useRef(0);
   const [hayBalance, setHayBalance] = useState(true);
 
   // ─── El Excel para el contador ───
@@ -117,7 +122,7 @@ export default function CajaPage() {
   // "Excel descargado". Y ese "Día" se quedaba en el día en que se abrió la pantalla. Ahora hay
   // una sola fuente (useRangoDeFechas) y el botón dice qué período va a bajar.
   const [exportando, setExportando] = useState(false);
-  const excelDel = EXCEL_DEL[rango.periodo]
+  const excelDel = rango.problema ? 'Excel del período' : EXCEL_DEL[rango.periodo]
     || (balanceDesde === balanceHasta
       ? `Excel del ${formatDate(balanceDesde)}`
       : `Excel del ${formatDate(balanceDesde)} al ${formatDate(balanceHasta)}`);
@@ -143,21 +148,33 @@ export default function CajaPage() {
   const [movMetodo, setMovMetodo] = useState('CASH');
 
   const cargarBalance = useCallback(async (desde, hasta) => {
-    // Una fecha a medio escribir, o el "hasta" antes del "desde": no se pregunta nada.
-    if (!desde || !hasta || desde > hasta) return;
+    const pedido = ++ultimoPedidoDeBalance.current;
+    // Una fecha a medio escribir (el año pasa por 0002, 0020 y 0202), al revés o de más de un
+    // año: no se pregunta nada. ⚠️ Y NO SE ESCONDE EL BLOQUE: preguntar por el 0002-09-01 hacía
+    // que el servidor contestara "rango demasiado largo", y el catch de abajo escondía el
+    // balance —con el selector adentro— mientras el dueño escribía el año.
+    if (problemaDelRango(desde, hasta)) return;
     try {
-      setBalance(await cajaService.balanceDeRango(desde, hasta));
+      const b = await cajaService.balanceDeRango(desde, hasta);
+      // Escribiendo una fecha salen varios pedidos seguidos: si uno viejo llega último, no pisa
+      // al del rango que está puesto.
+      if (pedido !== ultimoPedidoDeBalance.current) return;
+      setBalance(b);
+      setRangoDelBalance(`${desde}|${hasta}`);
       setHayBalance(true);
     } catch {
+      if (pedido !== ultimoPedidoDeBalance.current) return;
       // Backend viejo o sin conexión: el bloque se esconde y el cierre sigue funcionando.
       setBalance(null);
+      setRangoDelBalance('');
       setHayBalance(false);
     }
   }, []);
 
   const exportar = async (desde, hasta) => {
-    if (!desde || !hasta || desde > hasta) {
-      showToast('Elegí un día válido para el Excel.', 'error');
+    const problema = problemaDelRango(desde, hasta);
+    if (problema) {
+      showToast(problema.texto, 'error');
       return;
     }
     setExportando(true);
@@ -393,7 +410,8 @@ export default function CajaPage() {
              del balance (arranca en hoy) y lo dice en el botón. */
           <div className="caja-excel">
             <button
-              type="button" className="btn btn-primary" disabled={exportando}
+              type="button" className="btn btn-primary" disabled={exportando || !!rango.problema}
+              title={rango.problema?.texto}
               onClick={() => exportar(balanceDesde, balanceHasta)}
             >
               {exportando
@@ -429,8 +447,12 @@ export default function CajaPage() {
           {/* ⭐ Es el LIBRO DE INGRESOS: el mismo número del tablero, de Pagos y del Excel. Con el
               historial importado y las ventas adentro, cada uno dicho aparte abajo. Hasta el
               22/09 esto dejaba afuera el historial, y el año de un gimnasio recién migrado
-              decía una fracción de lo que decía el tablero. */}
-          <div className="caja-balance-cifras">
+              decía una fracción de lo que decía el tablero.
+              ⚠️ Con un rango a medio escribir o mal puesto, no hay números: los de antes son de
+              otras fechas que las que diría el título. Mientras llegan los del rango nuevo, los
+              de antes se ven apagados. */}
+          {!rango.problema && (<>
+          <div className={`caja-balance-cifras${balanceAlDia ? '' : ' is-actualizando'}`} aria-busy={!balanceAlDia}>
             {/* La cantidad de cobros va con el total, en su aclaración: sola en su casillero
                 quedaba huérfana en un segundo renglón, al lado de nada. */}
             <div className="caja-cifra es-total">
@@ -461,7 +483,7 @@ export default function CajaPage() {
 
           </div>
           {/* De dónde salió el total. Las tres partes suman exactamente el total de arriba. */}
-          {balance && (
+          {balance && balanceAlDia && (
             <ul className="caja-balance-origen">
               <li>
                 <span>Cuotas cobradas en Veltronik</span>
@@ -481,6 +503,7 @@ export default function CajaPage() {
               )}
             </ul>
           )}
+          </>)}
         </div>
       )}
 

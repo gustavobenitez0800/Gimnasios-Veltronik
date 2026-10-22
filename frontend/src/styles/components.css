@@ -460,6 +460,13 @@
 }
 .selector-fechas-campo .form-input { width: auto; min-width: 10rem; }
 .selector-fechas-atajos { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.selector-fechas-aviso {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--error-500);
+}
 @media (max-width: 560px) {
   .selector-fechas-campo { flex: 1 1 100%; }
   .selector-fechas-campo > span { min-width: 3.2rem; }

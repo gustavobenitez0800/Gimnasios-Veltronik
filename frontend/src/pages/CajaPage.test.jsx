@@ -539,12 +539,13 @@ describe('⭐ el Excel para el contador', () => {
       });
     }
 
+    // El botón azul del título: el que se aprieta sin pensar.
     const botonDelTitulo = container.querySelector('.caja-excel button');
-    expect(botonDelTitulo.textContent).toMatch(/Excel del 0?1\/0?9\/2026 al 30\/0?9\/2026/);
     await clic(botonDelTitulo);
 
     expect(cajaService.reporte).toHaveBeenCalledTimes(1);
     expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-01', '2026-09-30');
+    expect(botonDelTitulo.textContent).toMatch(/Excel del 0?1\/0?9\/2026 al 30\/0?9\/2026/);
     // Un solo control de fechas en la pantalla: no hay otro "Día" que pueda contradecirlo.
     expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
   });
@@ -805,5 +806,75 @@ describe('⭐ las correcciones de días ya cerrados (V88)', () => {
   it('sin correcciones no aparece nada', async () => {
     const texto = await pintar();
     expect(texto).not.toContain('Correcciones de días ya cerrados');
+  });
+});
+
+describe('⭐ el balance mientras se escriben las fechas', () => {
+  /** Pone una fecha en el Desde (0) o el Hasta (1) del balance, como el campo de Chrome. */
+  async function poner(cual, valor) {
+    const input = container.querySelectorAll('.caja-balance-fechas input[type="date"]')[cual];
+    await act(async () => {
+      setValorNativo.call(input, valor);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await Promise.resolve(); });
+    }
+  }
+
+  // 🔴 Escribiendo 2026 el campo avisa 0002, 0020 y 0202. La Caja le preguntaba al servidor por
+  // el 0002-09-01, el servidor lo rechazaba por largo, y el catch escondía el balance —con el
+  // selector adentro— en medio del tecleo.
+  it('🔴 el año a medio escribir no se le pregunta al servidor, y el balance NO desaparece', async () => {
+    await pintar();
+    cajaService.balanceDeRango.mockClear();
+    cajaService.balanceDeRango.mockRejectedValue(new Error('Elegí un rango de hasta un año.'));
+
+    for (const anio of ['0002', '0020', '0202']) {
+      await poner(0, `${anio}-09-01`);
+      expect(container.querySelector('.caja-balance-fechas'), anio).toBeTruthy();
+      expect(container.querySelector('.caja-excel button').disabled, anio).toBe(true);
+    }
+    expect(cajaService.balanceDeRango).not.toHaveBeenCalled();
+    // Sin números de otras fechas con el título del rango a medio escribir.
+    expect(container.querySelector('.caja-balance-cifras')).toBeNull();
+
+    cajaService.balanceDeRango.mockResolvedValue({ total: 33000, cantidadCobros: 6, efectivo: 33000, digital: 0 });
+    await poner(0, '2026-09-01');
+    expect(cajaService.balanceDeRango).toHaveBeenCalledTimes(1);
+    expect(cajaService.balanceDeRango).toHaveBeenCalledWith('2026-09-01', toLocalDateString(new Date()));
+    expect(container.querySelector('.caja-excel button').disabled).toBe(false);
+  });
+
+  it('un rango al revés lo dice al lado de las fechas, y no baja nada', async () => {
+    await pintar();
+    await poner(0, '2026-09-20');
+    await poner(1, '2026-09-10');
+
+    expect(container.querySelector('.selector-fechas-aviso').textContent).toMatch(/posterior/);
+    expect(container.querySelector('.caja-excel button').disabled).toBe(true);
+    expect(cajaService.reporte).not.toHaveBeenCalled();
+  });
+
+  it('⭐ una respuesta vieja que llega tarde no pisa a la del rango puesto', async () => {
+    await pintar();
+    const pendientes = {};
+    cajaService.balanceDeRango.mockImplementation((desde) => new Promise((resolver) => {
+      pendientes[desde] = resolver;
+    }));
+
+    await poner(0, '2026-09-01');
+    await poner(0, '2026-09-15');
+    // Contesta primero el del rango puesto, y después el viejo.
+    await act(async () => { pendientes['2026-09-15']({ total: 222222, cantidadCobros: 2 }); });
+    await act(async () => { pendientes['2026-09-01']({ total: 111111, cantidadCobros: 1 }); });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await Promise.resolve(); });
+    }
+
+    const total = container.querySelector('.caja-cifra.es-total').textContent;
+    expect(total).toContain('222.222');
+    expect(total).not.toContain('111.111');
+    expect(container.querySelector('.caja-balance-cifras').classList.contains('is-actualizando')).toBe(false);
   });
 });

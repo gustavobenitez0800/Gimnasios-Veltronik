@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import process from 'node:process';
 import { tablaDeSocios, tablaDeIngresos, tablaDeAccesos, tablaDelResumen } from './reportesDelGimnasio';
 
 const AHORA = new Date('2026-09-22T12:00:00');
@@ -73,6 +74,22 @@ describe('el reporte de accesos', () => {
       ['22/09/2026', '08:05', '', 'Bruno', '2', 'Manual'],
       ['22/09/2026', '17:26', '18:14', 'Ana', '1', 'QR'],
     ]);
+  });
+
+  it('⭐ la entrada de las 23:30 del último día dice ese día y esa hora, esté la PC en el huso que esté', () => {
+    const husoOriginal = process.env.TZ;
+    try {
+      for (const huso of ['America/Argentina/Buenos_Aires', 'UTC', 'Asia/Tokyo', 'America/Los_Angeles']) {
+        process.env.TZ = huso;
+        const { rows } = tablaDeAccesos([
+          { checkInAt: '2026-09-30T23:30:00', checkOutAt: '2026-09-30T23:58:00', accessMethod: 'QR', member: { fullName: 'Ana', dni: '1' } },
+        ]);
+        expect(rows[0].slice(0, 3), huso).toEqual(['30/09/2026', '23:30', '23:58']);
+      }
+    } finally {
+      if (husoOriginal === undefined) delete process.env.TZ;
+      else process.env.TZ = husoOriginal;
+    }
   });
 });
 

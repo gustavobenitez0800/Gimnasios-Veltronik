@@ -196,18 +196,17 @@
 .table .caja-col-monto { text-align: right; }
 
 .caja-balance-fechas { margin-bottom: 1rem; }
+/* Los números del rango anterior, mientras llegan los del nuevo: no son de las fechas puestas. */
+.caja-balance-cifras.is-actualizando { opacity: 0.45; }
 .caja-desde { margin: -0.5rem 0 0.9rem; color: var(--text-muted); }
 .caja-aviso-retiro { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 1rem; }
 
-/* ─── El Excel del día, en el título ───
-   El título queda fijo al scrollear: el dueño lo tiene a mano desde cualquier parte. */
+/* ─── El Excel para el contador, en el título ───
+   El título queda fijo al scrollear: el dueño lo tiene a mano desde cualquier parte. Baja el
+   período del selector del balance y lo dice en el botón (no tiene fecha propia). */
 .caja-excel { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.caja-excel-dia { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
-.caja-excel-dia > span { font-weight: 600; font-size: var(--font-size-sm); color: var(--text-primary); }
-.caja-excel-dia .form-input { width: auto; }
 @media (max-width: 768px) {
-  .caja-excel, .caja-excel-dia { width: 100%; }
-  .caja-excel-dia .form-input { flex: 1; }
+  .caja-excel { width: 100%; }
   .caja-excel .btn { width: 100%; justify-content: center; }
 }
 
