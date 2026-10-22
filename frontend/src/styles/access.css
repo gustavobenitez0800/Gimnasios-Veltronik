@@ -384,9 +384,7 @@
   gap: 1rem;
   flex-wrap: wrap;
   padding: 0.75rem 1rem;
-  background: var(--vidrio-fuerte);
-  backdrop-filter: var(--vidrio-desenfoque);
-  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  background: var(--barra-fija);
   border: 1px solid var(--vidrio-borde);
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--vidrio-brillo);

@@ -168,7 +168,7 @@
   font-size: var(--font-size-xs);
 }
 
-/* ─── La cabecera de cada página: una barra de vidrio que flota ─── */
+/* ─── La cabecera de cada página: una barra que flota ─── */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -181,18 +181,16 @@
   box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--vidrio-brillo);
 
   /* Queda arriba al scrollear, separada del borde como el menú.
-     ⚠️ VIDRIO FUERTE, NO EL DE LAS TARJETAS. Hasta el 2026-10-21 era opaca, del color liso de
-     la página: antes de eso había sido negro al 80% con desenfoque, y donde el desenfoque no
-     se dibujaba el contenido se LEÍA por debajo del título (en la Caja, "Distribución del
-     efectivo" montado sobre "Cierre de caja"). Con la foto de fondo, una barra opaca se veía
-     como un agujero, así que vuelve a ser vidrio, pero más tapado que una tarjeta (86%): sin
-     desenfoque, lo de abajo queda como una sombra y no como texto encimado. */
+     ⚠️ SÓLIDA, Y NO DE VIDRIO, A PROPÓSITO (dos veces aprendido). Fue negro al 80% con
+     desenfoque, y donde el desenfoque no se dibuja el contenido se LEÍA por debajo del título
+     (en la Caja, "Distribución del efectivo" montado sobre "Cierre de caja"). Con la foto de
+     fondo se probó vidrio al 86% y pasó lo mismo en Ajustes (2026-10-22). Es sólida, del
+     color que toma el vidrio sobre la foto (--barra-fija): quieta se ve igual que antes, y lo
+     que pasa por debajo queda tapado en cualquier placa de video. */
   position: sticky;
   top: var(--sidebar-margen);
   z-index: 40;
-  background: var(--vidrio-fuerte);
-  backdrop-filter: var(--vidrio-desenfoque);
-  -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  background: var(--barra-fija);
 }
 
 .page-header-info {

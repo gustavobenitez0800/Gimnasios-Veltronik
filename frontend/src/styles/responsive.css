@@ -366,6 +366,8 @@ button, a, input, select, textarea, [role="button"] {
     gap: 0.85rem;
     padding: 0.85rem 1rem;
     background: var(--vidrio);
+    backdrop-filter: var(--vidrio-desenfoque);
+    -webkit-backdrop-filter: var(--vidrio-desenfoque);
   }
 
   .page-header-actions {
