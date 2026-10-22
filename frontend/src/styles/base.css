@@ -58,7 +58,7 @@ body::before {
   pointer-events: none;
   background:
     radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5, 6, 9, 0.55) 100%),
-    linear-gradient(180deg, rgba(7, 9, 13, 0.50) 0%, rgba(7, 9, 13, 0.70) 100%),
+    linear-gradient(180deg, rgba(7, 9, 13, 0.60) 0%, rgba(7, 9, 13, 0.78) 100%),
     url('../assets/fondo/gimnasio.webp') center / cover no-repeat,
     var(--bg-primary);
 }
@@ -67,7 +67,7 @@ body::before {
   body::before {
     background:
       radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5, 6, 9, 0.55) 100%),
-      linear-gradient(180deg, rgba(7, 9, 13, 0.50) 0%, rgba(7, 9, 13, 0.70) 100%),
+      linear-gradient(180deg, rgba(7, 9, 13, 0.60) 0%, rgba(7, 9, 13, 0.78) 100%),
       url('../assets/fondo/gimnasio-celular.webp') center / cover no-repeat,
       var(--bg-primary);
   }

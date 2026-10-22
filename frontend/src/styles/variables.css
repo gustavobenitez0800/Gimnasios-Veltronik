@@ -157,8 +157,11 @@
   --bg-tertiary: #1a1e27;    /* inputs / hover */
   --bg-elevated: #20252f;    /* menús / modales */
   --text-primary: #e8eaed;   /* off-white, no #fff */
-  --text-secondary: #a0a6b0;
-  --text-muted: #6b7280;
+  /* Los dos grises, más claros desde el 2026-10-22: sobre el vidrio con la foto detrás, el
+     apagado (#6b7280) medía 3,1 a 3,9 de contraste, debajo del mínimo de 4,5 para leer. Con
+     estos mide 5,5 a 6,1 en el peor lugar (donde pasa la tira de luz de la foto). */
+  --text-secondary: #b4bac4;
+  --text-muted: #8b93a1;
   --border-color: rgba(255, 255, 255, 0.07);
   --border-color-hover: rgba(255, 255, 255, 0.14);
   --glass-bg: rgba(18, 21, 28, 0.85);
@@ -170,11 +173,11 @@
      la desenfoca: tarjetas, menú, cabecera. Tinta OSCURA y no blanca a propósito: el vidrio
      tiene que leerse igual donde detrás pasa la tira de luz de la foto, y donde el desenfoque
      no se dibuja (ver la cabecera de página en pages.css) el texto sigue sobre fondo oscuro. */
-  --vidrio: rgba(16, 19, 26, 0.55);
+  --vidrio: rgba(16, 19, 26, 0.68);
   /* Lo que queda quieto mientras el contenido pasa por debajo (cabecera de página, header del
      celular): más tapado, para que lo de abajo no se lea a través si no hay desenfoque. */
-  --vidrio-fuerte: rgba(13, 15, 21, 0.82);
-  --vidrio-desenfoque: blur(24px) saturate(1.4);
+  --vidrio-fuerte: rgba(13, 15, 21, 0.86);
+  --vidrio-desenfoque: blur(36px) saturate(1.3);
   --vidrio-borde: rgba(255, 255, 255, 0.09);
   --vidrio-brillo: rgba(255, 255, 255, 0.10);
   /* Menús, desplegables y carteles que se abren ENCIMA de otra cosa: sólidos siempre. */
