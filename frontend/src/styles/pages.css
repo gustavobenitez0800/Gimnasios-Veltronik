@@ -468,8 +468,6 @@
   background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
   border: 1px solid var(--border-color-hover);
   color: var(--text-primary);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .lobby-logout-btn:hover:not(:disabled) {
@@ -600,10 +598,10 @@
 }
 
 .lobby-card {
-  /* Premium Glassmorphism 3.0 */
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  /* El vidrio del sistema (--card-bg, casi sólido). Era blanco al 3% con un desenfoque de
+     40 px: sin el desenfoque —que no todos los equipos dibujan— la foto del gimnasio se veía
+     nítida a través de la tarjeta (2026-10-22). */
+  background: var(--card-bg);
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 
     0 10px 40px -10px rgba(0, 0, 0, 0.5), 
@@ -688,16 +686,22 @@
 /* ─── Light Mode Glass Overrides ─── */
 /* ─── Blocked Card ─── */
 
+/* Bloqueada: se apaga el CONTENIDO, no la tarjeta. Con `opacity` en la tarjeta entera se
+   apagaba también su fondo y la foto del gimnasio se veía a través, con otro tono que las
+   demás (2026-10-22). */
 .lobby-card-blocked {
   position: relative;
+}
+.lobby-card-blocked > * {
   opacity: 0.7;
+  transition: opacity var(--transition-normal);
 }
 
 .lobby-card-blocked:hover {
   border-color: #ef4444;
   box-shadow: 0 0 30px rgba(239, 68, 68, 0.1);
-  opacity: 1;
 }
+.lobby-card-blocked:hover > * { opacity: 1; }
 
 .lobby-card-blocked-overlay {
   position: absolute;
@@ -782,8 +786,8 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
+  /* Oscurece sin desenfocar (el desenfoque de pantalla completa traba el celular). */
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -806,7 +810,6 @@
   height: var(--vv-height, 100dvh);
   z-index: 1000;
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -840,10 +843,8 @@
 }
 
 .lobby-blocked-modal {
-  /* Liquid Glass Modal */
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  /* Sólida, como toda ventana que se abre encima de algo (--superficie-flotante). */
+  background: var(--superficie-flotante);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 
     0 40px 80px -20px rgba(0, 0, 0, 0.5), 

@@ -25,8 +25,9 @@
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  /* Oscurece, sin desenfocar: desenfocar la pantalla entera mientras el menú se desliza
+     encima era lo que hacía que abrirlo en el celular diera un tirón (2026-10-22). */
+  background: rgba(0, 0, 0, 0.6);
   z-index: 99;
   opacity: 0;
 

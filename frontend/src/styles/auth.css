@@ -116,9 +116,11 @@
 
 /* ---- Glass Card ---- */
 .auth-card {
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  /* Ahumado y sin desenfoque, como el resto del sistema (variables.css → --vidrio). Era blanco
+     al 7% con desenfoque: donde el desenfoque no se dibuja (la PC del dueño), los campos
+     quedaban encima de la foto nítida del gimnasio. Un poco más claro que los paneles de
+     adentro para que el resplandor azul de la aurora siga asomando. */
+  background: rgba(20, 24, 33, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 24px;
   padding: 2.5rem;

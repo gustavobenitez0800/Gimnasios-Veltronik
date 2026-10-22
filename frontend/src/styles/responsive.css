@@ -317,6 +317,9 @@ button, a, input, select, textarea, [role="button"] {
     bottom: 0;
     border-left: 0;
     border-radius: 0 20px 20px 0;
+    /* Sólido: el cajón se abre ENCIMA de la página, y al 90% se adivinaban sus textos a
+       través ("Socios", "Importar"). Lo que se abre encima de algo no deja ver lo de abajo. */
+    background: var(--barra-fija);
     transform: translateX(-100%);
     width: min(82vw, 310px);
     box-shadow: none;
