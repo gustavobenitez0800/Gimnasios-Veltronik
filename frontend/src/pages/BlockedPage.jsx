@@ -98,7 +98,7 @@ export default function BlockedPage() {
             el del básico. (obtenerPlanes nunca falla: sin respuesta da [] y va el básico.) */}
         {planes === null
           ? <p style={{ color: '#9ca3af' }}><span className="spinner" /> Cargando pago seguro…</p>
-          : <CardCheckout amount={precioNumero} plan={plan?.code} onSuccess={handleSuccess} />}
+          : <CardCheckout amount={precioNumero} plan={plan?.code} concepto={plan?.name ? `Plan ${plan.name}` : undefined} onSuccess={handleSuccess} />}
 
         {/* Respaldo: link clásico de Mercado Pago */}
         <button

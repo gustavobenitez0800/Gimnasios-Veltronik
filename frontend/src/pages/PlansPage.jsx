@@ -206,8 +206,8 @@ export default function PlansPage() {
             {sucursalElegida ? (
               plan.code === planConFormulario ? (
                 <>
-                  {/* Cobro con tarjeta (Brick MP): el cliente paga acá mismo, sin login ni redirección */}
-                  <CardCheckout amount={Number(plan.price)} plan={plan.code} onSuccess={handleSuccess} onBusyChange={setFormularioOcupado} />
+                  {/* Cobro con tarjeta (campos seguros de MP): el cliente paga acá mismo, sin login ni redirección */}
+                  <CardCheckout amount={Number(plan.price)} plan={plan.code} concepto={`Plan ${plan.name}`} onSuccess={handleSuccess} onBusyChange={setFormularioOcupado} />
 
                   {/* Respaldo: link clásico de Mercado Pago */}
                   <button className="btn btn-secondary plans-cta" disabled={subscribing} onClick={() => handleSubscribe(plan.code)} style={{ marginTop: '0.75rem' }}>

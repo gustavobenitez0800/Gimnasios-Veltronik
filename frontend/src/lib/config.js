@@ -10,7 +10,7 @@ if (!import.meta.env.VITE_API_BASE_URL) {
   console.error('[Veltronik] FATAL: VITE_API_BASE_URL no está definida. Configurar en .env');
 }
 if (!import.meta.env.VITE_MP_PUBLIC_KEY) {
-  console.warn('[Veltronik] VITE_MP_PUBLIC_KEY no está definida — el cobro con tarjeta (Brick) no funcionará hasta configurarla en .env / GitHub Secrets. El link de MP sigue como respaldo.');
+  console.warn('[Veltronik] VITE_MP_PUBLIC_KEY no está definida — el cobro con tarjeta no funcionará hasta configurarla en .env / GitHub Secrets. El link de MP sigue como respaldo.');
 }
 
 const CONFIG = {

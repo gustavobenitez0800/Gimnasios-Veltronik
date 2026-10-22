@@ -1,0 +1,526 @@
+/* ============================================
+   EL COBRO CON TARJETA (CardCheckout + TarjetaEnVivo)
+   ============================================
+   La tarjeta dibujada a la izquierda se completa mientras se escribe, y el formulario va a
+   la derecha. Donde no entran dos columnas (Planes y el bloqueo miden ~500 px) va todo
+   apilado: lo decide el ancho del cobro, no el de la ventana. */
+
+.cobro {
+  container: cobro / inline-size;
+  text-align: left;
+}
+
+.cobro-grilla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--aire-bloques);
+  align-items: start;
+}
+
+@container cobro (min-width: 680px) {
+  .cobro[data-fase="formulario"] .cobro-grilla {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+    gap: calc(var(--aire-bloques) * 1.5);
+  }
+}
+
+/* Cuando el pago ya salió, la tarjeta pasa al centro y debajo se cuenta qué pasa. */
+.cobro[data-fase="resultado"] .cobro-escena,
+.cobro[data-fase="error"] .cobro-escena {
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+  padding-block: 0.5rem;
+}
+
+.cobro-escena {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aire-bloques);
+  min-width: 0;
+}
+
+/* ─── La tarjeta ─── */
+
+/* Los colores de la tarjeta se registran como colores para que el cambio de marca se
+   deslice en vez de saltar (un degradé no se puede animar; sus colores sí). */
+@property --tarjeta-a { syntax: '<color>'; inherits: true; initial-value: #1e3a8a; }
+@property --tarjeta-b { syntax: '<color>'; inherits: true; initial-value: #0b1220; }
+@property --tarjeta-brillo { syntax: '<color>'; inherits: true; initial-value: #60a5fa; }
+@property --tarjeta-halo { syntax: '<color>'; inherits: true; initial-value: transparent; }
+
+.tarjeta-en-vivo {
+  /* Sin marca, la de Veltronik: el azul de la app. */
+  --tarjeta-a: #1e3a8a;
+  --tarjeta-b: #0b1220;
+  --tarjeta-brillo: #60a5fa;
+  --tarjeta-halo: transparent;
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  /* Las medidas de una tarjeta de verdad (ISO 7810, 85,6 × 54 mm). */
+  aspect-ratio: 1.586;
+  perspective: 1200px;
+  /* Todo lo de adentro se mide contra el ancho de la tarjeta (cqw): achicarla no la deforma. */
+  container-type: inline-size;
+  transition: --tarjeta-a 0.5s ease, --tarjeta-b 0.5s ease, --tarjeta-brillo 0.5s ease, --tarjeta-halo 0.5s ease;
+}
+
+.tarjeta-en-vivo[data-marca="master"],
+.tarjeta-en-vivo[data-marca="debmaster"],
+.tarjeta-en-vivo[data-marca="maestro"] { --tarjeta-a: #4a2410; --tarjeta-b: #160b08; --tarjeta-brillo: #fb923c; }
+.tarjeta-en-vivo[data-marca="amex"] { --tarjeta-a: #0f4250; --tarjeta-b: #061a20; --tarjeta-brillo: #22d3ee; }
+.tarjeta-en-vivo[data-marca="naranja"] { --tarjeta-a: #5a2606; --tarjeta-b: #1a0b03; --tarjeta-brillo: #fdba74; }
+.tarjeta-en-vivo[data-marca="cabal"],
+.tarjeta-en-vivo[data-marca="debcabal"] { --tarjeta-a: #10405a; --tarjeta-b: #07141d; --tarjeta-brillo: #38bdf8; }
+
+.tarjeta-giro {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tarjeta-en-vivo.dada-vuelta .tarjeta-giro { transform: rotateY(180deg); }
+
+.tarjeta-cara {
+  position: absolute;
+  inset: 0;
+  border-radius: 4.5cqw;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  padding: 6.5cqw 7cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #f1f5f9;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--tarjeta-brillo) 42%, transparent), transparent 55%),
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 3.5cqw),
+    linear-gradient(135deg, var(--tarjeta-a), var(--tarjeta-b));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 48px -14px rgba(0, 0, 0, 0.65),
+    0 0 0 1px var(--tarjeta-halo),
+    0 0 46px 6px var(--tarjeta-halo),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Un reflejo que cruza la tarjeta en diagonal: es lo que la hace ver de plástico. */
+.tarjeta-frente::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.10) 48%, transparent 60%);
+  pointer-events: none;
+}
+
+.tarjeta-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3cqw;
+}
+
+.tarjeta-logo { height: 8.5cqw; width: auto; }
+
+.tarjeta-tipo {
+  font-size: 3cqw;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(241, 245, 249, 0.75);
+}
+
+.tarjeta-fila-chip { justify-content: flex-start; gap: 4cqw; }
+
+/* El chip, dibujado: dorado con las pistas de contacto. */
+.tarjeta-chip {
+  position: relative;
+  width: 12.5cqw;
+  aspect-ratio: 1.3;
+  border-radius: 1.8cqw;
+  background: linear-gradient(135deg, #f5d27a 0%, #b88a2e 55%, #f0d58c 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.tarjeta-chip::before,
+.tarjeta-chip::after {
+  content: '';
+  position: absolute;
+  border-color: rgba(70, 48, 10, 0.45);
+  border-style: solid;
+  border-width: 0;
+}
+.tarjeta-chip::before { inset: 30% 0; border-top-width: 1px; border-bottom-width: 1px; }
+.tarjeta-chip::after { inset: 0 36%; border-left-width: 1px; border-right-width: 1px; }
+
+.tarjeta-contactless { width: 6cqw; height: 6cqw; opacity: 0.7; }
+
+.tarjeta-numero {
+  font-size: 6.4cqw;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+}
+
+.tarjeta-fila-abajo { align-items: flex-end; }
+
+.tarjeta-dato {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6cqw;
+  min-width: 0;
+}
+.tarjeta-dato:first-child { flex: 1; }
+.tarjeta-dato small {
+  font-size: 2.5cqw;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(241, 245, 249, 0.6);
+}
+.tarjeta-dato span {
+  font-size: 3.7cqw;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-marca {
+  font-size: 5cqw;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* La parte que se está llenando se ilumina, para que se vea qué dato es qué. */
+.tarjeta-zona {
+  border-radius: 1.6cqw;
+  padding: 0.8cqw 1.6cqw;
+  margin: -0.8cqw -1.6cqw;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.tarjeta-en-vivo[data-foco="numero"] [data-zona="numero"],
+.tarjeta-en-vivo[data-foco="nombre"] [data-zona="nombre"],
+.tarjeta-en-vivo[data-foco="vencimiento"] [data-zona="vencimiento"] {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* El dorso. */
+.tarjeta-dorso {
+  transform: rotateY(180deg);
+  padding: 0;
+  justify-content: flex-start;
+}
+.tarjeta-banda {
+  height: 18%;
+  margin-top: 9%;
+  background: #05070b;
+}
+.tarjeta-firma {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 15%;
+  margin: 6% 7cqw 0;
+  padding-right: 3cqw;
+  border-radius: 1cqw;
+  background: repeating-linear-gradient(90deg, #e2e8f0 0 2cqw, #cbd5e1 2cqw 4cqw);
+}
+.tarjeta-codigo {
+  padding: 0.6cqw 2cqw;
+  border-radius: 0.8cqw;
+  background: #fff;
+  color: #0f172a;
+  font-size: 3.8cqw;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  box-shadow: 0 0 0 2px var(--primary-400);
+}
+.tarjeta-leyenda {
+  margin: 5% 7cqw 0;
+  font-size: 2.6cqw;
+  line-height: 1.4;
+  color: rgba(241, 245, 249, 0.6);
+}
+.tarjeta-dorso .tarjeta-marca {
+  position: absolute;
+  right: 7cqw;
+  bottom: 6cqw;
+}
+
+/* ─── Lo que le pasa a la tarjeta con el pago ─── */
+.tarjeta-en-vivo[data-estado="pagando"] {
+  --tarjeta-halo: rgba(96, 165, 250, 0.45);
+  animation: tarjetaLatido 1.6s ease-in-out infinite;
+}
+.tarjeta-en-vivo[data-estado="aprobada"] {
+  --tarjeta-halo: rgba(34, 197, 94, 0.55);
+  animation: tarjetaAprobada 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.tarjeta-en-vivo[data-estado="rechazada"] {
+  --tarjeta-halo: rgba(239, 68, 68, 0.55);
+  animation: tarjetaRechazada 0.5s ease-in-out both;
+}
+
+@keyframes tarjetaLatido {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+@keyframes tarjetaAprobada {
+  0% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+@keyframes tarjetaRechazada {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+/* ─── El resumen, debajo de la tarjeta ─── */
+.cobro-resumen {
+  padding: 1rem 1.1rem;
+  border-radius: var(--border-radius-lg);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border-color);
+}
+.cobro-resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.cobro-resumen-fila.es-apagada { color: var(--text-muted); }
+.cobro-resumen-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-top: 0.6rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border-color);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.cobro-resumen-total strong {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+/* ─── El formulario ─── */
+.cobro-formulario {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* `hidden` solo no alcanza: el display de arriba le gana al del navegador. */
+.cobro-formulario[hidden] { display: none; }
+
+.cobro-encabezado { margin-bottom: var(--aire-titulo); }
+.cobro-titulo {
+  margin: 0 0 0.2rem;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.cobro-bajada {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* Etiqueta, campo y error de las dos columnas comparten filas (subgrid): si una etiqueta parte
+   en dos renglones ("Código de seguridad al dorso" en una columna angosta) o un campo muestra
+   su error, los dos campos siguen a la misma altura. */
+.cobro-fila-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 0.75rem;
+}
+.cobro-fila-2 > .form-group {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  align-content: start;
+}
+
+.cobro-documento {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.cobro-ayuda {
+  white-space: nowrap;
+  margin-left: 0.25rem;
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* La caja de un campo de Mercado Pago, con la misma cara que un .form-input. El iframe va
+   adentro y no hereda nada: su letra se configura en CardCheckout (ESTILO_CAMPO). */
+.campo-seguro {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 48px;
+  padding: 0 0.9rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.campo-seguro.con-foco {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 18%, transparent);
+}
+.campo-seguro.con-error,
+.cobro .form-input.con-error { border-color: var(--error-500); }
+
+.campo-seguro-icono { flex: none; color: var(--text-muted); }
+.campo-seguro.con-foco .campo-seguro-icono { color: var(--primary-400); }
+
+.campo-seguro-iframe {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+.campo-seguro-iframe iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.campo-seguro-marca {
+  flex: none;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.cobro-pagar {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.cobro-aviso {
+  margin: 0.75rem 0 0;
+  font-size: var(--font-size-sm);
+  text-align: center;
+  color: #fca5a5;
+}
+
+.cobro-seguridad {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.85rem 0 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.cobro-seguridad .icon { margin-top: 0.1em; }
+
+/* ─── Debajo de la tarjeta, cuando el pago salió ─── */
+.cobro-resultado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+.cobro-resultado strong { font-size: var(--font-size-xl); color: var(--text-primary); }
+.cobro-resultado p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.cobro-resultado .btn { margin-top: 0.5rem; }
+.cobro-resultado.es-error strong { color: #fca5a5; }
+.cobro-resultado.es-espera strong { color: #fde68a; }
+
+.cobro-sello {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--success-500);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  animation: selloAparece 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes selloAparece {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Las tres etapas: tarjeta validada → procesando el cobro → cuenta activada. */
+.cobro-pasos {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+.cobro-paso {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+/* La línea que une un paso con el siguiente. */
+.cobro-paso:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: calc(50% + 18px);
+  right: calc(-50% + 18px);
+  height: 2px;
+  background: var(--border-color-hover);
+}
+.cobro-paso-marca {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color-hover);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.cobro-paso-marca .spinner { width: 12px; height: 12px; }
+.cobro-paso.es-activo { color: var(--text-primary); }
+.cobro-paso.es-activo .cobro-paso-marca { border-color: var(--primary-500); color: var(--primary-400); }
+.cobro-paso.es-hecho { color: var(--text-secondary); }
+.cobro-paso.es-hecho .cobro-paso-marca { border-color: var(--success-500); background: var(--success-500); color: #fff; }
+.cobro-paso.es-hecho::after { background: var(--success-500); }
+
+@media (max-width: 420px) {
+  .cobro-fila-2 { grid-template-columns: minmax(0, 1fr); }
+}

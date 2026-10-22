@@ -92,13 +92,13 @@ export default function SubscriptionActionsWeb({
             Si pagaste y el sistema no lo reconoce, usá "Verificar el estado en Mercado Pago" para sincronizar.
           </p>
 
-          {/* Formulario de tarjeta (Brick MP): cambiar método de pago sin redirección ni link */}
+          {/* Formulario de tarjeta (campos seguros de MP): cambiar método de pago sin redirección ni link */}
           {showCardForm && (
             <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--border-radius-md)' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: '0.75rem' }}>
                 Ingresá la tarjeta nueva. El cobro mensual seguirá siendo {monthlyAmountLabel}.
               </p>
-              <CardCheckout amount={precioMensual} onSuccess={handleSuccess} />
+              <CardCheckout amount={precioMensual} concepto="Tu suscripción mensual" onSuccess={handleSuccess} />
             </div>
           )}
         </>
