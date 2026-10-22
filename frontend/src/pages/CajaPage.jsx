@@ -64,6 +64,7 @@ const cuandoDe = (iso) => {
 
 /** El título del total según el atajo del selector. */
 const TOTAL_DEL = { today: 'Total de hoy', week: 'Total de la semana', month: 'Total del mes', year: 'Total del año' };
+const EXCEL_DEL = { today: 'Excel de hoy', week: 'Excel de la semana', month: 'Excel del mes', year: 'Excel del año' };
 
 const diasDesde = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
 
@@ -110,11 +111,16 @@ export default function CajaPage() {
   const [hayBalance, setHayBalance] = useState(true);
 
   // ─── El Excel para el contador ───
-  // Un día elegido (arranca en hoy), o el rango del balance. Lo que se baja es lo que dice el
-  // servidor: la misma cuenta que esta pantalla y que el cierre.
-  const hoy = toLocalDateString(new Date());
-  const [diaExcel, setDiaExcel] = useState(hoy);
+  // ⭐ BAJA EL RANGO DEL SELECTOR, Y NADA MÁS. Hasta el 22/10 el título tenía su propio "Día"
+  // (arrancaba en hoy) además del Desde/Hasta del balance: el dueño ponía el período en el
+  // selector, apretaba el botón azul del título y bajaba el Excel de HOY, con el aviso de
+  // "Excel descargado". Y ese "Día" se quedaba en el día en que se abrió la pantalla. Ahora hay
+  // una sola fuente (useRangoDeFechas) y el botón dice qué período va a bajar.
   const [exportando, setExportando] = useState(false);
+  const excelDel = EXCEL_DEL[rango.periodo]
+    || (balanceDesde === balanceHasta
+      ? `Excel del ${formatDate(balanceDesde)}`
+      : `Excel del ${formatDate(balanceDesde)} al ${formatDate(balanceHasta)}`);
 
   // Lo único que se declara al cerrar.
   const [retiro, setRetiro] = useState('');
@@ -382,27 +388,19 @@ export default function CajaPage() {
         subtitle="El sistema cuenta; vos decidís cuánto se retira"
         icon="receipt"
         actions={esDueno && (
-          /* ─── EL EXCEL DEL DÍA, SIEMPRE A MANO ───
-             Es lo que el dueño le manda al contador todos los días. Arriba y en el título,
-             que queda fijo al scrollear: se elige el día (arranca en hoy) y se baja. */
-          <form
-            className="caja-excel"
-            onSubmit={(e) => { e.preventDefault(); exportar(diaExcel, diaExcel); }}
-          >
-            <label className="caja-excel-dia">
-              <span>Día</span>
-              <input
-                type="date" className="form-input" value={diaExcel} max={hoy}
-                aria-label="Día del Excel"
-                onChange={(e) => setDiaExcel(e.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={exportando || !diaExcel}>
+          /* ─── EL EXCEL PARA EL CONTADOR, SIEMPRE A MANO ───
+             Arriba y en el título, que queda fijo al scrollear. Baja el período del selector
+             del balance (arranca en hoy) y lo dice en el botón. */
+          <div className="caja-excel">
+            <button
+              type="button" className="btn btn-primary" disabled={exportando}
+              onClick={() => exportar(balanceDesde, balanceHasta)}
+            >
               {exportando
                 ? <><span className="spinner" /> Armando…</>
-                : <><Icon name="download" size="1em" /> Excel del día</>}
+                : <><Icon name="download" size="1em" /> {excelDel}</>}
             </button>
-          </form>
+          </div>
         )}
       />
 
@@ -426,15 +424,6 @@ export default function CajaPage() {
         <div className="card caja-balance">
           <div className="caja-balance-cabecera">
             <h3><Icon name="trendingUp" size="1em" /> Balance de ingresos</h3>
-            {esDueno && (
-              <button
-                type="button" className="btn btn-sm btn-secondary"
-                disabled={exportando}
-                onClick={() => exportar(balanceDesde, balanceHasta)}
-              >
-                <Icon name="download" size="1em" /> Excel de este período
-              </button>
-            )}
           </div>
           <SelectorDeFechas rango={rango} className="caja-balance-fechas" />
           {/* ⭐ Es el LIBRO DE INGRESOS: el mismo número del tablero, de Pagos y del Excel. Con el

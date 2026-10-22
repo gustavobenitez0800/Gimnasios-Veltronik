@@ -515,11 +515,11 @@ describe('🔴 una llamada que falla NO puede llevarse puesta la pantalla', () =
 
 describe('⭐ el Excel para el contador', () => {
 
-  it('el del día arranca en hoy y se baja con un clic', async () => {
+  it('arranca en hoy, lo dice el botón, y se baja con un clic', async () => {
     await pintar();
     const hoy = toLocalDateString(new Date());
 
-    await clic(boton('Excel del día'));
+    await clic(boton('Excel de hoy'));
 
     expect(cajaService.reporte).toHaveBeenCalledWith(hoy, hoy);
     expect(excel.descargarExcelDeCaja).toHaveBeenCalledWith(
@@ -527,15 +527,41 @@ describe('⭐ el Excel para el contador', () => {
     expect(toastEstable.showToast).toHaveBeenCalledWith('Excel descargado.', 'success');
   });
 
-  it('se puede elegir otro día', async () => {
+  // ⭐ EL BUG DEL 22/10: el título tenía su propio "Día" (hoy) además del Desde/Hasta del
+  // balance. Se ponía el período en el selector, se apretaba el botón azul y bajaba HOY.
+  it('⭐ baja EXACTAMENTE el rango puesto en el selector, y el botón lo dice', async () => {
     await pintar();
-    const input = container.querySelector('.caja-excel input[type="date"]');
-    await act(async () => {
-      setValorNativo.call(input, '2026-09-15');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    const [desde, hasta] = container.querySelectorAll('.caja-balance-fechas input[type="date"]');
+    for (const [input, valor] of [[desde, '2026-09-01'], [hasta, '2026-09-30']]) {
+      await act(async () => {
+        setValorNativo.call(input, valor);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
 
-    await clic(boton('Excel del día'));
+    const botonDelTitulo = container.querySelector('.caja-excel button');
+    expect(botonDelTitulo.textContent).toMatch(/Excel del 0?1\/0?9\/2026 al 30\/0?9\/2026/);
+    await clic(botonDelTitulo);
+
+    expect(cajaService.reporte).toHaveBeenCalledTimes(1);
+    expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-01', '2026-09-30');
+    // Un solo control de fechas en la pantalla: no hay otro "Día" que pueda contradecirlo.
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
+  });
+
+  it('un día solo: Desde = Hasta', async () => {
+    await pintar();
+    const [desde, hasta] = container.querySelectorAll('.caja-balance-fechas input[type="date"]');
+    for (const input of [desde, hasta]) {
+      await act(async () => {
+        setValorNativo.call(input, '2026-09-15');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+
+    const botonDelTitulo = container.querySelector('.caja-excel button');
+    expect(botonDelTitulo.textContent).toMatch(/Excel del 15\/0?9\/2026$/);
+    await clic(botonDelTitulo);
 
     expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-15', '2026-09-15');
   });
@@ -552,10 +578,10 @@ describe('⭐ el Excel para el contador', () => {
     expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-21', '2026-09-21');
   });
 
-  it('el del período baja el rango que está puesto en el balance', async () => {
+  it('con un atajo, baja el período del atajo', async () => {
     await pintar();
     await clic(boton('Mes'));
-    await clic(boton('Excel de este período'));
+    await clic(boton('Excel del mes'));
 
     const ahora = new Date();
     const primero = toLocalDateString(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
@@ -566,7 +592,7 @@ describe('⭐ el Excel para el contador', () => {
     cajaService.reporte.mockRejectedValue(new Error('sin conexión'));
     await pintar();
 
-    await clic(boton('Excel del día'));
+    await clic(boton('Excel de hoy'));
 
     expect(excel.descargarExcelDeCaja).not.toHaveBeenCalled();
     expect(toastEstable.showToast).toHaveBeenCalledWith('sin conexión', 'error');
@@ -576,8 +602,8 @@ describe('⭐ el Excel para el contador', () => {
     rolActual = 'reception';
     await pintar();
 
-    expect(boton('Excel del día')).toBeFalsy();
-    expect(boton('Excel de este período')).toBeFalsy();
+    expect(container.querySelector('.caja-excel')).toBeNull();
+    expect(boton('Excel de')).toBeFalsy();
   });
 });
 
