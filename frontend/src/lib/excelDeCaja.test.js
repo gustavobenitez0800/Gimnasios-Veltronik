@@ -6,6 +6,7 @@
 // ============================================
 
 import { describe, it, expect } from 'vitest';
+import process from 'node:process';
 import * as XLSX from 'xlsx';
 import {
   armarLibroDeCaja, nombreDelArchivo, serieDeExcel, rangoLegible, nombreDelMetodo,
@@ -189,6 +190,31 @@ describe('los nombres', () => {
     expect(serieDeExcel('2026-09-22')).toBe(46287);
     expect(serieDeExcel('2026-09-22T12:00:00')).toBe(46287.5);
     expect(serieDeExcel(null)).toBeNull();
+  });
+
+  it('⭐ el cobro de las 23:30 del último día queda en ese día, esté la PC en el huso que esté', () => {
+    const SEPTIEMBRE = {
+      ...REPORTE, desde: '2026-09-01', hasta: '2026-09-30',
+      cobros: [{ ...REPORTE.cobros[0], fecha: '2026-09-30T23:30:00', periodoDesde: '2026-09-30', periodoHasta: '2026-10-30' }],
+    };
+    const husoOriginal = process.env.TZ;
+    try {
+      for (const huso of ['America/Argentina/Buenos_Aires', 'UTC', 'Asia/Tokyo', 'America/Los_Angeles']) {
+        process.env.TZ = huso;
+        const ws = abrir(SEPTIEMBRE).Sheets.Cobros;
+        expect(XLSX.SSF.format(ws.A2.z, ws.A2.v), huso).toBe('30/09/2026');
+        expect(XLSX.SSF.format(ws.B2.z, ws.B2.v), huso).toBe('23:30');
+        expect(nombreDelArchivo(SEPTIEMBRE), huso).toBe('Gimnasio Ejemplo - Caja 01-09-2026 al 30-09-2026.xlsx');
+      }
+      // El cambio de huso tiene que haber pegado: si no, este test no probaría nada.
+      process.env.TZ = 'UTC';
+      const enUtc = new Date(2026, 8, 30).getTimezoneOffset();
+      process.env.TZ = 'Asia/Tokyo';
+      expect(new Date(2026, 8, 30).getTimezoneOffset()).not.toBe(enUtc);
+    } finally {
+      if (husoOriginal === undefined) delete process.env.TZ;
+      else process.env.TZ = husoOriginal;
+    }
   });
 
   it('las formas de pago se leen igual que en la pantalla, vengan como vengan', () => {

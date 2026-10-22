@@ -15,7 +15,7 @@ const NOMBRE = { today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' };
  * @param {string} [props.className]
  */
 export default function SelectorDeFechas({ rango, className = '' }) {
-  const { desde, hasta, periodo, elegirPeriodo, cambiarDesde, cambiarHasta } = rango;
+  const { desde, hasta, periodo, problema, elegirPeriodo, cambiarDesde, cambiarHasta } = rango;
   return (
     <div className={`selector-fechas ${className}`.trim()}>
       <label className="selector-fechas-campo">
@@ -39,6 +39,11 @@ export default function SelectorDeFechas({ rango, className = '' }) {
           </button>
         ))}
       </div>
+      {/* Lo que le pasa al rango, al lado de las fechas. Mientras se escribe, nada: el año pasa
+          por 0002 y 0202 antes de llegar a 2026, y un aviso que parpadea no ayuda. */}
+      {problema && !problema.incompleto && (
+        <p className="selector-fechas-aviso" role="alert">{problema.texto}</p>
+      )}
     </div>
   );
 }

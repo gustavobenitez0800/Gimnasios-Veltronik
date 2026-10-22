@@ -70,11 +70,14 @@ public class AccessLogService {
 
     /**
      * Accesos del tenant en un rango de fechas [start, end] (día calendario AR).
-     * start → 00:00:00, end → 23:59:59 (fin de día inclusivo). Usado por Reportes.
+     * start → 00:00:00, end → su último microsegundo (fin de día inclusivo). Usado por Reportes.
+     *
+     * <p>⚠️ No {@code LocalTime.MAX}: Postgres lo redondea a las 00:00 del día siguiente y la
+     * asistencia de septiembre se llevaba la entrada de la medianoche del 1° de octubre.</p>
      */
     public List<AccessLog> getAccessesByDateRange(LocalDate start, LocalDate end) {
         LocalDateTime from = start.atStartOfDay();
-        LocalDateTime to = end.atTime(LocalTime.MAX);
+        LocalDateTime to = CajaService.finDelDia(end);
         return accessLogRepository.findByTenantIdAndCheckInAtBetweenOrderByCheckInAtDesc(
                 TenantContextHolder.getTenantId(), from, to);
     }

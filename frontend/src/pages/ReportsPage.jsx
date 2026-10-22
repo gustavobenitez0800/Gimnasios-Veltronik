@@ -49,9 +49,11 @@ export default function ReportsPage() {
     try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch { /* sin almacenamiento: la lista vive hasta cerrar */ }
   };
 
+  // La misma regla que el selector (problemaDelRango): fechas completas, no al revés, y hasta
+  // un año, como pide el servidor. El aviso dice cuál de las tres falla.
   const rangoValido = () => {
-    if (!desde || !hasta || desde > hasta) {
-      showToast('Elegí un rango de fechas válido.', 'error');
+    if (rango.problema) {
+      showToast(rango.problema.texto, 'error');
       return false;
     }
     return true;
@@ -154,8 +156,10 @@ export default function ReportsPage() {
         {exportHistory.length === 0 ? (
           <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Lo que bajes aparece acá.</div>
         ) : (
-          exportHistory.map((exp) => (
-            <div key={`${exp.date}-${exp.type}-${exp.format}`} className="payment-history-item">
+          // Con la posición en la clave: la fecha va al minuto, y bajar dos veces lo mismo en el
+          // mismo minuto repetía la clave.
+          exportHistory.map((exp, i) => (
+            <div key={`${i}-${exp.date}-${exp.type}-${exp.format}`} className="payment-history-item">
               <div className="payment-info">
                 <span className="payment-amount">{exp.type} ({exp.format})</span>
                 <span className="payment-date">{exp.date}</span>

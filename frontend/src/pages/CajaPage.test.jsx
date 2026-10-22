@@ -515,11 +515,11 @@ describe('🔴 una llamada que falla NO puede llevarse puesta la pantalla', () =
 
 describe('⭐ el Excel para el contador', () => {
 
-  it('el del día arranca en hoy y se baja con un clic', async () => {
+  it('arranca en hoy, lo dice el botón, y se baja con un clic', async () => {
     await pintar();
     const hoy = toLocalDateString(new Date());
 
-    await clic(boton('Excel del día'));
+    await clic(boton('Excel de hoy'));
 
     expect(cajaService.reporte).toHaveBeenCalledWith(hoy, hoy);
     expect(excel.descargarExcelDeCaja).toHaveBeenCalledWith(
@@ -527,15 +527,42 @@ describe('⭐ el Excel para el contador', () => {
     expect(toastEstable.showToast).toHaveBeenCalledWith('Excel descargado.', 'success');
   });
 
-  it('se puede elegir otro día', async () => {
+  // ⭐ EL BUG DEL 22/10: el título tenía su propio "Día" (hoy) además del Desde/Hasta del
+  // balance. Se ponía el período en el selector, se apretaba el botón azul y bajaba HOY.
+  it('⭐ baja EXACTAMENTE el rango puesto en el selector, y el botón lo dice', async () => {
     await pintar();
-    const input = container.querySelector('.caja-excel input[type="date"]');
-    await act(async () => {
-      setValorNativo.call(input, '2026-09-15');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    const [desde, hasta] = container.querySelectorAll('.caja-balance-fechas input[type="date"]');
+    for (const [input, valor] of [[desde, '2026-09-01'], [hasta, '2026-09-30']]) {
+      await act(async () => {
+        setValorNativo.call(input, valor);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
 
-    await clic(boton('Excel del día'));
+    // El botón azul del título: el que se aprieta sin pensar.
+    const botonDelTitulo = container.querySelector('.caja-excel button');
+    await clic(botonDelTitulo);
+
+    expect(cajaService.reporte).toHaveBeenCalledTimes(1);
+    expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-01', '2026-09-30');
+    expect(botonDelTitulo.textContent).toMatch(/Excel del 0?1\/0?9\/2026 al 30\/0?9\/2026/);
+    // Un solo control de fechas en la pantalla: no hay otro "Día" que pueda contradecirlo.
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
+  });
+
+  it('un día solo: Desde = Hasta', async () => {
+    await pintar();
+    const [desde, hasta] = container.querySelectorAll('.caja-balance-fechas input[type="date"]');
+    for (const input of [desde, hasta]) {
+      await act(async () => {
+        setValorNativo.call(input, '2026-09-15');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+
+    const botonDelTitulo = container.querySelector('.caja-excel button');
+    expect(botonDelTitulo.textContent).toMatch(/Excel del 15\/0?9\/2026$/);
+    await clic(botonDelTitulo);
 
     expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-15', '2026-09-15');
   });
@@ -552,10 +579,10 @@ describe('⭐ el Excel para el contador', () => {
     expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-21', '2026-09-21');
   });
 
-  it('el del período baja el rango que está puesto en el balance', async () => {
+  it('con un atajo, baja el período del atajo', async () => {
     await pintar();
     await clic(boton('Mes'));
-    await clic(boton('Excel de este período'));
+    await clic(boton('Excel del mes'));
 
     const ahora = new Date();
     const primero = toLocalDateString(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
@@ -566,7 +593,7 @@ describe('⭐ el Excel para el contador', () => {
     cajaService.reporte.mockRejectedValue(new Error('sin conexión'));
     await pintar();
 
-    await clic(boton('Excel del día'));
+    await clic(boton('Excel de hoy'));
 
     expect(excel.descargarExcelDeCaja).not.toHaveBeenCalled();
     expect(toastEstable.showToast).toHaveBeenCalledWith('sin conexión', 'error');
@@ -576,8 +603,8 @@ describe('⭐ el Excel para el contador', () => {
     rolActual = 'reception';
     await pintar();
 
-    expect(boton('Excel del día')).toBeFalsy();
-    expect(boton('Excel de este período')).toBeFalsy();
+    expect(container.querySelector('.caja-excel')).toBeNull();
+    expect(boton('Excel de')).toBeFalsy();
   });
 });
 
@@ -779,5 +806,75 @@ describe('⭐ las correcciones de días ya cerrados (V88)', () => {
   it('sin correcciones no aparece nada', async () => {
     const texto = await pintar();
     expect(texto).not.toContain('Correcciones de días ya cerrados');
+  });
+});
+
+describe('⭐ el balance mientras se escriben las fechas', () => {
+  /** Pone una fecha en el Desde (0) o el Hasta (1) del balance, como el campo de Chrome. */
+  async function poner(cual, valor) {
+    const input = container.querySelectorAll('.caja-balance-fechas input[type="date"]')[cual];
+    await act(async () => {
+      setValorNativo.call(input, valor);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await Promise.resolve(); });
+    }
+  }
+
+  // 🔴 Escribiendo 2026 el campo avisa 0002, 0020 y 0202. La Caja le preguntaba al servidor por
+  // el 0002-09-01, el servidor lo rechazaba por largo, y el catch escondía el balance —con el
+  // selector adentro— en medio del tecleo.
+  it('🔴 el año a medio escribir no se le pregunta al servidor, y el balance NO desaparece', async () => {
+    await pintar();
+    cajaService.balanceDeRango.mockClear();
+    cajaService.balanceDeRango.mockRejectedValue(new Error('Elegí un rango de hasta un año.'));
+
+    for (const anio of ['0002', '0020', '0202']) {
+      await poner(0, `${anio}-09-01`);
+      expect(container.querySelector('.caja-balance-fechas'), anio).toBeTruthy();
+      expect(container.querySelector('.caja-excel button').disabled, anio).toBe(true);
+    }
+    expect(cajaService.balanceDeRango).not.toHaveBeenCalled();
+    // Sin números de otras fechas con el título del rango a medio escribir.
+    expect(container.querySelector('.caja-balance-cifras')).toBeNull();
+
+    cajaService.balanceDeRango.mockResolvedValue({ total: 33000, cantidadCobros: 6, efectivo: 33000, digital: 0 });
+    await poner(0, '2026-09-01');
+    expect(cajaService.balanceDeRango).toHaveBeenCalledTimes(1);
+    expect(cajaService.balanceDeRango).toHaveBeenCalledWith('2026-09-01', toLocalDateString(new Date()));
+    expect(container.querySelector('.caja-excel button').disabled).toBe(false);
+  });
+
+  it('un rango al revés lo dice al lado de las fechas, y no baja nada', async () => {
+    await pintar();
+    await poner(0, '2026-09-20');
+    await poner(1, '2026-09-10');
+
+    expect(container.querySelector('.selector-fechas-aviso').textContent).toMatch(/posterior/);
+    expect(container.querySelector('.caja-excel button').disabled).toBe(true);
+    expect(cajaService.reporte).not.toHaveBeenCalled();
+  });
+
+  it('⭐ una respuesta vieja que llega tarde no pisa a la del rango puesto', async () => {
+    await pintar();
+    const pendientes = {};
+    cajaService.balanceDeRango.mockImplementation((desde) => new Promise((resolver) => {
+      pendientes[desde] = resolver;
+    }));
+
+    await poner(0, '2026-09-01');
+    await poner(0, '2026-09-15');
+    // Contesta primero el del rango puesto, y después el viejo.
+    await act(async () => { pendientes['2026-09-15']({ total: 222222, cantidadCobros: 2 }); });
+    await act(async () => { pendientes['2026-09-01']({ total: 111111, cantidadCobros: 1 }); });
+    for (let i = 0; i < 4; i++) {
+      await act(async () => { await Promise.resolve(); });
+    }
+
+    const total = container.querySelector('.caja-cifra.es-total').textContent;
+    expect(total).toContain('222.222');
+    expect(total).not.toContain('111.111');
+    expect(container.querySelector('.caja-balance-cifras').classList.contains('is-actualizando')).toBe(false);
   });
 });

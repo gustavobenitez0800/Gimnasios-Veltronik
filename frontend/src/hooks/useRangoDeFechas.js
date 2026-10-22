@@ -12,9 +12,44 @@ import { getQuickDates } from '../lib/utils';
 /** Los atajos, en el orden en que se muestran. */
 export const PERIODOS_RAPIDOS = ['today', 'week', 'month', 'year'];
 
+/** El tope del servidor para un rango (CajaService.DIAS_MAXIMOS_DEL_RANGO): un año y un poco. */
+export const DIAS_MAXIMOS_DEL_RANGO = 400;
+
+const DIA = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 'AAAA-MM-DD' completo y con un año de verdad → su día en milisegundos (UTC); si no, null. */
+function diaCompleto(fecha) {
+  const m = DIA.exec(fecha || '');
+  // ⚠️ Mientras se escribe el año, el campo de Chrome pasa por 0002, 0020 y 0202 antes de llegar
+  // a 2026, y avisa en cada paso. Ningún gimnasio tiene datos de antes del 2000.
+  if (!m || Number(m[1]) < 2000) return null;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/**
+ * ¿Se puede pedir este rango? null si sí; si no, qué le pasa, dicho para el dueño.
+ *
+ * ⭐ ES LA ÚNICA REGLA, para todas las pantallas que usan el selector. Antes cada una tenía la
+ * suya ("desde > hasta") y ninguna miraba el año a medio escribir: la Caja le preguntaba al
+ * servidor por el 0002-09-01, el servidor lo rechazaba por largo, y la Caja escondía el balance
+ * —con el selector adentro— en medio del tecleo.
+ *
+ * @returns {null | { texto: string, incompleto?: boolean }} `incompleto`: todavía se está
+ *          escribiendo; no hace falta avisar, pero tampoco se pregunta nada.
+ */
+export function problemaDelRango(desde, hasta) {
+  const d = diaCompleto(desde);
+  const h = diaCompleto(hasta);
+  if (d == null || h == null) return { texto: 'Completá las dos fechas.', incompleto: true };
+  if (d > h) return { texto: 'La fecha «Desde» es posterior a «Hasta».' };
+  if ((h - d) / 86400000 > DIAS_MAXIMOS_DEL_RANGO) return { texto: 'Elegí un rango de hasta un año.' };
+  return null;
+}
+
 /**
  * @param {'today'|'week'|'month'|'year'} inicial el atajo con el que arranca la pantalla
  * @returns {{ desde: string, hasta: string, periodo: string,
+ *             problema: ReturnType<typeof problemaDelRango>,
  *             elegirPeriodo: (p: string) => void,
  *             cambiarDesde: (v: string) => void, cambiarHasta: (v: string) => void }}
  */
@@ -57,5 +92,6 @@ export function useRangoDeFechas(inicial = 'today') {
     };
   }, [periodo]);
 
-  return { desde, hasta, periodo, elegirPeriodo, cambiarDesde, cambiarHasta };
+  const problema = problemaDelRango(desde, hasta);
+  return { desde, hasta, periodo, problema, elegirPeriodo, cambiarDesde, cambiarHasta };
 }
