@@ -33,8 +33,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Evita el delay de 300ms y el zoom por double-tap en controles */
-button, a, input, select, textarea, [role="button"] {
+/* Sin zoom por doble toque en NINGÚN lado (y sin la demora de 300 ms). Estaba solo en botones,
+   enlaces y campos: dos toques rápidos sobre una tarjeta, una fila o un espacio vacío agrandaban
+   la pantalla sin querer (lo reportó el dueño el 2026-10-22). `manipulation` deja deslizar y
+   pellizcar para hacer zoom a propósito: solo apaga el doble toque. Va en cada elemento y no
+   solo en <html> porque la regla se corta en cada caja con scroll propio (el menú, una tabla). */
+*, *::before, *::after {
   touch-action: manipulation;
 }
 
@@ -195,15 +199,50 @@ button, a, input, select, textarea, [role="button"] {
   /* El orbe que sigue al mouse no tiene sentido sin mouse (y quema GPU) */
   .aurora-mouse-orb { display: none; }
 
-  /* Hovers con transform se disparan con el tap y quedan "pegados" */
+  /* Ningún campo con letra de menos de 16 px en una pantalla táctil: el celular agranda la
+     pantalla entera al tocarlo (y hay que alejarla a mano). El arancel de cada socio, en Socios,
+     tenía 12,75 px: tocarlo para cambiar el arancel hacía zoom (2026-10-22). Los .form-* ya
+     tienen su regla en el bloque del celular. */
+  .arancel-select { font-size: 16px; }
+
+  /* Los "pasar el mouse" que mueven o agrandan algo se disparan con el TOQUE y quedan pegados
+     hasta que se toca otra cosa: la tarjeta queda elevada, el botón agrandado, y cada toque
+     redibuja sombras. La lista cubre todos los que había (barrido del 2026-10-22; eran 6, había
+     31). `!important` porque varios originales son `:hover:not(:disabled)` y ganarían; el
+     achique al apretar (`.btn:active`) también es `!important` y más específico: sigue andando.
+     Un "pasar el mouse" nuevo que mueva algo va acá, o adentro de `@media (hover: hover)`. */
   .card-hover:hover,
   .lobby-card:hover,
+  .lobby-card-delete:hover,
   .stat-card:hover,
+  .stat-card:hover .stat-icon,
   .table tbody tr:hover,
   .insight-item:hover,
-  .day-option:hover {
-    transform: none;
+  .quick-action:hover,
+  .day-option:hover,
+  .class-card:hover,
+  .report-card:hover,
+  .member-card:hover,
+  .btn-primary:hover,
+  .btn-danger:hover,
+  .auth-submit:hover,
+  .btn-google:hover,
+  .chip-remove:hover,
+  .logo-emoji-option:hover,
+  .payment-warning-btn:hover,
+  .premium-btn-primary:hover,
+  .premium-btn-subscribe:hover,
+  [class*="action-btn-"]:hover {
+    transform: none !important;
   }
+  /* Los botones de acción de cada socio achican al apretarlos; su regla no es !important. */
+  [class*="action-btn-"]:active { transform: scale(0.96) !important; }
+  /* Y las sombras grandes de las tarjetas no cambian con el toque (redibujarlas es lo caro). */
+  .stat-card:hover,
+  .card-hover:hover {
+    box-shadow: var(--card-shadow-base), inset 0 1px 0 var(--card-highlight);
+  }
+  .table tbody tr:hover { box-shadow: none; }
 }
 
 /* ────────────────────────────────────────────
@@ -337,8 +376,14 @@ button, a, input, select, textarea, [role="button"] {
   /* El botón ✕ de cerrar solo tiene sentido cuando el sidebar es un drawer */
   .sidebar-close { display: inline-flex; }
 
-  /* Drawer abierto → congelar el fondo (si no, la página scrollea detrás del menú) */
-  body.sidebar-drawer-open { overflow: hidden; }
+  /* Drawer abierto → la página de atrás no se mueve. Antes era `overflow: hidden` en el <body>,
+     que obligaba a re-armar la página entera al abrir y cerrar el menú (en Socios, 50 tarjetas:
+     el tirón que reportó el dueño, 2026-10-22). Ahora: arrastrar sobre el menú no mueve nada
+     (`none`), salvo su lista de opciones, que desliza sola y no le pasa el envión a la página
+     (`overscroll-behavior: contain`, arriba en las fundaciones). La capa oscura hace lo mismo
+     (layout.css). */
+  .sidebar { touch-action: none; }
+  .sidebar-nav { touch-action: pan-y; }
 
   .main-content { margin-left: 0; }
 
@@ -447,6 +492,13 @@ button, a, input, select, textarea, [role="button"] {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-sm);
+    /* ⭐ Se arman solo las tarjetas que están a la vista. Con 50 socios la lista mide ~10.500 px,
+       y cualquier cosa que obligara a re-armar la página (abrir el menú, una ventana) pagaba
+       las 50: medido el 2026-10-22, 311 ms con el procesador de un celular común, para mostrar
+       tres. El lugar de las de abajo queda reservado (`auto` recuerda lo que midió cada una),
+       así la barra de scroll no salta. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 250px;
   }
 
   .table:has(td[data-label]) td {

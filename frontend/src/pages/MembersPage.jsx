@@ -5,7 +5,7 @@
 // export a CSV. Cómo se llama al socio lo dice lib/gym.
 // ============================================
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { paymentService, errorService } from '../services';
@@ -83,6 +83,49 @@ const ESTADO_DE_ANTES = { active: 'al_dia', expired: 'vencido', inactive: 'baja'
  */
 const esSinCuota = (member) => member?.status === 'active'
   && (!member.situacion || member.situacion === 'SIN_DATOS');
+
+// ─── DÍAS: lo dice el BACKEND, acá solo se pinta ───
+//
+// Esta función calculaba los días por su cuenta y daba MAL. Para el mismo socio, el aviso
+// del mostrador decía "hace 2 días" y esta lista "4d vencido". Dos errores que se sumaban:
+//   · el socio llegaba acá con la hora del vencimiento recortada (solo la fecha), y
+//   · un texto "2026-08-27" en JavaScript se lee como UTC — en Argentina, tres horas antes.
+//
+// Ahora el número viene calculado por la misma clase del backend que decide qué ve el socio
+// al escanear el QR y qué se le avisa al mostrador. Un socio no puede deber dos cantidades
+// distintas de días según qué pantalla se mire.
+const getDaysInfo = (member) => {
+  const { situacion, diasVencido, diasRestantes } = member || {};
+  // ⭐ "SIN CUOTA" Y NO UN GUION.
+  //
+  // Un guion se lee como "falta el dato", y acá el dato está: ese socio NO TIENE cobertura.
+  // Desde que el alta dejó de regalar un mes (ADR-013), este estado es el de todo socio
+  // recién dado de alta hasta que se le cobra — y decirle "-" al lado de un estado que dice
+  // ACTIVO hace que se vea igual que uno al día.
+  //
+  // No dice "sin pagar" a propósito: la política del servidor distingue "sin fecha cargada"
+  // de "debe" (un socio migrado sin fecha tampoco pagó por acá, y afirmar que no pagó sería
+  // inventar). "Sin cuota" es cierto en los dos casos.
+  //
+  // La baja se pregunta PRIMERO: al que ya no es socio le corresponde decir "baja", no
+  // "sin cuota". Y por `status` además de por `situacion`, porque la copia local puede
+  // mandar el socio sin situación calculada.
+  if (situacion === 'INACTIVO' || member?.status === 'inactive') {
+    return { text: 'baja', className: 'days-none' };
+  }
+  if (esSinCuota(member)) return { text: 'sin cuota', className: 'days-none' };
+
+  if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
+    return { text: `${diasVencido}d vencido`, className: 'days-expired' };
+  }
+  // Días y nada más: el cupo de clases se dio de baja (2026-09-02). Se paga el mes y se
+  // entra; se vence y hay que renovar.
+  // Rojo es SOLO para el vencido: un socio al día con los días en rojo parecía moroso. El que
+  // vence esta semana va en ámbar, que es "atención", no "debe".
+  const d = diasRestantes ?? 0;
+  if (d <= 7) return { text: `${d}d`, className: 'days-warning' };
+  return { text: `${d}d`, className: 'days-ok' };
+};
 
 export default function MembersPage() {
   const { showToast } = useToast();
@@ -542,48 +585,137 @@ export default function MembersPage() {
     window.open(enlace, '_blank', 'noopener');
   };
 
-  // ─── DÍAS: lo dice el BACKEND, acá solo se pinta ───
+  // ⭐ LAS FILAS SE DIBUJAN SOLO CUANDO CAMBIA ALGO DE ELLAS.
   //
-  // Esta función calculaba los días por su cuenta y daba MAL. Para el mismo socio, el aviso
-  // del mostrador decía "hace 2 días" y esta lista "4d vencido". Dos errores que se sumaban:
-  //   · el socio llegaba acá con la hora del vencimiento recortada (solo la fecha), y
-  //   · un texto "2026-08-27" en JavaScript se lee como UTC — en Argentina, tres horas antes.
+  // Esta pantalla tiene en el mismo componente la lista y todas sus ventanas (el alta, el cobro,
+  // el historial, la papelera). Sin esto, abrir cualquier ventana —o cualquier cambio de estado—
+  // volvía a dibujar los 50 socios con su selector, sus días y sus botones: medido el
+  // 2026-10-22 con el procesador de un celular común, abrir el alta tardaba 270 ms en responder.
+  // Ahora las filas se recalculan solo si cambia lo que muestran (la lista, la selección, los
+  // aranceles, el que se está guardando).
   //
-  // Ahora el número viene calculado por la misma clase del backend que decide qué ve el socio
-  // al escanear el QR y qué se le avisa al mostrador. Un socio no puede deber dos cantidades
-  // distintas de días según qué pantalla se mire.
-  const getDaysInfo = (member) => {
-    const { situacion, diasVencido, diasRestantes } = member || {};
-    // ⭐ "SIN CUOTA" Y NO UN GUION.
-    //
-    // Un guion se lee como "falta el dato", y acá el dato está: ese socio NO TIENE cobertura.
-    // Desde que el alta dejó de regalar un mes (ADR-013), este estado es el de todo socio
-    // recién dado de alta hasta que se le cobra — y decirle "-" al lado de un estado que dice
-    // ACTIVO hace que se vea igual que uno al día.
-    //
-    // No dice "sin pagar" a propósito: la política del servidor distingue "sin fecha cargada"
-    // de "debe" (un socio migrado sin fecha tampoco pagó por acá, y afirmar que no pagó sería
-    // inventar). "Sin cuota" es cierto en los dos casos.
-    //
-    // La baja se pregunta PRIMERO: al que ya no es socio le corresponde decir "baja", no
-    // "sin cuota". Y por `status` además de por `situacion`, porque la copia local puede
-    // mandar el socio sin situación calculada.
-    if (situacion === 'INACTIVO' || member?.status === 'inactive') {
-      return { text: 'baja', className: 'days-none' };
-    }
-    if (esSinCuota(member)) return { text: 'sin cuota', className: 'days-none' };
-
-    if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
-      return { text: `${diasVencido}d vencido`, className: 'days-expired' };
-    }
-    // Días y nada más: el cupo de clases se dio de baja (2026-09-02). Se paga el mes y se
-    // entra; se vence y hay que renovar.
-    // Rojo es SOLO para el vencido: un socio al día con los días en rojo parecía moroso. El que
-    // vence esta semana va en ámbar, que es "atención", no "debe".
-    const d = diasRestantes ?? 0;
-    if (d <= 7) return { text: `${d}d`, className: 'days-warning' };
-    return { text: `${d}d`, className: 'days-ok' };
-  };
+  // Los botones no capturan las funciones del momento en que se dibujó la fila: llaman a
+  // `acciones.current`, que siempre tiene las vigentes. Así una fila que no se re-dibujó no
+  // puede usar datos viejos.
+  const acciones = useRef(null);
+  const cobrar = useCallback((socio) => setCobrando(socio), []);
+  useEffect(() => {
+    acciones.current = {
+      alternarSeleccion,
+      asignarArancel,
+      cobrar,
+      editar: (socio) => modal.open(socio, MEMBER_MAP_FN),
+      whatsapp: openWhatsApp,
+      historial: openPaymentsHistory,
+      foto: tomarFoto,
+      eliminar: (socio) => deleteDialog.open(socio.id, socio.fullName),
+    };
+  });
+  const molineteDisponible = molinete.disponible;
+  const filasDeSocios = useMemo(() => (
+    pagedMembers.map((member) => {
+      const daysInfo = getDaysInfo(member);
+      return (
+        <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+          {puedeAsignarMasivo && (
+            <td className="col-check">
+              <input
+                type="checkbox"
+                checked={seleccion.has(member.id)}
+                onChange={() => acciones.current.alternarSeleccion(member.id)}
+                aria-label={`Seleccionar a ${member.fullName}`}
+              />
+            </td>
+          )}
+          <td data-label="Nombre"><strong>{member.fullName}</strong></td>
+          <td data-label="DNI" className="col-dni">{member.dni || '-'}</td>
+          <td data-label="Teléfono" className="col-tel">{member.phone || '-'}</td>
+          {/* ⭐ El chip decía ACTIVO para alguien que nunca pagó, y el estado es lo
+              primero que se mira: un socio recién cargado se veía idéntico a uno al
+              día. Ámbar y no rojo — no debe nada, todavía no se le cobró. */}
+          <td data-label="Estado" className="col-estado">
+            <EstadoDelSocio socio={member} />
+          </td>
+          {hayAranceles && (
+            /* ⭐ El arancel se elige acá mismo, sin abrir la ficha. Con 383
+               socios, abrir un modal por cada uno no es una opción: son dos
+               clics contra cinco pasos, y la fila no se mueve de lugar. */
+            <td data-label="Arancel">
+              <select
+                className={member.planId ? 'arancel-select' : 'arancel-select sin-arancel'}
+                value={member.planId || ''}
+                disabled={guardandoArancel === member.id}
+                onChange={(e) => acciones.current.asignarArancel(member, e.target.value)}
+                title={member.planNombre || 'Sin arancel'}
+              >
+                <option value="">Sin arancel</option>
+                {/* El arancel que el socio tiene puede estar dado de baja y no
+                    venir entre los vigentes. Sin esta opción el select se vería
+                    vacío, y el primer cambio se lo borraría sin querer. */}
+                {member.planId && !aranceles.some((a) => a.id === member.planId) && (
+                  <option value={member.planId}>
+                    {member.planNombre || 'Arancel viejo'} · de baja
+                  </option>
+                )}
+                {aranceles.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </td>
+          )}
+          <td data-label="Asistencia" className="col-asistencia">
+            <DaySelector selectedDays={member.attendanceDays || []} readOnly />
+          </td>
+          <td data-label="Días">
+            <span className={`days-countdown ${daysInfo.className}`}>{daysInfo.text}</span>
+          </td>
+          <td data-label="Vencimiento" className="col-vence">{formatDate(member.membershipEnd)}</td>
+          <td data-label="Acciones">
+            <div className="table-actions">
+              <button
+                className="action-btn-quick action-btn-charge"
+                /* Antes esto SALTABA a Pagos con un formulario vacío: había que
+                   buscar de nuevo al socio, elegir el arancel, escribir el monto
+                   y las fechas. Cinco pasos y un cambio de pantalla para la
+                   operación más común del gimnasio. */
+                onClick={() => acciones.current.cobrar(member)}
+                title="Cobrar cuota"
+              ><Icon name="cash" size="1em" /></button>
+              <button
+                className="action-btn-quick action-btn-payment"
+                onClick={() => acciones.current.editar(member)}
+                title="Editar"
+              ><Icon name="edit" size="1em" /></button>
+              {/* Sin teléfono queda el hueco, no se corre la fila: los botones
+                  de todas las filas quedan uno debajo del otro. */}
+              {member.phone ? (
+                <button
+                  className="action-btn-quick action-btn-whatsapp"
+                  onClick={() => acciones.current.whatsapp(member)}
+                  title="WhatsApp"
+                ><Icon name="messageCircle" size="1em" /></button>
+              ) : <span className="action-btn-hueco" aria-hidden="true" />}
+              {/* Lo que se usa poco, o no tiene vuelta atrás, va en el menú. Con
+                  cinco botones de colores la fila medía 94 px y "Eliminar" quedaba
+                  a un dedo de "Cobrar". */}
+              <MenuDeAcciones
+                titulo={`Más acciones para ${member.fullName}`}
+                acciones={[
+                  { etiqueta: 'Historial de pagos', icono: 'creditCard', onClick: () => acciones.current.historial(member) },
+                  ...(molineteDisponible
+                    ? [{ etiqueta: 'Tomar la foto en el molinete', icono: 'camera', onClick: () => acciones.current.foto(member) }]
+                    : []),
+                  ...(canDelete
+                    ? [{ etiqueta: 'Eliminar', icono: 'trash', peligro: true, onClick: () => acciones.current.eliminar(member) }]
+                    : []),
+                ]}
+              />
+            </div>
+          </td>
+        </tr>
+      );
+    })
+  ), [pagedMembers, puedeAsignarMasivo, seleccion, hayAranceles, aranceles, guardandoArancel, isFetching, molineteDisponible, canDelete]);
 
   return (
     <div className="members-page">
@@ -736,108 +868,7 @@ export default function MembersPage() {
                   </td>
                 </tr>
               ) : (
-                pagedMembers.map((member) => {
-                  const daysInfo = getDaysInfo(member);
-                  return (
-                    <tr key={member.id} style={{ opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.2s' }}>
-                      {puedeAsignarMasivo && (
-                        <td className="col-check">
-                          <input
-                            type="checkbox"
-                            checked={seleccion.has(member.id)}
-                            onChange={() => alternarSeleccion(member.id)}
-                            aria-label={`Seleccionar a ${member.fullName}`}
-                          />
-                        </td>
-                      )}
-                      <td data-label="Nombre"><strong>{member.fullName}</strong></td>
-                      <td data-label="DNI" className="col-dni">{member.dni || '-'}</td>
-                      <td data-label="Teléfono" className="col-tel">{member.phone || '-'}</td>
-                      {/* ⭐ El chip decía ACTIVO para alguien que nunca pagó, y el estado es lo
-                          primero que se mira: un socio recién cargado se veía idéntico a uno al
-                          día. Ámbar y no rojo — no debe nada, todavía no se le cobró. */}
-                      <td data-label="Estado" className="col-estado">
-                        <EstadoDelSocio socio={member} />
-                      </td>
-                      {hayAranceles && (
-                        /* ⭐ El arancel se elige acá mismo, sin abrir la ficha. Con 383
-                           socios, abrir un modal por cada uno no es una opción: son dos
-                           clics contra cinco pasos, y la fila no se mueve de lugar. */
-                        <td data-label="Arancel">
-                          <select
-                            className={member.planId ? 'arancel-select' : 'arancel-select sin-arancel'}
-                            value={member.planId || ''}
-                            disabled={guardandoArancel === member.id}
-                            onChange={(e) => asignarArancel(member, e.target.value)}
-                            title={member.planNombre || 'Sin arancel'}
-                          >
-                            <option value="">Sin arancel</option>
-                            {/* El arancel que el socio tiene puede estar dado de baja y no
-                                venir entre los vigentes. Sin esta opción el select se vería
-                                vacío, y el primer cambio se lo borraría sin querer. */}
-                            {member.planId && !aranceles.some((a) => a.id === member.planId) && (
-                              <option value={member.planId}>
-                                {member.planNombre || 'Arancel viejo'} · de baja
-                              </option>
-                            )}
-                            {aranceles.map((a) => (
-                              <option key={a.id} value={a.id}>{a.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                      )}
-                      <td data-label="Asistencia" className="col-asistencia">
-                        <DaySelector selectedDays={member.attendanceDays || []} readOnly />
-                      </td>
-                      <td data-label="Días">
-                        <span className={`days-countdown ${daysInfo.className}`}>{daysInfo.text}</span>
-                      </td>
-                      <td data-label="Vencimiento" className="col-vence">{formatDate(member.membershipEnd)}</td>
-                      <td data-label="Acciones">
-                        <div className="table-actions">
-                          <button
-                            className="action-btn-quick action-btn-charge"
-                            /* Antes esto SALTABA a Pagos con un formulario vacío: había que
-                               buscar de nuevo al socio, elegir el arancel, escribir el monto
-                               y las fechas. Cinco pasos y un cambio de pantalla para la
-                               operación más común del gimnasio. */
-                            onClick={() => setCobrando(member)}
-                            title="Cobrar cuota"
-                          ><Icon name="cash" size="1em" /></button>
-                          <button
-                            className="action-btn-quick action-btn-payment"
-                            onClick={() => modal.open(member, MEMBER_MAP_FN)}
-                            title="Editar"
-                          ><Icon name="edit" size="1em" /></button>
-                          {/* Sin teléfono queda el hueco, no se corre la fila: los botones
-                              de todas las filas quedan uno debajo del otro. */}
-                          {member.phone ? (
-                            <button
-                              className="action-btn-quick action-btn-whatsapp"
-                              onClick={() => openWhatsApp(member)}
-                              title="WhatsApp"
-                            ><Icon name="messageCircle" size="1em" /></button>
-                          ) : <span className="action-btn-hueco" aria-hidden="true" />}
-                          {/* Lo que se usa poco, o no tiene vuelta atrás, va en el menú. Con
-                              cinco botones de colores la fila medía 94 px y "Eliminar" quedaba
-                              a un dedo de "Cobrar". */}
-                          <MenuDeAcciones
-                            titulo={`Más acciones para ${member.fullName}`}
-                            acciones={[
-                              { etiqueta: 'Historial de pagos', icono: 'creditCard', onClick: () => openPaymentsHistory(member) },
-                              ...(molinete.disponible
-                                ? [{ etiqueta: 'Tomar la foto en el molinete', icono: 'camera', onClick: () => tomarFoto(member) }]
-                                : []),
-                              ...(canDelete
-                                ? [{ etiqueta: 'Eliminar', icono: 'trash', peligro: true, onClick: () => deleteDialog.open(member.id, member.fullName) }]
-                                : []),
-                            ]}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                filasDeSocios
               )}
             </tbody>
           </table>

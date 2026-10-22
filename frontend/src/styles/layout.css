@@ -44,13 +44,21 @@
   pointer-events: none;
   visibility: hidden;
 
-  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+  /* Arrastrar el dedo sobre la capa oscura no mueve la página de atrás. Esto reemplaza al
+     `overflow: hidden` que se le ponía al <body> con el menú abierto: ese bloqueo obligaba a
+     re-armar la página entera al abrir y al cerrar (2026-10-22). */
+  touch-action: none;
+
+  /* `visibility` cambia de golpe al FINAL del fundido (0s con demora), no animada: animarla
+     recalculaba estilos en cada cuadro de la apertura del menú. */
+  transition: opacity var(--transition-normal), visibility 0s linear var(--transition-normal);
 }
 
 .sidebar-overlay.overlay-show {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+  transition: opacity var(--transition-normal), visibility 0s;
 }
 
 .sidebar-header {

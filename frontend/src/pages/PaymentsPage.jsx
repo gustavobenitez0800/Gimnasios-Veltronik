@@ -13,7 +13,7 @@ import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth, sumarPlata } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
 import { FORMAS_DE_PAGO, OTRA_FORMA } from '../lib/formasDePago';
-import { useModal, invalidateQueries } from '../hooks';
+import { useModal, invalidateQueries, useDebouncedSearch } from '../hooks';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader } from '../components/Layout';
 import { StatCard, FilterBar, Badge } from '../components/ui';
@@ -97,21 +97,16 @@ export default function PaymentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // El buscador espera a que se termine de escribir y NO guarda cada letra en la página: con
+  // cada letra en el estado, cada tecla re-dibujaba la lista entera de cobros. Medido el
+  // 2026-10-22 con el procesador de un celular común: tipear "fede" trababa la pantalla 4 s.
+  // Es el mismo hook que usa Socios.
+  const { search: debouncedSearch, handleSearchInput } = useDebouncedSearch(400);
   const [methodFilter, setMethodFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   // Desde/Hasta y el atajo puesto: el mismo selector que la Caja (useRangoDeFechas).
   const rango = useRangoDeFechas('month');
   const { desde: dateFrom, hasta: dateTo } = rango;
-
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-    }, 400);
-    return () => clearTimeout(handler);
-  }, [searchInput]);
 
   // (El "Hasta" que se quedaba en ayer pasada la medianoche lo resuelve useRangoDeFechas.)
 
@@ -471,7 +466,7 @@ export default function PaymentsPage() {
 
       {/* Filters */}
       <FilterBar
-        onSearch={(e) => setSearchInput(e.target.value)}
+        onSearch={handleSearchInput}
         searchPlaceholder="Buscar por socio..."
         searchMaxWidth={280}
         filters={[

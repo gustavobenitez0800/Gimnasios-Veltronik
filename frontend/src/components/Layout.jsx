@@ -86,17 +86,15 @@ export function AppLayout() {
     toggleRef.current?.focus();
   }, []);
 
-  // Drawer móvil abierto → bloquear el scroll del fondo y cerrar con Escape.
-  // El lock vive en <body> (CSS solo lo aplica en mobile); el listener se limpia al cerrar.
+  // Drawer móvil abierto → se cierra con Escape; el listener se limpia al cerrar.
+  // Que la página de atrás no se mueva lo resuelve el CSS (touch-action en el menú y la capa
+  // oscura): el bloqueo que vivía acá, una clase en <body> con `overflow: hidden`, obligaba al
+  // navegador a re-armar la página entera al abrir y al cerrar el menú (2026-10-22).
   useEffect(() => {
     if (!sidebarOpen) return;
-    document.body.classList.add('sidebar-drawer-open');
     const onKey = (e) => { if (e.key === 'Escape') closeSidebar(); };
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.classList.remove('sidebar-drawer-open');
-      document.removeEventListener('keydown', onKey);
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [sidebarOpen, closeSidebar]);
 
   // Payment warning banner logic
