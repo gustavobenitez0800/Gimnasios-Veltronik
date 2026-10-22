@@ -24,6 +24,13 @@ export default defineConfig({
   // sitemap.
   trailingSlash: 'never',
 
+  // La página del molinete se bajó el 2026-10-22: la web habla del sistema, y el molinete es
+  // un agregado que se ofrece al que lo pide. Google ya la tenía indexada, así que la dirección
+  // vieja lleva a la portada (301) en vez de a un 404. No sacar esto aunque nadie la enlace.
+  redirects: {
+    '/molinete-facial': '/',
+  },
+
   integrations: [
     sitemap({
       // El endpoint de descarga es un redirect, no una página: no va al sitemap.

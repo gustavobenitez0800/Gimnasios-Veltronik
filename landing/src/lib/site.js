@@ -105,9 +105,9 @@ export const MEDICION = {
 export const HAY_MEDICION = Boolean(MEDICION.ga4 || MEDICION.metaPixel);
 
 export const NAV = [
+  { href: '/#el-sistema', label: 'El sistema' },
   { href: '/#un-dia', label: 'Cómo funciona' },
   { href: '/#precios', label: 'Precios' },
-  { href: '/molinete-facial', label: 'Molinete facial' },
   { href: '/descargar', label: 'Descargar' },
 ];
 

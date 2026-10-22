@@ -2,17 +2,28 @@
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
 import Marca from '../components/Marca.astro';
-import MostradorDemo from '../components/MostradorDemo.astro';
-import Calculadora from '../components/Calculadora.astro';
+import Captura from '../components/Captura.astro';
 import { appRoute, SITE_URL, CONTACTO, REDES, CIUDAD, waLink } from '../lib/site.js';
+import tablero from '../assets/sistema/tablero.webp';
+import tableroCelular from '../assets/sistema/tablero-celular.webp';
+import mostrador from '../assets/sistema/mostrador.webp';
+import socios from '../assets/sistema/socios.webp';
+import caja from '../assets/sistema/caja.webp';
+import retencionCelular from '../assets/sistema/retencion-celular.webp';
+import adentro from '../assets/sistema/adentro.webp';
+import reportes from '../assets/sistema/reportes.webp';
+import resumen from '../assets/sistema/resumen.webp';
 import { getPlanes, formatoPrecio } from '../lib/plans.js';
 
 // ============================================
-// LA PÁGINA PRINCIPAL (rehecha el 2026-09-23)
+// LA PÁGINA PRINCIPAL (rehecha el 2026-09-23, el sistema al frente desde el 2026-10-22)
 // ============================================
-// Antes era la página de software de siempre: hero centrado, chips y nueve tarjetas iguales.
-// Ahora cuenta el gimnasio: primero lo MUESTRA (el mostrador andando), después le hace al
-// dueño la cuenta de cuánto se le va por la puerta, y después le cuenta un día entero.
+// La web es para conseguir gimnasios que usen el SISTEMA: primero lo muestra (capturas de
+// verdad, no una maqueta), después lo cuenta por dentro y en un día entero.
+//
+// El 2026-10-22 se bajaron la demo del mostrador, la calculadora y la sección del molinete
+// (con su página): lo interactivo distraía del sistema, y el molinete es un agregado que se
+// ofrece al que lo pide. El plan con control de acceso sigue en precios.
 //
 // ⛔ REGLA: todo lo que dice esta página tiene que ser cierto HOY en el producto. Sin
 // testimonios inventados, sin "+500 gimnasios", sin porcentajes de estudio. El repositorio y
@@ -21,7 +32,7 @@ import { getPlanes, formatoPrecio } from '../lib/plans.js';
 
 // El precio lo trae el backend en build time. Ver src/lib/plans.js para el porqué.
 const planes = await getPlanes();
-// El plan base: lo usan la calculadora, el FAQ del precio y los datos estructurados.
+// El plan base: lo usa el FAQ del precio.
 const plan = planes[0];
 const wa = waLink();
 
@@ -32,11 +43,80 @@ const hechos = [
   { n: 'Sin', u: 'internet', t: 'el mostrador sigue cobrando, registrando y cerrando la caja.' },
 ];
 
+// El sistema por dentro: cada pantalla con lo que se ve en ESA captura. Si una captura se
+// cambia, el texto de al lado se revisa contra la imagen nueva.
+const pantallas = [
+  {
+    img: mostrador, rotulo: 'Recepción', clase: '',
+    alt: 'El buscador de la recepción con tres socios encontrados: dos con los días que les quedan en verde y uno vencido en rojo',
+    titulo: 'Escribís el nombre y sabés si puede pasar',
+    texto: 'El socio aparece con los días que le quedan, en verde, o los que lleva vencido, en rojo. Enter y la entrada queda registrada. Y si entra alguien que debe, el aviso queda a la vista del que atiende.',
+    items: [
+      'Los socios también marcan la entrada con el QR de la puerta, desde su celular.',
+      'Sin internet sigue andando: los socios están guardados en la computadora del mostrador.',
+      'Cada cobro y cada entrada quedan firmados con el nombre de quien atiende.',
+    ],
+  },
+  {
+    img: socios, rotulo: 'Socios', clase: 'es-verde',
+    alt: 'La lista de socios con su estado (al día, vencido o de baja), su arancel y los días que le quedan, con los botones de cobrar, editar y WhatsApp',
+    titulo: 'Todo tu padrón, con el estado de cada uno',
+    texto: 'Al día, vencido o de baja, con su arancel y los días que le quedan. Desde la misma fila le cobrás la cuota, editás su ficha o le escribís por WhatsApp.',
+    items: [
+      'Cobrás en dos clicks y el vencimiento se corre solo.',
+      'Traés el Excel de tu sistema actual con Importar, y te llevás todo cuando quieras con Exportar.',
+      'Lo que se borra va a la papelera: nada se pierde por un click de más.',
+    ],
+  },
+  {
+    img: caja, rotulo: 'Caja', clase: 'es-ambar',
+    alt: 'El cierre de caja del día: total cobrado, efectivo, transferencia y Mercado Pago, y la lista de cobros a cerrar',
+    titulo: 'La caja se cuenta sola',
+    texto: 'El efectivo por un lado, la transferencia y Mercado Pago por el otro, más las ventas del mostrador. Al cerrar, la cuenta ya está hecha: vos decidís cuánto se retira.',
+    items: [
+      'El Excel del día para el contador, en un click.',
+      'Cada cierre queda sellado. Si después se corrige un cobro, la diferencia queda a la vista.',
+      'Nada se borra: lo anulado queda tachado y a la vista.',
+    ],
+  },
+  {
+    img: retencionCelular, rotulo: 'Retención', clase: 'es-rojo', tipo: 'celular',
+    alt: 'La pantalla de retención en el celular: tasa de retención, socios que vencen esta semana y vencidos, con el botón de WhatsApp',
+    titulo: 'A quién escribirle antes de que se vaya',
+    texto: 'Quién vence esta semana y quién ya está vencido, con el botón de WhatsApp al lado. Lo mirás desde el celular, en tu casa, y le escribís al que se atrasó antes de que deje de venir.',
+    items: [
+      'La tasa de retención del gimnasio, calculada sola.',
+      'El tablero, los socios y la caja también se miran desde el celular.',
+    ],
+  },
+];
+
+// Tres pantallas más, en chico: completan el recorrido sin alargar la página.
+const masPantallas = [
+  {
+    img: adentro, titulo: 'Quién está adentro ahora',
+    alt: 'La pantalla "En el gimnasio" con los socios que están entrenando y hace cuánto entraron',
+    texto: 'Los que entraron y todavía no salieron, con la hora, y el registro de todo el día.',
+  },
+  {
+    img: reportes, titulo: 'Reportes en Excel y PDF',
+    alt: 'La pantalla de reportes: socios, ingresos, asistencia y resumen, cada uno en Excel o PDF',
+    texto: 'Socios, ingresos, asistencia y un resumen del período, listos para bajar.',
+  },
+  {
+    img: resumen, titulo: 'Todas tus sucursales juntas',
+    alt: 'El resumen del dueño con la plata cobrada mes a mes en cada sucursal y el total',
+    texto: 'Si tenés más de un local, la plata cobrada de cada uno, mes a mes, en una sola pantalla.',
+  },
+];
+
 // Un día de gimnasio, de punta a punta. Cada hora es una función que existe hoy.
 const dia = [
   {
-    hora: '07:00', icono: 'monitor', titulo: 'Abrís y el sistema ya está abierto',
-    texto: 'La app de Windows arranca sola con la computadora del mostrador y se actualiza sola. A esa hora nadie busca contraseñas.',
+    hora: '07:00', icono: 'monitor', titulo: 'Abrís y el sistema ya está listo',
+    // `openAtLogin` viene apagado (electron/store.cjs): se prende en la configuración de la
+    // terminal. Hasta el 2026-10-22 esto decía "arranca sola", como si fuera de fábrica.
+    texto: 'La app de Windows abre con la sesión iniciada y ya actualizada. Y si querés, la configurás para que arranque sola con la computadora del mostrador. A esa hora nadie busca contraseñas.',
     chip: { clase: 'es-azul', texto: 'Listo para atender' },
   },
   {
@@ -105,7 +185,7 @@ const roles = [
     items: [
       'Marcan la entrada con el QR desde su celular, sin bajar ninguna app.',
       'No hacen fila en el mostrador a la hora pico.',
-      'Con el molinete facial, entran con la cara: ni tarjeta ni llavero que olvidar.',
+      'Si deben la cuota, el aviso les sale en su propio celular, no delante de toda la sala.',
     ],
   },
 ];
@@ -176,7 +256,7 @@ const schema = {
       name: 'Veltronik',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web, Windows',
-      description: 'Sistema para gimnasios: socios, cuotas, caja diaria, control de acceso por QR o molinete con reconocimiento facial. Funciona sin internet.',
+      description: 'Sistema para gimnasios: socios, cuotas, caja diaria, asistencia por QR, tablero del dueño y Excel para el contador. Funciona sin internet.',
       url: SITE_URL,
       inLanguage: 'es-AR',
       offers: planes.map((p) => ({
@@ -213,20 +293,20 @@ const schema = {
 
 <Base
   title="Software para gimnasios en Argentina | Veltronik"
-  description="Sistema para gimnasios: socios, cuotas, caja y control de acceso. Avisa quién entra con la cuota vencida, cobra en dos clicks y funciona sin internet. 14 días gratis, sin tarjeta."
+  description="Sistema para gimnasios: socios, cuotas, caja y asistencia en un solo lugar. Cobrás en dos clicks, ves cuánto entró desde el celular y funciona sin internet. 14 días gratis, sin tarjeta."
   schema={schema}
 >
-  {/* ─── HERO: el mensaje a la izquierda, el mostrador andando a la derecha ─── */}
+  {/* ─── HERO: qué es arriba, y el sistema de verdad abajo ─── */}
   <section class="hero">
-    <div class="wrap hero-grid">
-      <div class="hero-texto">
+    <div class="wrap">
+      <div class="hero-texto center">
         <h1>
           <span class="hero-kicker">Sistema para gimnasios</span>
-          La cuota se cobra <span class="marcado">en la puerta.</span>
+          Tu gimnasio entero, <span class="marcado">en un solo sistema.</span>
         </h1>
         <p class="lead">
-          Veltronik le muestra a tu mostrador quién entra al día y quién debe, cobra en dos
-          clicks y sigue andando aunque se corte internet.
+          Socios, cuotas, caja y asistencia en una sola pantalla. Cobrás en dos clicks y
+          sigue andando aunque se corte internet.
         </p>
         <div class="botones">
           <a class="btn btn-primario btn-grande" href={appRoute('/register')} data-primer-cta>
@@ -246,9 +326,26 @@ const schema = {
         <p class="hero-origen"><Icon name="pin" size={16} /> Hecho en {CIUDAD}</p>
       </div>
 
-      <div class="hero-demo">
-        <MostradorDemo />
+      <div class="hero-pantallas">
+        <Captura
+          src={tablero}
+          class="hero-escritorio"
+          alt="El tablero de Veltronik: socios al día, ingresos del mes, socios vencidos, los que vencen esta semana y los ingresos de cada mes"
+          anchos={[800, 1200, 1600, 2400]}
+          sizes="(min-width: 1220px) 1060px, 88vw"
+          prioridad
+        />
+        <Captura
+          src={tableroCelular}
+          tipo="celular"
+          class="hero-celular"
+          alt="El mismo tablero en el celular del dueño"
+          anchos={[240, 360, 520, 780]}
+          sizes="(min-width: 1000px) 250px, 30vw"
+          prioridad
+        />
       </div>
+      <p class="hero-nota">Pantallas del sistema de verdad, con un gimnasio de ejemplo cargado.</p>
     </div>
   </section>
 
@@ -266,18 +363,50 @@ const schema = {
     </div>
   </section>
 
-  {/* ─── LA CUENTA ─── */}
-  <section id="la-cuenta" class="alt">
+  {/* ─── EL SISTEMA POR DENTRO ─── */}
+  <section id="el-sistema" class="alt">
     <div class="wrap">
-      <div class="cabecera">
-        <p class="rotulo es-rojo">La cuenta que nadie hace</p>
-        <h2>¿Cuánta plata entra a entrenar <span class="marcado">sin pagar</span>?</h2>
+      <div class="cabecera center">
+        <p class="rotulo">El sistema por dentro</p>
+        <h2>Lo que vas a usar <span class="marcado">todos los días</span></h2>
         <p class="lead">
-          No es que la gente no quiera pagar: es que en el mostrador nadie tiene el dato a
-          mano, o no se anima a decirlo. Poné tus números.
+          Socios, cobros, caja y avisos en el mismo lugar. Lo que ves acá es lo mismo que vas a
+          tener vos el día que lo pruebes.
         </p>
       </div>
-      <Calculadora precio={Number(plan.price)} />
+
+      <div class="pantallas">
+        {pantallas.map((p, i) => (
+          <article class:list={['pantalla', { 'es-invertida': i % 2 === 1, 'es-de-celular': p.tipo === 'celular' }]}>
+            <div class="pantalla-texto">
+              <p class:list={['rotulo', p.clase]}>{p.rotulo}</p>
+              <h3>{p.titulo}</h3>
+              <p class="pantalla-bajada">{p.texto}</p>
+              <ul class="pantalla-lista">
+                {p.items.map((it) => <li>{it}</li>)}
+              </ul>
+            </div>
+            <Captura
+              src={p.img}
+              alt={p.alt}
+              tipo={p.tipo}
+              class="pantalla-imagen"
+              anchos={p.tipo === 'celular' ? [260, 390, 520, 780] : [600, 900, 1200, 1800]}
+              sizes={p.tipo === 'celular' ? '(min-width: 900px) 300px, 70vw' : '(min-width: 1220px) 640px, (min-width: 900px) 55vw, 92vw'}
+            />
+          </article>
+        ))}
+      </div>
+
+      <div class="mas-pantallas">
+        {masPantallas.map((p) => (
+          <article>
+            <Captura src={p.img} alt={p.alt} anchos={[400, 700, 1000, 1500]} sizes="(min-width: 900px) 360px, 92vw" />
+            <h3>{p.titulo}</h3>
+            <p>{p.texto}</p>
+          </article>
+        ))}
+      </div>
     </div>
   </section>
 
@@ -348,29 +477,6 @@ const schema = {
           </article>
         ))}
       </div>
-    </div>
-  </section>
-
-  {/* ─── LA PUERTA ─── */}
-  <section class="puerta-sec">
-    <div class="wrap puerta">
-      <div>
-        <p class="rotulo">Plan con control de acceso</p>
-        <h2>¿Y si la puerta <span class="marcado">cobrara sola</span>?</h2>
-        <p class="lead">
-          El molinete reconoce la cara del socio. Si está al día, gira. Si debe, no gira y en
-          el mostrador salta su nombre con lo que adeuda. Le cobrás y la puerta se destraba
-          en segundos. Nadie tiene que hacer de policía.
-        </p>
-        <div class="botones">
-          <a class="btn btn-borde btn-grande" href="/molinete-facial">Cómo funciona el molinete</a>
-        </div>
-      </div>
-      <ol class="estados" aria-label="Qué pasa en la puerta">
-        <li class="es-verde"><span class="estados-rotulo">Al día</span><span><strong>Gira y pasa.</strong> La entrada queda registrada sola.</span></li>
-        <li class="es-rojo"><span class="estados-rotulo">Debe</span><span><strong>No gira.</strong> Su nombre salta en el mostrador.</span></li>
-        <li class="es-azul"><span class="estados-rotulo">Cobrado</span><span><strong>Se destraba.</strong> En segundos, sin tocar el equipo.</span></li>
-      </ol>
     </div>
   </section>
 
@@ -476,22 +582,71 @@ const schema = {
 </Base>
 
 <style>
-  .hero-grid { position: relative; z-index: 1; display: grid; gap: clamp(2.5rem, 5vw, 4rem); align-items: center; }
-  @media (min-width: 1000px) { .hero-grid { grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr); } }
-  /* El título de la portada, medido para su columna: "La cuota / se cobra / en la puerta." */
-  .hero h1 { font-size: clamp(2.8rem, 5.8vw, 5rem); }
+  .hero-texto { max-width: 880px; margin-inline: auto; }
+  /* "Tu gimnasio entero, / en un solo sistema." El remate azul no se parte (h1 .marcado), así
+     que el mínimo está medido para que entre entero en 320 px de pantalla. */
+  .hero h1 { font-size: clamp(1.9rem, 6.2vw, 4.6rem); }
   .hero-origen {
     display: inline-flex; align-items: center; gap: .45rem; margin: 1.6rem 0 0;
     font-size: .9rem; color: var(--dim);
   }
-  .hero-demo { position: relative; }
-  .hero-demo::before {
-    /* El brillo detrás del mostrador: lo separa del fondo sin sombra de neón. Un degradé
-       radial y nada más: con `filter: blur` encima, Chromium armaba una capa aparte que
-       rompía el dibujo al scrollear (y en un celular con poca placa de video cuesta). */
-    content: ''; position: absolute; inset: -6% -8% -10%; z-index: -1;
-    background: radial-gradient(closest-side, rgba(59,130,246,.2), rgba(59,130,246,.06) 55%, transparent);
+
+  /* El tablero de la computadora y, encima a la derecha, el mismo en el celular del dueño. El
+     de la computadora se apaga hacia abajo: la captura corta a mitad de pantalla. */
+  .hero-pantallas {
+    position: relative; max-width: 1060px; margin: clamp(2.8rem, 6vw, 4.5rem) auto 0;
+    padding-right: clamp(28px, 9vw, 120px);
   }
+  .hero-pantallas::before {
+    /* El brillo detrás: un degradé radial y nada más (con `filter: blur` Chromium rompía el
+       dibujo al scrollear; ver la historia de esta página). */
+    content: ''; position: absolute; inset: -12% -6% 10%; z-index: -1;
+    background: radial-gradient(closest-side, rgba(59,130,246,.22), rgba(59,130,246,.05) 60%, transparent);
+  }
+  /* :global porque la clase va al <figure> de Captura, que es otro componente. */
+  .hero-pantallas :global(.hero-escritorio) {
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+  .hero-pantallas :global(.hero-celular) {
+    position: absolute; right: 0; bottom: -4%;
+    width: clamp(96px, 24%, 250px);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .hero-nota { margin: 1.4rem 0 0; text-align: center; font-size: .85rem; color: var(--dim); }
+
+  /* ─── El sistema por dentro ─── */
+  .pantallas { display: grid; gap: clamp(4rem, 9vw, 7rem); }
+  .pantalla { display: grid; gap: 2rem; align-items: center; }
+  @media (min-width: 900px) {
+    .pantalla { grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: clamp(2.5rem, 5vw, 4.5rem); }
+    /* Invertida: el texto pasa a la derecha y los anchos se dan vuelta con él, para que la
+       captura siga en la columna ancha. */
+    .pantalla.es-invertida { grid-template-columns: minmax(0, 1.18fr) minmax(0, .82fr); }
+    .pantalla.es-invertida .pantalla-texto { order: 2; }
+    /* El celular es angosto: la columna de la imagen se achica y el texto respira. */
+    .pantalla.es-de-celular { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
+  }
+  .pantalla-texto h3 { font-size: clamp(1.5rem, 2.8vw, 2.1rem); margin-bottom: .8rem; }
+  .pantalla-bajada { margin: 0 0 1.4rem; color: var(--text-2); font-size: 1.05rem; max-width: 52ch; }
+  .pantalla-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
+  .pantalla-lista li { position: relative; padding-left: 1.7rem; font-size: .96rem; color: var(--muted); }
+  .pantalla-lista li::before {
+    content: ''; position: absolute; left: 2px; top: .5rem;
+    width: 11px; height: 6px; border-left: 2px solid var(--verde); border-bottom: 2px solid var(--verde); transform: rotate(-45deg);
+  }
+  .pantalla.es-de-celular :global(.pantalla-imagen) { width: min(300px, 74%); justify-self: center; }
+
+  .mas-pantallas {
+    display: grid; gap: 2.4rem 1.6rem; margin-top: clamp(4.5rem, 9vw, 7rem);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 700px) { .mas-pantallas { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  /* Las tres con la misma proporción (cortadas desde arriba): con su alto natural, los títulos
+     de abajo quedaban cada uno a una altura distinta. */
+  .mas-pantallas :global(.captura img) { aspect-ratio: 3 / 2; object-fit: cover; object-position: top; }
+  .mas-pantallas h3 { font-size: 1.2rem; margin: 1.3rem 0 .45rem; }
+  .mas-pantallas p { margin: 0; color: var(--muted); font-size: .95rem; }
 
   /* ─── Hechos ─── */
   .hechos-sec { padding: 0 0 clamp(40px, 7vw, 96px); }
@@ -583,11 +738,6 @@ const schema = {
     background: var(--verde);
   }
 
-  /* ─── La puerta ─── */
-  .puerta-sec { border-top: 1px solid var(--line); }
-  .puerta { display: grid; gap: 2.5rem; align-items: center; }
-  @media (min-width: 900px) { .puerta { grid-template-columns: 1.1fr .9fr; gap: 4rem; } }
-  .puerta .lead { margin-bottom: 1.8rem; }
   /* ─── Precios ─── */
   .precios { display: grid; gap: 1.2rem; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); max-width: 980px; margin: 0 auto; align-items: start; }
   .precio {

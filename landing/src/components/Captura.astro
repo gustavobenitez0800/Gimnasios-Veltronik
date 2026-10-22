@@ -1,0 +1,61 @@
+---
+// Una captura del sistema de verdad, con su marco: ventana de computadora o celular.
+//
+// ⛔ De dónde salen (src/assets/sistema/): la cuenta de demo "Fénix Gym", con socios, cobros y
+// caja de ejemplo sembrados por scripts/demo_cuenta.mjs. NUNCA una captura con datos de un
+// gimnasio cliente: esta página es pública. Para la foto se ocultó el nombre del dueño de la
+// cuenta y el QR de la puerta va desenfocado, porque es el de verdad de esa sucursal.
+//
+// Astro las convierte a webp en varios anchos: la de 2400 px la baja solo la pantalla que la
+// necesita, y un celular se lleva la chica.
+import { Image } from 'astro:assets';
+
+const {
+  src,
+  alt,
+  tipo = 'escritorio', // 'escritorio' | 'celular'
+  anchos,
+  sizes,
+  prioridad = false,
+  class: clase,
+} = Astro.props;
+---
+
+<figure class:list={['captura', `es-${tipo}`, clase]}>
+  {tipo === 'escritorio' && (
+    <div class="captura-barra" aria-hidden="true"><span></span><span></span><span></span></div>
+  )}
+  <Image
+    src={src}
+    alt={alt}
+    widths={anchos}
+    sizes={sizes}
+    loading={prioridad ? 'eager' : 'lazy'}
+    fetchpriority={prioridad ? 'high' : 'auto'}
+    decoding="async"
+  />
+</figure>
+
+<style>
+  .captura {
+    margin: 0; position: relative; overflow: hidden;
+    background: var(--bg-2);
+    box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .85);
+  }
+  .captura img { display: block; width: 100%; height: auto; }
+
+  /* La ventana: una barra fina con los tres puntos, para que se lea "es un programa" y no
+     una foto suelta. */
+  .es-escritorio { border-radius: 14px; border: 1px solid var(--line-2); }
+  .captura-barra {
+    display: flex; gap: 6px; align-items: center; height: 26px; padding: 0 12px;
+    background: var(--bg-3); border-bottom: 1px solid var(--line);
+  }
+  .captura-barra span { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+
+  /* El celular: un marco oscuro y redondeado, sin dibujar un modelo de teléfono en particular. */
+  .es-celular {
+    border-radius: 30px; border: 7px solid #05070b;
+    outline: 1px solid var(--line-2);
+  }
+</style>

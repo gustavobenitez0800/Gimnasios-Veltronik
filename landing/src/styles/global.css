@@ -379,21 +379,6 @@ h1 .marcado { white-space: nowrap; }
 .columnas h3 { font-size: 1.3rem; margin-bottom: .55rem; }
 .columnas p { margin: 0; color: var(--muted); }
 
-/* ─── Los estados de la puerta: al día / debe / cobrado ─── */
-.estados { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
-.estados li {
-  display: grid; grid-template-columns: 96px 1fr; gap: 1rem; align-items: center;
-  padding: 1.05rem 1.2rem; border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--c) 8%, var(--bg-2));
-  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
-  color: var(--muted);
-}
-.estados strong { color: var(--text); margin-right: .25rem; }
-.estados-rotulo {
-  font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
-  color: color-mix(in srgb, var(--c) 75%, white);
-}
-
 /* ─── Pasos numerados ─── */
 .pasos { list-style: none; margin: 0; padding: 0; counter-reset: paso; display: grid; gap: 0; }
 .pasos li {
