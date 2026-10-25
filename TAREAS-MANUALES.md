@@ -161,8 +161,9 @@ Lo que los tests no pueden ver: el estado REAL de producción.
       WhatsApp los primeros días y te lo dejamos andando con tu Excel adentro" y "te contesta
       una persona que conoce el sistema por dentro, no un bot". Son compromisos: si alguno
       deja de ser cierto, hay que sacarlo de la landing.
-- [ ] **"La app arranca sola con la computadora".** La landing lo dice, y es una opción que
-      viene apagada. O se prende por defecto, o se suaviza la frase.
+- [x] **"La app arranca sola con la computadora".** Resuelto el 25/10 suavizando la frase: la
+      landing dice que abre con la sesión iniciada y que, si querés, se configura para que
+      arranque con la computadora (`openAtLogin` sigue apagado por defecto).
 - [ ] **"Sin tarjeta", en la portada de la landing.** Hoy es cierto. Si la suscripción
       programada (§8) pide la tarjeta como requisito para la prueba, deja de serlo: o la
       tarjeta queda opcional, o la frase cambia el mismo día.
