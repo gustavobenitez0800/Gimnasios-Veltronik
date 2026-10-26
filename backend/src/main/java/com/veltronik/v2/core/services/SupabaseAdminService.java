@@ -29,6 +29,11 @@ import java.util.UUID;
  * hay, y por eso vive únicamente acá, en el backend: nunca en el frontend, nunca en el
  * instalable de escritorio. Si no está configurada, este servicio se declara no disponible
  * y el alta cae al camino de siempre (vincular una cuenta existente) en vez de romperse.</p>
+ *
+ * <p><b>Acepta las dos clases de clave.</b> La vieja ({@code service_role}, un JWT que
+ * empieza con {@code eyJ}) y la nueva ({@code sb_secret_…}). La nueva se puede revocar sola,
+ * sin tocar la clave pública de los escritorios; la vieja solo se anula apagando TODAS las
+ * claves viejas del proyecto. Ver {@link #conCredencial}.</p>
  */
 @Slf4j
 @Service
@@ -88,11 +93,9 @@ public class SupabaseAdminService {
             throw new BusinessException("No se pudo preparar el alta del empleado.");
         }
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest request = conCredencial(HttpRequest.newBuilder())
                 .uri(URI.create(supabaseUrl + "/auth/v1/admin/users"))
                 .timeout(TIMEOUT)
-                .header("apikey", serviceRoleKey)
-                .header("Authorization", "Bearer " + serviceRoleKey)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
@@ -144,10 +147,8 @@ public class SupabaseAdminService {
             throw new BusinessException("El servicio de cuentas no está configurado.");
         }
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest request = conCredencial(HttpRequest.newBuilder())
                 .uri(URI.create(supabaseUrl + "/auth/v1/admin/users/" + userId))
-                .header("apikey", serviceRoleKey)
-                .header("Authorization", "Bearer " + serviceRoleKey)
                 .DELETE()
                 .build();
 
@@ -171,6 +172,27 @@ public class SupabaseAdminService {
                     userId, response.statusCode(), response.body());
             throw new BusinessException("El servicio de cuentas rechazó el borrado del login.");
         }
+    }
+
+    /**
+     * Pone la clave de servicio en el pedido, como la espera Supabase según su clase.
+     *
+     * <p>Las dos van en {@code apikey}. El {@code Authorization: Bearer} es SOLO para la vieja:
+     * es un JWT y el servicio de cuentas lo lee como tal. La nueva no es un JWT, y la
+     * documentación de Supabase pide mandarla en {@code apikey} y no como Bearer — "lo que
+     * intente verificarla como JWT falla".</p>
+     */
+    private HttpRequest.Builder conCredencial(HttpRequest.Builder pedido) {
+        pedido.header("apikey", serviceRoleKey);
+        if (esClaveVieja(serviceRoleKey)) {
+            pedido.header("Authorization", "Bearer " + serviceRoleKey);
+        }
+        return pedido;
+    }
+
+    /** ¿Es la {@code service_role} de siempre (un JWT) y no una {@code sb_secret_…}? */
+    static boolean esClaveVieja(String clave) {
+        return clave.startsWith("eyJ");
     }
 
     /** Traduce el error de Supabase a algo que le sirva al dueño. */
