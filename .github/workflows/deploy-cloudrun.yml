@@ -99,7 +99,7 @@ jobs:
             --max-instances=3
           # Inyectar las variables de entorno de producción desde los Secrets de GitHub.
           #
-          # ⚠️ TRES COSAS QUE HAY QUE SABER ANTES DE TOCAR ESTA LISTA:
+          # ⚠️ CUATRO COSAS QUE HAY QUE SABER ANTES DE TOCAR ESTA LISTA:
           #
           # 1. NO PONER `PORT`. Es un nombre RESERVADO en Cloud Run: lo inyecta él y rechaza
           #    el despliegue si se lo mandamos. La app ya lo lee con default
@@ -127,9 +127,33 @@ jobs:
           #    cambia un precio en la consola, que lo cambie TAMBIÉN en el repo — si no,
           #    vuelve a abrirse la misma grieta.
           #
+          # 4. ⛔ ADENTRO DE `env_vars` VA SOLO `NOMBRE=valor`: NI COMENTARIOS NI COMAS.
+          #    Lo que está debajo de `env_vars: |-` es TEXTO, no YAML, y el action no entiende
+          #    `#`: parte en cada renglón y en cada coma, y lo que no tiene `=` lo manda como
+          #    variable vacía. Del 7 al 27/10/2026 el comentario de FRONTEND_URL, que vivía ahí
+          #    adentro, le metió a Cloud Run 19 variables de basura en cada despliegue (con
+          #    nombres como "# `file://`" o "y NO se lee desde"). Las explicaciones van acá,
+          #    arriba. DespliegueInvariantesTest lo verifica.
+          #
           # Nota: `JWT_SECRET` estaba acá por herencia de Railway y se sacó — este backend
           # valida los tokens con JWKS asimétrico (veltronik.jwt.jwks-uri), no con un secreto
           # compartido, así que nunca lo leyó nadie.
+          #
+          # ⚠️ `FRONTEND_URL` ES LA VARIABLE QUE FALTABA Y DEJABA EL SERVIDOR INUTILIZABLE.
+          # Decide qué orígenes acepta CORS, y NO se lee desde application.properties sino
+          # con un @Value directo en SecurityConfig — por eso no aparece al revisar el archivo
+          # de properties. Su default es `http://localhost:5173`, así que sin ella Cloud Run
+          # rechazaba TODOS los preflight con 403: medido contra el servicio recién desplegado.
+          #
+          # Va como valor literal y no como Secret a propósito: no es información secreta,
+          # y un Secret inexistente se resolvería a cadena vacía y volvería a romper CORS.
+          #
+          # ⭐ POR QUÉ `*` Y NO LA URL DEL PORTAL: la app de escritorio carga desde
+          # `file://`, así que manda `Origin: null`. Una lista con la URL del portal NO
+          # matchea `null` y dejaría al mostrador sin poder hablar con el backend. Es lo
+          # mismo que ya tiene Railway en producción (responde `allow-origin: null`).
+          # No abre un hueco: la autenticación es por Bearer token y
+          # `setAllowCredentials(false)`, así que no se refleja ninguna credencial.
           env_vars: |-
             DB_URL=${{ secrets.DB_URL }}
             DB_USERNAME=${{ secrets.DB_USERNAME }}
@@ -140,23 +164,6 @@ jobs:
             MP_PUBLIC_KEY=${{ secrets.MP_PUBLIC_KEY }}
             MP_WEBHOOK_SECRET=${{ secrets.MP_WEBHOOK_SECRET }}
             SPRING_PROFILES_ACTIVE=prod
-            # ⚠️ ESTA ES LA VARIABLE QUE FALTABA Y DEJABA EL SERVIDOR INUTILIZABLE.
-            #
-            # `FRONTEND_URL` decide qué orígenes acepta CORS, y NO se lee desde
-            # application.properties sino con un @Value directo en SecurityConfig — por eso
-            # no aparece al revisar el archivo de properties. Su default es
-            # `http://localhost:5173`, así que sin ella Cloud Run rechazaba TODOS los
-            # preflight con 403: medido contra el servicio recién desplegado.
-            #
-            # Va como valor literal y no como Secret a propósito: no es información secreta,
-            # y un Secret inexistente se resolvería a cadena vacía y volvería a romper CORS.
-            #
-            # ⭐ POR QUÉ `*` Y NO LA URL DEL PORTAL: la app de escritorio carga desde
-            # `file://`, así que manda `Origin: null`. Una lista con la URL del portal NO
-            # matchea `null` y dejaría al mostrador sin poder hablar con el backend. Es lo
-            # mismo que ya tiene Railway en producción (responde `allow-origin: null`).
-            # No abre un hueco: la autenticación es por Bearer token y
-            # `setAllowCredentials(false)`, así que no se refleja ninguna credencial.
             FRONTEND_URL=*
 
       # ─────────────────────────────────────────────────────────────────────

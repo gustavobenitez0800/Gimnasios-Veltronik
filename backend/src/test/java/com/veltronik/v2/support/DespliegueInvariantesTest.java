@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,6 +64,68 @@ class DespliegueInvariantesTest {
                 y confirmar que el tope resultante sigue teniendo sentido. Despues, actualizar
                 Escala.MAX_INSTANCIAS.
                 """.formatted(enElDespliegue, Escala.MAX_INSTANCIAS));
+    }
+
+    /**
+     * ⭐ Adentro de {@code env_vars} va SOLO {@code NOMBRE=valor}, un renglón por variable.
+     *
+     * <p><b>Por qué.</b> El action ({@code deploy-cloudrun@v2}, con {@code actions-utils}
+     * 0.8.10) no entiende comentarios: parte el bloque en cada renglón y en cada coma, y lo que
+     * no tiene {@code =} se vuelve una variable con valor vacío. Del 7 al 27 de octubre de 2026
+     * cada despliegue le mandó a Cloud Run 19 variables de basura armadas con el comentario de
+     * {@code FRONTEND_URL} (nombres como {@code "# `file://`"} o {@code "y NO se lee desde"}).
+     * El log no lo mostraba claro porque GitHub tapó con {@code ***} el tramo de los secretos.</p>
+     *
+     * <p>La barra invertida también es especial para ese parser (escapa lo que sigue), así que
+     * un valor literal no puede llevar comas ni barras. Los secretos tampoco, pero esos no se
+     * pueden ver desde acá.</p>
+     */
+    @Test
+    @DisplayName("env_vars del despliegue: solo NOMBRE=valor, sin comentarios ni comas")
+    void lasVariablesDelDespliegueSonSoloNombreIgualValor() throws IOException {
+        List<String> renglones = Files.readAllLines(ubicar(WORKFLOW));
+        Pattern inicio = Pattern.compile("^(\\s*)env_vars:\\s*\\|-?\\s*$");
+        Pattern variable = Pattern.compile("[A-Z][A-Z0-9_]*=[^,\\\\]*");
+
+        int desde = -1;
+        int sangria = 0;
+        for (int i = 0; i < renglones.size() && desde < 0; i++) {
+            Matcher m = inicio.matcher(renglones.get(i));
+            if (m.matches()) {
+                desde = i + 1;
+                sangria = m.group(1).length();
+            }
+        }
+        assertTrue(desde >= 0, "No encontre el bloque `env_vars: |-` en " + WORKFLOW);
+
+        List<String> invalidos = new ArrayList<>();
+        int variables = 0;
+        for (int i = desde; i < renglones.size(); i++) {
+            String renglon = renglones.get(i);
+            if (renglon.isBlank()) {
+                continue;
+            }
+            if (renglon.length() - renglon.stripLeading().length() <= sangria) {
+                break; // termino el bloque: el renglon ya es otra clave del YAML
+            }
+            String contenido = renglon.strip();
+            if (variable.matcher(contenido).matches()) {
+                variables++;
+            } else {
+                invalidos.add("  renglon " + (i + 1) + ": " + contenido);
+            }
+        }
+
+        assertTrue(variables > 0, "El bloque env_vars de " + WORKFLOW + " quedo vacio.");
+        assertTrue(invalidos.isEmpty(),
+                """
+                El bloque env_vars de %s tiene renglones que no son NOMBRE=valor:
+                %s
+
+                El action NO entiende comentarios: cada renglon con # se manda a Cloud Run como
+                una variable vacia con ese nombre, y cada coma parte el renglon en otra mas.
+                Las explicaciones van como comentario de YAML ARRIBA de `env_vars:`, no adentro.
+                """.formatted(WORKFLOW, String.join("\n", invalidos)));
     }
 
     /**
