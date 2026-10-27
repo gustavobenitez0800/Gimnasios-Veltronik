@@ -55,7 +55,7 @@ public class PlanCatalog {
 
     public PlanCatalog(
             BillingProperties billing,
-            @Value("${veltronik.billing.premium-price:145000}") BigDecimal premiumPrice,
+            @Value("${veltronik.billing.premium-price:90000}") BigDecimal premiumPrice,
             // Nace APAGADO a propósito: un plan sin terminar no se vende. Se prende con la env
             // var BILLING_PREMIUM_AVAILABLE=true cuando el control de acceso esté andando.
             @Value("${veltronik.billing.premium-available:true}") boolean premiumAvailable) {
