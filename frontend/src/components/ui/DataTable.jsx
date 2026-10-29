@@ -29,8 +29,7 @@ export default function DataTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="text-center text-muted"
-                  style={{ padding: '3rem' }}
+                  className="table-empty"
                 >
                   <span className="spinner" /> {loadingMessage}
                 </td>
@@ -39,8 +38,7 @@ export default function DataTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="text-center text-muted"
-                  style={{ padding: '3rem' }}
+                  className="table-empty"
                 >
                   {emptyMessage}
                 </td>

@@ -162,10 +162,10 @@ export default function ArancelesSettings() {
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
+              <tr><td colSpan="4" className="table-empty">
                 <span className="spinner" /> Cargando...</td></tr>
             ) : planes.length === 0 ? (
-              <tr><td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
+              <tr><td colSpan="4" className="table-empty">
                 Todavía no cargaste ningún arancel</td></tr>
             ) : planes.map(p => (
               <tr key={p.id} style={{ opacity: p.active ? 1 : 0.5 }}>

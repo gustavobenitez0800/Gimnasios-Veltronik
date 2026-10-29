@@ -112,13 +112,17 @@
   display: flex; align-items: center; gap: 0.5rem;
 }
 
+/* La etiqueta no se parte nunca y el dato se recuesta a la derecha. Sin esto, en el celular un
+   dato largo empujaba a la etiqueta a dos renglones ("Próximo / cobro") y el dato quedaba
+   pegado a ella, alineado a la izquierda, en otros dos. */
 .info-row {
-  display: flex; justify-content: space-between; padding: 0.75rem 0;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--border-color);
 }
 .info-row:last-child { border-bottom: none; }
-.info-label { color: var(--text-muted); font-size: var(--font-size-sm); }
-.info-value { font-weight: 500; color: var(--text-primary); }
+.info-label { color: var(--text-muted); font-size: var(--font-size-sm); flex-shrink: 0; }
+.info-value { font-weight: 500; color: var(--text-primary); text-align: right; min-width: 0; overflow-wrap: anywhere; }
 
 .subscription-card {
   background: linear-gradient(135deg, var(--primary-600), #8b5cf6);

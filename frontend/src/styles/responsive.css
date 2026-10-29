@@ -548,6 +548,19 @@ body {
   /* El hover-lift de filas no aplica al formato tarjeta */
   .table:has(td[data-label]) tbody tr:hover { transform: none; }
 
+  /* ── Tabla vacía o cargando ──
+     Sin filas no hay tarjetas que armar (las reglas de arriba piden celdas con data-label) y
+     la tabla quedaba como en la computadora: los encabezados de TODAS las columnas, más anchos
+     que la pantalla, con barra para el costado y el aviso corrido a un lado ("NOMBRE … DNI TE"
+     en Socios recién creado, "MÉTO" cortado en En el gimnasio). Sin filas los encabezados no
+     encabezan nada: se esconden y el aviso ocupa el ancho. */
+  .table:has(td.table-empty),
+  .table:has(td.table-empty) tbody,
+  .table:has(td.table-empty) tr,
+  .table td.table-empty { display: block; }
+  .table:has(td.table-empty) thead { display: none; }
+  .table td.table-empty { padding: 1.5rem 1rem; }
+
   /* ── Filtros y paginación ── */
   .table-header { padding: 0.85rem 1rem; }
 
