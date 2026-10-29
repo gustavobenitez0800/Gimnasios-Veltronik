@@ -73,3 +73,31 @@ describe('Cambiar la tarjeta', () => {
     expect(recibido.props.plan).toBeNull();
   });
 });
+
+// Visto por el dueño el 2026-10-28 en una cuenta nueva: "Próximo cobro 5/11/2026 (8 días de
+// prueba restantes)". En la prueba no hay tarjeta cargada: ese día no se cobra nada, termina la
+// prueba.
+describe('En la prueba gratis', () => {
+  it('⭐ no promete un cobro: dice cuándo termina la prueba y que no se cobra nada', async () => {
+    await pintar({
+      hasSubscription: false,
+      nextPayment: '--',
+      prueba: { termina: '05/11/2026', dias: 8 },
+    });
+    const texto = container.textContent;
+
+    expect(texto).not.toContain('Próximo cobro');
+    expect(texto).toContain('Fin de la prueba');
+    expect(texto).toContain('05/11/2026');
+    expect(texto).toContain('Durante la prueba no se cobra nada');
+  });
+
+  it('con suscripción sigue diciendo el próximo cobro', async () => {
+    await pintar({ prueba: null });
+    const texto = container.textContent;
+
+    expect(texto).toContain('Próximo cobro');
+    expect(texto).toContain('05/10/2027');
+    expect(texto).not.toContain('Fin de la prueba');
+  });
+});

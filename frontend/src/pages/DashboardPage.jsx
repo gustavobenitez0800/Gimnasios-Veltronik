@@ -425,7 +425,7 @@ function GymDashboard({ gym }) {
               <tbody>
                 {recentMembers.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center text-muted" style={{ padding: '2rem' }}>
+                    <td colSpan="4" className="table-empty">
                       No hay {membersLabel.toLowerCase()} registrados
                     </td>
                   </tr>

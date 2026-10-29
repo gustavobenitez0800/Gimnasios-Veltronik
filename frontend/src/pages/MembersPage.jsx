@@ -267,6 +267,11 @@ export default function MembersPage() {
   // Un colSpan fijo dejaba el mensaje de "no hay socios" cortado a mitad de la fila.
   const CUANTAS_COLUMNAS = 7 + (puedeAsignarMasivo ? 1 : 0) + (hayAranceles ? 1 : 0);
 
+  // Ni un socio cargado y sin buscar ni filtrar: el gimnasio recién empieza. Una lista vacía
+  // porque falló el pedido NO es esto, y una búsqueda sin resultados tampoco.
+  const padronVacio = !isFetching && !loadError && pagedMembers.length === 0
+    && totalRecords === 0 && !search && !statusFilter;
+
   // ¿Está marcada toda la página que se ve? Se calcula sobre las filas visibles, que es
   // exactamente lo que la casilla del encabezado promete.
   const todosVisiblesMarcados = pagedMembers.length > 0
@@ -795,7 +800,21 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Primer día (ni un socio, sin buscar ni filtrar): el siguiente paso, con el botón ahí
+          mismo, EN LUGAR de la tabla. Adentro de la tabla quedaba debajo de nueve encabezados
+          y, en el celular, en una tabla más ancha que la pantalla, con barra para el costado. */}
+      {padronVacio ? (
+        <EmptyState
+          icon="users"
+          title={`Todavía no cargaste ningún ${memberLabel.toLowerCase()}`}
+          description="Cargá el primero y desde su ficha ya podés cobrarle la cuota y registrarle la entrada."
+          action={(
+            <button className="btn btn-primary" onClick={() => modal.open()}>
+              <Icon name="plus" size="1em" /> Cargar el primer {memberLabel.toLowerCase()}
+            </button>
+          )}
+        />
+      ) : (
       <div className="card">
         {/* tabla-socios: la tabla esconde columnas según SU ancho, no el de la ventana (ver
             responsive.css, "la tabla de socios mira su propio ancho"). */}
@@ -849,22 +868,7 @@ export default function MembersPage() {
               ) : pagedMembers.length === 0 ? (
                 <tr>
                   <td colSpan={CUANTAS_COLUMNAS} className="table-empty">
-                    {/* Primer día (ni un socio, sin buscar ni filtrar): el siguiente paso, con
-                        el botón ahí mismo. Con búsqueda o filtro, el "no encontramos" de siempre. */}
-                    {totalRecords === 0 && !search && !statusFilter ? (
-                      <EmptyState
-                        icon="users"
-                        title={`Todavía no cargaste ningún ${memberLabel.toLowerCase()}`}
-                        description="Cargá el primero y desde su ficha ya podés cobrarle la cuota y registrarle la entrada."
-                        action={(
-                          <button className="btn btn-primary" onClick={() => modal.open()}>
-                            <Icon name="plus" size="1em" /> Cargar el primer {memberLabel.toLowerCase()}
-                          </button>
-                        )}
-                      />
-                    ) : (
-                      <>No se encontraron {membersLabelLower}</>
-                    )}
+                    No se encontraron {membersLabelLower}
                   </td>
                 </tr>
               ) : (
@@ -877,6 +881,7 @@ export default function MembersPage() {
         {/* Pagination */}
         <Pagination {...pagination} totalCount={viewTotal} />
       </div>
+      )}
 
       {/* ─── MEMBER MODAL ─── */}
       <Modal
@@ -1078,6 +1083,7 @@ export default function MembersPage() {
         onClose={() => setPapelera(null)}
         title="Papelera"
         size="large"
+        className="papelera-modal"
       >
         <p className="text-muted" style={{ marginTop: 0 }}>
           {cargandoPapelera
@@ -1087,37 +1093,32 @@ export default function MembersPage() {
               : 'No hay socios eliminados.'}
         </p>
 
+        {/* Una lista y no una tabla: con cuatro columnas, en el celular el nombre, el DNI y la
+            fecha quedaban pegados uno al otro y partidos en dos renglones. Cada socio es un
+            renglón: quién es arriba, el DNI y cuándo se borró abajo, y el botón a la derecha. */}
         {!cargandoPapelera && papelera?.length > 0 && (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{memberLabel}</th>
-                  <th>DNI</th>
-                  <th>Eliminado</th>
-                  <th style={{ textAlign: 'right' }}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {papelera.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.fullName || `${m.firstName || ''} ${m.lastName || ''}`.trim()}</td>
-                    <td>{m.dni || '—'}</td>
-                    <td>{m.deletedAt ? formatDate(m.deletedAt) : '—'}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={restaurando === m.id}
-                        onClick={() => restaurarSocio(m)}
-                      >
-                        {restaurando === m.id ? 'Recuperando…' : 'Recuperar'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="papelera-lista">
+            {papelera.map((m) => (
+              <li key={m.id} className="papelera-item">
+                <div className="papelera-datos">
+                  <span className="papelera-nombre">
+                    {m.fullName || `${m.firstName || ''} ${m.lastName || ''}`.trim() || 'Sin nombre'}
+                  </span>
+                  <span className="papelera-detalle">{m.dni ? `DNI ${m.dni}` : 'Sin DNI'}</span>
+                  {m.deletedAt && (
+                    <span className="papelera-detalle">Eliminado el {formatDate(m.deletedAt)}</span>
+                  )}
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={restaurando === m.id}
+                  onClick={() => restaurarSocio(m)}
+                >
+                  <Icon name="refresh" size="1em" /> {restaurando === m.id ? 'Recuperando…' : 'Recuperar'}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </Modal>
 

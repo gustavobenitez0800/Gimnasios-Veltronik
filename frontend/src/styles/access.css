@@ -78,7 +78,9 @@
 .adentro-lista {
   max-height: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* min(320px, 100%): en un celular la lista mide ~314 px, y una columna de 320 como mínimo
+     la desbordaba (barra para el costado debajo de "Nadie en el gimnasio" y de cada persona). */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 0.5rem;
 }
 /* "Nadie en el gimnasio" y "Cargando" ocupan la fila entera: si no, quedaban centrados en la

@@ -634,3 +634,54 @@
 .members-page td[data-label="Teléfono"] {
   white-space: nowrap;
 }
+
+/* ─── LA PAPELERA: UN RENGLÓN POR SOCIO (2026-10-28) ───
+   Era una tabla de cuatro columnas. En el celular el nombre, el DNI y la fecha quedaban
+   pegados, partidos en dos renglones y sin aire entre uno y otro. Ahora cada socio es un
+   renglón: quién es arriba, el DNI y cuándo se borró abajo, y "Recuperar" a la derecha.
+
+       Gustavo Benitez                         [↻ Recuperar]
+       DNI 46076448
+       Eliminado el 28/10/2026
+
+   El DNI y la fecha van en renglones propios: juntos no entraban al lado del botón en un
+   celular y la fecha se partía ("Eliminado el / 28/10/2026").
+   Alineado a la izquierda: la ventana hereda el centrado de `.modal-container`. */
+.papelera-modal { text-align: left; }
+
+.papelera-lista {
+  list-style: none;
+  margin: var(--aire-titulo) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.papelera-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.papelera-datos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.papelera-nombre {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.papelera-detalle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.papelera-item .btn { flex-shrink: 0; }

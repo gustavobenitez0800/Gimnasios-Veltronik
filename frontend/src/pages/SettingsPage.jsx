@@ -20,6 +20,7 @@ import apiClient from '../lib/apiClient';
 import { obtenerPlanes, planQueSeCobra } from '../lib/planes';
 import CONFIG from '../lib/config';
 import { getPaymentConfig } from '../lib/paymentConfig';
+import { getTrialDays } from '../lib/access';
 import Icon from '../components/Icon';
 import LogoPicker from '../components/LogoPicker';
 import GymLogo from '../components/GymLogo';
@@ -55,7 +56,7 @@ export default function SettingsPage({ SubscriptionActions }) {
 
   // Subscription info
   const [subscriptionInfo, setSubscriptionInfo] = useState({
-    plan: 'Veltronik', planCode: null, status: 'active', nextPayment: '--', amount: '--',
+    plan: 'Veltronik', planCode: null, status: 'active', nextPayment: '--', prueba: null, amount: '--',
     hasSubscription: false
   });
 
@@ -127,15 +128,13 @@ export default function SettingsPage({ SubscriptionActions }) {
         nextPaymentText = formatDate(String(suscripcion.currentPeriodEnd).slice(0, 10));
       }
 
-      // Sin suscripción de MP, el "próximo cobro" es el fin de la prueba gratis.
-      if (!hasSubscription && gymData.trialEndsAt) {
-        const trialEnd = new Date(gymData.trialEndsAt);
-        const diffDays = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
-        const dateStr = trialEnd.toLocaleDateString('es-AR');
-        nextPaymentText = diffDays >= 0
-          ? `${dateStr} (${diffDays} días de prueba restantes)`
-          : `${dateStr} (período de prueba finalizado)`;
-      }
+      // Sin suscripción NO hay ningún cobro agendado: lo que viene es el fin de la prueba.
+      // Hasta el 2026-10-28 se mostraba como "Próximo cobro: 5/11/2026 (8 días de prueba
+      // restantes)", y ese día no se cobra nada —no hay tarjeta cargada—: termina la prueba y
+      // el sistema le pide suscribirse para seguir. Los días, con la misma cuenta del Lobby.
+      const prueba = !hasSubscription && gymData.trialEndsAt
+        ? { termina: formatDate(gymData.trialEndsAt), dias: getTrialDays(gymData) }
+        : null;
 
       // El precio lo dice el BACKEND, que es quien le pasa el monto a Mercado Pago.
       // (Antes esto era CONFIG.SUBSCRIPTION_PRICE, horneado en el build: un instalador
@@ -156,8 +155,9 @@ export default function SettingsPage({ SubscriptionActions }) {
         // El código de la suscripción tal cual, no el resuelto: si la lista de planes fallara
         // acá, el resuelto quedaría vacío y el formulario cobraría el básico.
         planCode: suscripcion?.planCode || null,
-        status: isActive ? 'active' : 'blocked',
+        status: !isActive ? 'blocked' : prueba ? 'trial' : 'active',
         nextPayment: nextPaymentText,
+        prueba,
         amount: formatCurrency(amount),
         hasSubscription,
       });
@@ -395,6 +395,13 @@ export default function SettingsPage({ SubscriptionActions }) {
   const roleLabels = { owner: 'Dueño', admin: 'Administrador', staff: 'Staff', reception: 'Recepción', member: 'Miembro' };
   const accountRole = roleLabels[currentRole] || currentRole || '--';
   const statusLabels = { active: '● Activo', pending: '○ Pendiente', blocked: '● Bloqueado', trial: '● Prueba' };
+  // En la prueba gratis decía "● Activo", como si hubiera una suscripción andando.
+  const diasDePrueba = subscriptionInfo.prueba?.dias ?? 0;
+  const statusLabel = subscriptionInfo.status !== 'trial'
+    ? statusLabels[subscriptionInfo.status] || subscriptionInfo.status
+    : diasDePrueba > 0
+      ? `● Prueba gratis · ${diasDePrueba === 1 ? 'queda 1 día' : `quedan ${diasDePrueba} días`}`
+      : '● Prueba terminada';
 
   return (
     <div className="settings-page">
@@ -499,9 +506,10 @@ export default function SettingsPage({ SubscriptionActions }) {
           <SubscriptionActions
             plan={subscriptionInfo.plan}
             planCode={subscriptionInfo.planCode}
-            statusLabel={statusLabels[subscriptionInfo.status] || subscriptionInfo.status}
+            statusLabel={statusLabel}
             blocked={subscriptionInfo.status === 'blocked'}
             nextPayment={subscriptionInfo.nextPayment}
+            prueba={subscriptionInfo.prueba}
             monthlyAmountLabel={subscriptionInfo.amount}
             hasSubscription={subscriptionInfo.hasSubscription}
             verifying={verifyingSubscription}

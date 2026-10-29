@@ -437,6 +437,18 @@
   padding: 3rem 1rem;
 }
 
+/* Adentro de una tabla, `.table td` le ganaba en peso y el aviso quedaba con el relleno de una
+   celda común, corrido a la izquierda. Y la fila que lo lleva no es un renglón de datos: sin el
+   fondo de renglón ni el salto al pasar el mouse (con un estado vacío adentro eran dos cajas,
+   una en la otra). */
+.table td.table-empty { padding: 2rem 1rem; text-align: center; }
+.table tbody tr:has(> td.table-empty),
+.table tbody tr:has(> td.table-empty):hover {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
 /* ─── Desde / Hasta + Hoy · Semana · Mes · Año ───
    El mismo selector en Pagos y en la Caja (SelectorDeFechas). Parte en renglones cuando no
    entra: primero bajan los atajos, y en un celular cada fecha ocupa su renglón entero. */
