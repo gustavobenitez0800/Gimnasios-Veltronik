@@ -71,23 +71,21 @@ dirección vieja de Vercel que da 404.
 🪤 En la vista previa del panel de Supabase el logo sale roto igual: la página de Supabase solo
 deja mostrar imágenes de sus dominios (y de GitHub, Google, Vercel). En el correo de verdad se ve.
 
-## 4. Después de publicar el arreglo de la confirmación (rama `fix/confirmar-correo`)
+## 4. El link de "Confirm signup" usa `token_hash` (aplicado el 29/10/2026)
 
-En **Confirm signup**, cambiar el `href` del botón:
-
-```
-{{ .ConfirmationURL }}
-```
-
-por:
+El botón de `confirmar-cuenta.html` apunta a:
 
 ```
 {{ .SiteURL }}/?alta=1&token_hash={{ .TokenHash }}&type=email
 ```
 
-Con eso el link abre la sesión en cualquier navegador y sin el límite de 5 minutos (ver
-`frontend/src/lib/vueltaDelCorreo.js`). 🔴 **Solo después de publicar el frontend**: la
-versión anterior no sabe canjear el `token_hash`, y los links dejarían de confirmar a nadie.
+y no a `{{ .ConfirmationURL }}`. Con eso el link abre la sesión en cualquier navegador y sin el
+límite de 5 minutos que tiene el `?code=` de PKCE (ver `frontend/src/lib/vueltaDelCorreo.js`).
+Se cambió recién después de publicar el frontend que sabe canjearlo (PR #51).
+
+🔴 Si algún día se vuelve a una versión del portal anterior al PR #51, hay que volver también
+este link a `{{ .ConfirmationURL }}`: la versión vieja no canjea el `token_hash` y los links no
+confirmarían a nadie.
 
 ## Cómo probarlo
 
