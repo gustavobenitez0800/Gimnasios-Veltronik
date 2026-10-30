@@ -122,6 +122,9 @@ Proyecto **nuevo**, distinto al del portal.
       landing por las mismas búsquedas con una página que es un formulario de login.
 - [x] **Imagen para compartir** (`public/og.png`, 1200×630), con el mismo mensaje que el
       hero. La regenera `tools/generar-imagenes.mjs`.
+- ⚠️ **`public/logo-claro.png` lo usan los correos de Supabase** (`docs/correos/`), con la
+      dirección `https://veltronik.com.ar/logo-claro.png`. Si se borra o se renombra, los
+      correos de alta y de recuperar contraseña quedan con el logo roto.
 - [x] **WhatsApp comercial** en `src/lib/site.js` (`CONTACTO.whatsapp`).
 - [ ] **Perfil de Empresa en Google**: falta verificarlo (pide un video). Está en
       `TAREAS-MANUALES.md` §6.
