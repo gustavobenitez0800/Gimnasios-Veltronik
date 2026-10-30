@@ -15,7 +15,7 @@
     "url": "https://github.com/gustavobenitez0800/gimnasios-veltronik.git"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0 <26"
   },
   "scripts": {
     "dev": "vite",
