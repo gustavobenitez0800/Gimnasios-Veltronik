@@ -14,6 +14,8 @@ import { openPortal } from '../lib/portal';
 import { canUseBrowserSignIn } from '../lib/desktopAuth';
 import { authService, errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
+import { INITIAL_URL } from '../lib/supabase';
+import { leerVueltaDelCorreo, avisoDeLaVuelta } from '../lib/vueltaDelCorreo';
 
 // Google ya funciona en los dos envases (Fase 2).
 //
@@ -29,8 +31,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
+  const { user, login, loginWithGoogle } = useAuth();
   const { showToast } = useToast();
+  // ¿Llegó acá desde el link "Confirmá tu correo"? Si el canje hubiera andado ya estaría en el
+  // Lobby; si está acá, falló, y antes lo hacía EN SILENCIO (ver lib/vueltaDelCorreo.js). Se
+  // lee de INITIAL_URL porque AuthContext ya limpió la barra de direcciones.
+  const [vueltaDelCorreo] = useState(() => avisoDeLaVuelta(leerVueltaDelCorreo(INITIAL_URL)));
+  // Con sesión, este render es el instante antes de que el guard lo mande al Lobby.
+  const aviso = user ? null : vueltaDelCorreo;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,6 +105,13 @@ export default function LoginPage() {
       {/* Title */}
       <h2 className="auth-title">Hola de nuevo</h2>
       <p className="auth-subtitle">Entrá con tu cuenta</p>
+
+      {aviso && (
+        <div className={`auth-aviso${aviso.tipo === 'error' ? ' is-error' : ''}`} role="status">
+          <Icon name={aviso.tipo === 'error' ? 'alertTriangle' : 'checkCircle'} />
+          <span>{aviso.texto}</span>
+        </div>
+      )}
 
       {/* Login Form */}
       <form className="auth-form" onSubmit={handleSubmit}>

@@ -40,7 +40,11 @@ const authService = {
   onAuthStateChange: vi.fn(() => ({ unsubscribe: vi.fn() })),
   signOut: vi.fn(() => Promise.resolve()),
   clearPlatformState: vi.fn(),
+  confirmarCorreo: vi.fn(() => Promise.resolve({})),
 };
+
+/** La URL con la que se abrió la pestaña (lib/supabase → INITIAL_URL). */
+const urlInicial = { valor: '' };
 
 /** Las consultas de la sucursal: el test decide cuándo (y si) contestan. */
 const apiClient = { get: vi.fn() };
@@ -68,6 +72,7 @@ const boveda = { sesionGuardada: vi.fn() };
 vi.mock('../lib/boveda', () => ({ sesionGuardada: (...a) => boveda.sesionGuardada(...a) }));
 vi.mock('../lib/supabase', () => ({
   CLAVE_DE_SESION: 'sb-de-mentira-auth-token',
+  get INITIAL_URL() { return urlInicial.valor; },
   supabase: { auth: { stopAutoRefresh: vi.fn(), startAutoRefresh: vi.fn() } },
 }));
 const conectividad = { diagnoseConnectivity: vi.fn() };
@@ -147,6 +152,7 @@ beforeEach(() => {
   conexion.cortado = false;
   conexion.alCortarse = [];
   conexion.oyentes.clear();
+  urlInicial.valor = '';
 });
 
 afterEach(() => {
@@ -252,6 +258,58 @@ describe('el arranque de la app', () => {
 
     expect(hayLogoGirando()).toBe(false);
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================
+// LA VUELTA DEL LINK "CONFIRMÁ TU CORREO"
+// ============================================
+// Con la plantilla que manda `token_hash`, el arranque confirma el correo y abre la sesión
+// antes de preguntarla. El detalle de por qué, en lib/vueltaDelCorreo.js.
+// ============================================
+
+describe('la vuelta del link del correo de alta', () => {
+  const LINK = 'https://veltronik-v2.vercel.app/?alta=1&token_hash=xyz&type=email';
+
+  it('⭐ canjea el token_hash UNA vez, antes de preguntar la sesión, y limpia la barra', async () => {
+    urlInicial.valor = LINK;
+    window.history.replaceState(null, '', '/?alta=1&token_hash=xyz&type=email');
+    let avisar;
+    authService.onAuthStateChange.mockImplementation((cb) => {
+      avisar = cb;
+      return { unsubscribe: vi.fn() };
+    });
+
+    await pintarEn('#/');
+
+    expect(authService.confirmarCorreo).toHaveBeenCalledTimes(1);
+    expect(authService.confirmarCorreo).toHaveBeenCalledWith('xyz', 'email');
+    expect(authService.confirmarCorreo.mock.invocationCallOrder[0])
+      .toBeLessThan(authService.getSession.mock.invocationCallOrder[0]);
+    expect(window.location.search).toBe('');
+    expect(hayLogoGirando()).toBe(false);
+
+    // El SIGNED_IN (y la vuelta de la conexión) vuelven a correr el arranque. El link ya se
+    // gastó: canjearlo de nuevo solo puede fallar.
+    await act(async () => { await avisar('SIGNED_IN', SESION); });
+    await tick();
+    expect(authService.confirmarCorreo).toHaveBeenCalledTimes(1);
+  });
+
+  it('si el link venció, el arranque sigue igual y termina en el login', async () => {
+    urlInicial.valor = LINK;
+    authService.confirmarCorreo.mockRejectedValueOnce(new Error('Email link is invalid or has expired'));
+    authService.getSession.mockRejectedValue(new Error('No session found'));
+
+    await pintarEn('#/');
+
+    expect(hayLogoGirando()).toBe(false);
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it('una entrada común no canjea nada', async () => {
+    await pintarEn('#/lobby');
+    expect(authService.confirmarCorreo).not.toHaveBeenCalled();
   });
 });
 

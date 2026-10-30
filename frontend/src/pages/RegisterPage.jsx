@@ -20,6 +20,8 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // A qué email se mandó el link de confirmación (null = todavía no se creó la cuenta).
+  const [correoEnviadoA, setCorreoEnviadoA] = useState(null);
   const { register } = useAuth();
   const { showToast } = useToast();
 
@@ -49,8 +51,12 @@ export default function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await register(email, password, fullName);
-      showToast('¡Cuenta creada! Redirigiendo...', 'success');
+      const { confirmarCorreo } = await register(email, password, fullName);
+      if (confirmarCorreo) {
+        setCorreoEnviadoA(email.trim());
+      } else {
+        showToast('¡Cuenta creada! Redirigiendo...', 'success');
+      }
     } catch (error) {
       console.error('Register error:', error);
       showToast(await getRegisterErrorMessage(error), 'error');
@@ -59,14 +65,39 @@ export default function RegisterPage() {
     }
   };
 
+  const logo = (
+    <div className="auth-logo">
+      <img src={logoSrc} alt="Veltronik" className="auth-logo-img marca-centrada" />
+      <h1 className="auth-logo-text">Veltronik</h1>
+      <p className="auth-logo-subtitle">El sistema de tu gimnasio</p>
+    </div>
+  );
+
+  // La cuenta está creada pero cerrada hasta tocar el link del correo (Supabase tiene la
+  // confirmación prendida). Antes acá decía "Redirigiendo..." y lo mandaba al login sin más.
+  if (correoEnviadoA) {
+    return (
+      <div className="auth-card">
+        {logo}
+        <h2 className="auth-title">Revisá tu correo</h2>
+        <p className="auth-subtitle">Falta un paso para entrar</p>
+        <div className="auth-aviso" role="status">
+          <Icon name="mail" />
+          <span>
+            Te mandamos un correo a <strong>{correoEnviadoA}</strong>. Tocá el enlace que trae
+            y tu cuenta queda lista. Si no aparece, mirá en spam o en promociones.
+          </span>
+        </div>
+        <p className="auth-links">
+          ¿Ya lo confirmaste? <Link to={CONFIG.ROUTES.LOGIN}>Iniciá sesión</Link>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-card">
-      {/* Logo */}
-      <div className="auth-logo">
-        <img src={logoSrc} alt="Veltronik" className="auth-logo-img marca-centrada" />
-        <h1 className="auth-logo-text">Veltronik</h1>
-        <p className="auth-logo-subtitle">El sistema de tu gimnasio</p>
-      </div>
+      {logo}
 
       {/* Title */}
       <h2 className="auth-title">Crear cuenta</h2>

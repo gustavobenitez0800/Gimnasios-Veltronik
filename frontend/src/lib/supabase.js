@@ -85,10 +85,14 @@ function urlDe(input) {
  *   · `refresh_token` → el que revoca la sesión entera si se reintenta tarde.
  *   · `pkce`          → canjea el "?code=" del mail o del OAuth. Reintentarlo no rompe la
  *                       sesión, pero el código ya se gastó: el reintento solo puede fallar.
+ *   · `/verify`       → el `token_hash` del correo de alta (lib/vueltaDelCorreo.js). Igual:
+ *                       si la respuesta se perdió, el reintento choca con un link ya usado.
  */
 function gastaUnaCredencialDeUnSoloUso(input) {
   const url = urlDe(input);
-  return url.includes('grant_type=refresh_token') || url.includes('grant_type=pkce');
+  return url.includes('grant_type=refresh_token')
+    || url.includes('grant_type=pkce')
+    || url.includes('/auth/v1/verify');
 }
 
 /** Elige el fetch según lo que el pedido se juega si se repite. */

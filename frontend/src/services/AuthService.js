@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import CONFIG from '../lib/config';
 import { readAuthCode } from '../lib/authCode';
 import { startGoogleSignIn, canUseBrowserSignIn } from '../lib/desktopAuth';
+import { MARCA_DE_ALTA } from '../lib/vueltaDelCorreo';
 
 /** ¿La app corre dentro de Electron? (mismo criterio que lib/connection.js) */
 function inElectron() {
@@ -26,12 +27,21 @@ function publicWebBase() {
 }
 
 class AuthService {
-  
+
+  /**
+   * Crea la cuenta. Con la confirmación de correo prendida en Supabase (lo está), NO trae
+   * sesión: `data.session` viene en null y la cuenta se abre recién al tocar el link del correo.
+   *
+   * <p>`emailRedirectTo` marca la vuelta con `?alta=1`. Sin la marca, el link caía en la Site
+   * URL pelada y la app no podía saber que ese `?code=` era de un alta: si el canje fallaba
+   * (ver lib/vueltaDelCorreo.js) mostraba el login sin decir nada.</p>
+   */
   async signUp(email, password, fullName = '') {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${publicWebBase()}/?${MARCA_DE_ALTA}=1`,
         data: {
           first_name: fullName.split(' ')[0] || '',
           last_name: fullName.split(' ').slice(1).join(' ') || ''
@@ -39,6 +49,22 @@ class AuthService {
       }
     });
 
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Confirma el correo con el `token_hash` del link y abre la sesión.
+   *
+   * <p>A diferencia del `?code=`, no necesita el code-verifier (anda en cualquier navegador)
+   * ni vence a los 5 minutos de haberse registrado. Solo llega acá si la plantilla del correo
+   * manda `token_hash` (ver lib/vueltaDelCorreo.js).</p>
+   */
+  async confirmarCorreo(tokenHash, tipo) {
+    // Que el arranque del cliente termine primero: `verifyOtp` guarda la sesión sin pedir el
+    // candado, y no tiene que cruzarse con la recuperación de la sesión guardada.
+    await supabase.auth.initialize();
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: tipo });
     if (error) throw error;
     return data;
   }
