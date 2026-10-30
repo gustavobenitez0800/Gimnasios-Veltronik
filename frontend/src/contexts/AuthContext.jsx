@@ -18,7 +18,8 @@ import { sesionGuardada } from '../lib/boveda';
 import {
   MOTIVOS, anotarCierre, anotarSiHabiaSesion, recordarQueHaySesion, subirCierres, subirCierresSinDemorar,
 } from '../lib/cierresDeSesion';
-import { supabase, CLAVE_DE_SESION } from '../lib/supabase';
+import { supabase, CLAVE_DE_SESION, INITIAL_URL } from '../lib/supabase';
+import { leerVueltaDelCorreo, limpiarVueltaDelCorreo } from '../lib/vueltaDelCorreo';
 import { diagnoseConnectivity, CONNECTIVITY } from '../lib/connectivity';
 import { sinConexion, cuandoSeCorte, alCambiarLaConexion } from '../lib/conexion';
 import { hasAccess } from '../lib/access';
@@ -336,6 +337,13 @@ export function AuthProvider({ children }) {
   const initAuthPromiseRef = useRef(null);
   // Último negocio cuyo contexto se cargó: la caché solo se limpia al CAMBIAR de negocio.
   const lastLoadedOrgRef = useRef(localStorage.getItem('current_org_id'));
+  // La vuelta del link "Confirmá tu correo" (lib/vueltaDelCorreo.js), leída de la URL con la
+  // que se abrió la pestaña. Se atiende UNA vez: `doInitAuth` corre varias (SIGNED_IN, la
+  // vuelta de la conexión) y un token_hash se puede canjear una sola.
+  const vueltaDelCorreoRef = useRef(null);
+  if (vueltaDelCorreoRef.current === null) {
+    vueltaDelCorreoRef.current = { vuelta: leerVueltaDelCorreo(INITIAL_URL), atendida: false };
+  }
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -503,7 +511,22 @@ export function AuthProvider({ children }) {
      * que durar todo lo que dure el trabajo de verdad.</p>
      */
     let enSegundoPlano = null;
+    const correo = vueltaDelCorreoRef.current;
+    const vieneDelCorreo = !!correo.vuelta && !correo.atendida;
+    correo.atendida = true;
     try {
+      // El link del correo de alta con `token_hash`: se confirma acá y la sesión queda abierta
+      // para el `getSession()` de abajo. Si venció o ya se usó, no hay sesión y la pantalla de
+      // entrada explica qué pasó (avisoDeLaVuelta). El `?code=` de siempre no pasa por acá:
+      // ese lo canjea Supabase solo, al crearse el cliente.
+      if (vieneDelCorreo && correo.vuelta.tokenHash) {
+        try {
+          await authService.confirmarCorreo(correo.vuelta.tokenHash, correo.vuelta.tipo);
+        } catch (e) {
+          console.warn('[auth] el link del correo no se pudo canjear:', e?.message);
+        }
+      }
+
       // ⭐ PRIMERO SE MIRA SI HAY RED, Y RECIÉN DESPUÉS SE LE PREGUNTA A LA NUBE.
       //
       // El orden no es un detalle: es la diferencia entre abrir en el acto y dejar el logo
@@ -553,6 +576,9 @@ export function AuthProvider({ children }) {
         }
         session = null;
       }
+      // Supabase ya leyó la URL (el canje del `?code=` termina antes de que `getSession()`
+      // conteste): lo que dejó el correo se puede sacar de la barra.
+      if (vieneDelCorreo) limpiarVueltaDelCorreo();
       reloj.marca('sesion');
       if (!session) {
         // ⭐ "NO HAY SESIÓN" Y "NO PUDE CONFIRMARLA" SE VEN IGUAL DESDE ACÁ, Y NO SON LO MISMO.
@@ -939,11 +965,20 @@ export function AuthProvider({ children }) {
     navigate(CONFIG.ROUTES.LOBBY);
   };
 
+  /**
+   * Crea la cuenta. Devuelve `{ confirmarCorreo: true }` cuando Supabase no abrió la sesión
+   * porque falta tocar el link del correo — que con la confirmación prendida es SIEMPRE.
+   *
+   * <p>Antes navegaba al Lobby igual, con "¡Cuenta creada! Redirigiendo...": sin sesión, el
+   * guard lo devolvía al login y nadie le decía que tenía un correo esperando.</p>
+   */
   const register = async (email, password, fullName) => {
     trialWarningShownRef.current = false;
-    await authService.signUp(email, password, fullName);
+    const { session } = await authService.signUp(email, password, fullName);
+    if (!session) return { confirmarCorreo: true };
     await initAuth();
     navigate(CONFIG.ROUTES.LOBBY);
+    return { confirmarCorreo: false };
   };
 
   const loginWithGoogle = async () => {

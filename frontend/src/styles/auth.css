@@ -220,6 +220,29 @@
   margin-bottom: 1.5rem;
 }
 
+/* Lo que pasó antes de llegar acá: volver del link del correo, o el "revisá tu correo" del
+   alta. Va arriba del formulario porque es lo primero que hay que leer. */
+.auth-aviso {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--border-radius-md);
+  border-left: 3px solid var(--success-500);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.auth-aviso.is-error {
+  border-left-color: var(--error-500);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.auth-aviso svg { flex: none; margin-top: 0.1rem; }
+
 .auth-form { width: 100%; }
 
 /* Inputs translúcidos que se integran con el vidrio */

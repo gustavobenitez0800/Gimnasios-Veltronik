@@ -18,8 +18,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const signOut = vi.fn(async () => ({ error: null }));
 const onAuthStateChange = vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } }));
+const signUp = vi.fn(async () => ({ data: { user: { id: 'u1' }, session: null }, error: null }));
+const initialize = vi.fn(async () => ({ error: null }));
+const verifyOtp = vi.fn(async () => ({ data: { session: { access_token: 't' } }, error: null }));
 
-vi.mock('../lib/supabase', () => ({ supabase: { auth: { signOut, onAuthStateChange } } }));
+vi.mock('../lib/supabase', () => ({
+  supabase: { auth: { signOut, onAuthStateChange, signUp, initialize, verifyOtp } },
+}));
 vi.mock('../lib/authCode', () => ({ readAuthCode: () => null }));
 vi.mock('../lib/desktopAuth', () => ({ startGoogleSignIn: vi.fn(), canUseBrowserSignIn: () => false }));
 
@@ -39,6 +44,26 @@ describe('cerrar sesión', () => {
   it('cerrar en todos los dispositivos es una acción aparte, explícita', async () => {
     await authService.signOutEverywhere();
     expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+});
+
+describe('el alta y el link del correo', () => {
+  it('⭐ el alta marca su vuelta con ?alta=1, para que la app sepa que el `?code=` es de un alta', async () => {
+    await authService.signUp('dueno@gym.com', 'secreta', 'Ana Pérez');
+    const { options } = signUp.mock.calls.at(-1)[0];
+    expect(options.emailRedirectTo).toBe(`${window.location.origin}/?alta=1`);
+    expect(options.data).toEqual({ first_name: 'Ana', last_name: 'Pérez' });
+  });
+
+  it('el token_hash se canjea con verifyOtp, después de que el cliente terminó de arrancar', async () => {
+    await authService.confirmarCorreo('xyz', 'email');
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'xyz', type: 'email' });
+    expect(initialize.mock.invocationCallOrder[0]).toBeLessThan(verifyOtp.mock.invocationCallOrder[0]);
+  });
+
+  it('un token_hash vencido falla, para que el arranque lo anote y siga', async () => {
+    verifyOtp.mockResolvedValueOnce({ data: {}, error: new Error('Email link is invalid or has expired') });
+    await expect(authService.confirmarCorreo('xyz', 'email')).rejects.toThrow('expired');
   });
 });
 
