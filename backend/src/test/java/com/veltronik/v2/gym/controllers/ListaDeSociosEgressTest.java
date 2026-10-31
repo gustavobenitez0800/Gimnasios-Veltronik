@@ -267,8 +267,93 @@ class ListaDeSociosEgressTest extends EmbeddedPostgresTest {
                 "la foto guarda las fichas, no la respuesta: el vencimiento se juzga con la hora de AHORA");
     }
 
+    // ─── Con un cambio, se trae solo lo que cambió ──────────────────────────────
+
+    /**
+     * Diez socios tocados hace dos horas y uno hace una: así la foto queda con fichas de horas
+     * distintas, como en un gimnasio de verdad, y el margen de cinco minutos no las alcanza.
+     */
+    private UUID unGimnasioConHistoria() {
+        diezSocios();
+        UUID moroso = crearSocio(gym, "Moroso", mensual, enDias(-10));
+        enTransaccion(() -> {
+            em.createNativeQuery("""
+                    UPDATE gym_member SET created_at = now() - interval '2 hours',
+                                          updated_at = now() - interval '2 hours'
+                    WHERE tenant_id = :t
+                    """).setParameter("t", gym).executeUpdate();
+            em.createNativeQuery("UPDATE gym_member SET updated_at = now() - interval '1 hour' WHERE id = :id")
+                    .setParameter("id", moroso).executeUpdate();
+        });
+        return moroso;
+    }
+
     @Test
-    @DisplayName("aun sin cambios, la foto vence a la media hora")
+    @DisplayName("⭐ un cobro trae de la base solo la ficha que cambió, no la lista entera")
+    void unCobroTraeSoloLaFichaQueCambio() {
+        UUID moroso = unGimnasioConHistoria();
+        assertEquals("VENCIDO", socio(pedirLista(), moroso).getSituacion());
+
+        editar("gym_member", moroso, "membership_end", enDias(30), LocalDateTime.now());
+        stats().clear();
+        List<GymMemberDTO> despues = pedirLista();
+
+        assertEquals("AL_DIA", socio(despues, moroso).getSituacion());
+        assertEquals(11, despues.size());
+        assertTrue(stats().getEntityLoadCount() <= 2,
+                "el socio que pagó y su arancel; traer los 11 de nuevo es lo que se quería evitar: "
+                        + stats().getEntityLoadCount() + " fichas");
+    }
+
+    @Test
+    @DisplayName("un alta suma solo la ficha nueva")
+    void unAltaTraeSoloLaNueva() {
+        unGimnasioConHistoria();
+        pedirLista();
+
+        UUID nuevo = crearSocio(gym, "Nuevo", null, enDias(30));
+        stats().clear();
+        List<GymMemberDTO> despues = pedirLista();
+
+        assertEquals(12, despues.size());
+        assertEquals("Nuevo", socio(despues, nuevo).getFirstName());
+        assertTrue(stats().getEntityLoadCount() <= 2, stats().getEntityLoadCount() + " fichas");
+    }
+
+    @Test
+    @DisplayName("el que va a la papelera sale de la lista sin traerla entera")
+    void elQueVaALaPapeleraSale() {
+        UUID moroso = unGimnasioConHistoria();
+        pedirLista();
+
+        editar("gym_member", moroso, "deleted_at", LocalDateTime.now(), LocalDateTime.now());
+        stats().clear();
+        List<GymMemberDTO> despues = pedirLista();
+
+        assertEquals(10, despues.size());
+        assertTrue(despues.stream().noneMatch(s -> s.getId().equals(moroso)));
+        assertTrue(stats().getEntityLoadCount() <= 2, stats().getEntityLoadCount() + " fichas");
+    }
+
+    @Test
+    @DisplayName("🔴 un borrado definitivo no se puede ver en los cambiados: la lista se trae entera")
+    void unBorradoDefinitivoRehaceLaLista() {
+        UUID moroso = unGimnasioConHistoria();
+        pedirLista();
+
+        // La purga de la papelera borra la fila: no deja nada con updated_at nuevo. Solo baja
+        // la cuenta de la marca.
+        enTransaccion(() -> em.createNativeQuery("DELETE FROM gym_member WHERE id = :id")
+                .setParameter("id", moroso).executeUpdate());
+        List<GymMemberDTO> despues = pedirLista();
+
+        assertEquals(10, despues.size(),
+                "la foto sumó los cambios a una lista que ya no coincide con la base");
+        assertTrue(despues.stream().noneMatch(s -> s.getId().equals(moroso)));
+    }
+
+    @Test
+    @DisplayName("aun sin cambios, la foto vence a las seis horas")
     void laFotoVence() {
         diezSocios();
         pedirLista();

@@ -41,6 +41,12 @@ public class GymMemberService {
         return repository.marcaDelGimnasio(TenantContextHolder.getTenantId());
     }
 
+    /** Los socios del gimnasio actual que cambiaron después de {@code desde}, borrados incluidos. */
+    @Transactional(readOnly = true)
+    public List<GymMember> cambiadosDesdeConLosBorrados(java.time.LocalDateTime desde) {
+        return repository.cambiadosDesdeConLosBorrados(TenantContextHolder.getTenantId(), desde);
+    }
+
     /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email). */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<GymMember> findPageForCurrentTenant(

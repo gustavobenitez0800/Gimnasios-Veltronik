@@ -91,6 +91,31 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
     String marcaDesde(@Param("tenantId") UUID tenantId, @Param("desde") LocalDateTime desde);
 
     /**
+     * La marca de la PUERTA entera —accesos y rechazos del molinete— en UNA consulta.
+     *
+     * <p>Es {@link #marcaDesde} y {@code AccessDeniedRepository.marcaDesde} unidas con un
+     * {@code |}, el mismo texto que salía de pedirlas por separado. Cada mostrador abierto la
+     * pregunta cada dos segundos todo el día: eran dos consultas, cada una en su transacción
+     * (BEGIN, consulta, COMMIT), y todo ese ida y vuelta es tráfico que Supabase cuenta. Una
+     * sola consulta es la mitad de los viajes.</p>
+     */
+    @Query(value = """
+            SELECT
+              (SELECT count(*) || ':' || coalesce(to_char(max(greatest(
+                          updated_at, check_in_at,
+                          coalesce(check_out_at, check_in_at),
+                          coalesce(aviso_visto_at, check_in_at))), 'YYYYMMDDHH24MISSUS'), '-')
+               FROM access_log
+               WHERE tenant_id = :tenantId AND check_in_at >= :desde)
+              || '|' ||
+              (SELECT count(*) || ':' || coalesce(to_char(max(greatest(
+                          updated_at, occurred_at, coalesce(aviso_visto_at, occurred_at))), 'YYYYMMDDHH24MISSUS'), '-')
+               FROM access_denied
+               WHERE tenant_id = :tenantId AND occurred_at >= :desde)
+            """, nativeQuery = true)
+    String marcaDeLaPuertaDesde(@Param("tenantId") UUID tenantId, @Param("desde") LocalDateTime desde);
+
+    /**
      * La visita que estaba abierta EN UN MOMENTO DADO, y no simplemente la última abierta.
      *
      * <p><b>Por qué hace falta, y el bug que cierra.</b> Un acceso que se registró sin internet

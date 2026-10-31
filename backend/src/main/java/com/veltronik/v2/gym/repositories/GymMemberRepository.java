@@ -65,6 +65,18 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
             """, nativeQuery = true)
     String marcaDelGimnasio(@Param("tenantId") UUID tenantId);
 
+    /**
+     * Las fichas que cambiaron después de {@code desde}, <b>las borradas INCLUIDAS</b>: la foto de
+     * la lista de socios las necesita para sacarlas. Es la única consulta de socios que no dice
+     * {@code ...AndDeletedAtIsNull}, y por eso no es derivada: el nombre lo avisa.
+     *
+     * <p>Con el arancel en la misma consulta, por lo mismo que {@link #findByTenantIdAndDeletedAtIsNull}.</p>
+     */
+    @EntityGraph(attributePaths = "plan")
+    @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.updatedAt > :desde")
+    List<GymMember> cambiadosDesdeConLosBorrados(@Param("tenantId") UUID tenantId,
+                                                 @Param("desde") java.time.LocalDateTime desde);
+
     long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
 
     /** Últimas altas de socios del tenant (para el feed de actividad del equipo). */

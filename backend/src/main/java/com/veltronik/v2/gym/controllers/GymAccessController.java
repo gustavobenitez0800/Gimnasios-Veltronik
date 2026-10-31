@@ -102,9 +102,32 @@ public class GymAccessController {
      */
     static final long FOTO_VIGENTE_MS = 60_000;
 
+    /**
+     * ⭐ PERO LO PESADO NO CAMBIA CON EL RELOJ: vence a los diez minutos, no al minuto.
+     *
+     * <p><b>Qué pasó.</b> En octubre de 2026 el mostrador seguía siendo lo que más tráfico sacaba
+     * de Supabase. La foto vencía al minuto entera, y rearmarla es traer quién está adentro y
+     * las últimas 60 marcas, cada una con la ficha del socio: con una terminal abierta todo el
+     * día, ~840 veces por día para devolver casi siempre lo mismo (~0,7–1,2 GB por mes y por
+     * mostrador). El 31/10 el proyecto volvió al plan gratis, que corta a los 5 GB.</p>
+     *
+     * <p><b>Por qué se puede.</b> Esas dos listas y el resumen del día solo cambian con los
+     * datos: una entrada o salida mueve la marca de los accesos, y un cobro o una edición mueve
+     * la de los socios —el {@code AccessLogMapper} copia la ficha tal cual, no calcula nada con
+     * la hora—. Lo que de verdad depende del reloj (los avisos, los rechazos del molinete y los
+     * ingresos por QR de los últimos 5 minutos) sigue rehaciéndose al minuto, y esas consultas
+     * casi siempre vuelven vacías. Los diez minutos son la red, por si algún camino escribiera
+     * sin mover la marca.</p>
+     */
+    static final long FOTO_PESADA_VIGENTE_MS = 10 * 60_000;
+
     private record Foto(String marca, long vence, Map<String, Object> cuerpo) {}
 
     private final java.util.concurrent.ConcurrentHashMap<UUID, Foto> fotos =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** La parte que solo cambia con los datos: quién está adentro, el registro y el resumen. */
+    private final java.util.concurrent.ConcurrentHashMap<UUID, Foto> fotosPesadas =
             new java.util.concurrent.ConcurrentHashMap<>();
 
     /** El reloj de la foto. Los tests lo adelantan para no esperar un minuto. */
@@ -118,8 +141,7 @@ public class GymAccessController {
         // La marca se lee ANTES de armar. Si algo cambia mientras se arma, la foto queda
         // guardada con la marca vieja y el próximo pedido la rehace. Al revés sería guardar
         // una foto vieja con la marca nueva, y servirla como si estuviera al día.
-        String marca = accessService.marcaDeAccesos()
-                + "|" + molineteService.marcaDeRechazos()
+        String marca = accessService.marcaDeLaPuerta()
                 + "|" + memberService.marcaDelGimnasio()
                 + "|" + LocalDate.now(ZONA_DEL_NEGOCIO);
         long ahora = reloj.getAsLong();
@@ -129,7 +151,15 @@ public class GymAccessController {
             return ResponseEntity.ok(foto.cuerpo());
         }
 
-        Map<String, Object> cuerpo = armarMostrador();
+        Foto pesada = fotosPesadas.get(tenantId);
+        if (pesada == null || !pesada.marca().equals(marca) || ahora >= pesada.vence()) {
+            pesada = new Foto(marca, ahora + FOTO_PESADA_VIGENTE_MS,
+                    java.util.Collections.unmodifiableMap(armarLoPesado()));
+            fotosPesadas.put(tenantId, pesada);
+        }
+
+        Map<String, Object> cuerpo = new java.util.HashMap<>(pesada.cuerpo());
+        agregarLoQueCambiaConElReloj(cuerpo);
         fotos.put(tenantId, new Foto(marca, ahora + FOTO_VIGENTE_MS,
                 java.util.Collections.unmodifiableMap(cuerpo)));
         return ResponseEntity.ok(cuerpo);
@@ -139,6 +169,13 @@ public class GymAccessController {
             java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
     private Map<String, Object> armarMostrador() {
+        Map<String, Object> body = armarLoPesado();
+        agregarLoQueCambiaConElReloj(body);
+        return body;
+    }
+
+    /** Lo que solo cambia con los datos (ver {@link #FOTO_PESADA_VIGENTE_MS}). */
+    private Map<String, Object> armarLoPesado() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("adentro", accessMapper.toDtoList(accessService.getActiveAccesses()));
 
@@ -159,7 +196,11 @@ public class GymAccessController {
         body.put("hoy", accessMapper.toDtoList(accessService.ultimosDeHoy(CUANTOS_DE_HOY)));
         body.put("hoyTotal", resumen.total());
         body.put("hoyPromedioMin", resumen.promedioMin());
+        return body;
+    }
 
+    /** Lo que depende de la hora: se rehace cada {@link #FOTO_VIGENTE_MS}. */
+    private void agregarLoQueCambiaConElReloj(Map<String, Object> body) {
         // ⚠️ LOS AVISOS NO PUEDEN TUMBAR LA PANTALLA ENTERA.
         //
         // Son la parte accesoria —a quién hay que hablarle— y la más cara: recalculan el
@@ -195,7 +236,6 @@ public class GymAccessController {
         // pedido se repite cada quince segundos— pero la ventana es de 5 minutos, así que
         // casi siempre viaja una lista vacía.
         body.put("ingresos", accessService.ingresosRecientes());
-        return body;
     }
 
     /**
@@ -210,7 +250,7 @@ public class GymAccessController {
      */
     @GetMapping("/novedades")
     public ResponseEntity<Map<String, String>> novedades() {
-        return ResponseEntity.ok(Map.of("marca", accessService.marcaDeAccesos() + "|" + molineteService.marcaDeRechazos()));
+        return ResponseEntity.ok(Map.of("marca", accessService.marcaDeLaPuerta()));
     }
 
     /**

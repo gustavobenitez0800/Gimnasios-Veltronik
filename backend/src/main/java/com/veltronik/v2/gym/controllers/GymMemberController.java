@@ -55,17 +55,40 @@ public class GymMemberController {
      * se vuelve a calcular en CADA pedido. Así la foto nunca muestra un vencimiento viejo, por
      * más que tenga media hora.</p>
      *
-     * <p><b>Cuándo se tira.</b> Cuando cambia la marca de los socios (alta, edición, cobro,
-     * baja, borrado) o la de los aranceles (el nombre del arancel viaja en cada socio). Y a la
-     * media hora igual, como red por si algún camino escribiera sin mover {@code updated_at}.</p>
+     * <p><b>Cuándo se tira.</b> Cuando cambia la marca de los aranceles (el nombre del arancel
+     * viaja en cada socio). Y a las seis horas igual, como red por si algún camino escribiera
+     * sin mover {@code updated_at}.</p>
+     *
+     * <p><b>Cuando cambia un socio, no se tira: se le cambia ese socio.</b> Ver
+     * {@link #conLosCambios}. Hasta octubre de 2026 cada cobro, alta o edición rehacía la
+     * lista ENTERA, y la red vencía a la media hora: con Hernandez Tecnofit (2.840 socios,
+     * ~400 kB por vez) eran ~0,4–0,6 GB por mes de un solo gimnasio, justo cuando el proyecto
+     * volvió al plan gratis de Supabase, que corta a los 5 GB.</p>
      *
      * <p>Las entidades guardadas no las toca nadie más que el mapper, que solo lee: el arancel
      * ya viene cargado en la misma consulta, así que no hay nada perezoso que se active fuera
      * de la sesión.</p>
      */
-    static final long FOTO_VIGENTE_MS = 30 * 60_000;
+    static final long FOTO_VIGENTE_MS = 6 * 60 * 60_000;
 
-    private record Foto(String marca, long vence, List<GymMember> socios) {}
+    /**
+     * Cuánto para atrás se piden los cambiados, contando desde que se leyó la foto.
+     *
+     * <p>Por lo mismo que la marca es una SUMA y no un máximo (ver
+     * {@code GymMemberRepository#marcaDelGimnasio}): un cobro que termina de guardarse después
+     * puede llevar una hora anterior. Cinco minutos de margen lo cubren con creces, y lo que se
+     * repite se pisa con lo mismo.</p>
+     *
+     * <p>⚠️ Se cuenta desde la hora de ESTE servidor al leer, no desde la ficha más nueva de la
+     * foto: las fichas no las escribe un solo reloj. JPA usa la hora del servidor, pero un UPDATE
+     * con el {@code now()} de la base puede quedar en otra zona horaria; una sola ficha con la
+     * hora corrida hacia adelante haría que se pierdan los cambios de las horas siguientes.</p>
+     */
+    static final java.time.Duration MARGEN_DE_CAMBIOS = java.time.Duration.ofMinutes(5);
+
+    /** @param leidaDesde la hora de este servidor justo antes de leer la marca y las fichas. */
+    private record Foto(String marcaSocios, String marcaAranceles, long vence,
+                        java.time.LocalDateTime leidaDesde, List<GymMember> socios) {}
 
     private final java.util.concurrent.ConcurrentHashMap<UUID, Foto> fotos =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -85,16 +108,76 @@ public class GymMemberController {
         // La marca se lee ANTES de traer la lista: si algo cambia en el medio, la foto queda
         // con la marca vieja y el próximo pedido la rehace, en vez de quedar una lista vieja
         // con la marca nueva.
-        String marca = memberService.marcaDelGimnasio() + "|" + planService.marcaDelGimnasio();
+        java.time.LocalDateTime leidaDesde = java.time.LocalDateTime.now();
+        String marcaSocios = memberService.marcaDelGimnasio();
+        String marcaAranceles = planService.marcaDelGimnasio();
         long ahora = reloj.getAsLong();
 
         Foto foto = fotos.get(tenantId);
-        if (foto != null && foto.marca().equals(marca) && ahora < foto.vence()) {
-            return foto.socios();
+        if (foto != null && ahora < foto.vence() && foto.marcaAranceles().equals(marcaAranceles)) {
+            if (foto.marcaSocios().equals(marcaSocios)) return foto.socios();
+
+            List<GymMember> alDia = conLosCambios(foto, marcaSocios);
+            if (alDia != null) {
+                // Conserva el vencimiento de la foto: la red de las seis horas cuenta desde la
+                // última vez que se trajo la lista entera, no desde el último cambio.
+                fotos.put(tenantId, new Foto(marcaSocios, marcaAranceles, foto.vence(), leidaDesde, alDia));
+                return alDia;
+            }
         }
         List<GymMember> socios = List.copyOf(memberService.findAllForCurrentTenant());
-        fotos.put(tenantId, new Foto(marca, ahora + FOTO_VIGENTE_MS, socios));
+        fotos.put(tenantId, new Foto(marcaSocios, marcaAranceles, ahora + FOTO_VIGENTE_MS, leidaDesde, socios));
         return socios;
+    }
+
+    /**
+     * La foto con los socios que cambiaron desde que se armó, sin volver a traer a los demás.
+     *
+     * <p>Trae de la base solo las fichas tocadas después de que se leyó la foto (menos
+     * {@link #MARGEN_DE_CAMBIOS}), borradas incluidas, y las reemplaza en la lista: la nueva
+     * pisa a la vieja, y la que pasó a la papelera sale.</p>
+     *
+     * <p><b>Devuelve null si no puede asegurar que la lista quedó igual a la base</b>, y entonces
+     * se trae entera, como antes. La prueba es la cuenta de fichas que viaja en la marca: tiene
+     * que ser la de antes más las altas que trajo esta consulta. Si no da —un borrado definitivo
+     * de la papelera, algo que no se entiende—, no se arriesga.</p>
+     */
+    private List<GymMember> conLosCambios(Foto foto, String marcaNueva) {
+        long cuentaVieja = cuentaDeLaMarca(foto.marcaSocios());
+        long cuentaNueva = cuentaDeLaMarca(marcaNueva);
+        if (cuentaVieja < 0 || cuentaNueva < 0) return null;
+
+        java.time.LocalDateTime desde = foto.leidaDesde().minus(MARGEN_DE_CAMBIOS);
+        List<GymMember> cambiados = memberService.cambiadosDesdeConLosBorrados(desde);
+
+        java.util.Map<UUID, GymMember> porId = new java.util.LinkedHashMap<>();
+        for (GymMember socio : foto.socios()) porId.put(socio.getId(), socio);
+
+        // Altas: fichas que la foto no tenía y que nacieron dentro de lo que se pidió. Una que la
+        // foto no tenía pero es vieja ya estaba en la cuenta (estaba en la papelera).
+        long altas = cambiados.stream()
+                .filter(c -> !porId.containsKey(c.getId()))
+                .filter(c -> c.getCreatedAt() != null && c.getCreatedAt().isAfter(desde))
+                .count();
+        if (cuentaNueva != cuentaVieja + altas) return null;
+
+        for (GymMember c : cambiados) {
+            if (c.estaBorrado()) porId.remove(c.getId());
+            else porId.put(c.getId(), c);
+        }
+        return List.copyOf(porId.values());
+    }
+
+    /** Cuántas fichas dice la marca de socios ({@code "cuantas:suma"}). -1 si no se entiende. */
+    static long cuentaDeLaMarca(String marca) {
+        if (marca == null) return -1;
+        int dosPuntos = marca.indexOf(':');
+        if (dosPuntos <= 0) return -1;
+        try {
+            return Long.parseLong(marca.substring(0, dosPuntos));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     /**

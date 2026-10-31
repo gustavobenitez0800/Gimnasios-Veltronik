@@ -57,6 +57,7 @@ class MostradorEgressTest extends EmbeddedPostgresTest {
     @Autowired private PlatformTransactionManager txManager;
     @Autowired private GymAccessController controller;
     @Autowired private AccessLogService accessService;
+    @Autowired private com.veltronik.v2.gym.services.MolineteService molineteService;
     @Autowired private GymMemberRepository memberRepository;
     @Autowired private MemberAccessPolicy policy;
 
@@ -180,9 +181,26 @@ class MostradorEgressTest extends EmbeddedPostgresTest {
 
         assertEquals(0, stats().getEntityLoadCount(),
                 "el mostrador se rearmó sin que cambiara nada: cada terminal lo pide cada 15 s");
-        assertTrue(stats().getPrepareStatementCount() <= 3,
-                "solo las tres marcas: " + stats().getPrepareStatementCount() + " consultas");
+        assertTrue(stats().getPrepareStatementCount() <= 2,
+                "solo las dos marcas (la puerta y los socios): " + stats().getPrepareStatementCount() + " consultas");
         assertEquals(primero, segundo);
+    }
+
+    @Test
+    @DisplayName("⭐ la marca de la puerta es UNA consulta y dice lo mismo que las dos de antes")
+    void laMarcaDeLaPuertaEsUnaSola() {
+        unDiaConDoceEntradas();
+        String antes = accessService.marcaDeAccesos() + "|" + molineteService.marcaDeRechazos();
+
+        stats().clear();
+        String junta = controller.novedades().getBody().get("marca");
+
+        assertEquals(antes, junta, "la pantalla compara este texto: no puede cambiar de forma");
+        assertEquals(1, stats().getPrepareStatementCount(),
+                "cada mostrador la pregunta cada 2 s todo el día: tiene que ser una sola consulta");
+
+        marcar(gym, crearSocio(gym, "Llega", true, enDias(20)), "MANUAL", 0);
+        assertNotEquals(junta, controller.novedades().getBody().get("marca"), "una entrada nueva la mueve");
     }
 
     @Test
@@ -217,17 +235,50 @@ class MostradorEgressTest extends EmbeddedPostgresTest {
     }
 
     @Test
-    @DisplayName("aun sin cambios, la foto vence al minuto")
-    void laFotoVence() {
+    @DisplayName("⭐ pasado el minuto se rehace lo que depende del reloj, pero no se vuelven a traer las listas")
+    void alMinutoSoloLoDelReloj() {
         unDiaConDoceEntradas();
         pedirMostrador();
 
         ahoraFalso += GymAccessController.FOTO_VIGENTE_MS + 1;
         stats().clear();
+        Map<String, Object> despues = pedirMostrador();
+
+        assertTrue(stats().getPrepareStatementCount() > 2,
+                "los avisos, los rechazos y los ingresos por QR cambian con la hora: tienen que rehacerse");
+        assertEquals(0, stats().getEntityLoadCount(),
+                "quién está adentro y el registro del día no cambian con la hora: rearmarlos cada minuto "
+                        + "era lo que más tráfico sacaba de Supabase");
+        assertEquals(12, despues.get("hoyTotal"));
+        assertEquals(12, ((List<?>) despues.get("adentro")).size());
+    }
+
+    @Test
+    @DisplayName("aun sin cambios, las listas se vuelven a traer a los diez minutos")
+    void laFotoPesadaVence() {
+        unDiaConDoceEntradas();
+        pedirMostrador();
+
+        ahoraFalso += GymAccessController.FOTO_PESADA_VIGENTE_MS + 1;
+        stats().clear();
         pedirMostrador();
 
         assertTrue(stats().getEntityLoadCount() > 0,
-                "pasado el minuto tiene que rearmarse: hay cosas que cambian solas con el reloj");
+                "la red de los diez minutos: por si algún camino escribiera sin mover la marca");
+    }
+
+    @Test
+    @DisplayName("el QR de un vencido aparece en el acto aunque la foto de las listas sea reciente")
+    void unQrNuevoSeVeEnElActo() {
+        unDiaConDoceEntradas();
+        UUID moroso = crearSocio(gym, "Moroso", true, enDias(-10));
+        assertEquals(0, ((List<?>) pedirMostrador().get("avisos")).size());
+
+        marcar(gym, moroso, "QR", 0);
+
+        Map<String, Object> despues = pedirMostrador();
+        assertEquals(1, ((List<?>) despues.get("avisos")).size());
+        assertEquals(13, despues.get("hoyTotal"));
     }
 
     @Test

@@ -396,6 +396,16 @@ public class AccessLogService {
         return accessLogRepository.marcaDesde(TenantContextHolder.getTenantId(), desde);
     }
 
+    /**
+     * La marca de los accesos y la de los rechazos del molinete, juntas y en una sola consulta.
+     * Da el mismo texto que {@code marcaDeAccesos() + "|" + molineteService.marcaDeRechazos()}.
+     */
+    @Transactional(readOnly = true)
+    public String marcaDeLaPuerta() {
+        LocalDateTime desde = LocalDateTime.now(BUSINESS_ZONE).toLocalDate().minusDays(1).atStartOfDay();
+        return accessLogRepository.marcaDeLaPuertaDesde(TenantContextHolder.getTenantId(), desde);
+    }
+
     /** Compatibilidad con el mostrador, que ya llamaba así. Sin cola: pasa ahora. */
     @Transactional
     public AccessLog registerAccess(UUID memberId, String method) {
