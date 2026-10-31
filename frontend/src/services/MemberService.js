@@ -230,7 +230,7 @@ class MemberService {
 
   /** Qué pasaría con cada fila. No escribe nada. */
   async analizarImportacion(archivo, filas) {
-    const { data } = await apiClient.post('/gym/members/importacion/analizar', { archivo, filas });
+    const { data } = await apiClient.post('/gym/members/importacion/analizar', { archivo, filas }, { timeout: 120000 });
     return data;
   }
 
@@ -239,11 +239,16 @@ class MemberService {
    * escribe nada: se devuelve ese análisis para que la pantalla lo muestre igual que la vista
    * previa, en vez de un cartel de error genérico.
    *
+   * El timeout es largo a propósito, igual que en el historial de caja: los socios se guardan
+   * de a uno y 2.069 pasaron los 20 s del apiClient. La pantalla dijo "el servidor tardó
+   * demasiado" mientras el servidor terminaba bien (2026-10-31), y reintentar sobre eso es
+   * justo lo que no hay que hacer.
+   *
    * @returns {Promise<{ok: true, resultado} | {ok: false, analisis}>}
    */
   async importar(archivo, filas) {
     try {
-      const { data } = await apiClient.post('/gym/members/importacion', { archivo, filas });
+      const { data } = await apiClient.post('/gym/members/importacion', { archivo, filas }, { timeout: 180000 });
       // Cientos de socios nuevos: el buscador de la puerta tiene que enterarse ya.
       this.refrescarCopiaLocal();
       return { ok: true, resultado: data };
@@ -262,7 +267,7 @@ class MemberService {
   }
 
   async deshacerImportacion(id) {
-    const { data } = await apiClient.post(`/gym/members/importacion/${id}/deshacer`);
+    const { data } = await apiClient.post(`/gym/members/importacion/${id}/deshacer`, null, { timeout: 120000 });
     this.refrescarCopiaLocal();
     return data;
   }
