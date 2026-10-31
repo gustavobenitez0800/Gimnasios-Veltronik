@@ -597,7 +597,7 @@ body {
     margin: 0 auto 1.1rem;
   }
 
-  .member-modal, .payments-modal {
+  .member-modal, .payments-modal, .modal-large {
     max-width: 100%;
     max-height: calc(100dvh - 2rem);
   }

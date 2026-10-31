@@ -5,6 +5,13 @@
 /* Modal form grid */
 .member-modal { max-width: 600px; max-height: 90vh; overflow-y: auto; text-align: left; }
 
+/* El size="large" del Modal (importar socios, importar historial de caja, papelera). No tenía
+   regla: heredaba el .modal-container de las confirmaciones —440 px, texto centrado y SIN alto
+   máximo—. Con la vista previa de un historial grande la ventana pasaba el alto de la pantalla,
+   el overlay la centraba cortándola arriba y abajo, y el botón Importar quedaba afuera sin forma
+   de llegar. Reportado desde un gimnasio en plena migración el 2026-10-31. */
+.modal-large { max-width: 760px; max-height: 90vh; overflow-y: auto; text-align: left; }
+
 .modal-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -621,6 +628,8 @@
   border: 1px dashed var(--border-color-hover);
   font-size: 0.88rem;
 }
+/* El texto se parte en renglones; el botón no se achica: "Deshacer" cortado no se entiende. */
+.importar-ultima > .btn { flex-shrink: 0; }
 
 @media (max-width: 640px) {
   .importar-numeros { grid-template-columns: repeat(2, 1fr); }
