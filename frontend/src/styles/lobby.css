@@ -1,0 +1,680 @@
+/* El Lobby: donde el dueño elige la sucursal. Antes vivía dentro de pages.css.
+   ⚠️ El botón que cubre la tarjeta entera (.lobby-card-abrir) está al final de mostrador.css:
+   llegó después, y al partir pages.css se respetó el orden exacto para que el CSS compilado
+   saliera idéntico. */
+
+/* ============================================
+   LOBBY PAGE (Liquid Glass Design)
+   ============================================ */
+
+.lobby-wrapper {
+  min-height: 100vh;
+  /* Sin fondo propio: se ve la foto del gimnasio (base.css). */
+  background: transparent;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ─── Background técnico sobrio (reemplaza el "liquid glass" con orbes) ─── */
+/* Malla de puntos sutil + un realce lineal tenue desde arriba. Estático, neutro,
+   estética de herramienta seria. La estructura JSX (.liquid-orb) se conserva pero
+   se vuelve invisible para no tocar el componente. */
+.liquid-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    radial-gradient(130% 70% at 50% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 55%);
+  background-size: 24px 24px, 100% 100%;
+}
+
+/* Orbes desactivados: el nuevo lenguaje no usa blobs flotantes. */
+.liquid-orb { display: none; }
+
+.lobby-wrapper::before {
+  display: none; /* Removed old before element */
+}
+
+.lobby-container {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.lobby-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  z-index: 10;
+}
+
+.lobby-user {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.lobby-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.lobby-user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.lobby-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--border-radius-full);
+  background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.lobby-user-name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: 0.125rem;
+}
+
+.lobby-user-email {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+.lobby-title-section { 
+  margin-bottom: 2rem; 
+  position: relative;
+  z-index: 10;
+}
+
+.lobby-title {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #ffffff 30%, rgba(255,255,255,0.5));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lobby-subtitle {
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  margin-bottom: 0;
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.lobby-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+/* Salir: tiene que LEERSE como botón sobre el fondo oscuro y sin depender del hover
+   (en un teléfono no hay hover). Antes era .btn-ghost —transparente y gris— y en la
+   práctica el dueño no encontraba cómo cerrar sesión. */
+.lobby-logout-btn {
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  border: 1px solid var(--border-color-hover);
+  color: var(--text-primary);
+}
+
+.lobby-logout-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error-500) 12%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--error-500) 45%, transparent);
+  color: var(--text-primary);
+}
+
+.lobby-logout-btn:active { transform: scale(0.97); }
+
+/* ─── Indicador de actualizaciones (esquina inferior del lobby) ─── */
+
+/* Contenedor fijo. `pointer-events: none` para que la franja invisible de la esquina
+   no le robe taps a la última card; el chip de adentro sí los recibe. */
+.lobby-version-footer {
+  position: fixed;
+  right: calc(0.85rem + env(safe-area-inset-right));
+  bottom: calc(0.6rem + env(safe-area-inset-bottom));
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  justify-content: flex-end;
+  max-width: min(92vw, 420px);
+}
+
+.lobby-version-footer > * { pointer-events: auto; }
+
+.update-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.update-indicator .icon { color: var(--text-muted); }
+
+/* Estado "al día": marca de agua, no notificación. Sin caja, sin borde y translúcido;
+   se aclara al acercar el mouse por si alguien la está buscando para dar soporte. */
+.update-indicator-idle {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  opacity: 0.38;
+  transition: opacity var(--transition-fast);
+}
+
+.update-indicator-idle:hover { opacity: 0.85; }
+
+.update-indicator-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.update-indicator-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.update-indicator-sub {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lista para instalar: realce sutil con el acento, sin estridencia */
+.update-indicator-ready {
+  background: color-mix(in srgb, var(--primary-500) 8%, var(--bg-secondary));
+  border-color: color-mix(in srgb, var(--primary-500) 30%, transparent);
+}
+
+.update-indicator-ready .update-indicator-title { color: var(--primary-300); }
+
+.update-indicator-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--primary-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 20%, transparent);
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.update-indicator-error { border-color: color-mix(in srgb, var(--error-500) 30%, transparent); }
+.update-indicator-error .icon { color: var(--error-500); }
+
+/* Responsive: en pantallas chicas, ocultar el texto secundario del indicador "al día" */
+@media (max-width: 640px) {
+  .update-indicator-text { display: none; }
+}
+
+/* ─── Agrupación de sucursales (lobby) ─── */
+.lobby-group {
+  margin-bottom: 2rem;
+}
+
+.lobby-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--primary-500); /* el color del grupo puede sobreescribirlo inline */
+  color: var(--text-primary);
+}
+
+.lobby-group-count {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius-full);
+  padding: 0.1rem 0.5rem;
+}
+
+.lobby-card {
+  /* El vidrio del sistema (--card-bg, casi sólido). Era blanco al 3% con un desenfoque de
+     40 px: sin el desenfoque —que no todos los equipos dibujan— la foto del gimnasio se veía
+     nítida a través de la tarjeta (2026-10-22). */
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    0 10px 40px -10px rgba(0, 0, 0, 0.5), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.15); /* Rim Light */
+  border-radius: 32px; 
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.1); /* Spring physics */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-primary);
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.lobby-card::before {
+  /* Dynamic Hover Spotlight */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.1), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.lobby-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.6), 
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lobby-card:hover::before {
+  opacity: 1;
+}
+
+.lobby-card-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--border-radius-lg);
+  background: color-mix(in srgb, var(--primary-500) 10%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06); /* Rim light */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-400);
+  margin-bottom: 0.5rem;
+}
+
+/* La marca del gimnasio en la card. El componente GymLogo trae su propia caja
+   (fondo, radio, recorte), así que este wrapper solo aporta el aire de abajo — si
+   además pintara fondo se verían dos cajas encimadas. */
+.lobby-card-logo {
+  margin-bottom: 0.5rem;
+  line-height: 0;
+}
+
+.lobby-card-create .lobby-card-icon,
+.create-icon {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.02));
+  color: var(--success-500);
+}
+
+.lobby-card-name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.lobby-card-role {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+/* ─── Light Mode Glass Overrides ─── */
+/* ─── Blocked Card ─── */
+
+/* Bloqueada: se apaga el CONTENIDO, no la tarjeta. Con `opacity` en la tarjeta entera se
+   apagaba también su fondo y la foto del gimnasio se veía a través, con otro tono que las
+   demás (2026-10-22). */
+.lobby-card-blocked {
+  position: relative;
+}
+.lobby-card-blocked > * {
+  opacity: 0.7;
+  transition: opacity var(--transition-normal);
+}
+
+.lobby-card-blocked:hover {
+  border-color: #ef4444;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.1);
+}
+.lobby-card-blocked:hover > * { opacity: 1; }
+
+.lobby-card-blocked-overlay {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+}
+
+.lobby-card-lock {
+  font-size: 1.25rem;
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.4));
+}
+
+/* ─── Delete Button on Cards ─── */
+
+.lobby-card-delete {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem; /* arriba-IZQUIERDA: el candado de bloqueo va arriba-derecha, así no se pisan */
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+  color: rgba(239, 68, 68, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  padding: 0;
+}
+
+.lobby-card-delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: scale(1.1);
+}
+
+.lobby-card-delete:active {
+  transform: scale(0.95);
+}
+
+/* ─── Card Status Indicator ─── */
+
+.lobby-card-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border-radius: var(--border-radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  margin-top: 0.5rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* ─── Card Price Badge ─── */
+
+.lobby-card-price {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--border-radius-full);
+  background: rgba(14, 165, 233, 0.08);
+  color: var(--primary-400);
+  margin-top: 0.25rem;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+/* ============================================
+   LOBBY BLOCKED MODAL
+   ============================================ */
+
+.lobby-blocked-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  /* Oscurece sin desenfocar (el desenfoque de pantalla completa traba el celular). */
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ─── Diálogo de ELIMINAR ───
+   Overlay propio, distinto del muro de pago, porque este es el único que pide teclado.
+
+   `top`/`height` salen de window.visualViewport (hook useVisualViewport): son el
+   pedazo de pantalla que el teclado NO tapa. Centrar dentro de eso es lo que hace
+   que, al abrirse el teclado, el diálogo suba solo en vez de quedar debajo.
+   Sin soporte de visualViewport, los fallback dejan el comportamiento de siempre. */
+.lobby-delete-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vv-offset-top, 0px);
+  height: var(--vv-height, 100dvh);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+  /* SIN transition sobre `top`/`height`, a propósito. Tentaba poner una para que el
+     diálogo "viajara" al abrirse el teclado, pero (a) el sistema operativo ya está
+     animando el teclado y una segunda animación de 200ms encima se siente elástica, y
+     (b) es una animación de LAYOUT sobre un overlay de pantalla completa, recalculada
+     en cada frame del teclado. Seguir al visualViewport al instante se ve mejor y
+     cuesta menos. */
+}
+
+.lobby-delete-modal {
+  max-width: 440px;
+  width: 100%;
+  /* Con el teclado abierto quedan ~250px útiles: el diálogo scrollea por dentro y
+     el campo + los botones siempre son alcanzables. */
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.lobby-delete-confirm { margin: 1.25rem 0; }
+
+.lobby-delete-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  /* Objetivo táctil generoso: tocar el texto enfoca el campo (label + htmlFor). */
+  cursor: pointer;
+}
+
+.lobby-blocked-modal {
+  /* Sólida, como toda ventana que se abre encima de algo (--superficie-flotante). */
+  background: var(--superficie-flotante);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 40px 80px -20px rgba(0, 0, 0, 0.5), 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border-radius: 32px;
+  
+  padding: 3rem 2.5rem;
+  max-width: 460px;
+  width: 100%;
+  position: relative;
+  text-align: center;
+  animation: slideUpGlass 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpGlass {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lobby-blocked-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  /* ⚠️ Sin esto la ✕ casi no se puede apretar. El ícono de abajo (.lobby-blocked-icon) es un
+     bloque del ancho de la ventana con un `filter`, y un `filter` lo sube de capa: como viene
+     después en el documento, quedaba ENCIMA de la ✕ y se llevaba el clic. Medido el 2026-10-07
+     en "Eliminar gimnasio": de la ✕ solo respondía la franja de arriba. Pasa igual en el
+     cartel de pago, que usa estas mismas dos clases. */
+  z-index: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.lobby-blocked-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.lobby-blocked-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 4px 12px currentColor);
+}
+
+.lobby-blocked-org-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 1rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+
+.lobby-blocked-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.lobby-blocked-message {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  max-width: 380px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lobby-blocked-grace {
+  margin-bottom: 1.5rem;
+  padding: 0 1rem;
+}
+
+.lobby-blocked-grace-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.lobby-blocked-grace-track {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lobby-blocked-grace-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.lobby-blocked-price-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+}
+
+.lobby-blocked-price-info span {
+  color: var(--text-muted);
+}
+
+.lobby-blocked-price-info strong {
+  color: var(--primary-400);
+  font-size: 1rem;
+}
+
+.lobby-blocked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.lobby-blocked-btn-main {
+  width: 100%;
+  padding: 0.875rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+}
+
+.lobby-blocked-safety {
+  margin-top: 1.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ─── Animations ───
+   fadeIn vive en feedback.css y spin en components.css: UNA definición de cada una. Acá
+   había copias (y un slideUp que nadie usaba) — dos definiciones del mismo nombre es una
+   carrera de orden de carga que gana la última, y nadie sabe cuál es. */

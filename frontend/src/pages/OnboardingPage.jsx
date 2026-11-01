@@ -109,7 +109,7 @@ export default function OnboardingPage() {
   };
 
   // Sin marco propio: lo pone el AuthLayout de la ruta. Con los dos, el formulario quedaba en
-  // ~376 px aunque pedía 560 (ver .auth-container:has(> .onboarding-card) en onboarding.css).
+  // ~376 px aunque pedía 560 (ver .auth-container:has(> .onboarding-card) al final de bloqueo.css).
   return (
         <div className="auth-card onboarding-card" style={{ maxWidth: 560 }}>
           <div className="step-container">

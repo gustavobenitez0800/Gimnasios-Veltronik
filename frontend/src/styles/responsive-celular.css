@@ -1,0 +1,584 @@
+/* El celular (≤768 px), los teléfonos chicos, el apaisado y el movimiento reducido. Antes vivía
+   dentro de responsive.css, que pasaba las 1.000 líneas: va importado justo después de él, en el
+   mismo orden, así que la cascada no cambió (el CSS compilado salió idéntico). */
+
+/* ────────────────────────────────────────────
+   4. MOBILE (≤768px)
+   ──────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+
+  /* ── UN POCO MÁS CHICO, Y CON AIRE (2026-10-07) ──
+     Pedido del dueño: en el celular "no hay espacio y todo está muy junto". Dos cosas:
+
+     1. La base baja de 16 a 15 px. Casi todo el sistema está medido en rem, así que letras,
+        botones, rellenos y distancias se achican juntos un 6 %, sin desproporcionar nada.
+
+     2. Las cuatro distancias con nombre (variables.css) toman su valor de celular acá, en un
+        solo lugar: la tarjeta pierde relleno (de 24 px a 15: el contenido gana 18 px de ancho
+        en una pantalla de 375) y lo que se gana se reparte ENTRE las cosas. */
+  html { font-size: 15px; }
+
+  :root {
+    --font-size-4xl: 1.875rem;
+    --font-size-3xl: 1.5rem;
+    --font-size-2xl: 1.25rem;
+
+    --aire-pagina: 1rem;
+    --aire-tarjeta: 1rem;
+    --aire-bloques: 1rem;
+    --aire-titulo: 0.85rem;
+  }
+
+  /* ⚠️ Los campos NO bajan de 16 px: con letra más chica, el iPhone agranda la pantalla
+     entera al tocarlos y hay que alejarla a mano después de cada dato. */
+  .form-input, .form-select, .form-textarea { font-size: 16px; }
+
+  /* ── Sidebar como drawer ──
+     Pegado al borde izquierdo y no flotando como en la computadora: escondido con
+     translateX(-100%), el margen dejaba asomar una franja del menú al costado de la pantalla. */
+  .sidebar {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-left: 0;
+    border-radius: 0 20px 20px 0;
+    /* Sólido: el cajón se abre ENCIMA de la página, y al 90% se adivinaban sus textos a
+       través ("Socios", "Importar"). Lo que se abre encima de algo no deja ver lo de abajo. */
+    background: var(--barra-fija);
+    transform: translateX(-100%);
+    width: min(82vw, 310px);
+    box-shadow: none;
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 24px 0 60px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebar-overlay { display: block; }
+
+  /* El botón ✕ de cerrar solo tiene sentido cuando el sidebar es un drawer */
+  .sidebar-close { display: inline-flex; }
+
+  /* Drawer abierto → la página de atrás no se mueve. Antes era `overflow: hidden` en el <body>,
+     que obligaba a re-armar la página entera al abrir y cerrar el menú (en Socios, 50 tarjetas:
+     el tirón que reportó el dueño, 2026-10-22). Ahora: arrastrar sobre el menú no mueve nada
+     (`none`), salvo su lista de opciones, que desliza sola y no le pasa el envión a la página
+     (`overscroll-behavior: contain`, arriba en las fundaciones). La capa oscura hace lo mismo
+     (layout.css). */
+  .sidebar { touch-action: none; }
+  .sidebar-nav { touch-action: pan-y; }
+
+  .main-content { margin-left: 0; }
+
+  /* ── Header móvil: vidrio arriba, respeta el notch ──
+     Sigue siendo sticky, pero se retrae al bajar (clase .mobile-header-hidden que
+     pone AppLayout) y reaparece apenas el usuario scrollea hacia arriba. */
+  .mobile-header {
+    display: grid;
+    padding: 0.6rem 1rem;
+    padding-top: calc(0.6rem + env(safe-area-inset-top));
+  }
+
+  /* ── Contenido ── */
+  .page-content {
+    padding: var(--aire-pagina);
+    padding-left: calc(var(--aire-pagina) + env(safe-area-inset-left));
+    padding-right: calc(var(--aire-pagina) + env(safe-area-inset-right));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+
+  /* El page-header deja de ser sticky: el header móvil ya es fijo y
+     dos barras pegadas se comían media pantalla. Sigue siendo un panel de vidrio, pero el de
+     las tarjetas: quieto, no le pasa nada por debajo. */
+  .page-header {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    background: var(--vidrio);
+    backdrop-filter: var(--vidrio-desenfoque);
+    -webkit-backdrop-filter: var(--vidrio-desenfoque);
+  }
+
+  .page-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Botones de cabecera a lo ancho: cómodos para el pulgar */
+  .page-header-actions .btn { flex: 1 1 auto; }
+
+  /* Varias páginas agrupan sus acciones en un <div> (p.ej. Proveedores: "Proveedor" +
+     "Registrar compra"). Sin esto el grupo no se estira y los botones quedan apretados
+     a la izquierda. Lo hacemos full-width y repartimos el ancho entre los botones. */
+  .page-header-actions > div {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .page-header-actions > div > .btn { flex: 1 1 auto; }
+
+  /* ── Grids del dashboard ── */
+  .stats-grid,
+  .stats-grid-2,
+  .stats-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 0.75rem;
+  }
+
+  /* Tres tarjetas en dos columnas dejaban la tercera sola a la izquierda, con medio renglón
+     vacío al lado (Pagos, En el gimnasio, el resumen del dueño). La que queda sola ocupa el
+     renglón entero. */
+  .stats-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .stat-icon { width: 34px; height: 34px; font-size: 1rem; }
+  .stat-value { margin-top: 0.6rem; }
+
+  .dashboard-grid,
+  .dashboard-grid-3 {
+    /* minmax(0,1fr) y no 1fr: 1fr = minmax(auto,1fr) deja que el contenido (canvas)
+       agrande el track y desborde a la derecha en mobile. minmax(0,...) lo permite encoger. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chart-container { height: 220px; }
+  .quick-actions { grid-template-columns: repeat(2, 1fr); }
+
+  /* ── TABLAS → TARJETAS APILADAS ──
+     Las tablas con celdas data-label (Socios, Pagos) se transforman en
+     tarjetas: cada fila es una card con pares "ETIQUETA — valor".
+     Las tablas sin data-label conservan scroll horizontal con inercia.
+     (:has() — en navegadores viejos degradan a scroll, nunca se rompen) */
+
+  .table-container:has(td[data-label]) {
+    overflow: visible;
+    border: none;
+  }
+
+  .table:has(td[data-label]) { display: block; }
+  .table:has(td[data-label]) thead { display: none; }
+
+  .table:has(td[data-label]) tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .table:has(td[data-label]) tbody tr {
+    display: block;
+    padding: 0.45rem 0.2rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    /* ⭐ Se arman solo las tarjetas que están a la vista. Con 50 socios la lista mide ~10.500 px,
+       y cualquier cosa que obligara a re-armar la página (abrir el menú, una ventana) pagaba
+       las 50: medido el 2026-10-22, 311 ms con el procesador de un celular común, para mostrar
+       tres. El lugar de las de abajo queda reservado (`auto` recuerda lo que midió cada una),
+       así la barra de scroll no salta. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 250px;
+  }
+
+  .table:has(td[data-label]) td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    white-space: normal;
+    padding: 0.5rem 1rem;
+    text-align: right;
+  }
+
+  /* La etiqueta de columna viaja a cada celda */
+  .table:has(td[data-label]) td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* La primera celda (nombre) actúa de título de la tarjeta */
+  .table:has(td[data-label]) td:first-child {
+    font-size: var(--font-size-base);
+    padding-top: 0.75rem;
+  }
+
+  /* Acciones: fila propia, centradas, separadas con guiones */
+  .table:has(td[data-label]) td[data-label="Acciones"] {
+    justify-content: center;
+    border-top: 1px dashed var(--border-color);
+    margin-top: 0.35rem;
+    padding-top: 0.8rem;
+    padding-bottom: 0.65rem;
+  }
+  .table:has(td[data-label]) td[data-label="Acciones"]::before { display: none; }
+
+  /* Estados de carga / vacío (celdas sin data-label dentro de una tabla con cards) */
+  .table:has(td[data-label]) td:not([data-label]) {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* El hover-lift de filas no aplica al formato tarjeta */
+  .table:has(td[data-label]) tbody tr:hover { transform: none; }
+
+  /* ── Tabla vacía o cargando ──
+     Sin filas no hay tarjetas que armar (las reglas de arriba piden celdas con data-label) y
+     la tabla quedaba como en la computadora: los encabezados de TODAS las columnas, más anchos
+     que la pantalla, con barra para el costado y el aviso corrido a un lado ("NOMBRE … DNI TE"
+     en Socios recién creado, "MÉTO" cortado en En el gimnasio). Sin filas los encabezados no
+     encabezan nada: se esconden y el aviso ocupa el ancho. */
+  .table:has(td.table-empty),
+  .table:has(td.table-empty) tbody,
+  .table:has(td.table-empty) tr,
+  .table td.table-empty { display: block; }
+  .table:has(td.table-empty) thead { display: none; }
+  .table td.table-empty { padding: 1.5rem 1rem; }
+
+  /* ── Filtros y paginación ── */
+  .table-header { padding: 0.85rem 1rem; }
+
+  .table-filters { width: 100%; }
+
+  /* El buscador ocupa todo el ancho (pisa el max-width inline del componente) */
+  .table-filters .form-input {
+    max-width: 100% !important;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .table-filters .form-select { flex: 1 1 auto; }
+
+  .pagination-container {
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* ── Modales → BOTTOM SHEETS ──
+     Patrón nativo de apps: la hoja sube desde abajo, con asa para
+     arrastrar la vista, scroll interno y botones a lo ancho. */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-container {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 1.5rem 1.25rem;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    animation: sheetUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Asa visual de la hoja */
+  .modal-container::before {
+    content: '';
+    display: block;
+    width: 44px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--border-color-hover);
+    margin: 0 auto 1.1rem;
+  }
+
+  .member-modal, .payments-modal, .modal-large {
+    max-width: 100%;
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .modal-actions { flex-direction: column; }
+  .modal-actions .btn { max-width: none; width: 100%; }
+
+  /* El muro de pago del lobby también es bottom sheet */
+  .lobby-blocked-overlay { align-items: flex-end; padding: 0; }
+  .lobby-blocked-modal {
+    max-width: 100%;
+    border-radius: 28px 28px 0 0;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: 2rem 1.5rem;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+
+  /* EXCEPCIÓN: el diálogo de eliminar NO es bottom sheet.
+     Es el único que pide teclado, y una hoja pegada al borde de abajo con el teclado
+     abierto deja el campo de confirmación y el botón fuera de la pantalla. Queda
+     centrado, flotante y con sus cuatro esquinas redondeadas. Comparte la clase
+     .lobby-blocked-modal (mismo vidrio), así que hay que deshacer la regla de arriba. */
+  .lobby-blocked-modal.lobby-delete-modal {
+    max-width: min(440px, calc(100vw - 2rem));
+    border-radius: 24px;
+    max-height: 100%;
+    padding: 1.75rem 1.35rem;
+    padding-bottom: 1.75rem;
+  }
+
+  /* La misma excepción para "Borrar mi cuenta", que también pide escribir: como hoja pegada
+     abajo, el campo y los dos botones quedaban justo donde sale el teclado. Va centrada,
+     flotante y sin el asa de arrastrar. Usa el `.modal-overlay` común, así que se la reconoce
+     por lo que tiene adentro. */
+  .modal-overlay:has(> .borrado-modal) { align-items: center; padding: 1rem; }
+  .modal-container.borrado-modal {
+    border-radius: 24px;
+    max-height: calc(100dvh - 2rem);
+    padding: var(--aire-bloques) var(--aire-tarjeta);
+    animation: modalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .modal-container.borrado-modal::before { display: none; }
+
+  /* ── Toasts: ancho completo arriba, bajo el notch ── */
+  .toast-container {
+    left: 0.85rem;
+    right: 0.85rem;
+    top: calc(0.85rem + env(safe-area-inset-top));
+    max-width: none;
+  }
+
+  /* ── Auth (login / registro) ──
+     OBJETIVO: que el login entre ENTERO en una pantalla de teléfono, sin barra de
+     scroll y sin que la página "baile". Dos cosas a la vez:
+
+     1) El wrapper pasa a ser el scroller, con altura EXACTA al viewport (antes tenía
+        min-height + overflow:hidden: si el contenido pasaba un pixel, el que crecía y
+        scrolleaba era el <body> → aparecía la barra fea del navegador sobre el vidrio).
+        La barra se oculta pero el scroll sigue existiendo: es la válvula de seguridad
+        para teléfonos muy bajos o con la tipografía del sistema agrandada. Nunca
+        atrapa contenido.
+
+     2) Se compacta el aire de la tarjeta. Cada bloque cede unos píxeles y el conjunto
+        entra cómodo hasta en un teléfono de 667px de alto (el piso realista hoy). */
+  /* ⚠️ 3) Y ES FIJA: NO SE PUEDE MOVER (pedido del dueño, 2026-10-11, con captura de su
+        Android). Aun entrando entero, el login se deslizaba hacia abajo y dejaba un hueco
+        negro al pie. La causa no estaba acá: el <body> medía 100vh, que en el celular es el
+        alto CON la barra de direcciones escondida, unos 56 px más que lo que se ve. Esa
+        diferencia era una página que se podía arrastrar. Se arregló en el <body> (base.css)
+        y además la pantalla se clava a los cuatro bordes: aunque algo vuelva a hacer crecer
+        el documento, esto no se mueve con él. `overscroll-behavior` evita que el gesto de
+        arrastrar tire de la página o dispare "deslizá para recargar". */
+  .auth-wrapper {
+    position: fixed;
+    inset: 0;
+    height: auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    padding: 1.25rem;
+    padding-top: calc(1.25rem + env(safe-area-inset-top));
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+
+    /* Scrollbar invisible (el scroll sigue funcionando) */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .auth-wrapper::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Mientras se ve el login, la página de atrás tampoco responde al arrastre. */
+  html:has(.auth-wrapper) { overscroll-behavior: none; }
+
+  .auth-card { padding: 1.5rem 1.35rem; }
+
+  /* Compactación del bloque de marca */
+  .auth-logo { margin-bottom: 1.15rem; }
+  .auth-logo-img { height: 46px; width: auto; margin-bottom: 0.5rem; }
+  .auth-logo-text { font-size: var(--font-size-xl); }
+  .auth-logo-subtitle { font-size: var(--font-size-xs); }
+
+  /* Compactación del formulario */
+  .auth-title { font-size: var(--font-size-lg); }
+  .auth-subtitle { margin-bottom: 1rem; }
+  .auth-card .form-group { margin-bottom: 0.9rem; }
+  .auth-forgot { margin-bottom: 1rem; margin-top: -0.25rem; }
+  .auth-divider { margin: 1rem 0; }
+  .auth-social { margin-bottom: 1rem; }
+  .auth-links { margin-top: 1.1rem; }
+
+  /* Orbes de la aurora más chicos: mismo clima visual, mucha menos GPU */
+  .auth-wrapper::before { width: 340px; height: 340px; filter: blur(60px); }
+  .auth-wrapper::after { width: 300px; height: 300px; filter: blur(60px); }
+
+  /* ── Lobby ── */
+  .lobby-wrapper {
+    padding: 1.25rem;
+    padding-top: calc(1.25rem + env(safe-area-inset-top));
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  }
+
+  .lobby-header {
+    margin-bottom: 2rem;
+    padding: 0.75rem 0;
+    gap: 0.75rem;
+  }
+
+  /* ⚠️ A 375 px "Salir" quedaba ENTERO fuera de la pantalla y "Resumen" cortado: el nombre y
+     el mail no cedían lugar y empujaban los botones. Ahora el mail se corta con "…" y, si aun
+     así no entran, los botones bajan a su propio renglón. */
+  .lobby-header { flex-wrap: wrap; }
+  .lobby-user, .lobby-user-info, .lobby-user-info > div:last-child { min-width: 0; }
+  .lobby-user-name, .lobby-user-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lobby-header-actions { gap: 0.6rem; margin-left: auto; }
+
+  .lobby-user { gap: 0.85rem; }
+  .lobby-user-info { gap: 0.75rem; }
+  .lobby-logo { display: none; } /* el avatar ya identifica; el logo duplicaba */
+  .lobby-avatar { width: 42px; height: 42px; }
+  .lobby-user-name { font-size: var(--font-size-base); }
+  .lobby-user-email { font-size: var(--font-size-xs); }
+
+  .lobby-title {
+    font-size: clamp(2rem, 9vw, 2.75rem);
+  }
+  .lobby-subtitle { font-size: var(--font-size-base); }
+  .lobby-title-section { margin-bottom: 1.5rem; }
+
+  .lobby-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .lobby-card {
+    padding: 2rem 1.5rem;
+    border-radius: 24px;
+  }
+
+  /* ── Calendario de clases: 2 columnas legibles ── */
+  .weekly-calendar { gap: 0.6rem; }
+  .day-classes { min-height: 120px; }
+
+  /* ── Acceso: lista de presentes con altura propia ── */
+  .checked-in-list { max-height: 320px; }
+
+  /* El campo del mostrador medía 57 px de alto: en el celular era lo más grande de la pantalla. */
+  .search-input { padding: 0.8rem 0.9rem; }
+}
+
+@keyframes sheetUp {
+  from { opacity: 0.6; transform: translateY(40%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Entre 481 y 768: el lobby aprovecha el ancho con 2 columnas */
+@media (min-width: 540px) and (max-width: 768px) {
+  .lobby-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ────────────────────────────────────────────
+   5. TELÉFONOS CHICOS (≤480px)
+   ──────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+
+  .auth-card {
+    padding: 1.35rem 1.15rem;
+    border-radius: var(--border-radius-lg);
+  }
+
+  .auth-logo-img { height: 42px; width: auto; }
+
+  /* En un teléfono chico la bajada de marca es lo primero que sobra: el logo y el
+     nombre ya dicen dónde estás, y esos ~28px son la diferencia entre entrar en
+     pantalla o no. */
+  .auth-logo-subtitle { display: none; }
+  .auth-logo { margin-bottom: 1rem; }
+
+  /* Últimos píxeles. El piso real es un Android de 360×640: ahí la tarjeta entraba
+     por 4px de más. Estos recortes son invisibles de a uno y suman ~16px. */
+  .auth-forgot { margin-bottom: 0.75rem; }
+  .auth-divider { margin: 0.85rem 0; }
+  .auth-social { margin-bottom: 0.85rem; }
+  .auth-links { margin-top: 0.9rem; }
+
+  /* Calendario de clases: 1 columna scrolleable */
+  .weekly-calendar { grid-template-columns: 1fr; }
+  .day-classes { min-height: auto; }
+
+  /* Tarjetas del equipo y ajustes ya colapsan vía sus propios media queries */
+
+  .lobby-card { padding: 1.75rem 1.25rem; }
+  .lobby-card-icon { width: 60px; height: 60px; }
+
+  .empty-state { padding: 3rem 1.25rem; }
+  .empty-state-icon { width: 64px; height: 64px; }
+
+  .plans-card { padding: 2rem 1.25rem 1.5rem; }
+
+  /* Selector de días: que entren los 7 en una fila si se puede */
+  .days-selector { gap: 0.4rem; }
+
+  /* ⚠️ EL PAGINADOR ENSANCHABA LA PÁGINA ENTERA. "Anterior", cinco números de 40 px y
+     "Siguiente" en un solo renglón miden unos 390 px: en un celular de 360 sobresalía por los
+     dos lados, la página quedaba más ancha que la pantalla y Socios "se corría hacia un
+     costado" al tocarla (reportado por el dueño el 2026-10-11). Ahora los números van arriba,
+     centrados, y los dos botones abajo, repartiéndose el ancho: entra en 320 px. */
+  .pagination-container { padding: var(--aire-tarjeta); }
+  .pagination-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+  /* Con su renglón dicho a mano: sin eso "Anterior" queda solo arriba y "Siguiente" solo abajo. */
+  .pagination-pages { grid-row: 1; grid-column: 1 / -1; justify-content: center; flex-wrap: wrap; }
+  .pagination-controls > .btn { width: 100%; }
+}
+
+/* ────────────────────────────────────────────
+   6. APAISADO DE POCA ALTURA (teléfono horizontal)
+   ──────────────────────────────────────────── */
+
+@media (max-height: 540px) and (max-width: 950px) {
+
+  /* El login debe poder scrollear (overflow:hidden lo recortaba). Altura FIJA al
+     viewport: el wrapper es el scroller y nunca asoma el body por debajo. */
+  .auth-wrapper {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 1rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .auth-wrapper::-webkit-scrollbar { width: 0; height: 0; }
+  .auth-card { margin: 0.5rem auto; }
+  .auth-logo { margin-bottom: 1rem; }
+
+  /* Modales centrados de nuevo (una hoja desde abajo no entra) */
+  .modal-overlay { align-items: center; padding: 0.75rem; }
+  .modal-container {
+    border-radius: var(--card-radius);
+    max-height: calc(100dvh - 1.5rem);
+  }
+  .modal-container::before { display: none; }
+
+  .lobby-blocked-overlay { align-items: center; padding: 0.75rem; }
+  .lobby-blocked-modal { border-radius: 24px; max-height: calc(100dvh - 1.5rem); }
+}
+
+/* ────────────────────────────────────────────
+   7. ACCESIBILIDAD DE MOVIMIENTO
+   ──────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-container { animation: none; }
+  .auth-wrapper::before,
+  .auth-wrapper::after { animation: none; }
+  .stats-grid > *, .dashboard-grid > *, .dashboard-grid-3 > * { animation: none; }
+}
