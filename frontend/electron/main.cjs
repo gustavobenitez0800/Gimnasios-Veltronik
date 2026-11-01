@@ -303,6 +303,15 @@ if (IS_PRIMARY_INSTANCE) app.whenReady().then(() => {
         return false;
     });
 
+    // La cajita del molinete (Raspberry Pi Pico + relé, ver src/lib/cajitaMolinete.js) se habla
+    // por la API serie del navegador. Chromium, cuando la página pide un puerto, espera que
+    // alguien elija uno de una lista; sin este handler el pedido se cancela solo. Elegimos
+    // nosotros: la lista ya viene filtrada por lo que pidió la página (la placa de la cajita).
+    session.defaultSession.on('select-serial-port', (event, portList, _webContents, callback) => {
+        event.preventDefault();
+        callback(portList[0]?.portId || '');
+    });
+
     // Inyectar el nuevo menú personalizado
     createCustomMenu();
 

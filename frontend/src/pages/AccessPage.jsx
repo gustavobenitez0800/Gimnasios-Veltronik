@@ -37,12 +37,17 @@ import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import Icon from '../components/Icon';
 import { sonarVencido } from '../lib/alertaSonora';
+import { useCajitaMolinete } from '../hooks/useCajitaMolinete';
+import { abrirSiPasa, ordenarALaCajita } from '../lib/cajitaMolinete';
 
 /** Cuánto dura el desvanecimiento del cartel al irse. El mismo número que en access.css. */
 const SALIDA_DEL_AVISO_MS = 200;
 
 /** Las situaciones del socio que hacen sonar la X cuando el molinete lo frena. */
 const SITUACIONES_QUE_SUENAN = new Set(['VENCIDO', 'EN_GRACIA', 'INACTIVO']);
+
+/** Los estados del cartel con los que el molinete deja pasar (ver getDaysInfo). */
+const PASA = new Set(['ok', 'warning', 'danger']);
 
 export default function AccessPage() {
   const { showToast } = useToast();
@@ -61,6 +66,10 @@ export default function AccessPage() {
   // pedir. Si no, seguiría mostrando el viejo, que ya no funciona.
   const [versionQr, setVersionQr] = useState(0);
   const puedeAdministrarQr = ['owner', 'admin'].includes(orgRole);
+
+  // La cajita del molinete, si esta PC tiene una enchufada (lib/cajitaMolinete). Abre con el
+  // MISMO veredicto que pinta el cartel y hace sonar la X: no hay una segunda cuenta de fechas.
+  const cajita = useCajitaMolinete({ conectarAlMontar: true });
 
   // ─── Los avisos de entrada, apilados al costado ───
   //
@@ -431,6 +440,8 @@ export default function AccessPage() {
     // Entró por QR con la cuota vencida: la X suena igual que si lo hubieran marcado a mano.
     // Con quién es: la misma entrada no puede sonar dos veces, venga por el camino que venga.
     if (info.type === 'expired') sonarVencido(ultimo.socioId || ultimo.accesoId);
+    // Escaneó el QR en la puerta: que el molinete lo deje pasar, como si lo hubieran marcado.
+    abrirSiPasa({ pasa: PASA.has(info.type) });
   }, [data, ingresosQr, getDaysInfo, mostrarAviso]);
 
   // ─── El molinete frenó a un vencido: que suene también ───
@@ -468,6 +479,11 @@ export default function AccessPage() {
   // (La salida desde la lista de "quién está adentro" se fue con la lista: ahora se marca
   // buscando al socio, que dice "Adentro desde" y ofrece "Registrar salida", o desde la
   // pantalla "En el gimnasio".)
+
+  // ¿El molinete lo deja pasar? Lo mismo que dice el cartel: al día (aunque le queden pocos
+  // días), o vencido pero con un cobro recién hecho que todavía no subió. Sin fecha cargada o
+  // dado de baja, no: para eso está el botón «Abrir molinete» de quien atiende.
+  const dejaPasar = (info, socioId) => PASA.has(info.type) || (info.type === 'expired' && tieneCobroSinSubir(socioId));
 
   // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
   const handleCheckIn = async (member) => {
@@ -511,6 +527,8 @@ export default function AccessPage() {
         // Sin internet también suena: justo ahí el servidor no puede avisar nada. Salvo que
         // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe.
         if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
+        // Sin internet la cajita abre igual: decide la copia local, que es la que pinta el cartel.
+        abrirSiPasa({ pasa: dejaPasar(info, member.id) });
         setSearchQuery('');
         setSearchResults([]);
         contarPendientes();
@@ -550,6 +568,9 @@ export default function AccessPage() {
       // La X, solo al que ENTRA vencido. Al que sale no se le reclama nada, y al que acaba de
       // pagar (el cobro todavía no subió) sonarle sería una falsa alarma.
       if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
+      // El molinete es de ENTRADA: la salida es por la puerta, y un rebote (ya estaba marcado)
+      // no abre de nuevo, o pasarían dos con el mismo DNI.
+      if (!salio && !rebote) abrirSiPasa({ pasa: dejaPasar(daysInfo, member.id) });
 
       setSearchQuery('');
       setSearchResults([]);
@@ -630,6 +651,12 @@ export default function AccessPage() {
         {puedeAdministrarQr && (
           <button className="btn btn-secondary" onClick={() => setQrAbierto(true)}>
             <Icon name="qrCode" size="1em" /> Cartel de entrada
+          </button>
+        )}
+        {cajita.fase === 'conectada' && (
+          <button className="btn btn-secondary" onClick={() => ordenarALaCajita('ABRIR')}
+            title="Abre el molinete unos segundos, sin registrar a nadie">
+            <Icon name="doorEnter" size="1em" /> Abrir molinete
           </button>
         )}
       </div>

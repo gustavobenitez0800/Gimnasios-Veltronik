@@ -110,4 +110,19 @@ class MolineteControllerTest {
         assertEquals(200, res.getStatusCode().value());
         verify(service).padron(TENANT);
     }
+
+    @Test
+    @DisplayName("la cajita pregunta si el plan la habilita: un sí o un no, sin bajar el padrón")
+    void habilitadoDiceSiOnoSinBajarElPadron() {
+        when(planPolicy.hasFeature(eq(TENANT), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(true);
+        assertEquals(Boolean.TRUE, controller.habilitado().getBody().get("habilitado"));
+
+        when(planPolicy.hasFeature(eq(TENANT), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(false);
+        var res = controller.habilitado();
+        // Un "no" no es un error: 200, y la pantalla lo explica.
+        assertEquals(200, res.getStatusCode().value());
+        assertEquals(Boolean.FALSE, res.getBody().get("habilitado"));
+
+        verify(service, never()).padron(any());
+    }
 }
