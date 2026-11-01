@@ -50,12 +50,19 @@ export function problemaDelRango(desde, hasta) {
  * @param {'today'|'week'|'month'|'year'} inicial el atajo con el que arranca la pantalla
  * @returns {{ desde: string, hasta: string, periodo: string,
  *             problema: ReturnType<typeof problemaDelRango>,
+ *             pedible: { desde: string, hasta: string },
  *             elegirPeriodo: (p: string) => void,
  *             cambiarDesde: (v: string) => void, cambiarHasta: (v: string) => void }}
+ *          `pedible`: el último rango que se podía pedir. Es el que va al servidor: mientras se
+ *          escribe el año, la pantalla sigue mostrando lo de antes en vez de pedir el año 2.
  */
 export function useRangoDeFechas(inicial = 'today') {
   const [desde, setDesde] = useState(() => getQuickDates(inicial).from);
   const [hasta, setHasta] = useState(() => getQuickDates(inicial).to);
+  const [pedible, setPedible] = useState(() => {
+    const { from, to } = getQuickDates(inicial);
+    return { desde: from, hasta: to };
+  });
   // '' = las fechas las escribió la persona a mano.
   const [periodo, setPeriodo] = useState(inicial);
 
@@ -93,5 +100,10 @@ export function useRangoDeFechas(inicial = 'today') {
   }, [periodo]);
 
   const problema = problemaDelRango(desde, hasta);
-  return { desde, hasta, periodo, problema, elegirPeriodo, cambiarDesde, cambiarHasta };
+  // Se ajusta mientras se dibuja (no en un efecto): así la pantalla no llega a pedir una vez
+  // el rango viejo después de que el nuevo ya quedó completo.
+  if (!problema && (pedible.desde !== desde || pedible.hasta !== hasta)) {
+    setPedible({ desde, hasta });
+  }
+  return { desde, hasta, periodo, problema, pedible, elegirPeriodo, cambiarDesde, cambiarHasta };
 }
