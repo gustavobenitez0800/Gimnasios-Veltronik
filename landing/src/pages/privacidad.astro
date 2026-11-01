@@ -34,7 +34,7 @@ import { CONTACTO, CIUDAD, waLink, MEDICION, HAY_MEDICION } from '../lib/site.js
 
 // Desde cuándo rige. Se cambia a mano, junto con el texto: una fecha que se actualiza sola
 // diría "vigente desde hoy" sobre un texto que nadie tocó.
-const VIGENTE = '11 de octubre de 2026';
+const VIGENTE = '1 de noviembre de 2026';
 const RESPONSABLE = 'Gustavo Gabriel Benitez Aguilera';
 
 const mensaje = 'Hola! Tengo una consulta sobre mis datos en Veltronik.';
@@ -55,9 +55,9 @@ const proveedores = [
   { nombre: 'Vercel', hace: 'Sirve este sitio y el portal web.' },
   { nombre: 'Mercado Pago', hace: 'Cobra la suscripción.' },
   { nombre: 'Microsoft OneDrive', hace: 'Guarda una de las copias de seguridad.' },
-  // ⏳ SACAR ESTE RENGLÓN el día que se apague Railway (después de reinstalar la última PC
-  // que le habla: ver TAREAS-MANUALES.md). Mientras atienda a un cliente, figura.
-  { nombre: 'Railway', hace: 'Un servidor anterior que todavía atiende a una versión vieja de la app. Está en proceso de baja.' },
+  // Railway se fue de esta lista el 2026-11-01: el servidor viejo se apagó y el proyecto se borró
+  // el 31/10, cuando la última PC que le hablaba se actualizó.
+  { nombre: 'Resend', hace: 'Manda los correos de tu cuenta: confirmar el alta y recuperar la contraseña.' },
   { nombre: 'GitHub', hace: 'De ahí se bajan el instalador y las actualizaciones de la app. No recibe datos de tu gimnasio.' },
   MEDICION.ga4 && { nombre: 'Google Analytics', hace: 'Mide las visitas a este sitio, solo si aceptás las cookies. No está en el portal ni en la app.' },
   MEDICION.metaPixel && { nombre: 'Meta', hace: 'Mide el resultado de nuestras campañas en Instagram y Facebook, solo si aceptás las cookies. No está en el portal ni en la app.' },
