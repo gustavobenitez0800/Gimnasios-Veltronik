@@ -59,6 +59,23 @@ export function fechaCorta(iso) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
+/** Hasta esta hora, un cierre todavía es de la caja del día anterior. Ningún gimnasio abre antes. */
+export const HORA_DE_CORTE = 6;
+
+/**
+ * El día de un cierre, para su Excel: "2026-10-31T00:30:00" → "2026-10-30". Un gimnasio que
+ * cierra la caja pasada la medianoche está cerrando el día que terminó, y su Excel bajaba el día
+ * siguiente: casi vacío. Lee la hora tal como la guarda el servidor (hora de Argentina), sin pasar
+ * por el huso de la PC.
+ */
+export function diaDeLaCaja(hasta) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2})/.exec(String(hasta || ''));
+  if (!m) return null;
+  const [, a, me, d, h] = m;
+  if (Number(h) >= HORA_DE_CORTE) return `${a}-${me}-${d}`;
+  return new Date(Date.UTC(Number(a), Number(me) - 1, Number(d) - 1)).toISOString().slice(0, 10);
+}
+
 const num = (v) => Number(v || 0);
 const plata = (v) => ({ t: 'n', v: num(v), z: FORMATO_PLATA });
 const fecha = (iso) => {

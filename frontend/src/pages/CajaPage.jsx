@@ -37,7 +37,7 @@ import { formatCurrency, formatDate, toLocalDateString, sumarPlata, horaDe } fro
 // Los nombres de las formas de pago y qué pasa por el cajón: los mismos de Pagos y del Excel.
 import { nombreDeForma, esEfectivo } from '../lib/formasDePago';
 import { getShift } from '../lib/shift';
-import { descargarExcelDeCaja } from '../lib/excelDeCaja';
+import { descargarExcelDeCaja, diaDeLaCaja } from '../lib/excelDeCaja';
 import { useRangoDeFechas, problemaDelRango } from '../hooks/useRangoDeFechas';
 import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
 import { PageHeader, EmptyState } from '../components/Layout';
@@ -829,7 +829,8 @@ export default function CajaPage() {
                 </thead>
                 <tbody>
                   {historial.map((c) => {
-                    const dia = c.hasta ? toLocalDateString(new Date(c.hasta)) : null;
+                    // El día de esa caja: cerrada a las 00:30 es la del día que terminó.
+                    const dia = diaDeLaCaja(c.hasta);
                     return (
                       <tr key={c.id}>
                         <td data-label="Cuándo">{fecha(c.hasta)}</td>

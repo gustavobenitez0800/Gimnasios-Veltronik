@@ -64,7 +64,8 @@ const turnoEstable = { name: 'Carla' };
 vi.mock('../lib/shift', () => ({ getShift: () => turnoEstable }));
 // El Excel se arma aparte (lib/excelDeCaja, con sus tests); acá solo importa que se pida bien.
 const excel = vi.hoisted(() => ({ descargarExcelDeCaja: vi.fn() }));
-vi.mock('../lib/excelDeCaja', () => excel);
+// El día de cada cierre (diaDeLaCaja) es el de verdad: es justo lo que se prueba más abajo.
+vi.mock('../lib/excelDeCaja', async (importOriginal) => ({ ...(await importOriginal()), ...excel }));
 
 const { toLocalDateString } = await import('../lib/utils');
 
@@ -577,6 +578,18 @@ describe('⭐ el Excel para el contador', () => {
     cajaService.historial.mockResolvedValue([
       { id: 'h1', hasta: '2026-09-21T21:54:00', cerradoPorNombre: 'Orlando', esperadoEfectivo: 119000,
         esperadoTransferencia: 62000, esperadoMercadopago: 0, retiroEfectivo: 119000, quedaEnCaja: 0 },
+    ]);
+    await pintar();
+
+    await clic(container.querySelector('.caja-historial button'));
+
+    expect(cajaService.reporte).toHaveBeenCalledWith('2026-09-21', '2026-09-21');
+  });
+
+  it('⭐ un cierre hecho pasada la medianoche baja el día que terminó, no el siguiente', async () => {
+    cajaService.historial.mockResolvedValue([
+      { id: 'h2', hasta: '2026-09-22T00:40:00', cerradoPorNombre: 'Orlando', esperadoEfectivo: 50000,
+        esperadoTransferencia: 0, esperadoMercadopago: 0, retiroEfectivo: 50000, quedaEnCaja: 0 },
     ]);
     await pintar();
 
