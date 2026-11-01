@@ -162,6 +162,7 @@ beforeEach(() => {
 afterEach(() => {
   if (root) act(() => root.unmount());
   container?.remove();
+  vi.useRealTimers();
 });
 
 describe('los cobros a cerrar', () => {
@@ -325,7 +326,12 @@ describe('el balance de ingresos', () => {
     expect(container.querySelectorAll('.caja-balance input[type="date"]')).toHaveLength(2);
   });
 
+  // ⚠️ CON EL RELOJ A MITAD DE MES, Y NO ES CAPRICHO. El día 1, "Mes" y "Hoy" son el mismo
+  // rango (del 1 al 1): la pantalla no vuelve a pedir el balance —bien, es el mismo— y el
+  // test se rompía ese único día de cada mes. Pasó el 2026-11-01.
   it('se puede pasar al mes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 15, 12, 0));
     await pintar();
     cajaService.balanceDeRango.mockResolvedValue({
       periodo: 'rango', efectivo: 400000, digital: 900000, total: 1300000, cantidadCobros: 31,
