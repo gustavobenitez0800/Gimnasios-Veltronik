@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import process from 'node:process';
 import * as XLSX from 'xlsx';
 import {
-  armarLibroDeCaja, nombreDelArchivo, serieDeExcel, rangoLegible, nombreDelMetodo,
+  armarLibroDeCaja, nombreDelArchivo, serieDeExcel, rangoLegible, nombreDelMetodo, diaDeLaCaja,
 } from './excelDeCaja';
 
 const REPORTE = {
@@ -221,5 +221,42 @@ describe('los nombres', () => {
     expect(nombreDelMetodo('CASH')).toBe('Efectivo');
     expect(nombreDelMetodo('mercadopago')).toBe('Mercado Pago');
     expect(nombreDelMetodo('MERCADOPAGO')).toBe('Mercado Pago');
+  });
+});
+
+// ⭐ El Excel de un cierre del historial. Un gimnasio que cierra pasada la medianoche cierra el
+// día que terminó; el botón bajaba el día siguiente, casi vacío.
+describe('diaDeLaCaja', () => {
+  it('un cierre de la noche es de ese mismo día', () => {
+    expect(diaDeLaCaja('2026-10-30T22:15:00')).toBe('2026-10-30');
+    expect(diaDeLaCaja('2026-10-30T06:00:00')).toBe('2026-10-30');
+  });
+
+  it('⭐ pasada la medianoche, todavía es la caja del día anterior', () => {
+    expect(diaDeLaCaja('2026-10-31T00:30:00')).toBe('2026-10-30');
+    expect(diaDeLaCaja('2026-10-31T05:59:59')).toBe('2026-10-30');
+  });
+
+  it('cruza el mes y el año sin correrse', () => {
+    expect(diaDeLaCaja('2026-11-01T00:10:00')).toBe('2026-10-31');
+    expect(diaDeLaCaja('2027-01-01T01:00:00')).toBe('2026-12-31');
+    expect(diaDeLaCaja('2028-03-01T00:20:00')).toBe('2028-02-29');
+  });
+
+  it('no depende del huso de la PC', () => {
+    const antes = process.env.TZ;
+    try {
+      process.env.TZ = 'Asia/Tokyo';
+      expect(diaDeLaCaja('2026-10-31T00:30:00')).toBe('2026-10-30');
+      process.env.TZ = 'America/Los_Angeles';
+      expect(diaDeLaCaja('2026-10-31T22:30:00')).toBe('2026-10-31');
+    } finally {
+      process.env.TZ = antes;
+    }
+  });
+
+  it('sin fecha no hay Excel', () => {
+    expect(diaDeLaCaja(null)).toBeNull();
+    expect(diaDeLaCaja('')).toBeNull();
   });
 });

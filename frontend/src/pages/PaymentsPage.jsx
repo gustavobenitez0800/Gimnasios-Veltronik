@@ -106,7 +106,9 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   // Desde/Hasta y el atajo puesto: el mismo selector que la Caja (useRangoDeFechas).
   const rango = useRangoDeFechas('month');
-  const { desde: dateFrom, hasta: dateTo } = rango;
+  // Al servidor va el último rango COMPLETO: mientras se escribe el año, el campo de Chrome pasa
+  // por 0002, 0020 y 0202, y con cada paso Pagos pedía todos los cobros desde el año 2.
+  const { desde: dateFrom, hasta: dateTo } = rango.pedible;
 
   // (El "Hasta" que se quedaba en ayer pasada la medianoche lo resuelve useRangoDeFechas.)
 
