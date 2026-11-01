@@ -649,8 +649,9 @@ export default function SettingsPage({ SubscriptionActions }) {
           <div className="danger-content">
             {/* Dar de baja la suscripción es una decisión de cuenta, y de las caras: no
                 corresponde que esté a un clic en la computadora del mostrador. Va solo en
-                el portal, igual que el resto del cobro. */}
-            {currentRole === 'owner' && !CONFIG.IS_DESKTOP && (
+                el portal, igual que el resto del cobro. Y solo si hay algo que cancelar: en la
+                prueba gratis no hay cobro agendado ni tarjeta, y el botón aparecía igual. */}
+            {currentRole === 'owner' && !CONFIG.IS_DESKTOP && subscriptionInfo.hasSubscription && (
               <div className="danger-item">
                 <div className="danger-info">
                   <h3>Cancelar suscripción</h3>
