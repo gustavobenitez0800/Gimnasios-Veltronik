@@ -30,9 +30,11 @@ import Icon from '../Icon';
  *                  cobrando ESTE plan. Hasta el 2026-10-22 no viajaba, el formulario mostraba
  *                  el precio base y el backend lo resolvía como básico: una sucursal Premium
  *                  que cambiaba la tarjeta pasaba a Básico.
+ * @param prueba    `{ termina, dias }` cuando la sucursal está en la prueba gratis y todavía no
+ *                  se suscribió; null si no. Con prueba no hay "próximo cobro" que mostrar.
  */
 export default function SubscriptionActionsWeb({
-  plan, planCode, statusLabel, blocked, nextPayment, monthlyAmountLabel,
+  plan, planCode, statusLabel, blocked, nextPayment, prueba, monthlyAmountLabel,
   hasSubscription, verifying, onVerify, onCardSuccess,
 }) {
   const [showCardForm, setShowCardForm] = useState(false);
@@ -63,14 +65,29 @@ export default function SubscriptionActionsWeb({
         </div>
       )}
 
-      <div className="info-row">
-        <span className="info-label">Próximo cobro</span>
-        <span className="info-value">{nextPayment}</span>
-      </div>
+      {/* En la prueba gratis no hay tarjeta cargada ni cobro agendado: decir "Próximo cobro"
+          era prometer un cobro que no va a pasar. Lo que pasa ese día es que termina la prueba. */}
+      {prueba ? (
+        <div className="info-row">
+          <span className="info-label">Fin de la prueba</span>
+          <span className="info-value">{prueba.termina}</span>
+        </div>
+      ) : (
+        <div className="info-row">
+          <span className="info-label">Próximo cobro</span>
+          <span className="info-value">{nextPayment}</span>
+        </div>
+      )}
       <div className="info-row">
         <span className="info-label">Monto mensual</span>
         <span className="info-value">{monthlyAmountLabel}</span>
       </div>
+
+      {prueba && (
+        <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)', marginTop: '0.75rem' }}>
+          Durante la prueba no se cobra nada. Cuando termine, el sistema te va a pedir la tarjeta para seguir.
+        </p>
+      )}
 
       {hasSubscription && (
         <>

@@ -144,7 +144,7 @@ export default function AdentroPage() {
             <thead><tr><th>Socio</th><th>DNI</th><th>Entrada</th><th>Salida</th><th>Método</th></tr></thead>
             <tbody>
               {todayLogs.length === 0 ? (
-                <tr><td colSpan="5" className="text-center text-muted" style={{ padding: '2rem' }}>Sin accesos hoy</td></tr>
+                <tr><td colSpan="5" className="table-empty">Sin accesos hoy</td></tr>
               ) : todayLogs.slice(0, 30).map(log => {
                 const member = log.member;
                 return (
