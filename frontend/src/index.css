@@ -23,8 +23,14 @@
 /* ─── Sidebar + App Layout ─── */
 @import './styles/layout.css';
 
-/* ─── Page Header, Empty State, Lobby ─── */
+/* ─── Piezas comunes de página y las pantallas grandes ───
+   Antes eran un solo pages.css de 1.476 líneas. Van en el MISMO orden en que estaban
+   adentro de él: cambiarlo cambia la cascada. */
 @import './styles/pages.css';
+@import './styles/lobby.css';
+@import './styles/checkin.css';
+@import './styles/borrado-cuenta.css';
+@import './styles/mostrador.css';
 
 /* ─── Toast, Modal, Loading ─── */
 @import './styles/feedback.css';
@@ -48,8 +54,12 @@
 @import './styles/settings.css';
 @import './styles/caja.css';
 
-/* ─── Onboarding, Plans, Blocked, Force Update ─── */
+/* ─── Alta del gimnasio, planes, la vuelta del pago y el bloqueo ───
+   Antes eran un solo onboarding.css de 1.187 líneas; mismo orden que adentro de él. */
 @import './styles/onboarding.css';
+@import './styles/planes.css';
+@import './styles/pago.css';
+@import './styles/bloqueo.css';
 
 /* ─── El cobro con tarjeta (CardCheckout) ─── */
 @import './styles/cobro.css';
@@ -61,3 +71,5 @@
    cada página (antes se importaba a mitad de lista y los archivos posteriores
    pisaban los ajustes mobile a igual especificidad). */
 @import './styles/responsive.css';
+@import './styles/responsive-celular.css';
+@import './styles/responsive-tablas.css';

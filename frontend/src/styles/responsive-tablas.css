@@ -1,0 +1,118 @@
+/* Las tablas de Pagos y de Socios: un renglón por cobro en la compu, una ficha por socio en el
+   celular. Antes era el final de responsive.css; va importado después de responsive-celular.css,
+   en el mismo orden (el CSS compilado salió idéntico). */
+
+/* ─── La tabla de Pagos: un renglón por cobro ───
+   Como la de Socios: nada se parte en dos renglones (el nombre largo se corta con "…" y tiene el
+   nombre entero en el tooltip), y lo menos importante se esconde según el ancho de LA TABLA. Antes
+   cada fila medía ~80 px: nombre, "DNI:" y período en dos y tres renglones. */
+.celda-una-linea {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tabla-pagos { container: pagos / inline-size; }
+.tabla-pagos .col-socio { max-width: 220px; }
+@media (min-width: 769px) {
+  @container pagos (max-width: 820px) {
+    .tabla-pagos .col-fecha { display: none; }
+  }
+  @container pagos (max-width: 700px) {
+    .tabla-pagos .col-periodo { display: none; }
+  }
+}
+.tabla-pagos .table .table-actions { display: flex; flex-wrap: nowrap; }
+.pago-estado { margin-top: 0.25rem; }
+
+/* ─── PAGOS EN EL CELULAR: EL NOMBRE ENTERO ───
+   En modo tarjeta, el nombre y el DNI compartían renglón con la etiqueta "SOCIO" y se cortaban
+   ("Tomás …  DNI 42…") con media tarjeta vacía al lado. Van uno arriba del otro, enteros. */
+@media (max-width: 768px) {
+  .tabla-pagos .table tbody td.col-socio {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.1rem 1rem;
+    max-width: none;
+  }
+  .tabla-pagos .table tbody td.col-socio::before { grid-row: 1 / span 2; align-self: start; padding-top: 0.2em; }
+  .tabla-pagos .table tbody td.col-socio > * { grid-column: 2; white-space: normal; }
+}
+
+/* ─── SOCIOS EN EL CELULAR: UNA FICHA, NO NUEVE RENGLONES (2026-10-07) ───
+   La regla general del celular (más arriba) convierte cada fila en una tarjeta con un renglón
+   "ETIQUETA — valor" por columna. Con las nueve columnas de Socios, cada socio medía 480 px:
+   en una pantalla de 812 entraba UNO y medio, y una página de 25 eran 12.000 px de scroll.
+
+   Acá cada socio es una ficha: el nombre y el estado arriba, y el resto en dos columnas, sin
+   etiqueta donde el dato se reconoce solo (un teléfono, "8d", los días de la semana).
+   Es solo CSS: son las mismas celdas de la tabla, ubicadas con una grilla.
+
+       [ ] Agustina Ayala                [AL DÍA]
+       DNI 24427200                    3764004022
+       Musculación 3 veces…                  [8d]
+       L M X J V S D             VENCE 15/10/2026
+       ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+                           [cobrar][editar][wa][⋯]                                        */
+@media (max-width: 768px) {
+  /* El :has() no cambia a quién le pega: está para ganarle en peso a la regla general de las
+     tarjetas (`.table:has(td[data-label]) tbody tr`), que deja cada fila en `display: block`. */
+  .tabla-socios .table:has(td[data-label]) tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem 0.75rem;
+    padding: 0.9rem 1rem 0.3rem;
+  }
+  .tabla-socios .table tbody td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .tabla-socios .table tbody td[data-label]::before { display: none; }
+
+  /* 1 · quién es y cómo está */
+  .tabla-socios .table tbody td.col-check { grid-area: 1 / 1; padding: 0; width: auto; }
+  .tabla-socios .table tbody td[data-label="Nombre"] { grid-area: 1 / 2; padding: 0; font-size: var(--font-size-base); }
+  .tabla-socios .table tbody tr:not(:has(.col-check)) td[data-label="Nombre"] { grid-column: 1 / 3; }
+  .tabla-socios .table tbody td.col-estado { grid-area: 1 / 3; justify-self: end; }
+
+  /* 2 · cómo ubicarlo */
+  .tabla-socios .table tbody td.col-dni { grid-area: 2 / 1 / auto / 3; }
+  /* El teléfono y el vencimiento ocupan desde la columna del medio y se pegan a la derecha:
+     si fueran solo de la tercera columna, su ancho ("VENCE 15/10/2026") le sacaría lugar al
+     nombre del renglón de arriba, que comparte esa columna, y lo partiría en dos. */
+  .tabla-socios .table tbody td.col-tel { grid-area: 2 / 2 / auto / -1; justify-self: end; }
+  .tabla-socios .table tbody td.col-dni,
+  .tabla-socios .table tbody td.col-tel,
+  .tabla-socios .table tbody td.col-vence { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+  /* 3 · qué paga y cuánto le queda */
+  .tabla-socios .table tbody td[data-label="Arancel"] { grid-area: 3 / 1 / auto / 3; }
+  .tabla-socios .table tbody td[data-label="Arancel"] .arancel-select { max-width: 100%; margin-left: -0.4rem; }
+  .tabla-socios .table tbody td[data-label="Días"] { grid-area: 3 / 3; justify-self: end; }
+
+  /* 4 · cuándo viene y cuándo vence */
+  .tabla-socios .table tbody td.col-asistencia { grid-area: 4 / 1 / auto / 3; }
+  .tabla-socios .table tbody td.col-vence { grid-area: 4 / 2 / auto / -1; justify-self: end; }
+
+  /* El DNI y el vencimiento son números que solos no dicen qué son: llevan su etiqueta, chica
+     y en el mismo renglón. (Van después de la regla que esconde las etiquetas: le ganan.) */
+  .tabla-socios .table tbody td.col-dni::before,
+  .tabla-socios .table tbody td.col-vence::before { display: inline; margin-right: 0.4rem; }
+  .tabla-socios .table tbody td.col-dni::before { content: 'DNI'; }
+  .tabla-socios .table tbody td.col-vence::before { content: 'Vence'; }
+
+  /* 5 · qué se le puede hacer */
+  .tabla-socios .table tbody td[data-label="Acciones"] {
+    grid-area: 5 / 1 / auto / -1;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.1rem;
+    padding: 0.65rem 0 0.55rem;
+  }
+
+  /* "Cargando…" y "no hay socios": una celda sola, a lo ancho. */
+  .tabla-socios .table tbody td[colspan] { grid-column: 1 / -1; padding: 1.5rem 0; text-align: center; }
+}

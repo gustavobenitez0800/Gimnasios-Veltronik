@@ -1,0 +1,196 @@
+/* ============================================
+   EL MOSTRADOR (Accesos) Y TRES AGREGADOS DE ÚLTIMA HORA
+   ============================================
+   Los avisos del mostrador y el cartel del QR. Al final quedan tres piezas que llegaron
+   después: la versión nueva en el pie del menú, el cobro anulado de Pagos y el botón que
+   cubre la tarjeta del Lobby. Al partir pages.css se respetó el orden exacto (el CSS
+   compilado salió idéntico). Mudarlas a su lugar natural cambia el orden de la cascada:
+   antes, comparar el CSS compilado o mirar esas pantallas. */
+
+/* ── Avisos del mostrador ──
+   Va arriba de todo en Accesos: si un socio entró vencido, eso pasa antes que lo que la
+   recepcionista esté por hacer ahora. Visible pero no alarmante — esto ocurre varias veces
+   al día y un cartel que grita se vuelve ruido a la semana. */
+.avisos-mostrador {
+  grid-column: 1 / -1;
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
+  border: 1px solid var(--warning-500, #f59e0b);
+  border-left: 4px solid var(--warning-500, #f59e0b);
+  border-radius: var(--border-radius-md);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+
+.avisos-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--warning-500, #f59e0b);
+  margin: 0 0 0.75rem;
+}
+
+.avisos-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.aviso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-tertiary);
+}
+
+/* El que no tiene fecha cargada NO es un moroso: es un dato que falta en su ficha. Se
+   distingue para que la recepcionista no vaya a reclamarle plata a alguien que está al día. */
+.aviso.is-dato { opacity: 0.85; }
+
+.aviso-info { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.45; }
+.aviso-info strong { color: var(--text-primary); }
+.aviso-hora { color: var(--text-muted); font-size: 0.85em; }
+
+.aviso-btn { flex: none; padding: 0.4rem 0.85rem; font-size: 0.85rem; }
+
+@media (max-width: 640px) {
+  .aviso { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+  .aviso-btn { width: 100%; }
+}
+
+/* El cartel de confirmación del mostrador se fue: era un overlay de pantalla completa que
+   trababa el teclado tres segundos por socio. Lo que decía —incluido QUÉ se registró, que
+   es lo que evitaba apretar "entrada" y grabar una salida sin enterarse— ahora vive en el
+   aviso lateral, en `access.css` (.acceso-aviso-accion). */
+
+/* "Adentro desde 09:14" en el resultado de la búsqueda. Es el dato que cambia qué hace el
+   botón de al lado, así que tiene que verse antes de apretarlo. */
+.member-access-status.is-inside {
+  color: var(--primary-400, #60a5fa);
+}
+
+/* "Pagó recién · el vencimiento se actualiza al volver internet".
+   El número de días de al lado lo corre el SERVIDOR cuando el cobro sube, así que sin internet
+   sigue diciendo lo de antes. Este renglón no lo corrige: lo explica. Ámbar porque le habla a
+   quien atiende —es un estado de la casa, no del socio—, igual que el cartel de la puerta. */
+.member-access-status.is-pagado-sin-subir {
+  color: var(--warning-500, #f59e0b);
+}
+
+/* ============================================
+   CARTEL DEL QR — en Accesos
+   ============================================
+   Va en la misma grilla que el resto del mostrador y ocupa el ancho completo. En pantalla
+   chica pasa a columna: la tablet del mostrador es lo más común después de la PC. */
+.qr-panel {
+  grid-column: 1 / -1;
+  background: var(--card-bg);
+  backdrop-filter: var(--card-backdrop);
+  -webkit-backdrop-filter: var(--card-backdrop);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.qr-panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+}
+
+/* Una sola columna centrada: los botones arriba y el código debajo, al medio. Antes era
+   una fila (código a la izquierda, botones a la derecha) con textos explicativos que solo
+   servían la primera vez; en una pantalla que se mira todos los días, sobraban. */
+.qr-panel-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* El QR SIEMPRE sobre blanco, en cualquier tema. Un código sobre fondo oscuro no lo lee
+   ninguna cámara: la lectura depende del contraste entre el módulo negro y su fondo. */
+.qr-panel-code {
+  background: #fff;
+  padding: 0.75rem;
+  border-radius: var(--border-radius-md);
+  line-height: 0;
+  flex: none;
+}
+
+.qr-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  /* En un teléfono los botones van a lo ancho: uno angosto es más difícil de acertar. */
+  .qr-panel-actions { align-self: stretch; }
+  .qr-panel-actions .btn { flex: 1 1 12rem; justify-content: center; }
+}
+
+/* ─── La versión nueva, en el pie del menú ───
+   El menú es angosto: el aviso va a lo ancho y en renglones, con el botón abajo. En el riel
+   de íconos (769-1080px) queda solo el botón. */
+.sidebar-footer .update-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  white-space: normal;
+  margin-bottom: 0.6rem;
+}
+.sidebar-footer .update-indicator .btn { width: 100%; justify-content: center; }
+@media (min-width: 769px) and (max-width: 1080px) {
+  .sidebar-footer .update-indicator-text,
+  .sidebar-footer .update-indicator-dot { display: none; }
+  .sidebar-footer .update-indicator { padding: 0.35rem; }
+}
+
+/* ─── Pagos: el cobro anulado ───
+   No se borra (V88): queda en la lista, tachado y apagado, con quién y por qué. */
+.pago-anulado td { color: var(--text-muted); }
+.pago-anulado .pago-monto {
+  text-decoration: line-through;
+  color: var(--text-muted) !important;
+}
+.pago-anulado-motivo {
+  display: block;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Editar un cobro que ya contó un cierre de caja: la diferencia va a entrar como corrección. */
+.pago-aviso-cerrado {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--warning-500);
+  background: color-mix(in srgb, var(--warning-500) 10%, transparent);
+  font-size: var(--font-size-sm);
+}
+
+/* ─── La tarjeta del Lobby: un botón que la cubre entera ───
+   La tarjeta no es un <button> porque adentro va el de borrar (un botón dentro de otro es HTML
+   inválido). El que abre el gimnasio la tapa de punta a punta; el de borrar queda por encima. */
+.lobby-card-abrir {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.lobby-card-abrir:focus-visible {
+  outline: 2px solid var(--primary-400);
+  outline-offset: -3px;
+}

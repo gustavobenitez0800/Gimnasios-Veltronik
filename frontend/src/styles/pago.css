@@ -1,0 +1,241 @@
+/* La vuelta de Mercado Pago (pantalla de resultado) y el aviso de pago pendiente del menú.
+   Antes vivía dentro de onboarding.css. */
+
+/* La animación "pulse": la usa el punto de la pantalla de error (ErrorBoundary.jsx). */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* ============================================
+   PAYMENT CALLBACK PAGE (Netflix-level)
+   ============================================ */
+
+.payment-callback-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #0c0a1a 100%);
+  position: relative;
+  overflow: hidden;
+  padding: 2rem;
+}
+
+/* Fondo sobrio (sin orbes flotantes): malla de puntos + realce lineal tenue. */
+.payment-callback-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    radial-gradient(130% 70% at 50% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 55%);
+  background-size: 24px 24px, 100% 100%;
+}
+
+.payment-callback-orb { display: none; }
+
+.payment-callback-card {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  width: 100%;
+  padding: 3rem 2.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-xl);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  animation: cardSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.payment-callback-icon {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Contenedor circular con halo tintado al color del paso (premium, no exagerado) */
+.callback-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  color: var(--step-color, var(--primary-500));
+  background: color-mix(in srgb, var(--step-color, var(--primary-500)) 12%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--step-color, var(--primary-500)) 25%, transparent),
+    0 0 32px color-mix(in srgb, var(--step-color, var(--primary-500)) 22%, transparent);
+}
+
+.callback-icon-svg.spinning {
+  animation: spin 1.5s linear infinite;
+}
+
+.callback-icon-svg.bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.payment-callback-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+  transition: color 0.3s ease;
+}
+
+.payment-callback-message {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  min-height: 48px;
+}
+
+.payment-callback-progress {
+  margin-bottom: 1.5rem;
+}
+
+.payment-callback-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.payment-callback-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+}
+
+.payment-callback-progress-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.payment-callback-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.payment-callback-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-500);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.payment-callback-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.payment-callback-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.payment-callback-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.payment-callback-secure {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  opacity: 0.6;
+}
+
+@media (max-width: 480px) {
+  .payment-callback-card {
+    padding: 2rem 1.5rem;
+  }
+  .callback-icon-svg {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* ============================================
+   PAYMENT WARNING BANNER (in AppLayout)
+   ============================================ */
+
+.payment-warning-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  font-size: var(--font-size-sm);
+  animation: bannerSlideDown 0.3s ease;
+  flex-wrap: wrap;
+}
+
+@keyframes bannerSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.payment-warning-warning {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.1));
+  border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.payment-warning-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.payment-warning-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.4rem 1rem;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.payment-warning-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateX(2px);
+}
