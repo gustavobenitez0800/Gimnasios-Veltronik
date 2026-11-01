@@ -25,7 +25,13 @@ const verifyOtp = vi.fn(async () => ({ data: { session: { access_token: 't' } },
 vi.mock('../lib/supabase', () => ({
   supabase: { auth: { signOut, onAuthStateChange, signUp, initialize, verifyOtp } },
 }));
-vi.mock('../lib/authCode', () => ({ readAuthCode: () => null }));
+const recuperacion = { tokenHash: null };
+const clearRecoveryTokenHash = vi.fn();
+vi.mock('../lib/authCode', () => ({
+  readAuthCode: () => null,
+  readRecoveryTokenHash: () => recuperacion.tokenHash,
+  clearRecoveryTokenHash,
+}));
 vi.mock('../lib/desktopAuth', () => ({ startGoogleSignIn: vi.fn(), canUseBrowserSignIn: () => false }));
 
 const { authService } = await import('./AuthService');
@@ -64,6 +70,31 @@ describe('el alta y el link del correo', () => {
   it('un token_hash vencido falla, para que el arranque lo anote y siga', async () => {
     verifyOtp.mockResolvedValueOnce({ data: {}, error: new Error('Email link is invalid or has expired') });
     await expect(authService.confirmarCorreo('xyz', 'email')).rejects.toThrow('expired');
+  });
+});
+
+describe('el link de recuperar la contraseña', () => {
+  it('⭐ el token_hash se canjea como recuperación y sale de la barra de direcciones', async () => {
+    recuperacion.tokenHash = 'rec123';
+    clearRecoveryTokenHash.mockClear();
+    await expect(authService.verifyRecoveryLink()).resolves.toBe(true);
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'rec123', type: 'recovery' });
+    expect(clearRecoveryTokenHash).toHaveBeenCalled();
+  });
+
+  it('uno vencido falla, y también sale de la barra (si no, se reintenta en cada recarga)', async () => {
+    recuperacion.tokenHash = 'rec123';
+    clearRecoveryTokenHash.mockClear();
+    verifyOtp.mockResolvedValueOnce({ data: {}, error: new Error('Email link is invalid or has expired') });
+    await expect(authService.verifyRecoveryLink()).rejects.toThrow('expired');
+    expect(clearRecoveryTokenHash).toHaveBeenCalled();
+  });
+
+  it('sin token (el ?code= de siempre) no hace nada', async () => {
+    recuperacion.tokenHash = null;
+    verifyOtp.mockClear();
+    await expect(authService.verifyRecoveryLink()).resolves.toBe(false);
+    expect(verifyOtp).not.toHaveBeenCalled();
   });
 });
 

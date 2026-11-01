@@ -4,7 +4,7 @@
 
 import { supabase } from '../lib/supabase';
 import CONFIG from '../lib/config';
-import { readAuthCode } from '../lib/authCode';
+import { readAuthCode, readRecoveryTokenHash, clearRecoveryTokenHash } from '../lib/authCode';
 import { startGoogleSignIn, canUseBrowserSignIn } from '../lib/desktopAuth';
 import { MARCA_DE_ALTA } from '../lib/vueltaDelCorreo';
 
@@ -167,6 +167,25 @@ class AuthService {
     const code = readAuthCode(window.location.href);
     if (!code) return false;
     const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    return true;
+  }
+
+  /**
+   * Abre la sesión de recuperación con el `token_hash` del link del correo, si lo trae.
+   * Devuelve true si había token y anduvo, false si el link no trae token (es el `?code=` de
+   * siempre) y tira el error si el token venció o ya se usó.
+   *
+   * <p>El token sale de la barra de direcciones pase lo que pase: uno vencido que queda ahí se
+   * vuelve a intentar en cada recarga.</p>
+   */
+  async verifyRecoveryLink() {
+    const tokenHash = readRecoveryTokenHash(window.location.href);
+    if (!tokenHash) return false;
+    // Como en confirmarCorreo: que el arranque del cliente termine primero.
+    await supabase.auth.initialize();
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+    clearRecoveryTokenHash();
     if (error) throw error;
     return true;
   }

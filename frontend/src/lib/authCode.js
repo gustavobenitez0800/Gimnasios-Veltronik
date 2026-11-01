@@ -62,3 +62,41 @@ export function readAuthError(href) {
 
   return null;
 }
+
+/**
+ * El `token_hash` de un link de RECUPERACIÓN de contraseña, o null.
+ *
+ * <p>La plantilla "Reset password" de Supabase lo manda como
+ * `{{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=recovery#/reset-password`. A diferencia del
+ * `?code=` de PKCE, anda en cualquier navegador y no vence a los 5 minutos de haberlo pedido: el
+ * mismo problema que tenía la confirmación del alta (ver lib/vueltaDelCorreo.js).</p>
+ * @param {string} href URL completa
+ * @returns {string|null}
+ */
+export function readRecoveryTokenHash(href) {
+  if (!href) return null;
+
+  let url;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+
+  // Mismo problema de ubicación que `readAuthCode`: el search real o adentro del hash.
+  const hashQuery = url.hash.split('?')[1];
+  for (const params of [url.searchParams, new URLSearchParams(hashQuery || '')]) {
+    if (params.get('type') === 'recovery' && params.get('token_hash')) return params.get('token_hash');
+  }
+  return null;
+}
+
+/** Saca de la barra de direcciones el `token_hash` de la recuperación, sin tocar la ruta del hash. */
+export function clearRecoveryTokenHash() {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token_hash');
+    url.searchParams.delete('type');
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch { /* sin history: queda como estaba, no rompe nada */ }
+}
