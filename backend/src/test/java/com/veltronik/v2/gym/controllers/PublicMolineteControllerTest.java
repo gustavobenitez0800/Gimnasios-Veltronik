@@ -125,6 +125,16 @@ class PublicMolineteControllerTest {
     }
 
     @Test
+    @DisplayName("un token que no puede ser nuestro se contesta 200 sin tocar la base")
+    void elTokenImposibleNiSeBusca() {
+        var res = controller.aviso("x".repeat(500), Map.of(), cuerpo("face_0", "1"));
+
+        assertEquals(200, res.getStatusCode().value());
+        assertEquals("NO_AUTORIZADO", ((Map<?, ?>) res.getBody()).get("estado"));
+        verify(service, never()).recibir(any(), any());
+    }
+
+    @Test
     @DisplayName("pero una avalancha se frena, y ahí sí se deja de procesar")
     void laAvalanchaSeFrena() {
         ResponseEntity<?> ultima = null;

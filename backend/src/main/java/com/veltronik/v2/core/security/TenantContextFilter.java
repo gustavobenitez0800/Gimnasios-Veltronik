@@ -95,6 +95,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
                     }
                 }
                 if (role == null) {
+                    dejarHuella("FORBIDDEN_TENANT", request, userId, tenantId);
                     writeError(response, HttpServletResponse.SC_FORBIDDEN,
                             "FORBIDDEN_TENANT", "No tiene acceso a este negocio.");
                     return;
@@ -102,6 +103,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
 
                 // Segunda llave: un equipo ENROLADO queda atado a SU sucursal (Fase 3).
                 if (!isAllowedOnThisDevice(request, tenantId, role)) {
+                    dejarHuella("DEVICE_BOUND_TO_OTHER_TENANT", request, userId, tenantId);
                     writeError(response, HttpServletResponse.SC_FORBIDDEN,
                             "DEVICE_BOUND_TO_OTHER_TENANT",
                             "Este equipo pertenece a otra sucursal.");
@@ -201,6 +203,24 @@ public class TenantContextFilter extends OncePerRequestFilter {
         JwtAuthenticationToken updated =
                 new JwtAuthenticationToken(jwtAuth.getToken(), authorities, jwtAuth.getName());
         SecurityContextHolder.getContext().setAuthentication(updated);
+    }
+
+    /**
+     * Un "no" de esta puerta es la señal más clara de que alguien está tanteando: una persona
+     * con sesión válida pidiendo los datos de un negocio que no es suyo. Antes se contestaba 403
+     * en silencio y no quedaba rastro de quién ni desde dónde. Queda en los registros de Cloud
+     * Run, que guardan 30 días: se busca por {@code "Acceso rechazado"}.
+     *
+     * <p>El X-Forwarded-For va entero y recortado, sin interpretar: lo arma Google al frente del
+     * servicio (la IP real es la última) y el que llama puede anteponerle lo que quiera.</p>
+     */
+    private void dejarHuella(String motivo, HttpServletRequest request, UUID userId, UUID tenantId) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();
+        if (ip != null && ip.length() > 200) ip = ip.substring(0, 200);
+        logger.warn("Acceso rechazado (" + motivo + "): usuario=" + userId + " negocio=" + tenantId
+                + " equipo=" + request.getHeader("X-Device-Id") + " " + request.getMethod() + " "
+                + request.getRequestURI() + " ip=" + ip);
     }
 
     private void writeError(HttpServletResponse response, int status, String error, String message)

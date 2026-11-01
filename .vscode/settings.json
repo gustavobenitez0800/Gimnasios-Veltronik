@@ -1,4 +1,24 @@
 {
-    "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive"
+    // Apagado a propósito: Spring marca toda su API como @NonNull y el proyecto no usa
+    // anotaciones de nulos, así que el análisis llenaba "Problemas" con ~750 avisos falsos
+    // ("needs unchecked conversion to conform to @NonNull ..."). El build de Maven no lo corre.
+    "java.compile.nullAnalysis.mode": "disabled",
+    "java.configuration.updateBuildConfiguration": "interactive",
+
+    // Las copias de trabajo de Claude (.claude/worktrees) tienen otro backend entero adentro:
+    // sin esto el editor importa cada una como proyecto y repite todos los errores por cinco.
+    // Al definir esta lista se pisan los valores por defecto, por eso van los cuatro primeros.
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archetype-resources/**",
+        "**/META-INF/maven/**",
+        "**/.claude/**"
+    ],
+    "files.exclude": {
+        "**/.claude/worktrees": true
+    },
+    "files.watcherExclude": {
+        "**/.claude/worktrees/**": true
+    }
 }
