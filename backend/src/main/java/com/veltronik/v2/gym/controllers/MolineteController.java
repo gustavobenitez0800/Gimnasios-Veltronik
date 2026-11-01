@@ -56,4 +56,19 @@ public class MolineteController {
         }
         return ResponseEntity.ok(molineteService.padron(tenantId));
     }
+
+    /**
+     * ¿Esta sucursal tiene el control de acceso en su plan? Lo pregunta el escritorio antes de
+     * dejar que la cajita del molinete abra con un DNI.
+     *
+     * <p>Ahí no hay padrón que bajar: el veredicto de cada socio ya lo tiene el mostrador. Bajar
+     * el padrón entero (miles de socios) solo para saber un sí o un no sería tráfico de Supabase
+     * tirado. Un {@code false} no es un error: el escritorio lo dice en Ajustes y no abre.</p>
+     */
+    @GetMapping("/habilitado")
+    public ResponseEntity<java.util.Map<String, Boolean>> habilitado() {
+        UUID tenantId = TenantContextHolder.getTenantId();
+        return ResponseEntity.ok(java.util.Map.of(
+                "habilitado", planPolicy.hasFeature(tenantId, PlanFeature.CONTROL_DE_ACCESO)));
+    }
 }
