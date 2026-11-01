@@ -19,30 +19,37 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  // 'verificando' → 'lista' (hay sesión de recuperación) o 'vencido' (el link no sirve).
+  const [estado, setEstado] = useState('verificando');
 
-  // Al llegar desde el link del email, la URL trae "?code=..." (PKCE): lo canjeamos
-  // por la sesión de recuperación. Fallbacks: sesión ya activa (Supabase la detectó
-  // solo) o el evento PASSWORD_RECOVERY de links con el formato viejo.
+  // El link del correo abre la sesión de recuperación de una de tres formas, en este orden:
+  //   1. `?token_hash=…&type=recovery`: la plantilla nueva. Anda en cualquier navegador.
+  //   2. `?code=…` (PKCE): la de fábrica. Vence a los 5 minutos de pedirlo y solo anda en el
+  //      navegador donde se pidió; Supabase a veces ya lo canjeó solo al arrancar.
+  //   3. El evento PASSWORD_RECOVERY de los links con el formato viejo.
+  // ⚠️ Hasta el 2026-11-01, si ninguna anduvo, a los 4 s se mostraba el formulario igual: la
+  // persona escribía la contraseña nueva dos veces y recién ahí le decía "Auth session missing".
   useEffect(() => {
     let mounted = true;
+    const lista = () => { if (mounted) setEstado('lista'); };
+    const vencido = () => { if (mounted) setEstado((e) => (e === 'verificando' ? 'vencido' : e)); };
+    const haySesion = () => authService.getSession().then(() => true, () => false);
+
     (async () => {
-      try {
-        const exchanged = await authService.exchangeRecoveryCode().catch(() => false);
-        if (mounted && exchanged) { setSessionReady(true); return; }
-        const session = await authService.getSession().catch(() => null);
-        if (mounted && session) setSessionReady(true);
-      } catch { /* noop */ }
+      const porToken = await authService.verifyRecoveryLink().then((ok) => (ok ? 'ok' : null), () => 'fallo');
+      if (porToken === 'ok') return lista();
+      if (porToken === null && await authService.exchangeRecoveryCode().catch(() => false)) return lista();
+      if (await haySesion()) return lista();
+      // Un token que se probó y falló no tiene vuelta: no hay nada que esperar.
+      if (porToken === 'fallo') vencido();
     })();
 
     const sub = authService.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (mounted) setSessionReady(true);
-      }
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') lista();
     });
 
-    // Fallback: si en 4s no hubo sesión, dejamos intentar igual (Supabase a veces ya la aplicó).
-    const t = setTimeout(() => { if (mounted) setSessionReady(true); }, 4000);
+    // El evento de un link viejo puede tardar un poco. Pasado eso, sin sesión no hay link que sirva.
+    const t = setTimeout(async () => { if (await haySesion()) lista(); else vencido(); }, 4000);
 
     return () => { mounted = false; clearTimeout(t); sub?.unsubscribe?.(); };
   }, []);
@@ -71,11 +78,30 @@ export default function ResetPasswordPage() {
     }
   };
 
-  if (!sessionReady) {
+  if (estado === 'verificando') {
     return (
       <div className="auth-card" style={{ textAlign: 'center' }}>
         <span className="spinner" style={{ width: 32, height: 32 }} />
         <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Verificando enlace…</p>
+      </div>
+    );
+  }
+
+  if (estado === 'vencido') {
+    return (
+      <div className="auth-card">
+        <div className="auth-logo">
+          <img src={logoSrc} alt="Veltronik" className="auth-logo-img marca-centrada" />
+          <h1 className="auth-logo-text">Veltronik</h1>
+        </div>
+        <h2 className="auth-title">Ese enlace ya no sirve</h2>
+        <p className="auth-subtitle">
+          Ya se usó o venció. Volvé al inicio de sesión y pedí uno nuevo con «¿Olvidaste tu
+          contraseña?»: te llega otro correo en un minuto.
+        </p>
+        <p className="auth-links">
+          <Link to={CONFIG.ROUTES.LOGIN}>Volver al inicio de sesión</Link>
+        </p>
       </div>
     );
   }
