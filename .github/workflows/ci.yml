@@ -88,6 +88,12 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: El programa de la cajita del molinete compila
+        # Es Python (MicroPython) y la app se lo instala a la cajita de cada gimnasio: un error
+        # de sintaxis acá deja un molinete sin contestar. MicroPython es un subconjunto de
+        # Python 3, así que alcanza con que Python 3 lo compile. Ver docs/molinete/cajita.md.
+        run: python3 -m py_compile firmware/cajita-molinete/main.py
+
       - name: Tests
         # Vitest. Hoy cubre el depósito de la caché de consultas: que refrescar no borre
         # (o la pantalla queda en blanco en cada ciclo), que invalidar un módulo no toque

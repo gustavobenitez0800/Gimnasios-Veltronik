@@ -73,18 +73,33 @@ describe('⭐ el molinete abre con el mismo veredicto que el cartel', () => {
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
   });
 
-  it('sin fecha cargada: no abre (lo decide quien atiende, con el botón)', async () => {
+  it('⭐ en gracia: abre, como el molinete facial (y el cartel igual avisa)', async () => {
+    memberService.searchForAccess.mockResolvedValue([{ ...SOCIO, situacion: 'EN_GRACIA', diasVencido: 1, diasRestantes: 0 }]);
+    await pintar();
+    await entrar();
+    expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
+  });
+
+  it('⭐ sin fecha cargada: abre, como el molinete facial (es un dato que falta, no una deuda)', async () => {
     memberService.searchForAccess.mockResolvedValue([{ ...SOCIO, situacion: 'SIN_DATOS' }]);
+    await pintar();
+    await entrar();
+    expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
+  });
+
+  it('dado de baja: no abre', async () => {
+    memberService.searchForAccess.mockResolvedValue([{ ...SOCIO, situacion: 'INACTIVO' }]);
     await pintar();
     await entrar();
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: false });
   });
 
-  it('el que SALE no abre el molinete: la salida es por la puerta', async () => {
+  it('la SALIDA se le avisa como salida: abre solo si esta PC tiene el molinete también de salida', async () => {
     accessService.checkIn.mockResolvedValue({ direccion: 'SALIDA' });
     await pintar();
     await entrar();
-    expect(cajita.abrirSiPasa).not.toHaveBeenCalled();
+    expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ salida: true });
+    expect(cajita.abrirSiPasa).not.toHaveBeenCalledWith(expect.objectContaining({ pasa: expect.anything() }));
   });
 
   it('un rebote (ya estaba marcado) no abre de nuevo: pasarían dos con el mismo DNI', async () => {

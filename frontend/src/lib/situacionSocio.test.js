@@ -16,7 +16,9 @@
 // ============================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { situacionDe, graceDays, recordarGraceDays, compararConElServidor } from './situacionSocio';
+import {
+  situacionDe, graceDays, recordarGraceDays, compararConElServidor, puedePasarElMolinete,
+} from './situacionSocio';
 
 /** Un socio activo que vence en el momento dado. */
 const socio = (vence) => ({ isActive: true, membershipEnd: vence });
@@ -167,5 +169,26 @@ describe('la red de seguridad contra la deriva', () => {
 
   it('sin respuesta del servidor no hay nada que comparar', () => {
     expect(compararConElServidor(socio(cuando(2027, 1, 1)))).toBe(true);
+  });
+});
+
+// ⭐ La regla del molinete es la del padrón del molinete facial (MolineteService.puedePasar).
+describe('puedePasarElMolinete', () => {
+  it('al día, en gracia y sin fecha cargada pasan, como en el molinete facial', () => {
+    expect(puedePasarElMolinete({ situacion: 'AL_DIA' })).toBe(true);
+    expect(puedePasarElMolinete({ situacion: 'EN_GRACIA' })).toBe(true);
+    expect(puedePasarElMolinete({ situacion: 'SIN_DATOS' })).toBe(true);
+  });
+
+  it('el vencido y el dado de baja no pasan', () => {
+    expect(puedePasarElMolinete({ situacion: 'VENCIDO' })).toBe(false);
+    expect(puedePasarElMolinete({ situacion: 'INACTIVO' })).toBe(false);
+    expect(puedePasarElMolinete({ situacion: 'AL_DIA', status: 'inactive' })).toBe(false);
+    expect(puedePasarElMolinete(null)).toBe(false);
+  });
+
+  it('sin la situación del servidor, la calcula con la copia local', () => {
+    const vence = new Date(Date.now() + 10 * 86400000).toISOString();
+    expect(puedePasarElMolinete({ status: 'active', membershipEnd: vence })).toBe(true);
   });
 });

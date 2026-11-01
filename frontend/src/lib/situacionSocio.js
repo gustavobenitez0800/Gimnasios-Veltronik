@@ -199,3 +199,25 @@ export function estadoDelSocio(socio, ahora = new Date()) {
   if (situacion === 'SIN_DATOS') return 'sin_cuota';
   return 'al_dia';
 }
+
+/**
+ * ¿El molinete lo deja pasar? La MISMA regla que el padrón del molinete facial
+ * (`MolineteService.puedePasar` en el backend): al día, en gracia, o sin fecha cargada.
+ * Quedan afuera el vencido y el dado de baja.
+ *
+ * <p>Sin fecha cargada pasa a propósito: es un dato que falta (migrados, cargados a las
+ * apuradas), no una deuda, y dejar parado en la puerta a alguien que pagó hace quedar mal al
+ * gimnasio. En gracia también: para eso el dueño puso días de gracia. El cartel igual se
+ * pinta de rojo y suena la X, para que quien atiende se entere.</p>
+ *
+ * <p>⚠️ Si cambia allá, cambia acá: dos molinetes del mismo sistema con reglas distintas son
+ * un socio que entra por una puerta y no por la otra.</p>
+ *
+ * @param {object} socio con `situacion` (la del servidor, o la de la copia local)
+ */
+export function puedePasarElMolinete(socio, ahora = new Date()) {
+  if (!socio) return false;
+  if (socio.status === 'inactive' || socio.active === false) return false;
+  const situacion = socio.situacion || situacionDe(socio, ahora).situacion;
+  return situacion === 'AL_DIA' || situacion === 'EN_GRACIA' || situacion === 'SIN_DATOS';
+}
