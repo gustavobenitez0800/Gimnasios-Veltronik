@@ -87,21 +87,23 @@ Se cambió recién después de publicar el frontend que sabe canjearlo (PR #51).
 este link a `{{ .ConfirmationURL }}`: la versión vieja no canjea el `token_hash` y los links no
 confirmarían a nadie.
 
-## 5. El link de "Reset password" también va a usar `token_hash` (preparado el 01/11/2026)
+## 5. El link de "Reset password" usa `token_hash` (aplicado el 01/11/2026)
 
 Recuperar la contraseña tenía el mismo problema: el `?code=` vence a los 5 minutos de haberlo
 pedido y solo anda en el navegador donde se pidió. La pantalla de la contraseña nueva ya sabe
 canjear un `token_hash` (`frontend/src/pages/ResetPasswordPage.jsx`), y si el link no sirve lo
 dice en vez de mostrar un formulario que después falla.
 
-**Recién cuando ese frontend esté publicado**, el botón de `recuperar-contrasena.html` pasa de
-`{{ .ConfirmationURL }}` a:
+El botón de `recuperar-contrasena.html` pasó de `{{ .ConfirmationURL }}` a:
 
 ```
 {{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=recovery#/reset-password
 ```
 
-🔴 El mismo orden que con el alta: al revés, los links de recuperar no abrirían la pantalla.
+Se guardó en Supabase el 01/11/2026, después de publicar la 2.6.52.
+
+🔴 El mismo orden que con el alta: si algún día se vuelve a una versión del portal anterior a la
+2.6.52, este link tiene que volver a `{{ .ConfirmationURL }}`.
 
 ## Cómo probarlo
 
