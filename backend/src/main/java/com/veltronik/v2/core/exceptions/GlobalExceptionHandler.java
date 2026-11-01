@@ -112,6 +112,29 @@ public class GlobalExceptionHandler {
                 request);
     }
 
+    /**
+     * Lo que Spring ya sabe clasificar —una ruta que no existe, un método equivocado, un tipo de
+     * contenido que no corresponde, un parámetro que falta— con SU código (404, 405, 415, 400).
+     *
+     * <p>Hasta el 2026-11-01 caían al handler genérico: un GET a una ruta inexistente devolvía 500
+     * y dejaba un ERROR con el stack en el registro. Cualquier escáner de internet llenaba el
+     * registro de errores falsos, y la cola del escritorio trata un 5xx como "reintentar" (ver
+     * la cola taponada de Santo Sport): un pedido a una ruta que no existe se iba a reintentar
+     * para siempre en vez de descartarse.</p>
+     */
+    @ExceptionHandler({
+            org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.HttpRequestMethodNotSupportedException.class,
+            org.springframework.web.HttpMediaTypeNotSupportedException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+    })
+    public ResponseEntity<ErrorResponse> handleRequestMalArmado(Exception ex, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.valueOf(
+                ((org.springframework.web.ErrorResponse) ex).getStatusCode().value());
+        logger.debug("{} {} → {}: {}", request.getMethod(), request.getRequestURI(), status.value(), ex.getMessage());
+        return build(status, status.getReasonPhrase(), request);
+    }
+
     /** Cualquier otra excepción (incluye RuntimeException no clasificado) → 500 genérico + log. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
