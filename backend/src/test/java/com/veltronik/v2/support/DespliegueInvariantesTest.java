@@ -135,6 +135,36 @@ class DespliegueInvariantesTest {
      * desde la raíz. Subir hasta encontrarlo funciona en los dos casos y no depende de cuántos
      * niveles haya.</p>
      */
+    /**
+     * Cloud Run da CPU solo durante los pedidos, así que entre pedidos las conexiones guardadas del
+     * pool se pueden cortar sin que nadie se entere. El primer pedido que las encuentra tiene que
+     * probarlas de a una. Si probar todas las guardadas tarda más que el plazo para conseguir una,
+     * ese pedido termina en 500 aunque la base ande perfecto: pasó en Pagos de Hernández Tecnofit
+     * el 02/11/2026 (dos muertas × 5 s = los 10 s del plazo).
+     */
+    @Test
+    @DisplayName("probar las conexiones guardadas no puede comerse el plazo para conseguir una")
+    void lasConexionesMuertasNoAgotanElPlazo() throws IOException {
+        String props = Files.readString(ubicar("backend/src/main/resources/application.properties"));
+
+        long plazo = numero(props, "spring.datasource.hikari.connection-timeout");
+        long prueba = numero(props, "spring.datasource.hikari.validation-timeout");
+        long guardadas = numero(props, "spring.datasource.hikari.minimum-idle");
+
+        assertTrue(prueba * guardadas < plazo,
+                ("Probar las %d conexiones guardadas, %d ms cada una, tarda %d ms y el plazo para "
+                        + "conseguir una es %d ms: si todas se cortaron mientras la instancia no tenía "
+                        + "CPU, el pedido termina en 500 sin haber tocado la base.")
+                        .formatted(guardadas, prueba, prueba * guardadas, plazo));
+    }
+
+    /** El valor numérico de una propiedad; si falta, el test lo dice en vez de tomar el default. */
+    private static long numero(String props, String clave) {
+        Matcher m = Pattern.compile("(?m)^" + Pattern.quote(clave) + "=([0-9]+)\\s*$").matcher(props);
+        assertTrue(m.find(), "Falta " + clave + " en application.properties: el default no está pensado para Cloud Run.");
+        return Long.parseLong(m.group(1));
+    }
+
     private static Path ubicar(String relativo) {
         Path dir = Paths.get("").toAbsolutePath();
         while (dir != null) {
