@@ -334,22 +334,26 @@ export default function AccessPage() {
   // siempre, porque escribe el número y el Enter en 30 ms.
   const consultaVigente = useRef('');
 
-  // Search
-  const doSearch = useMemo(() => debounce(async (query) => {
-    if (consultaVigente.current !== query) return;
-    if (!query || query.length < 2) { setSearchResults([]); return; }
-    setSearching(true);
-    try {
-      const results = await memberService.searchForAccess(query);
-      if (consultaVigente.current === query) setSearchResults(results || []);
-    } catch { setSearchResults([]); }
-    finally { setSearching(false); }
-  }, 300), []);
+  // Search. La búsqueda con espera se arma UNA vez, en un efecto y no mientras se dibuja: así
+  // lee `consultaVigente` cuando corre, que es lo que importa, y no en el dibujo.
+  const doSearch = useRef(null);
+  useEffect(() => {
+    doSearch.current = debounce(async (query) => {
+      if (consultaVigente.current !== query) return;
+      if (!query || query.length < 2) { setSearchResults([]); return; }
+      setSearching(true);
+      try {
+        const results = await memberService.searchForAccess(query);
+        if (consultaVigente.current === query) setSearchResults(results || []);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 300);
+  }, []);
 
   const handleSearch = (val) => {
     consultaVigente.current = val;
     setSearchQuery(val);
-    doSearch(val);
+    doSearch.current?.(val);
   };
 
   /** El campo vacío y sin resultados, listo para el que sigue. */
