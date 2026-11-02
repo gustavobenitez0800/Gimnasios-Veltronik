@@ -47,13 +47,13 @@ public class GymMemberService {
         return repository.cambiadosDesdeConLosBorrados(TenantContextHolder.getTenantId(), desde);
     }
 
-    /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email). */
+    /** Página de socios del tenant actual, con búsqueda opcional (nombre/dni/email/llavero). */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<GymMember> findPageForCurrentTenant(
             String search, org.springframework.data.domain.Pageable pageable) {
         UUID tenantId = TenantContextHolder.getTenantId();
         if (search != null && !search.isBlank()) {
-            return repository.searchByTenantId(tenantId, search.trim(), pageable);
+            return repository.searchByTenantId(tenantId, search.trim(), Llavero.normalizar(search), pageable);
         }
         return repository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable);
     }

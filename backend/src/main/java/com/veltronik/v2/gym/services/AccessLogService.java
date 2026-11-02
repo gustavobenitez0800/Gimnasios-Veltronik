@@ -177,6 +177,12 @@ public class AccessLogService {
     private static final long REBOTE_FACIAL_SEGUNDOS = 180;
 
     /**
+     * El llavero (ADR-016): el freno del QR, por el mismo motivo. La gente lo pasa dos veces "por
+     * las dudas", y un lector repitiendo un gesto no es una salida.
+     */
+    private static final long REBOTE_LLAVERO_SEGUNDOS = REBOTE_QR_SEGUNDOS;
+
+    /**
      * Pasadas estas horas, una visita abierta ya no es alguien adentro: es alguien que se fue
      * sin marcar. Nadie entrena seis horas.
      *
@@ -439,8 +445,12 @@ public class AccessLogService {
         String m = method == null ? "" : method.trim();
         if ("QR".equalsIgnoreCase(m)) return REBOTE_QR_SEGUNDOS;
         if (METODO_FACIAL.equalsIgnoreCase(m)) return REBOTE_FACIAL_SEGUNDOS;
+        if (METODO_LLAVERO.equalsIgnoreCase(m)) return REBOTE_LLAVERO_SEGUNDOS;
         return 0;
     }
+
+    /** Cómo se llama en {@code access_log} lo que entra pasando el llavero por el lector. */
+    public static final String METODO_LLAVERO = "LLAVERO";
 
     /** Cómo se llama en {@code access_log} lo que entra por el molinete. */
     public static final String METODO_FACIAL = "FACIAL";

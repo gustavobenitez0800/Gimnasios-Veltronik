@@ -3,6 +3,7 @@ package com.veltronik.v2.gym.controllers;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.gym.dto.GymMemberDTO;
 import com.veltronik.v2.gym.services.GymMemberService;
+import com.veltronik.v2.gym.services.LlaveroService;
 import com.veltronik.v2.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -51,6 +53,7 @@ class ListaDeSociosEgressTest extends EmbeddedPostgresTest {
     @Autowired private PlatformTransactionManager txManager;
     @Autowired private GymMemberController controller;
     @Autowired private GymMemberService memberService;
+    @Autowired private LlaveroService llaveroService;
 
     private TransactionTemplate tx;
     private final List<UUID> gimnasios = new ArrayList<>();
@@ -85,6 +88,7 @@ class ListaDeSociosEgressTest extends EmbeddedPostgresTest {
         TenantContextHolder.clear();
         tx.executeWithoutResult(st -> {
             for (UUID t : gimnasios) {
+                em.createNativeQuery("DELETE FROM member_credential WHERE tenant_id = :t").setParameter("t", t).executeUpdate();
                 em.createNativeQuery("DELETE FROM gym_member WHERE tenant_id = :t").setParameter("t", t).executeUpdate();
                 em.createNativeQuery("DELETE FROM gym_plan WHERE tenant_id = :t").setParameter("t", t).executeUpdate();
                 em.createNativeQuery("DELETE FROM tenant WHERE id = :t").setParameter("t", t).executeUpdate();
@@ -179,10 +183,57 @@ class ListaDeSociosEgressTest extends EmbeddedPostgresTest {
 
         assertEquals(0, stats().getEntityLoadCount(),
                 "la lista se volvió a traer entera sin que cambiara nada: el buscador la pide en cada tecla");
-        assertTrue(stats().getPrepareStatementCount() <= 2,
-                "solo las dos marcas: " + stats().getPrepareStatementCount() + " consultas");
+        // Las marcas de los socios, de los aranceles y de los llaveros (ADR-016): una fila cada una.
+        assertTrue(stats().getPrepareStatementCount() <= 3,
+                "solo las tres marcas: " + stats().getPrepareStatementCount() + " consultas");
         assertEquals(10, segunda.size());
         assertEquals(primera, segunda);
+    }
+
+    // ─── Los llaveros (ADR-016) ─────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("⭐ los llaveros viajan en la lista, y asignar uno se ve en el pedido siguiente")
+    void elLlaveroViajaYSeVe() {
+        UUID ana = crearSocio(gym, "Ana", null, enDias(20));
+        UUID beto = crearSocio(gym, "Beto", null, enDias(20));
+        assertNull(socio(pedirLista(), ana).getLlaveros(), "sin llaveros, el campo no viaja");
+
+        llaveroService.asignar(ana, "0012345678", false, null);
+
+        List<GymMemberDTO> lista = pedirLista();
+        assertEquals(List.of("0012345678"), socio(lista, ana).getLlaveros(),
+                "el mostrador no lo encontraría al pasar el llavero hasta dentro de seis horas");
+        assertNull(socio(lista, beto).getLlaveros());
+    }
+
+    @Test
+    @DisplayName("⭐ con llaveros, un pedido repetido tampoco los vuelve a traer")
+    void losLlaverosNoVuelvenALaBase() {
+        diezSocios();
+        UUID ana = crearSocio(gym, "Ana", null, enDias(20));
+        llaveroService.asignar(ana, "0012345678", false, null);
+        pedirLista();
+
+        stats().clear();
+        List<GymMemberDTO> segunda = pedirLista();
+
+        assertTrue(stats().getPrepareStatementCount() <= 3,
+                "los llaveros se volvieron a traer sin que cambiara ninguno: "
+                        + stats().getPrepareStatementCount() + " consultas");
+        assertEquals(List.of("0012345678"), socio(segunda, ana).getLlaveros());
+    }
+
+    @Test
+    @DisplayName("dar de baja un llavero se ve en el pedido siguiente: el perdido deja de abrir")
+    void laBajaSeVe() {
+        UUID ana = crearSocio(gym, "Ana", null, enDias(20));
+        var llavero = llaveroService.asignar(ana, "0012345678", false, null).llavero();
+        assertEquals(List.of("0012345678"), socio(pedirLista(), ana).getLlaveros());
+
+        llaveroService.darDeBaja(llavero.getId(), "Lo perdió", null);
+
+        assertNull(socio(pedirLista(), ana).getLlaveros());
     }
 
     @Test

@@ -29,15 +29,19 @@ public class GymMemberController {
 
     private final com.veltronik.v2.gym.services.GymPlanService planService;
 
+    private final com.veltronik.v2.gym.services.LlaveroService llaveroService;
+
     public GymMemberController(GymMemberService memberService, GymMemberMapper memberMapper,
                                com.veltronik.v2.gym.security.MemberAccessPolicy accessPolicy,
-                               com.veltronik.v2.gym.services.GymPlanService planService) {
+                               com.veltronik.v2.gym.services.GymPlanService planService,
+                               com.veltronik.v2.gym.services.LlaveroService llaveroService) {
         this.memberService = memberService;
         this.memberMapper = memberMapper;
         this.accessPolicy = accessPolicy;
         // Se resuelve el arancel por el servicio y no por el id crudo: así un socio no puede
         // quedar apuntando a un arancel de OTRO gimnasio si alguien manda un id ajeno.
         this.planService = planService;
+        this.llaveroService = llaveroService;
     }
 
     /**
@@ -98,7 +102,40 @@ public class GymMemberController {
 
     @GetMapping
     public ResponseEntity<List<GymMemberDTO>> getAllMembers() {
-        return ResponseEntity.ok(memberMapper.toDtoList(sociosDelGimnasio(), accessPolicy));
+        List<GymMemberDTO> lista = memberMapper.toDtoList(sociosDelGimnasio(), accessPolicy);
+        java.util.Map<UUID, List<String>> llaveros = llaverosDelGimnasio();
+        if (!llaveros.isEmpty()) {
+            for (GymMemberDTO socio : lista) socio.setLlaveros(llaveros.get(socio.getId()));
+        }
+        return ResponseEntity.ok(lista);
+    }
+
+    /**
+     * Los llaveros activos de cada socio (ADR-016), con su propia foto.
+     *
+     * <p><b>Aparte de la foto de los socios, y con su propia marca.</b> Asignar un llavero no toca
+     * la ficha del socio, así que la marca de los socios no se entera. Y al revés: si los llaveros
+     * se volvieran a traer cada vez que cambia una ficha, un gimnasio donde todos usan llavero
+     * —Hernandez Tecnofit tiene 2.840 socios— bajaría la lista entera de llaveros con cada cobro.
+     * Con su marca se traen solo cuando cambia un llavero, que es casi nunca.</p>
+     */
+    private record FotoDeLlaveros(String marca, long vence, java.util.Map<UUID, List<String>> porSocio) {}
+
+    private final java.util.concurrent.ConcurrentHashMap<UUID, FotoDeLlaveros> fotosDeLlaveros =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private java.util.Map<UUID, List<String>> llaverosDelGimnasio() {
+        UUID tenantId = com.veltronik.v2.core.security.TenantContextHolder.getTenantId();
+        if (tenantId == null) return llaveroService.activosPorSocio();
+
+        String marca = llaveroService.marcaDelGimnasio();
+        long ahora = reloj.getAsLong();
+        FotoDeLlaveros foto = fotosDeLlaveros.get(tenantId);
+        if (foto != null && ahora < foto.vence() && foto.marca().equals(marca)) return foto.porSocio();
+
+        java.util.Map<UUID, List<String>> porSocio = java.util.Map.copyOf(llaveroService.activosPorSocio());
+        fotosDeLlaveros.put(tenantId, new FotoDeLlaveros(marca, ahora + FOTO_VIGENTE_MS, porSocio));
+        return porSocio;
     }
 
     private List<GymMember> sociosDelGimnasio() {

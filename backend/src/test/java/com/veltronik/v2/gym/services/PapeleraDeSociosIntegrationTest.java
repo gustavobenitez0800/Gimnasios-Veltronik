@@ -127,7 +127,7 @@ class PapeleraDeSociosIntegrationTest extends EmbeddedPostgresTest {
                     "El socio borrado sigue contando en el padrón.");
             assertTrue(repository.findByTenantIdAndDeletedAtIsNull(gym).isEmpty(),
                     "El socio borrado sigue apareciendo en el listado.");
-            assertTrue(repository.searchByTenantId(gym, "Borrado",
+            assertTrue(repository.searchByTenantId(gym, "Borrado", "BORRADO",
                             org.springframework.data.domain.Pageable.unpaged()).isEmpty(),
                     "El socio borrado sigue apareciendo en el buscador.");
             assertEquals(0, repository.countByTenantIdAndDeletedAtIsNullAndIsActiveTrue(gym));

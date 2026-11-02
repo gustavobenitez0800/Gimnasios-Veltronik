@@ -103,13 +103,41 @@ public interface GymMemberRepository extends JpaRepository<GymMember, UUID> {
     @EntityGraph(attributePaths = "plan")
     List<GymMember> findByTenantIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(UUID tenantId, Pageable pageable);
 
+    /**
+     * El buscador de socios: por nombre, apellido, documento o email, y por llavero.
+     *
+     * <p>El llavero va aparte y se compara EXACTO (ADR-016 §2): el nombre encuentra a
+     * "González" con "gon", pero un llavero que coincide en parte con otro es otra persona.</p>
+     *
+     * @param codigo lo buscado pasado por {@code Llavero.normalizar}
+     */
     @Query("SELECT m FROM GymMember m WHERE m.tenant.id = :tenantId AND m.deletedAt IS NULL AND (" +
            "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(COALESCE(m.document, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
-           "LOWER(COALESCE(m.email, '')) LIKE LOWER(CONCAT('%', :q, '%')))")
+           "LOWER(COALESCE(m.email, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "EXISTS (SELECT 1 FROM MemberCredential c WHERE c.memberId = m.id " +
+           "        AND c.tenant.id = :tenantId AND c.dadoDeBajaAt IS NULL AND c.codigo = :codigo))")
     @EntityGraph(attributePaths = "plan")
-    Page<GymMember> searchByTenantId(@Param("tenantId") UUID tenantId, @Param("q") String q, Pageable pageable);
+    Page<GymMember> searchByTenantId(@Param("tenantId") UUID tenantId, @Param("q") String q,
+                                     @Param("codigo") String codigo, Pageable pageable);
+
+    /**
+     * Los socios con nueve dígitos seguidos o más en el documento: los que pueden tener el número
+     * del llavero en lugar del DNI, como los guardaba ControlFit.
+     *
+     * <p>Es un colador grueso: quien decide es {@code Llavero#pareceLlavero}, del lado de Java,
+     * para que la regla esté escrita una sola vez. Nativa por la expresión regular, y por eso con
+     * el {@code tenant_id} escrito a mano.</p>
+     */
+    @Query(value = """
+            SELECT * FROM gym_member m
+             WHERE m.tenant_id = :tenantId
+               AND m.deleted_at IS NULL
+               AND m.document ~ '[0-9]{9}'
+             ORDER BY m.first_name, m.last_name
+            """, nativeQuery = true)
+    List<GymMember> conDocumentoLargo(@Param("tenantId") UUID tenantId);
 
     /**
      * El socio con ese documento en ESTE gimnasio, comparando <b>normalizado</b>. Lo usa el

@@ -71,4 +71,17 @@ public class GymMemberDTO {
     /** El arancel del socio, para que la pantalla lo muestre y lo pre-elija al cobrar. */
     private java.util.UUID planId;
     private String planNombre;
+
+    /**
+     * Los llaveros activos del socio (ADR-016), ya normalizados.
+     *
+     * <p>Viaja SOLO en la lista completa ({@code GET /gym/members}), que es la copia local del
+     * mostrador: con esto encuentra al socio que pasa su llavero aunque no haya internet. La
+     * ficha tiene su propio pedido, con la historia ({@code /members/{id}/llaveros}).</p>
+     *
+     * <p>Sin llaveros no viaja: en una lista de miles de socios, miles de listas vacías serían
+     * puro peso.</p>
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+    private java.util.List<String> llaveros;
 }

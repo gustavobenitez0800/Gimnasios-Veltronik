@@ -42,6 +42,9 @@ public interface GymMemberMapper {
     // lista de 400 filas para nada.
     @Mapping(target = "planId", source = "plan.id")
     @Mapping(target = "planNombre", source = "plan.name")
+    // Los llaveros no son de la ficha: los pega la lista de socios, que es la única que los manda
+    // (ver GymMemberController#getAllMembers).
+    @Mapping(target = "llaveros", ignore = true)
     GymMemberDTO toDto(GymMember entity, @Context MemberAccessPolicy policy);
 
     List<GymMemberDTO> toDtoList(List<GymMember> entities, @Context MemberAccessPolicy policy);

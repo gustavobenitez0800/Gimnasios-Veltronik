@@ -167,6 +167,28 @@ class AccessLogServiceTest {
             assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
         }
 
+        /** El llavero (ADR-016): la gente lo pasa dos veces "por las dudas", como el QR. */
+        @Test
+        @DisplayName("pasar el llavero dos veces seguidas no lo hace entrar y salir")
+        void elLlaveroDosVecesNoCuentaDosVeces() {
+            AccessLog abierta = visitaAbiertaDesde(LocalDateTime.now().minusSeconds(3));
+
+            var r = service.registerScan(MEMBER, AccessLogService.METODO_LLAVERO, null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.REBOTE, r.direction());
+            assertTrue(abierta.getCheckOutAt() == null, "la visita sigue abierta");
+        }
+
+        @Test
+        @DisplayName("pasado el rato, el llavero sí marca la salida")
+        void pasadaLaVentanaElLlaveroMarcaSalida() {
+            visitaAbiertaDesde(LocalDateTime.now().minusMinutes(45));
+
+            var r = service.registerScan(MEMBER, AccessLogService.METODO_LLAVERO, null, null, null, null);
+
+            assertEquals(AccessLogService.Direction.SALIDA, r.direction());
+        }
+
         @Test
         @DisplayName("pasado el rato, el molinete sí marca la salida")
         void pasadaLaVentanaElMolineteMarcaSalida() {
