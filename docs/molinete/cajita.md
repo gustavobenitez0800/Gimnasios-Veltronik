@@ -17,6 +17,8 @@ fue el del gimnasio de Nelson Hernández (31/10/2026).
 El programa de la cajita está en [`frontend/firmware/cajita-molinete/main.py`](../../frontend/firmware/cajita-molinete/main.py).
 La app de escritorio se lo instala y se lo actualiza sola.
 
+Con un lector de llaveros, el socio también abre pasando su llavero: ver [los llaveros](llaveros.md).
+
 ---
 
 ## 1. Qué hay que comprar
