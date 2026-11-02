@@ -7,7 +7,8 @@ le queda, si está vencido) y, si hay [cajita del molinete](cajita.md), el molin
 - Quién pasa: **los mismos que con el DNI**: al día, en gracia o sin fecha cargada. El vencido y
   el dado de baja, no (y suena la X).
 - Sin internet anda igual: la PC tiene la lista de socios con sus llaveros.
-- El llavero sirve en **cualquier plan**. Que el molinete abra solo es del **plan Premium**.
+- El llavero sirve en **cualquier plan**. Que el molinete abra solo es del **plan Premium** (y de la
+  prueba gratis).
 - La PC tiene que estar en **Accesos**, como con el DNI y el QR.
 
 Por qué está hecho así: [ADR-016](../adr/ADR-016-el-llavero-es-una-credencial-que-se-lee-como-un-teclado.md).

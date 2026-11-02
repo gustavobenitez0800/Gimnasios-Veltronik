@@ -26,10 +26,15 @@ class MolineteService {
    * ¿El plan de esta sucursal incluye el control de acceso? Un sí o un no, para la cajita del
    * molinete (lib/cajitaMolinete.js): ella no necesita el padrón, el veredicto lo tiene el
    * mostrador, y bajar miles de socios para saber esto sería tráfico de Supabase tirado.
+   *
+   * <p>La prueba gratis lo incluye: en ese caso dice también hasta cuándo (`pruebaHasta`).</p>
+   *
+   * @returns {Promise<{habilitado: boolean, pruebaHasta: string|null}>}
    */
   async habilitado() {
     const response = await apiClient.get('/gym/molinete/habilitado', { timeout: 10000 });
-    return !!response.data?.habilitado;
+    const d = response.data || {};
+    return { habilitado: !!d.habilitado, pruebaHasta: d.porLaPrueba && d.pruebaHasta ? d.pruebaHasta : null };
   }
 }
 

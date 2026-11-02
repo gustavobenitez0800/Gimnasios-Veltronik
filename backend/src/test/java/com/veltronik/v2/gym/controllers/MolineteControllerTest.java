@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.controllers;
 
+import com.veltronik.v2.core.config.PlanCode;
 import com.veltronik.v2.core.config.PlanFeature;
 import com.veltronik.v2.core.exceptions.FeatureNotInPlanException;
 import com.veltronik.v2.core.security.PlanPolicy;
@@ -11,10 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,15 +117,37 @@ class MolineteControllerTest {
     @Test
     @DisplayName("la cajita pregunta si el plan la habilita: un sí o un no, sin bajar el padrón")
     void habilitadoDiceSiOnoSinBajarElPadron() {
-        when(planPolicy.hasFeature(eq(TENANT), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(true);
-        assertEquals(Boolean.TRUE, controller.habilitado().getBody().get("habilitado"));
+        var premium = new PlanPolicy.PlanEnUso(PlanCode.PREMIUM, null);
+        when(planPolicy.enUso(TENANT)).thenReturn(premium);
+        when(planPolicy.habilita(eq(premium), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(true);
+        var si = controller.habilitado().getBody();
+        assertEquals(Boolean.TRUE, si.get("habilitado"));
+        assertEquals(Boolean.FALSE, si.get("porLaPrueba"));
+        assertNull(si.get("pruebaHasta"));
 
-        when(planPolicy.hasFeature(eq(TENANT), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(false);
+        var basico = new PlanPolicy.PlanEnUso(PlanCode.BASICO, null);
+        when(planPolicy.enUso(TENANT)).thenReturn(basico);
+        when(planPolicy.habilita(eq(basico), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(false);
         var res = controller.habilitado();
         // Un "no" no es un error: 200, y la pantalla lo explica.
         assertEquals(200, res.getStatusCode().value());
         assertEquals(Boolean.FALSE, res.getBody().get("habilitado"));
 
         verify(service, never()).padron(any());
+    }
+
+    @Test
+    @DisplayName("⭐ en la prueba gratis dice que sí, y hasta cuándo: Ajustes lo avisa")
+    void enLaPruebaDiceHastaCuando() {
+        LocalDateTime fin = LocalDateTime.of(2026, 11, 14, 10, 30);
+        var prueba = new PlanPolicy.PlanEnUso(PlanCode.PREMIUM, fin);
+        when(planPolicy.enUso(TENANT)).thenReturn(prueba);
+        when(planPolicy.habilita(eq(prueba), eq(PlanFeature.CONTROL_DE_ACCESO))).thenReturn(true);
+
+        var body = controller.habilitado().getBody();
+
+        assertEquals(Boolean.TRUE, body.get("habilitado"));
+        assertEquals(Boolean.TRUE, body.get("porLaPrueba"));
+        assertEquals(fin, body.get("pruebaHasta"));
     }
 }

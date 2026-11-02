@@ -10,7 +10,8 @@ fue el del gimnasio de Nelson Hernández (31/10/2026).
 - Quién pasa: **los mismos que en el molinete facial**: al día, en gracia o sin fecha cargada.
   El vencido y el dado de baja, no (y en el mostrador suena la X).
 - Sin internet anda igual: decide la copia local del mostrador.
-- Es del **plan Premium**. Con el básico no abre sola; los botones manuales andan con cualquier plan.
+- Es del **plan Premium**, y la **prueba gratis** lo incluye (Ajustes dice hasta cuándo). Con el
+  básico no abre sola; los botones manuales andan con cualquier plan.
 - Si se corta la luz o se apaga la PC, el molinete queda **libre** (con el cableado «sostener»):
   se puede salir siempre.
 
@@ -96,7 +97,7 @@ Con el molinete enchufado:
 - [ ] Un **QR** escaneado con un socio al día → abre (con la PC en Accesos).
 - [ ] Desenchufá el USB de la cajita → el molinete queda libre (modo sostener). Volvé a
       enchufarla → se reconecta sola y vuelve a trabar.
-- [ ] La sucursal tiene el **plan Premium** (si no, el DNI no abre: ver Ajustes).
+- [ ] La sucursal tiene el **plan Premium** o está en la prueba gratis (si no, el DNI no abre: ver Ajustes).
 
 ## 7. Si algo no anda
 

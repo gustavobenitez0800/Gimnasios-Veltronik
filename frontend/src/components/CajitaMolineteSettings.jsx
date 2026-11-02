@@ -19,6 +19,7 @@ import {
   MODOS, VERSION_DEL_PROGRAMA,
 } from '../lib/cajitaMolinete';
 import { useToast } from '../contexts/ToastContext';
+import { formatDate } from '../lib/utils';
 import Icon from './Icon';
 
 const TEXTO_DE_LA_FASE = {
@@ -195,6 +196,18 @@ export default function CajitaMolineteSettings() {
           <strong style={{ color: 'var(--text-primary)' }}>El control de acceso es del plan Premium.</strong>{' '}
           Con el plan de esta sucursal el molinete no se abre solo. Los botones de acá y
           «Abrir molinete» en Accesos andan igual.
+        </p>
+      )}
+
+      {/* La prueba gratis incluye el molinete. Que deje de abrir solo el día que termina no
+          puede ser una sorpresa: se avisa desde el primer día, con la fecha. */}
+      {cajita.habilitada && cajita.pruebaHasta && (
+        <p style={{ ...nota, marginTop: '1rem' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>
+            Incluido en la prueba gratis, hasta el {formatDate(cajita.pruebaHasta)}.
+          </strong>{' '}
+          Después, para que el molinete siga abriendo solo, la sucursal tiene que estar en el plan
+          Premium. Los botones de acá y «Abrir molinete» andan con cualquier plan.
         </p>
       )}
 

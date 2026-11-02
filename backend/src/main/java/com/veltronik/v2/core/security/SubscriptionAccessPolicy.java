@@ -86,6 +86,14 @@ public class SubscriptionAccessPolicy {
     }
 
     /**
+     * ¿Esta suscripción da acceso PAGO en {@code now}: vigente, en gracia, o cancelada con el mes
+     * ya pago corriendo? La usa {@link PlanPolicy} para saber si un gimnasio en prueba ya paga.
+     */
+    public boolean otorgaAccesoPago(Subscription s, LocalDateTime now) {
+        return subscriptionAccess(s, now) != null;
+    }
+
+    /**
      * ¿La suscripción otorga acceso pago vigente? Devuelve el motivo, o {@code null} si no habilita.
      * Exige período CONCRETO y futuro (nunca NULL): un 'active' sin período no es acceso.
      *

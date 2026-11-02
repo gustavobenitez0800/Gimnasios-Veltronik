@@ -211,6 +211,18 @@ describe('abrir el molinete', () => {
     expect(pico.enviados).toEqual([]);
   });
 
+  it('⭐ en la prueba gratis abre, y se sabe hasta cuándo (solo si está habilitada)', async () => {
+    fijarHabilitacion(true, '2026-11-14T10:30:00');
+    expect(estadoDeLaCajita().pruebaHasta).toBe('2026-11-14T10:30:00');
+    expect(abrirSiPasa({ pasa: true })).toBe(true);
+    await vi.waitFor(() => expect(pico.enviados).toEqual(['ABRIR\n']));
+
+    fijarHabilitacion(false, '2026-11-14T10:30:00');
+    expect(estadoDeLaCajita().pruebaHasta).toBeNull();
+    fijarHabilitacion(true);
+    expect(estadoDeLaCajita().pruebaHasta).toBeNull();
+  });
+
   it('sin el control de acceso en el plan, no abre solo', async () => {
     fijarHabilitacion(false);
     expect(abrirSiPasa({ pasa: true })).toBe(false);

@@ -44,6 +44,7 @@ function leerOpcionSalida() {
 
 const ESTADO_INICIAL = {
   fase: 'sin-conectar', version: null, versionNumero: 0, modo: null, abrirMs: null, habilitada: false,
+  pruebaHasta: null,
 };
 
 /**
@@ -54,6 +55,8 @@ const ESTADO_INICIAL = {
  * versionNumero / desactualizada: la del programa que tiene adentro, contra el que trae la app.
  * modo / abrirMs: lo guardado en la cajita (null en las de la versión 1, que no lo saben decir).
  * habilitada: el plan de la sucursal incluye el control de acceso (lo dice el servidor).
+ * pruebaHasta: si lo incluye solo porque la sucursal está en la prueba gratis, hasta cuándo;
+ *   si no, null. Ajustes lo avisa: que deje de abrir al terminar la prueba no puede sorprender.
  * abrirEnLaSalida: esta PC también abre cuando se registra una salida (molinete de dos sentidos).
  */
 let estado = { ...ESTADO_INICIAL, desactualizada: false, abrirEnLaSalida: leerOpcionSalida() };
@@ -83,9 +86,15 @@ export function suscribirseALaCajita(fn) {
   return () => oyentes.delete(fn);
 }
 
-/** Lo que diga el servidor sobre el plan. Sin esto la cajita no abre con ningún DNI. */
-export function fijarHabilitacion(habilitada) {
-  if (estado.habilitada !== !!habilitada) cambiar({ habilitada: !!habilitada });
+/**
+ * Lo que diga el servidor sobre el plan. Sin esto la cajita no abre con ningún DNI.
+ * @param {string|null} pruebaHasta si lo habilita la prueba gratis, hasta cuándo
+ */
+export function fijarHabilitacion(habilitada, pruebaHasta = null) {
+  const hasta = habilitada && pruebaHasta ? String(pruebaHasta) : null;
+  if (estado.habilitada !== !!habilitada || estado.pruebaHasta !== hasta) {
+    cambiar({ habilitada: !!habilitada, pruebaHasta: hasta });
+  }
 }
 
 /** Si esta PC abre también al registrar una SALIDA. Es de la PC, como la cajita. */

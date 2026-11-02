@@ -64,11 +64,23 @@ public class MolineteController {
      * <p>Ahí no hay padrón que bajar: el veredicto de cada socio ya lo tiene el mostrador. Bajar
      * el padrón entero (miles de socios) solo para saber un sí o un no sería tráfico de Supabase
      * tirado. Un {@code false} no es un error: el escritorio lo dice en Ajustes y no abre.</p>
+     *
+     * <p><b>La prueba gratis lo incluye</b> (ver {@link PlanPolicy#enUso}): un gimnasio con molinete
+     * lo prueba antes de pagar. Por eso la respuesta dice también si el sí viene de la prueba y
+     * hasta cuándo, y Ajustes lo avisa: que el molinete deje de abrir el día que termina la prueba
+     * no puede ser una sorpresa.</p>
      */
     @GetMapping("/habilitado")
-    public ResponseEntity<java.util.Map<String, Boolean>> habilitado() {
+    public ResponseEntity<java.util.Map<String, Object>> habilitado() {
         UUID tenantId = TenantContextHolder.getTenantId();
-        return ResponseEntity.ok(java.util.Map.of(
-                "habilitado", planPolicy.hasFeature(tenantId, PlanFeature.CONTROL_DE_ACCESO)));
+        PlanPolicy.PlanEnUso plan = planPolicy.enUso(tenantId);
+        boolean habilitado = planPolicy.habilita(plan, PlanFeature.CONTROL_DE_ACCESO);
+        boolean porLaPrueba = habilitado && plan.porLaPrueba();
+
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("habilitado", habilitado);
+        body.put("porLaPrueba", porLaPrueba);
+        body.put("pruebaHasta", porLaPrueba ? plan.pruebaHasta() : null);
+        return ResponseEntity.ok(body);
     }
 }
