@@ -2,8 +2,9 @@ import apiClient from '../lib/apiClient';
 import { sinConexion } from '../lib/conexion';
 import {
   prepararSocios, buscarSocios, estadoSocios, refrescarSocios, agregarSocioLocal, listarSocios,
-  refrescarSiHaceMas, REFRESCO_SI_NO_ESTA_MS,
+  refrescarSiHaceMas, REFRESCO_SI_NO_ESTA_MS, buscarPorLlavero, socioLocalPorId, ponerLlaveroLocal,
 } from '../lib/localMembers';
+import { llaveroService } from './LlaveroService';
 import {
   encolarPendiente, disponible, nuevoSello, cuantosPendientes,
 } from '../lib/colaAccesos';
@@ -307,13 +308,57 @@ class MemberService {
     //    almacenamiento disponible. Es el comportamiento de siempre. ──
     const page = await this.getMembersPaged(0, 20, search.length >= 2 ? search : '');
     const list = page?.content || [];
-    return list.map(m => ({
-      ...m,
-      fullName: `${m.firstName || ''} ${m.lastName || ''}`.trim(),
-      // Alias dni: el DTO expone document y dni; aseguramos que la UI siempre tenga dni.
-      dni: m.dni || m.document || '',
-    }));
+    return list.map(comoResultado);
   }
+
+  /**
+   * ⭐ EL SOCIO QUE PASÓ ESTE LLAVERO (ADR-016).
+   *
+   * <p>Primero la copia local: instantánea y sin internet, que es el caso para el que existe.
+   * Busca exacto —el llavero asignado y, como lo dejaba ControlFit, el documento—.</p>
+   *
+   * <p>Si la copia no lo conoce y hay red, pregunta al servidor. Pasa con un llavero que se
+   * asignó en OTRA PC hace un rato (la copia de esta se refresca cada cinco minutos): el socio no
+   * puede quedar afuera por eso. Y si se dio de baja, el servidor dice a quién se le perdió.</p>
+   *
+   * @returns {Promise<{socios: object[], ultimaBaja: object|null}>} los socios en el formato del
+   *          buscador; `ultimaBaja` solo cuando nadie lo tiene y alguien lo tuvo
+   */
+  async buscarPorLlavero(codigo) {
+    const tenantId = localStorage.getItem('current_org_id');
+    if (tenantId) {
+      try { await prepararSocios(tenantId, { refrescar: false }); } catch { /* sin copia */ }
+    }
+
+    const locales = buscarPorLlavero(codigo);
+    if (locales.length || sinConexion()) return { socios: locales, ultimaBaja: null };
+
+    try {
+      const consulta = await llaveroService.consultar(codigo);
+      const id = consulta?.activo?.socio?.id;
+      if (id) {
+        const socio = socioLocalPorId(id) || comoResultado(await this.getMemberById(id));
+        // Que la próxima vez lo encuentre acá, sin preguntar.
+        await ponerLlaveroLocal(id, consulta.codigo);
+        if (tenantId) refrescarSocios(tenantId).catch(() => {});
+        return { socios: [socio], ultimaBaja: null };
+      }
+      return { socios: [], ultimaBaja: consulta?.ultimaBaja || null };
+    } catch {
+      // Sin respuesta del servidor: para el mostrador es un llavero que no conoce, y lo dice.
+      return { socios: [], ultimaBaja: null };
+    }
+  }
+}
+
+/** Un socio del servidor en el formato del buscador del mostrador. */
+function comoResultado(m) {
+  return {
+    ...m,
+    fullName: `${m.firstName || ''} ${m.lastName || ''}`.trim(),
+    // Alias dni: el DTO expone document y dni; aseguramos que la UI siempre tenga dni.
+    dni: m.dni || m.document || '',
+  };
 }
 
 export const memberService = new MemberService();

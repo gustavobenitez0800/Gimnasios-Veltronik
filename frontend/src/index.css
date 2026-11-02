@@ -49,6 +49,8 @@
 
 /* ─── Access Control Page ─── */
 @import './styles/access.css';
+/* Los llaveros (ADR-016): el aviso de Accesos, la ficha y Ajustes. */
+@import './styles/llaveros.css';
 
 /* ─── Reports, Team, Retention, Settings ─── */
 @import './styles/settings.css';

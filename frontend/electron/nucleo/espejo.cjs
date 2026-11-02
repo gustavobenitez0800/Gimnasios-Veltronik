@@ -33,7 +33,7 @@ const { abrir } = require('./db.cjs');
 const COLUMNAS = [
     'id', 'tenant_id', 'first_name', 'last_name', 'email', 'phone', 'document',
     'is_active', 'membership_start', 'membership_end', 'plan_id', 'plan_nombre',
-    'situacion', 'dias_vencido', 'dias_restantes', 'busqueda',
+    'situacion', 'dias_vencido', 'dias_restantes', 'busqueda', 'llaveros',
 ];
 
 const INSERT = `INSERT INTO gym_members (${COLUMNAS.join(', ')})
@@ -56,6 +56,27 @@ function entero(v) {
     if (v === undefined || v === null || v === '') return null;
     const n = Number(v);
     return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+/**
+ * Los llaveros del socio (ADR-016) como texto JSON, o null si no tiene. SQLite no tiene listas,
+ * y una columna con la lista es más simple que una tabla aparte para algo que se lee siempre
+ * junto con el socio y se reemplaza entero con él.
+ */
+function llaverosATexto(v) {
+    const lista = Array.isArray(v) ? v.filter((c) => typeof c === 'string' && c !== '') : [];
+    return lista.length ? JSON.stringify(lista) : null;
+}
+
+/** Y la vuelta. Un texto roto es un socio sin llaveros, no una lectura que explota. */
+function textoALlaveros(v) {
+    if (!v) return [];
+    try {
+        const lista = JSON.parse(v);
+        return Array.isArray(lista) ? lista.filter((c) => typeof c === 'string' && c !== '') : [];
+    } catch {
+        return [];
+    }
 }
 
 /**
@@ -85,6 +106,7 @@ function aFila(tenantId, m) {
         dias_vencido: entero(m.diasVencido),
         dias_restantes: entero(m.diasRestantes),
         busqueda: texto(m.busqueda) || '',
+        llaveros: llaverosATexto(m.llaveros),
     };
 }
 
@@ -111,6 +133,7 @@ function aVista(f) {
         diasVencido: f.dias_vencido,
         diasRestantes: f.dias_restantes,
         busqueda: f.busqueda,
+        llaveros: textoALlaveros(f.llaveros),
     };
 }
 

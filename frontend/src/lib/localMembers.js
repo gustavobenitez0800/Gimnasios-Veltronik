@@ -40,6 +40,7 @@ import apiClient from './apiClient';
 import { sinConexion } from './conexion';
 import { situacionDe } from './situacionSocio';
 import { altasPendientes } from './colaAccesos';
+import { normalizarLlavero } from './llaveros';
 
 const DB = 'veltronik-local';
 const STORE = 'members';
@@ -202,6 +203,10 @@ function comprimir(m) {
     situacion: m.situacion || null,
     diasVencido: m.diasVencido ?? null,
     diasRestantes: m.diasRestantes ?? null,
+    // Sus llaveros activos (ADR-016). Viajan en la lista del servidor para que el mostrador
+    // encuentre al socio que pasa el suyo aunque no haya internet. Se vuelven a limpiar con la
+    // regla de siempre: el que ya viene limpio queda igual.
+    llaveros: Array.isArray(m.llaveros) ? m.llaveros.map(normalizarLlavero).filter(Boolean) : [],
     // Precalculado UNA vez, al guardar, y no en cada tecla: con dos mil socios, normalizar
     // al vuelo en cada pulsación es trabajo repetido miles de veces por búsqueda.
     //
@@ -375,15 +380,115 @@ export function buscarSocios(termino, limite = 20) {
   const q = normalizar(termino);
   if (!q) return memoria.socios.slice(0, limite).map(vista);
 
+  // El dueño del llavero, si lo tecleado es uno, va primero: es a quien se está buscando. Se
+  // compara EXACTO; por partes solo se busca en el nombre y el documento.
+  const delLlavero = indiceDeLlaveros().get(normalizarLlavero(termino)) || null;
+
   const empiezan = [];
   const contienen = [];
   for (const s of memoria.socios) {
+    if (s === delLlavero) continue;
     const i = (s.busqueda || "").indexOf(q);
     if (i === 0) empiezan.push(s);
     else if (i > 0) contienen.push(s);
     if (empiezan.length >= limite) break;
   }
-  return [...empiezan, ...contienen].slice(0, limite).map(vista);
+  return [...(delLlavero ? [delLlavero] : []), ...empiezan, ...contienen].slice(0, limite).map(vista);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Los llaveros (ADR-016)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Código → socio. Se arma una vez por lista y no en cada lectura: la lista se reemplaza entera
+// en cada cambio, así que su identidad alcanza para saber si el índice quedó viejo.
+let indice = { socios: null, porCodigo: new Map() };
+
+function indiceDeLlaveros() {
+  if (indice.socios !== memoria.socios) {
+    const porCodigo = new Map();
+    for (const s of memoria.socios) {
+      for (const codigo of s.llaveros || []) porCodigo.set(codigo, s);
+    }
+    indice = { socios: memoria.socios, porCodigo };
+  }
+  return indice.porCodigo;
+}
+
+/**
+ * ⭐ QUIÉN ES EL QUE PASÓ ESTE LLAVERO. Desde la copia local: instantáneo y sin internet.
+ *
+ * <p><b>Todo exacto, nunca "contiene".</b> El nombre encuentra a "González" con "gon"; un
+ * llavero que coincide en parte con otro es otra persona.</p>
+ *
+ * <p>Busca en dos lugares: el llavero asignado y, después, el DOCUMENTO — que es donde
+ * ControlFit guardaba el llavero, y así llegaron los socios que se migraron de ahí. Si el
+ * llavero es de uno y el documento de otro, devuelve los dos: no se elige por nadie.</p>
+ *
+ * @returns {object[]} los socios, en el formato del buscador (0, 1 o, raro, más)
+ */
+export function buscarPorLlavero(crudo) {
+  const codigo = normalizarLlavero(crudo);
+  if (!codigo) return [];
+
+  const delLlavero = indiceDeLlaveros().get(codigo) || null;
+  const encontrados = delLlavero ? [delLlavero] : [];
+  for (const s of memoria.socios) {
+    if (s !== delLlavero && normalizarLlavero(s.dni) === codigo) encontrados.push(s);
+  }
+  return encontrados.map(vista);
+}
+
+/** Un socio de la copia local por su id, en el formato del buscador. */
+export function socioLocalPorId(id) {
+  const s = id ? memoria.socios.find((x) => x.id === id) : null;
+  return s ? vista(s) : null;
+}
+
+/**
+ * Pone un llavero en la copia local YA, sin esperar al refresco: el socio al que se le acaba de
+ * asignar está parado en el mostrador y lo va a pasar en el segundo siguiente. Si otro socio lo
+ * tenía (se lo pasaron), se le saca, igual que hizo el servidor.
+ */
+export async function ponerLlaveroLocal(memberId, crudo) {
+  const codigo = normalizarLlavero(crudo);
+  if (!memberId || !codigo) return false;
+  return cambiarLlaveros((s) => {
+    const lo = s.llaveros || [];
+    if (s.id === memberId) return lo.includes(codigo) ? null : [...lo, codigo].sort();
+    return lo.includes(codigo) ? lo.filter((c) => c !== codigo) : null;
+  });
+}
+
+/** Saca un llavero de la copia local (se dio de baja): deja de abrir en el acto. */
+export async function sacarLlaveroLocal(crudo) {
+  const codigo = normalizarLlavero(crudo);
+  if (!codigo) return false;
+  return cambiarLlaveros((s) => ((s.llaveros || []).includes(codigo) ? s.llaveros.filter((c) => c !== codigo) : null));
+}
+
+/**
+ * Aplica un cambio de llaveros a la copia, en memoria y en el disco. `cambio(socio)` devuelve los
+ * llaveros nuevos de ese socio, o null si no le toca. Primero la memoria: la próxima lectura tiene
+ * que encontrarlo sin esperar al archivo.
+ */
+async function cambiarLlaveros(cambio) {
+  let hubo = false;
+  const socios = memoria.socios.map((s) => {
+    const nuevos = cambio(s);
+    if (!nuevos) return s;
+    hubo = true;
+    return { ...s, llaveros: nuevos };
+  });
+  if (!hubo) return false;
+
+  memoria = { ...memoria, socios };
+  try {
+    if (memoria.tenantId) await almacen.guardar(memoria.tenantId, socios);
+  } catch {
+    // En memoria ya está, que es lo que usa el mostrador. El refresco lo vuelve a escribir.
+  }
+  return true;
 }
 
 /** El formato que espera la UI (mismo contrato que tenía el buscador de la nube). */
@@ -420,6 +525,7 @@ function vista(s) {
     situacion: alDia.situacion,
     diasVencido: alDia.diasVencido,
     diasRestantes: alDia.diasRestantes,
+    llaveros: s.llaveros || [],
   };
 }
 

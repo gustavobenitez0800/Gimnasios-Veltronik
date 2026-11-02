@@ -99,7 +99,12 @@ CREATE TABLE IF NOT EXISTS gym_members (
 
     -- Nombre + apellido + documento, sin tildes ni mayúsculas, calculado UNA vez al guardar.
     -- Normalizar en cada tecla es repetir el mismo trabajo miles de veces por búsqueda.
-    busqueda          TEXT NOT NULL DEFAULT ''
+    busqueda          TEXT NOT NULL DEFAULT '',
+
+    -- Los llaveros activos del socio (ADR-016), como lista JSON: con esto el mostrador sabe
+    -- quién pasó un llavero aunque no haya internet. En los terminales que ya estaban instalados
+    -- la agrega agregarColumnasNuevas().
+    llaveros          TEXT
 );
 
 CREATE INDEX IF NOT EXISTS ix_gym_members_tenant   ON gym_members (tenant_id);
@@ -232,6 +237,43 @@ function migrarColaVieja(conexion) {
     }
 }
 
+/**
+ * Las columnas que se sumaron al espejo cuando ya había terminales instalados.
+ *
+ * <p>{@code CREATE TABLE IF NOT EXISTS} no toca una tabla que ya existe: en esas máquinas la
+ * columna nueva no aparece sola, y el INSERT del espejo, que la nombra, fallaría. Se agregan
+ * acá, una vez, mirando antes si ya están.</p>
+ */
+const COLUMNAS_NUEVAS = [
+    // Los llaveros de cada socio (ADR-016).
+    { tabla: 'gym_members', columna: 'llaveros', tipo: 'TEXT' },
+];
+
+/**
+ * Agrega a la base las columnas de {@link COLUMNAS_NUEVAS} que le falten.
+ *
+ * <p>Que falle no puede impedir que la app abra: el espejo es lo único que las usa, y el espejo
+ * se puede volver a bajar. Sin la columna, guardarlo falla en silencio, el mostrador sigue con
+ * la copia en memoria y esto se reintenta en el próximo arranque.</p>
+ *
+ * @returns {string[]} las que agregó
+ */
+function agregarColumnasNuevas(conexion) {
+    const agregadas = [];
+    for (const { tabla, columna, tipo } of COLUMNAS_NUEVAS) {
+        try {
+            const tiene = conexion.prepare(`PRAGMA table_info(${tabla})`).all()
+                .some((c) => c.name === columna);
+            if (tiene) continue;
+            conexion.prepare(`ALTER TABLE ${tabla} ADD COLUMN ${columna} ${tipo}`).run();
+            agregadas.push(`${tabla}.${columna}`);
+        } catch (e) {
+            console.warn(`[Veltronik] No se pudo agregar ${tabla}.${columna} a la base local:`, e.message);
+        }
+    }
+    return agregadas;
+}
+
 /** ¿Hay base local en esta máquina? */
 function disponible() {
     return Database !== null;
@@ -274,6 +316,7 @@ function abrir() {
         conexion.pragma('busy_timeout = 5000');
 
         conexion.exec(ESQUEMA);
+        agregarColumnasNuevas(conexion);
 
         // Después del esquema y antes de devolver la conexión: nadie puede leer la cola
         // hasta que lo que estaba en la vieja esté adentro de la nueva.
@@ -306,4 +349,6 @@ function cerrar() {
     }
 }
 
-module.exports = { abrir, cerrar, disponible, porQueNo, ruta, ESQUEMA, migrarColaVieja };
+module.exports = {
+    abrir, cerrar, disponible, porQueNo, ruta, ESQUEMA, migrarColaVieja, agregarColumnasNuevas,
+};

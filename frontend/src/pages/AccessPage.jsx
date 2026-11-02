@@ -39,6 +39,9 @@ import Icon from '../components/Icon';
 import { sonarVencido } from '../lib/alertaSonora';
 import { useCajitaMolinete } from '../hooks/useCajitaMolinete';
 import { abrirSiPasa, ordenarALaCajita } from '../lib/cajitaMolinete';
+import { useLectorDeLlaveros } from '../hooks/useLectorDeLlaveros';
+import { METODO_LLAVERO } from '../lib/llaveros';
+import LlaveroSinAsignar from '../components/llaveros/LlaveroSinAsignar';
 
 /** Cuánto dura el desvanecimiento del cartel al irse. El mismo número que en access.css. */
 const SALIDA_DEL_AVISO_MS = 200;
@@ -323,20 +326,37 @@ export default function AccessPage() {
     }
   }, []);
 
+  // ⚠️ LO QUE SE ESTÁ BUSCANDO AHORA, para que una búsqueda vieja no pinte encima.
+  //
+  // La búsqueda espera 300 ms; el Enter y el lector de llaveros, no. Si el socio entra antes de
+  // que venza la espera, el campo ya quedó vacío pero la búsqueda pendiente seguía viva: a los
+  // 300 ms volvía a mostrar la lista con la persona que acababa de entrar. Con el lector pasa
+  // siempre, porque escribe el número y el Enter en 30 ms.
+  const consultaVigente = useRef('');
+
   // Search
   const doSearch = useMemo(() => debounce(async (query) => {
+    if (consultaVigente.current !== query) return;
     if (!query || query.length < 2) { setSearchResults([]); return; }
     setSearching(true);
     try {
       const results = await memberService.searchForAccess(query);
-      setSearchResults(results || []);
+      if (consultaVigente.current === query) setSearchResults(results || []);
     } catch { setSearchResults([]); }
     finally { setSearching(false); }
   }, 300), []);
 
   const handleSearch = (val) => {
+    consultaVigente.current = val;
     setSearchQuery(val);
     doSearch(val);
+  };
+
+  /** El campo vacío y sin resultados, listo para el que sigue. */
+  const limpiarBuscador = () => {
+    consultaVigente.current = '';
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   // ─── La situación del socio la dice el BACKEND ───
@@ -482,10 +502,11 @@ export default function AccessPage() {
   // subido: el servidor todavía no lo sabe, pero la plata ya está en el cajón.
   const dejaPasar = (member) => puedePasarElMolinete(member) || tieneCobroSinSubir(member.id);
 
-  // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra.
-  const handleCheckIn = async (member) => {
+  // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra. Con el
+  // llavero es lo mismo: cambia el método que queda anotado (y su freno de rebote), nada más.
+  const handleCheckIn = async (member, metodo = 'manual') => {
     try {
-      const r = await accessService.checkIn(member.id, 'manual', member.fullName);
+      const r = await accessService.checkIn(member.id, metodo, member.fullName);
 
       // ⚠️ SIN CONEXIÓN EL CARTEL NO DICE "ENTRADA REGISTRADA", Y NO ES UN DETALLE.
       //
@@ -526,8 +547,7 @@ export default function AccessPage() {
         if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
         // Sin internet la cajita abre igual: decide la copia local, que es la que pinta el cartel.
         abrirSiPasa({ pasa: dejaPasar(member) });
-        setSearchQuery('');
-        setSearchResults([]);
+        limpiarBuscador();
         contarPendientes();
         buscadorRef.current?.focus();
         return;
@@ -570,8 +590,7 @@ export default function AccessPage() {
       if (salio) abrirSiPasa({ salida: true });
       else if (!rebote) abrirSiPasa({ pasa: dejaPasar(member) });
 
-      setSearchQuery('');
-      setSearchResults([]);
+      limpiarBuscador();
       loadData();
 
       // El campo queda vacío Y con el foco: la fila del mostrador no tiene por qué agarrar
@@ -638,6 +657,37 @@ export default function AccessPage() {
     }
   };
 
+  // ─── EL LLAVERO (ADR-016) ───
+  //
+  // El lector escribe el número y un Enter en el buscador, como una persona muy rápida. El hook
+  // reconoce la ráfaga y se queda con ese Enter; acá se busca EXACTO —nunca "contiene": un
+  // llavero parecido es otra persona— y se registra como con el DNI: el mismo cartel, la misma
+  // X y la misma cajita. No hay una regla del llavero.
+  const [llaveroSinDueno, setLlaveroSinDueno] = useState(null);
+  const alLeerLlavero = async (codigo) => {
+    // Lo que escribió el lector no se queda en el campo, ni lo que hubiera antes: era un llavero.
+    limpiarBuscador();
+    if (registrando.current) return;
+    registrando.current = true;
+    try {
+      const { socios, ultimaBaja } = await memberService.buscarPorLlavero(codigo);
+      if (socios.length === 1) {
+        await handleCheckIn(socios[0], METODO_LLAVERO);
+      } else if (socios.length > 1) {
+        // El llavero es de uno y el DNI de otro (pasa con lo que vino de ControlFit): no se
+        // elige por nadie, igual que con dos socios que comparten el nombre.
+        setSearchResults(socios);
+        showToast('Ese llavero coincide con más de un socio. Elegí cuál.', 'info');
+      } else {
+        setLlaveroSinDueno({ codigo, ultimaBaja });
+      }
+    } finally {
+      registrando.current = false;
+    }
+  };
+  // Con el aviso abierto el lector no se escucha acá: lo que escriba va al buscador del aviso.
+  useLectorDeLlaveros(alLeerLlavero, { campo: buscadorRef, activo: !llaveroSinDueno });
+
   return (
     <div className="access-page">
       {/* ─── LA BARRA DE ARRIBA ───
@@ -677,7 +727,7 @@ export default function AccessPage() {
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
                 `enterKeyHint` le pide al teclado del celular que la tecla diga "Enter" y no
                 "Buscar": lo que hace es registrar la entrada. */}
-            <input type="text" className="search-input" placeholder="DNI o nombre, y Enter"
+            <input type="text" className="search-input" placeholder="DNI o nombre y Enter, o pasá el llavero"
               ref={buscadorRef} autoFocus enterKeyHint="enter"
               value={searchQuery} onChange={e => handleSearch(e.target.value)}
               onKeyDown={alTeclear} />
@@ -801,6 +851,13 @@ export default function AccessPage() {
       <Modal isOpen={qrAbierto} onClose={() => { setQrAbierto(false); setVersionQr((v) => v + 1); }} title="Cartel de entrada">
         <CheckinQrPanel puedeAdministrar={puedeAdministrarQr} />
       </Modal>
+
+      {/* Pasaron un llavero que no es de nadie: se asigna acá mismo y el socio entra. */}
+      <LlaveroSinAsignar
+        lectura={llaveroSinDueno}
+        onCerrar={() => { setLlaveroSinDueno(null); buscadorRef.current?.focus(); }}
+        onAsignado={(socio) => { setLlaveroSinDueno(null); handleCheckIn(socio, METODO_LLAVERO); }}
+      />
 
       {/* ─── El aviso de entrada, al costado izquierdo ───
 

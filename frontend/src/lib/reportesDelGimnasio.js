@@ -67,7 +67,7 @@ export function tablaDeIngresos(reporte) {
   return { headers, rows };
 }
 
-const METODO_DE_ACCESO = { MANUAL: 'Manual', QR: 'QR', MOLINETE: 'Molinete', TURNSTILE: 'Molinete' };
+const METODO_DE_ACCESO = { MANUAL: 'Manual', QR: 'QR', MOLINETE: 'Molinete', TURNSTILE: 'Molinete', LLAVERO: 'Llavero' };
 
 /** Cada entrada del período, con la fecha y las horas como se leen (no el ISO crudo). */
 export function tablaDeAccesos(accesos) {

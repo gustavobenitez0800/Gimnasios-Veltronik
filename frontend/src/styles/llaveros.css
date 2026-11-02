@@ -1,0 +1,130 @@
+/* ============================================
+   LOS LLAVEROS (ADR-016)
+   ============================================
+   El aviso de «llavero sin asignar» de Accesos, la sección de la ficha del socio y la de
+   Ajustes. Con las distancias de siempre (--aire-*, --space-*): ningún margen a mano.
+   ============================================ */
+
+/* El número del llavero, grande y con los dígitos parejos: es lo que se compara a ojo contra
+   el que dice el lector o el que traía el sistema anterior. */
+.llavero-codigo {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+.llavero-codigo.is-chico {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+}
+
+/* Lo que hay que saber antes de asignar: que se perdió, que no hay internet. */
+.llavero-aviso {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--border-radius-md);
+  background: color-mix(in srgb, var(--warning-500) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-500) 35%, transparent);
+  color: var(--text-secondary);
+}
+
+.llavero-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.llavero-texto {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+/* Los bloques dentro del aviso y de la sección van uno debajo del otro, con el aire de siempre. */
+.llavero-pila {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aire-titulo);
+}
+
+.llavero-fila {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.llavero-fila > .form-input {
+  flex: 1 1 14rem;
+}
+
+/* La lista de llaveros de la ficha. */
+.llavero-lista {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+}
+
+.llavero-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.llavero-item:last-child {
+  border-bottom: none;
+}
+
+.llavero-item-detalle {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.llavero-item.is-de-baja .llavero-codigo {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* El resultado de «probar el lector» en Ajustes. */
+.llavero-prueba-ok {
+  color: var(--success-500);
+}
+
+.llavero-prueba-mal {
+  color: var(--warning-500);
+}
+
+/* La lista para revisar de «los llaveros que vinieron en el DNI». */
+.llavero-candidatos {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.llavero-candidato {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.llavero-candidato:last-child {
+  border-bottom: none;
+}
+
+.llavero-candidato.is-ocupado {
+  cursor: default;
+  opacity: 0.7;
+}

@@ -26,5 +26,6 @@ Un ADR es **una página que explica una decisión de arquitectura**: qué se dec
 | [ADR-013](ADR-013-el-mes-corre-solo.md) | La cuota corre un mes por defecto; el arancel dice qué entrenó, no cuánto dura | ✅ Aceptada |
 | [ADR-014](ADR-014-el-historial-importado-es-historia.md) | El historial de caja importado suma en los ingresos, pero no cubre a nadie ni entra a la caja | ✅ Aceptada (el balance de la caja cambió en ADR-015) |
 | [ADR-015](ADR-015-un-libro-de-ingresos-y-cada-peso-en-un-cierre.md) | Un solo libro de ingresos para todas las pantallas, y cada peso en exactamente un cierre de caja | ✅ Aceptada |
+| [ADR-016](ADR-016-el-llavero-es-una-credencial-que-se-lee-como-un-teclado.md) | El llavero es una credencial del socio, aparte del DNI, y el lector se lee como si alguien tecleara | 🟡 Propuesta |
 
 **Criterio rector de todas las decisiones de la V3:** minimizar variantes hoy sin cerrar puertas mañana — Veltronik lo mantiene un equipo de una persona, y cada variante (binarios, superficies, hardware) multiplica el costo de soporte a escala.

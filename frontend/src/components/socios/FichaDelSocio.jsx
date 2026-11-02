@@ -2,6 +2,7 @@ import { formatCurrency } from '../../lib/utils';
 import { DaySelector } from '../ui';
 import Modal, { ModalActions } from '../ui/Modal';
 import Icon from '../Icon';
+import LlaverosDelSocio from './LlaverosDelSocio';
 
 /**
  * La ficha del socio: el alta y la edición.
@@ -63,6 +64,11 @@ export default function FichaDelSocio({
                 Es lo que se le va a cobrar cada mes. El vencimiento se corre solo al registrar el pago.
               </small>
             </div>
+          )}
+          {/* Los llaveros (ADR-016): solo al editar, porque se le asignan a un socio que ya
+              existe en el servidor. Se guardan en el acto, no con el «Guardar» de la ficha. */}
+          {modal.isEditing && modal.editingId && (
+            <LlaverosDelSocio socioId={modal.editingId} nombre={modal.form.fullName} />
           )}
         </div>
 

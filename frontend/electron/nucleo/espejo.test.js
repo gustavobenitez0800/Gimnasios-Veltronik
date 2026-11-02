@@ -108,6 +108,26 @@ describe('el mapeo de columnas', () => {
         expect(vista.isActive).toBe(true);
         expect(vista.situacion).toBe('AL_DIA');
     });
+
+    it('⭐ los llaveros (ADR-016) se guardan como lista y vuelven como lista, con los ceros', () => {
+        // Es lo que hace que el mostrador encuentre al que pasa su llavero sin internet, también
+        // después de reiniciar la PC: la copia de la memoria se pierde, la del archivo no.
+        const fila = aFila(GIMNASIO, { ...SOCIO_API, llaveros: ['0012345678', '00BC5678'] });
+
+        expect(fila.llaveros).toBe('["0012345678","00BC5678"]');
+        expect(aVista(fila).llaveros).toEqual(['0012345678', '00BC5678']);
+    });
+
+    it('un socio sin llaveros guarda null y vuelve con la lista vacía', () => {
+        expect(aFila(GIMNASIO, SOCIO_API).llaveros).toBeNull();
+        expect(aFila(GIMNASIO, { ...SOCIO_API, llaveros: [] }).llaveros).toBeNull();
+        expect(aVista(aFila(GIMNASIO, SOCIO_API)).llaveros).toEqual([]);
+    });
+
+    it('un texto roto en la base es un socio sin llaveros, no una lectura que explota', () => {
+        expect(aVista({ ...aFila(GIMNASIO, SOCIO_API), llaveros: '["00123' }).llaveros).toEqual([]);
+        expect(aVista({ ...aFila(GIMNASIO, SOCIO_API), llaveros: '{"a":1}' }).llaveros).toEqual([]);
+    });
 });
 
 describe('guardar el espejo', () => {

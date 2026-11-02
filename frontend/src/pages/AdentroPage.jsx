@@ -158,6 +158,8 @@ export default function AdentroPage() {
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="hand" size="0.9em" /> Manual</span>
                       ) : (log.accessMethod || '').toLowerCase() === 'qr' ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="qrCode" size="0.9em" /> QR</span>
+                      ) : (log.accessMethod || '').toLowerCase() === 'llavero' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Icon name="key" size="0.9em" /> Llavero</span>
                       ) : (log.accessMethod || '-')}
                     </td>
                   </tr>

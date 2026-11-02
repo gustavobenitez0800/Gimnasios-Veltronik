@@ -22,6 +22,8 @@ export { cashierService } from './CashierService';
 export { planService } from './PlanService';
 // Molinete facial: el padrón que el escritorio le mantiene al día al equipo.
 export { molineteService } from './MolineteService';
+// Llaveros de los socios (ADR-016): asignar, dar de baja, y los que vinieron en el DNI.
+export { llaveroService } from './LlaveroService';
 
 // Analytics
 export { dashboardStatsService } from './DashboardStatsService';
