@@ -34,12 +34,20 @@
 const fs = require('fs');
 const path = require('path');
 
-/** Cuánto baja la música: al 30% de lo que estaba. Se oye la "X" sin que se corte la música. */
-const NIVEL = 0.3;
+/** Cuánto baja la música: al 25% de lo que estaba. Se oye el aviso sin que se corte la música. */
+const NIVEL = 0.25;
 /** Cuánto aguanta baja como máximo, por pedido. El ayudante también lo acota. */
 const MAXIMO_MS = 3000;
 /** Cuántas veces se lo levanta de nuevo si se cae, antes de rendirse hasta el próximo arranque. */
 const REINTENTOS = 3;
+/**
+ * ⭐ Cuánto se espera a que el ayudante CONTESTE que bajó (02/11/2026).
+ *
+ * Antes el aviso sonaba 120 ms después de pedir, bajara o no: si el ayudante tardaba un poco
+ * más en encontrar la música, la X sonaba con la música a todo volumen y no se oía. Ahora el
+ * aviso espera la respuesta —«bajé N programas»— y si no llega en este rato suena igual.
+ */
+const ESPERA_RESPUESTA_MS = 450;
 
 /*
  * El ayudante. C# 5 a propósito: PowerShell 5.1 (el de todo Windows 10/11) compila con el csc
@@ -67,8 +75,15 @@ namespace Veltronik
     [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IMMDeviceEnumerator
     {
-        [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+        [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IMMDeviceCollection devices);
         [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+    }
+
+    [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMMDeviceCollection
+    {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int Item(uint index, out IMMDevice device);
     }
 
     [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -249,19 +264,34 @@ namespace Veltronik
         {
             List<Sesion> res = new List<Sesion>();
             IMMDeviceEnumerator enumerador = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
-            IMMDevice dispositivo;
-            // 0 = eRender (salida), 1 = eMultimedia: donde suena la música.
-            if (enumerador.GetDefaultAudioEndpoint(0, 1, out dispositivo) != 0 || dispositivo == null) return res;
+            IMMDeviceCollection salidas;
+            // 0 = eRender (las salidas), 1 = DEVICE_STATE_ACTIVE (las enchufadas). TODAS, no solo
+            // la principal: hay gimnasios con la música en otra salida (la del amplificador, un
+            // HDMI, una placa USB), y ahí antes no se encontraba nada que bajar.
+            if (enumerador.EnumAudioEndpoints(0, 1, out salidas) != 0 || salidas == null) return res;
+            uint cuantasSalidas;
+            if (salidas.GetCount(out cuantasSalidas) != 0) return res;
+            int yo = Process.GetCurrentProcess().Id;
+            for (uint d = 0; d < cuantasSalidas; d++)
+            {
+                IMMDevice dispositivo;
+                if (salidas.Item(d, out dispositivo) != 0 || dispositivo == null) continue;
+                SesionesDe(dispositivo, yo, res);
+            }
+            return res;
+        }
+
+        private static void SesionesDe(IMMDevice dispositivo, int yo, List<Sesion> res)
+        {
             Guid iid = typeof(IAudioSessionManager2).GUID;
             object instancia;
-            if (dispositivo.Activate(ref iid, 23, IntPtr.Zero, out instancia) != 0) return res;
+            if (dispositivo.Activate(ref iid, 23, IntPtr.Zero, out instancia) != 0) return;
             IAudioSessionManager2 gestor = (IAudioSessionManager2)instancia;
             IAudioSessionEnumerator sesiones;
-            if (gestor.GetSessionEnumerator(out sesiones) != 0 || sesiones == null) return res;
+            if (gestor.GetSessionEnumerator(out sesiones) != 0 || sesiones == null) return;
 
             int cuantas;
             sesiones.GetCount(out cuantas);
-            int yo = Process.GetCurrentProcess().Id;
             for (int i = 0; i < cuantas; i++)
             {
                 IAudioSessionControl2 control;
@@ -284,7 +314,6 @@ namespace Veltronik
                 s.Original = v;
                 res.Add(s);
             }
-            return res;
         }
 
         private static string NombreDe(uint pid)
@@ -319,10 +348,24 @@ namespace Veltronik
  * @param {Function} [deps.escribir]        fs.writeFileSync
  * @param {Function} [deps.avisar]          dónde dejar constancia de un problema
  */
-function crearAtenuador({ spawn, carpeta, propios, plataforma = process.platform, escribir = fs.writeFileSync, avisar = console.warn }) {
+function crearAtenuador({
+    spawn, carpeta, propios, plataforma = process.platform, escribir = fs.writeFileSync,
+    avisar = console.warn, esperar = setTimeout,
+}) {
     let proceso = null;
     let listo = false;
     let caidas = 0;
+    let ultimoError = null;
+    // Los pedidos de BAJAR que esperan su «BAJADO n», en orden: el ayudante contesta en el mismo
+    // orden en que le llegan. Uno que se cansó de esperar queda marcado y se descarta al llegar
+    // su respuesta, así la siguiente no se le atribuye al pedido equivocado.
+    let esperando = [];
+
+    /** Contesta (y saca) el pedido más viejo que todavía espera. */
+    function contestar(cuantos) {
+        const pedido = esperando.shift();
+        if (pedido && !pedido.vencido) pedido.resolver(cuantos);
+    }
 
     function iniciar() {
         if (plataforma !== 'win32' || proceso || caidas > REINTENTOS) return;
@@ -337,6 +380,7 @@ function crearAtenuador({ spawn, carpeta, propios, plataforma = process.platform
             ], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
         } catch (e) {
             caidas = REINTENTOS + 1;
+            ultimoError = e.message;
             avisar('[musica] no se pudo levantar el ayudante:', e.message);
             proceso = null;
             return;
@@ -346,19 +390,33 @@ function crearAtenuador({ spawn, carpeta, propios, plataforma = process.platform
         esteProceso.stdout.setEncoding('utf8');
         esteProceso.stdout.on('data', (texto) => {
             if (/\bLISTO\b/.test(texto)) listo = true;
+            for (const bajado of String(texto).matchAll(/BAJADO (\d+)/g)) contestar(Number(bajado[1]));
             const error = /ERROR (.*)/.exec(texto);
-            if (error) avisar('[musica]', error[1]);
+            if (error) {
+                ultimoError = error[1].trim();
+                avisar('[musica]', ultimoError);
+                contestar(-1);
+            }
         });
         esteProceso.stderr.setEncoding('utf8');
-        esteProceso.stderr.on('data', (texto) => avisar('[musica]', String(texto).trim().slice(0, 300)));
+        esteProceso.stderr.on('data', (texto) => {
+            const linea = String(texto).trim().slice(0, 300);
+            if (linea) ultimoError = linea;
+            avisar('[musica]', linea);
+        });
         const alCaer = () => {
             if (proceso !== esteProceso) return;
             proceso = null;
             listo = false;
             caidas += 1;
+            // Lo que esperaba respuesta de este ayudante ya no la va a tener.
+            const pendientes = esperando;
+            esperando = [];
+            pendientes.forEach((p) => { if (!p.vencido) p.resolver(-1); });
         };
         esteProceso.on('exit', alCaer);
         esteProceso.on('error', (e) => {
+            ultimoError = e.message;
             avisar('[musica] el ayudante falló:', e.message);
             alCaer();
         });
@@ -366,21 +424,43 @@ function crearAtenuador({ spawn, carpeta, propios, plataforma = process.platform
 
     /**
      * Baja la música de los otros programas durante `ms` milisegundos.
-     * @returns {boolean} true si el pedido salió; false si el ayudante no está listo todavía
+     *
+     * @returns {Promise<number>} cuántos programas bajó (0 = no había ninguno sonando en esta PC),
+     *          o -1 si el ayudante no está listo o no contestó a tiempo. El aviso espera esto para
+     *          sonar, y en Ajustes se muestra para saber si la música se baja de verdad.
      */
     function bajar(ms) {
         if (!proceso || !listo) {
             iniciar();
-            return false;
+            return Promise.resolve(-1);
         }
         const duracion = Math.max(100, Math.min(Number(ms) || 0, MAXIMO_MS));
         try {
             proceso.stdin.write(`BAJAR ${NIVEL} ${Math.round(duracion)}\n`);
-            return true;
         } catch (e) {
+            ultimoError = e.message;
             avisar('[musica] no se pudo pedir:', e.message);
-            return false;
+            return Promise.resolve(-1);
         }
+        return new Promise((resolver) => {
+            const pedido = { resolver, vencido: false };
+            esperando.push(pedido);
+            esperar(() => {
+                if (pedido.vencido || !esperando.includes(pedido)) return;
+                pedido.vencido = true;
+                resolver(-1);
+            }, ESPERA_RESPUESTA_MS);
+        });
+    }
+
+    /** Cómo está, para Ajustes → Sonido del mostrador. */
+    function estado() {
+        return {
+            disponible: plataforma === 'win32',
+            listo,
+            rendido: caidas > REINTENTOS,
+            ultimoError,
+        };
     }
 
     /** Al cerrar la app: que devuelva el volumen y se vaya. */
@@ -391,7 +471,7 @@ function crearAtenuador({ spawn, carpeta, propios, plataforma = process.platform
         listo = false;
     }
 
-    return { iniciar, bajar, detener, estaListo: () => listo };
+    return { iniciar, bajar, detener, estado, estaListo: () => listo };
 }
 
-module.exports = { crearAtenuador, SCRIPT, NIVEL };
+module.exports = { crearAtenuador, SCRIPT, NIVEL, ESPERA_RESPUESTA_MS };

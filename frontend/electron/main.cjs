@@ -417,6 +417,7 @@ ipcMain.handle('terminal-settings:set', (_event, changes) => {
 // socio— y se lo pasa por acá; el proceso principal solo traduce eso a pedidos LAN.
 
 ipcMain.handle('audio:bajar-musica', (_event, ms) => atenuador.bajar(ms));
+ipcMain.handle('audio:estado', () => atenuador.estado());
 
 ipcMain.handle('molinete:config-get', () => molinete.config());
 

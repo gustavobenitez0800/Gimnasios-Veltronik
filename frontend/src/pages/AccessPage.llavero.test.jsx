@@ -81,13 +81,22 @@ describe('⭐ pasar el llavero', () => {
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
   });
 
-  it('con la cuota vencida no abre, y suena la X', async () => {
+  it('con la cuota vencida no abre, y suena la X (siempre: lo pasó una persona)', async () => {
     memberService.buscarPorLlavero.mockResolvedValue({ socios: [VENCIDO], ultimaBaja: null });
     await pintar();
     await pasarPorElLector('0012345678');
 
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: false });
-    expect(sonido.sonarVencido).toHaveBeenCalled();
+    expect(sonido.sonarVencidoDirecto).toHaveBeenCalledWith('m1');
+    expect(sonido.sonarEntrada).not.toHaveBeenCalled();
+  });
+
+  it('⭐ al día: suena el «din-din» de la entrada, para que se oiga sin mirar la pantalla', async () => {
+    await pintar();
+    await pasarPorElLector('0012345678');
+
+    expect(sonido.sonarEntrada).toHaveBeenCalledTimes(1);
+    expect(sonido.sonarVencidoDirecto).not.toHaveBeenCalled();
   });
 
   it('⭐ lo que había escrito antes en el campo no se pega al llavero, y el campo queda vacío', async () => {
@@ -118,6 +127,8 @@ describe('cuando el llavero no alcanza para saber quién es', () => {
     expect(texto()).toContain('0099999999');
     expect(accessService.checkIn).not.toHaveBeenCalled();
     expect(cajita.abrirSiPasa).not.toHaveBeenCalled();
+    // Y se oye: hay alguien en la puerta que no puede entrar.
+    expect(sonido.sonarLlaveroDesconocido).toHaveBeenCalledTimes(1);
   });
 
   it('⭐ uno dado de baja: el aviso dice a quién se le perdió', async () => {
@@ -152,6 +163,8 @@ describe('una persona sigue siendo una persona', () => {
     expect(memberService.buscarPorLlavero).not.toHaveBeenCalled();
     expect(memberService.searchForAccess).toHaveBeenCalledWith('24732531');
     expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'manual', 'Lurdes Rollet');
+    // El «din-din» es del llavero: con el DNI tecleado la persona ya está mirando la pantalla.
+    expect(sonido.sonarEntrada).not.toHaveBeenCalled();
   });
 
   it('el Enter suelto de siempre registra como siempre', async () => {

@@ -266,9 +266,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         /**
          * Baja un momento el volumen de los OTROS programas (la música del gimnasio) para que
          * se oiga el aviso de un socio vencido, y lo devuelve solo. Ver atenuador.cjs.
-         * @returns {Promise<boolean>} false si el ayudante todavía no está listo
+         * @returns {Promise<number>} cuántos programas bajó (0 = ninguno sonando), o -1 si el
+         *          ayudante no está listo o no contestó a tiempo
          */
         bajarMusica: (ms) => ipcRenderer.invoke('audio:bajar-musica', ms),
+
+        /**
+         * Cómo está el que baja la música, para Ajustes → Sonido del mostrador.
+         * @returns {Promise<{disponible: boolean, listo: boolean, rendido: boolean, ultimoError: string|null}>}
+         */
+        estado: () => ipcRenderer.invoke('audio:estado'),
     },
 
     molinete: {

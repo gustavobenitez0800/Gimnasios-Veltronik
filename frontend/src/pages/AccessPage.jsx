@@ -36,7 +36,9 @@ import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea, useNovedadesDeLaP
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import Icon from '../components/Icon';
-import { sonarVencido } from '../lib/alertaSonora';
+import {
+  sonarVencido, sonarVencidoDirecto, sonarEntrada, sonarLlaveroDesconocido, prepararSonido,
+} from '../lib/alertaSonora';
 import { useCajitaMolinete } from '../hooks/useCajitaMolinete';
 import { abrirSiPasa, ordenarALaCajita } from '../lib/cajitaMolinete';
 import { useLectorDeLlaveros } from '../hooks/useLectorDeLlaveros';
@@ -70,6 +72,9 @@ export default function AccessPage() {
   // La cajita del molinete, si esta PC tiene una enchufada (lib/cajitaMolinete). Abre con el
   // MISMO veredicto que pinta el cartel y hace sonar la X: no hay una segunda cuenta de fechas.
   const cajita = useCajitaMolinete({ conectarAlMontar: true });
+
+  // El audio listo desde que se abre la pantalla: que el primer aviso del día no llegue tarde.
+  useEffect(() => { prepararSonido(); }, []);
 
   // ─── Los avisos de entrada, apilados al costado ───
   //
@@ -547,8 +552,10 @@ export default function AccessPage() {
           initials: getInitials(member.fullName),
         });
         // Sin internet también suena: justo ahí el servidor no puede avisar nada. Salvo que
-        // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe.
-        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
+        // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe. Lo hizo una
+        // persona en el mostrador, así que suena siempre (`directo`).
+        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencidoDirecto(member.id);
+        else if (metodo === METODO_LLAVERO) sonarEntrada();
         // Sin internet la cajita abre igual: decide la copia local, que es la que pinta el cartel.
         abrirSiPasa({ pasa: dejaPasar(member) });
         limpiarBuscador();
@@ -587,8 +594,14 @@ export default function AccessPage() {
         initials: getInitials(member.fullName),
       });
       // La X, solo al que ENTRA vencido. Al que sale no se le reclama nada, y al que acaba de
-      // pagar (el cobro todavía no subió) sonarle sería una falsa alarma.
-      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencido(member.id);
+      // pagar (el cobro todavía no subió) sonarle sería una falsa alarma. Lo hizo una persona en
+      // el mostrador (Enter o llavero): suena siempre, aunque sea el mismo socio de hace un rato.
+      // Con el llavero y todo bien, el «din-din»: la confirmación que el socio espera del lector.
+      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) {
+        sonarVencidoDirecto(member.id);
+      } else if (metodo === METODO_LLAVERO && !rebote) {
+        sonarEntrada();
+      }
       // Un rebote (ya estaba marcado) no abre de nuevo, o pasarían dos con el mismo DNI. La salida
       // abre solo si en esta PC el molinete también es de salida (Ajustes → Cajita del molinete).
       if (salio) abrirSiPasa({ salida: true });
@@ -682,7 +695,10 @@ export default function AccessPage() {
         // elige por nadie, igual que con dos socios que comparten el nombre.
         setSearchResults(socios);
         showToast('Ese llavero coincide con más de un socio. Elegí cuál.', 'info');
+        sonarLlaveroDesconocido();
       } else {
+        // Que se oiga aunque nadie esté mirando: hay alguien en la puerta que no puede entrar.
+        sonarLlaveroDesconocido();
         setLlaveroSinDueno({ codigo, ultimaBaja });
       }
     } finally {

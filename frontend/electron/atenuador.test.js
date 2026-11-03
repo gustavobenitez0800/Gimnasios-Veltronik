@@ -44,16 +44,60 @@ describe('el que baja la música', () => {
     expect(opciones.windowsHide).toBe(true);
   });
 
-  it('no pide nada hasta que el ayudante dice LISTO', () => {
+  it('no pide nada hasta que el ayudante dice LISTO', async () => {
     const a = armar();
     a.iniciar();
 
-    expect(a.bajar(900), 'todavía compilando').toBe(false);
+    await expect(a.bajar(900), 'todavía compilando').resolves.toBe(-1);
     expect(procesos[0].escrito).toEqual([]);
 
     procesos[0].stdout.emit('data', 'LISTO\r\n');
-    expect(a.bajar(900)).toBe(true);
-    expect(procesos[0].escrito).toEqual(['BAJAR 0.3 900\n']);
+    const pedido = a.bajar(900);
+    expect(procesos[0].escrito).toEqual(['BAJAR 0.25 900\n']);
+    procesos[0].stdout.emit('data', 'BAJADO 1\r\n');
+    await expect(pedido).resolves.toBe(1);
+  });
+
+  it('⭐ contesta cuando el ayudante BAJÓ de verdad, con cuántos programas (0 = no había música)', async () => {
+    const a = armar();
+    a.iniciar();
+    procesos[0].stdout.emit('data', 'LISTO\n');
+
+    const primero = a.bajar(900);
+    const segundo = a.bajar(900);
+    procesos[0].stdout.emit('data', 'BAJADO 2\nBAJADO 0\n');
+
+    await expect(primero).resolves.toBe(2);
+    await expect(segundo).resolves.toBe(0);
+  });
+
+  it('⭐ si el ayudante no contesta a tiempo, el aviso no se queda esperando', async () => {
+    const plazos = [];
+    const a = armar({ esperar: (fn) => plazos.push(fn) });
+    a.iniciar();
+    procesos[0].stdout.emit('data', 'LISTO\n');
+
+    const pedido = a.bajar(900);
+    plazos.forEach((fn) => fn());   // se cumplió la espera sin respuesta
+
+    await expect(pedido).resolves.toBe(-1);
+    // Y la respuesta tardía no se le atribuye al pedido siguiente.
+    const siguiente = a.bajar(900);
+    procesos[0].stdout.emit('data', 'BAJADO 3\n');   // la del pedido vencido
+    procesos[0].stdout.emit('data', 'BAJADO 1\n');   // la del siguiente
+    await expect(siguiente).resolves.toBe(1);
+  });
+
+  it('dice cómo está, y el último error, para Ajustes', () => {
+    const a = armar();
+    expect(a.estado()).toEqual({ disponible: true, listo: false, rendido: false, ultimoError: null });
+
+    a.iniciar();
+    procesos[0].stderr.emit('data', 'Add-Type : no se pudo compilar\r\n');
+    procesos[0].stdout.emit('data', 'LISTO\n');
+
+    expect(a.estado()).toMatchObject({ listo: true, ultimoError: 'Add-Type : no se pudo compilar' });
+    expect(armar({ plataforma: 'darwin' }).estado().disponible).toBe(false);
   });
 
   it('acota cuánto puede quedar baja la música, por las dudas', () => {
@@ -64,7 +108,7 @@ describe('el que baja la música', () => {
     a.bajar(60_000);
     a.bajar(-5);
 
-    expect(procesos[0].escrito).toEqual(['BAJAR 0.3 3000\n', 'BAJAR 0.3 100\n']);
+    expect(procesos[0].escrito).toEqual(['BAJAR 0.25 3000\n', 'BAJAR 0.25 100\n']);
   });
 
   it('⭐ al cerrar la app le pide que devuelva el volumen', () => {
@@ -88,11 +132,11 @@ describe('el que baja la música', () => {
     expect(spawn.mock.calls.length, 'tres reintentos después del primero').toBe(4);
   });
 
-  it('fuera de Windows no hace nada', () => {
+  it('fuera de Windows no hace nada', async () => {
     const a = armar({ plataforma: 'darwin' });
     a.iniciar();
 
-    expect(a.bajar(900)).toBe(false);
+    await expect(a.bajar(900)).resolves.toBe(-1);
     expect(spawn).not.toHaveBeenCalled();
   });
 

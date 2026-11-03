@@ -94,7 +94,10 @@ vi.mock('../lib/colaAccesos', () => ({
 
 // La X del socio vencido: se verifica CUÁNDO se pide, no el sonido en sí (en un DOM de prueba
 // no hay placa de audio). El sonido y la música se prueban en lib/alertaSonora.test.js.
-export const sonido = { sonarVencido: vi.fn() }; // común, no vi.hoisted: ver `mostrador`
+export const sonido = { // común, no vi.hoisted: ver `mostrador`
+  sonarVencido: vi.fn(), sonarVencidoDirecto: vi.fn(), sonarEntrada: vi.fn(), sonarLlaveroDesconocido: vi.fn(),
+  prepararSonido: vi.fn(),
+};
 vi.mock('../lib/alertaSonora', () => sonido);
 
 export const { default: AccessPage } = await import('./AccessPage');

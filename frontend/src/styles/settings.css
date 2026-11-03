@@ -101,6 +101,15 @@
 
 .settings-grid { display: grid; gap: var(--aire-bloques); max-width: 800px; }
 
+/* Piezas comunes de una sección de Ajustes nueva: bloques uno debajo del otro, una fila de
+   botones que parte renglón, la nota gris de explicación y un estado en verde o amarillo. */
+.ajuste-pila { display: flex; flex-direction: column; gap: var(--aire-titulo); }
+.ajuste-fila { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.ajuste-nota { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 0; }
+.ajuste-estado { font-size: var(--font-size-sm); margin: 0; }
+.ajuste-estado.is-ok { color: var(--success-500); }
+.ajuste-estado.is-mal { color: var(--warning-500); }
+
 .settings-section {
   background: var(--card-bg); border: 1px solid var(--border-color);
   backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop);

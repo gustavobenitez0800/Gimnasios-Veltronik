@@ -420,7 +420,8 @@ describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
     await tipear('24732531');
     await apretar('Enter');
 
-    expect(sonido.sonarVencido).toHaveBeenCalledTimes(1);
+    expect(sonido.sonarVencidoDirecto).toHaveBeenCalledWith('m1');
+    expect(sonido.sonarVencidoDirecto).toHaveBeenCalledTimes(1);
   });
 
   it('el que está al día entra en silencio', async () => {
@@ -428,7 +429,7 @@ describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
     await tipear('24732531');
     await apretar('Enter');
 
-    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+    expect(sonido.sonarVencidoDirecto).not.toHaveBeenCalled();
   });
 
   it('al que SALE no le suena: ya entrenó, no se le reclama nada', async () => {
@@ -438,7 +439,7 @@ describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
     await tipear('24732531');
     await apretar('Enter');
 
-    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+    expect(sonido.sonarVencidoDirecto).not.toHaveBeenCalled();
   });
 
   it('⭐ al que acaba de pagar (el cobro todavía no subió) no le suena: sería una falsa alarma', async () => {
@@ -448,7 +449,7 @@ describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
     await tipear('24732531');
     await apretar('Enter');
 
-    expect(sonido.sonarVencido).not.toHaveBeenCalled();
+    expect(sonido.sonarVencidoDirecto).not.toHaveBeenCalled();
   });
 
   it('entra por QR con la cuota vencida: suena', async () => {

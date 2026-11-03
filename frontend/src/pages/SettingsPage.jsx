@@ -28,6 +28,7 @@ import TerminalSettings from '../components/TerminalSettings';
 import MolineteSettings from '../components/MolineteSettings';
 import CajitaMolineteSettings from '../components/CajitaMolineteSettings';
 import LlaverosSettings from '../components/llaveros/LlaverosSettings';
+import SonidoDelMostradorSettings from '../components/SonidoDelMostradorSettings';
 import CoverageGaps from '../components/CoverageGaps';
 import CashierSettings from '../components/CashierSettings';
 import ArancelesSettings from '../components/ArancelesSettings';
@@ -558,6 +559,8 @@ export default function SettingsPage({ SubscriptionActions }) {
         {/* El molinete solo se le puede hablar desde la computadora del local. */}
         {CONFIG.IS_DESKTOP && <MolineteSettings />}
         {CONFIG.IS_DESKTOP && <CajitaMolineteSettings />}
+        {/* Los avisos que se oyen en el mostrador (la X, el llavero): solo suenan en el escritorio. */}
+        {CONFIG.IS_DESKTOP && <SonidoDelMostradorSettings />}
 
         {/* Los llaveros (ADR-016): el lector anda en el escritorio y en la web, así que va en
             los dos. Pasar los que vinieron en el DNI es del dueño. */}
