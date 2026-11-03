@@ -96,6 +96,13 @@
 
 .link-button:hover { color: var(--primary-300); }
 
+/* Esperando (p. ej. «Reenviar el correo (en 42 s)»): que no parezca que se puede tocar. */
+.link-button:disabled,
+.link-button:disabled:hover {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 /* ─── Form Elements ─── */
 .form-group { margin-bottom: 1.25rem; }
 

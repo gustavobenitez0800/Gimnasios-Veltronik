@@ -105,6 +105,38 @@ Se guardó en Supabase el 01/11/2026, después de publicar la 2.6.52.
 🔴 El mismo orden que con el alta: si algún día se vuelve a una versión del portal anterior a la
 2.6.52, este link tiene que volver a `{{ .ConfirmationURL }}`.
 
+## 6. Los dos botones pasan por veltronik.com.ar (02/11/2026)
+
+**Por qué.** Los correos salían bien (Resend los entregaba en el mismo minuto), pero a la gente no
+le aparecían: Hotmail, Outlook, Yahoo y a veces Gmail los mandaban a Spam, Promociones o «Correo
+no deseado». Resend marca dos cosas de nuestros correos como «Needs attention», y la primera es
+esta: **«Ensure link URLs match sending domain»**. El correo dice venir de `veltronik.com.ar`
+y el botón llevaba a `veltronik-v2.vercel.app`, que es justo lo que hace un correo falso. (La
+segunda, «Don't use no-reply», queda para después: la foto de perfil de Gmail está atada a esa
+dirección.)
+
+Ahora los botones van a la landing, que los reenvía al portal con el mismo token
+(`landing/src/pages/confirmar.js` y `recuperar.js`, la lógica en `landing/src/lib/enlaceDelCorreo.js`):
+
+```
+Confirmar mi cuenta  →  https://veltronik.com.ar/confirmar?token_hash={{ .TokenHash }}
+                     ↪  <portal>/?alta=1&token_hash=…&type=email
+
+Cambiar contraseña   →  https://veltronik.com.ar/recuperar?token_hash={{ .TokenHash }}
+                     ↪  <portal>/?token_hash=…&type=recovery#/reset-password
+```
+
+Para el portal no cambió nada: recibe exactamente la misma dirección que antes.
+
+🔴 **EL ORDEN IMPORTA.** Primero se publica la landing con `/confirmar` y `/recuperar` (va sola
+con el push a `main`) y se prueba que redirijan. **Recién después** se pegan las plantillas en
+Supabase → Authentication → Emails («Confirm signup» y «Reset password»). Al revés, los botones
+llevarían a una página que no existe y nadie podría confirmar su cuenta.
+
+Para probar la landing sin gastar un token: `https://veltronik.com.ar/confirmar?token_hash=prueba1234`
+tiene que llevar al portal con `?alta=1&token_hash=prueba1234&type=email` (el portal va a decir
+«Ese enlace ya se usó o venció», que es lo correcto para un token inventado).
+
 ## Cómo probarlo
 
 Con el SMTP puesto, pedir "¿Olvidaste tu contraseña?" desde el login con un correo que **no**

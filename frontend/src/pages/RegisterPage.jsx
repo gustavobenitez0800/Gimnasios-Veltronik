@@ -12,6 +12,7 @@ import logoSrc from '../assets/marca-veltronik.svg';
 import CONFIG from '../lib/config';
 import { errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
+import ReenviarConfirmacion from '../components/auth/ReenviarConfirmacion';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -85,9 +86,12 @@ export default function RegisterPage() {
           <Icon name="mail" />
           <span>
             Te mandamos un correo a <strong>{correoEnviadoA}</strong>. Tocá el enlace que trae
-            y tu cuenta queda lista. Si no aparece, mirá en spam o en promociones.
+            y tu cuenta queda lista. Puede tardar unos minutos: si no aparece, buscalo en Spam o
+            Promociones (Gmail) o en Correo no deseado (Hotmail y Outlook), y marcalo como
+            «No es spam».
           </span>
         </div>
+        <ReenviarConfirmacion email={correoEnviadoA} />
         <p className="auth-links">
           ¿Ya lo confirmaste? <Link to={CONFIG.ROUTES.LOGIN}>Iniciá sesión</Link>
         </p>

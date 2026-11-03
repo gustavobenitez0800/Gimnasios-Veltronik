@@ -54,6 +54,23 @@ class AuthService {
   }
 
   /**
+   * Vuelve a mandar el correo de confirmación de una cuenta que todavía no lo tocó.
+   *
+   * <p>Existe porque el correo sale bien pero a veces cae en Spam, en Promociones o en
+   * «Correo no deseado» (Hotmail, Outlook y Yahoo desconfían de un remitente nuevo), y sin esto
+   * la persona quedaba trabada: la cuenta existe, no la puede abrir y no hay cómo pedir otro.
+   * Supabase deja pedirlo una vez por minuto por correo.</p>
+   */
+  async reenviarConfirmacion(email) {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${publicWebBase()}/?${MARCA_DE_ALTA}=1` },
+    });
+    if (error) throw error;
+  }
+
+  /**
    * Confirma el correo con el `token_hash` del link y abre la sesión.
    *
    * <p>A diferencia del `?code=`, no necesita el code-verifier (anda en cualquier navegador)

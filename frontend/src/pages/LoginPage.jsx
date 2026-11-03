@@ -16,6 +16,7 @@ import { authService, errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
 import { INITIAL_URL } from '../lib/supabase';
 import { leerVueltaDelCorreo, avisoDeLaVuelta } from '../lib/vueltaDelCorreo';
+import ReenviarConfirmacion from '../components/auth/ReenviarConfirmacion';
 
 // Google ya funciona en los dos envases (Fase 2).
 //
@@ -31,6 +32,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // El email de una cuenta que existe pero no confirmó el correo: con él se ofrece mandarlo de
+  // nuevo. Es justo quien no encontró el primero (cayó en Spam o en «Correo no deseado»).
+  const [sinConfirmar, setSinConfirmar] = useState(null);
   const { user, login, loginWithGoogle } = useAuth();
   const { showToast } = useToast();
   // ¿Llegó acá desde el link "Confirmá tu correo"? Si el canje hubiera andado ya estaría en el
@@ -53,6 +57,7 @@ export default function LoginPage() {
       await login(email.trim(), password.trim());
     } catch (error) {
       console.error('Login error:', error);
+      setSinConfirmar(esCorreoSinConfirmar(error) ? email.trim() : null);
       showToast(await getAuthErrorMessage(error), 'error');
     } finally {
       setSubmitting(false);
@@ -168,6 +173,9 @@ export default function LoginPage() {
         </button>
       </form>
 
+      {/* La cuenta existe pero el correo no se confirmó: se puede pedir otro acá mismo. */}
+      {sinConfirmar && <ReenviarConfirmacion email={sinConfirmar} esperaInicial={0} />}
+
       {/* Google: web con redirect, escritorio por navegador + veltronik:// */}
       {SHOW_GOOGLE && (<>
       {/* Divider */}
@@ -203,6 +211,11 @@ export default function LoginPage() {
   );
 }
 
+/** La cuenta existe y la contraseña está bien, pero nunca se tocó el link del correo. */
+function esCorreoSinConfirmar(error) {
+  return String(error?.message || error || '').includes('Email not confirmed');
+}
+
 async function getAuthErrorMessage(error) {
   const message = error.message || error.toString();
 
@@ -213,7 +226,9 @@ async function getAuthErrorMessage(error) {
 
   if (message.includes('Invalid login credentials')) return 'Email o contraseña incorrectos';
   if (message.includes('User already registered')) return 'Este email ya está registrado';
-  if (message.includes('Email not confirmed')) return 'Por favor confirma tu email antes de iniciar sesión';
+  if (esCorreoSinConfirmar(error)) {
+    return 'Tu correo todavía no está confirmado. Buscá el correo de Veltronik (también en Spam o Correo no deseado) o pedí otro abajo.';
+  }
   if (message.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres';
   if (message.includes('Unable to validate email')) return 'Email inválido';
 

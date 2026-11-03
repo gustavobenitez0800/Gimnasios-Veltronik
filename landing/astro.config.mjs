@@ -33,8 +33,9 @@ export default defineConfig({
 
   integrations: [
     sitemap({
-      // El endpoint de descarga es un redirect, no una página: no va al sitemap.
-      filter: (page) => !page.includes('/api/'),
+      // El endpoint de descarga es un redirect, no una página: no va al sitemap. Tampoco los
+      // enlaces de los correos de la cuenta (/confirmar y /recuperar): son de un solo uso.
+      filter: (page) => !page.includes('/api/') && !/\/(confirmar|recuperar)\/?$/.test(page),
       // El sitemap arma las URLs con barra final por su cuenta. Se la sacamos para que
       // sea idéntico a la canónica que escribe Base.astro (la raíz sí la conserva).
       serialize: (item) => ({
