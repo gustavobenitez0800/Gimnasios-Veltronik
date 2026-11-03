@@ -18,6 +18,7 @@ import { addOneMonth } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { ESTADOS_DEL_SOCIO, estadoDelSocio } from '../lib/situacionSocio';
 import { enlaceDeWhatsApp } from '../lib/whatsapp';
+import { cobrarCuota } from '../lib/cobrarCuota';
 import { PAGE_SIZE, LARGE_SIZE, SACAR_ARANCEL, STATUS_FILTER_OPTIONS, ESTADO_DE_ANTES } from '../lib/listaDeSocios';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete } from '../hooks';
 import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
@@ -295,42 +296,13 @@ export function usePantallaDeSocios() {
   };
 
   /**
-   * Cobrar sin salir de Socios.
-   *
-   * <p>⚠️ NO se mandan fechas. El vencimiento lo corre el backend al aplicar la cobertura del
-   * arancel; calcularlo también acá sería tener dos cuentas para lo mismo, que es el error
-   * que ya costó los días de vencimiento en cinco lugares.</p>
+   * Cobrar sin salir de Socios. El cobro en sí es el mismo que el de la puerta
+   * (`lib/cobrarCuota`): acá solo se refresca la lista después.
    */
-  const cobrarCuota = async ({ planId, monto, metodo }) => {
-    const r = await paymentService.createPayment({
-      member_id: cobrando.id,
-      // Solo para la cola: sin esto, la lista del cierre sin conexión muestra renglones sin
-      // nombre y quien cierra no puede reconocer lo que cobró. Lo saca .
-      memberName: cobrando.fullName || [cobrando.firstName, cobrando.lastName].filter(Boolean).join(' ').trim(),
-      plan_id: planId,
-      amount: monto,
-      paymentMethod: (metodo || 'cash').toUpperCase(),
-      status: 'PAID',
-    });
-
-    // ⚠️ SIN CONEXIÓN NO SE PROMETE UN VENCIMIENTO NUEVO. La cobertura la corre el SERVIDOR,
-    // y hasta que el cobro no suba no se movió nada: decir "ahora vence el 7 de octubre"
-    // —o incluso "el vencimiento se actualizó"— sería afirmar algo que todavía no pasó.
-    // Calcularlo acá para poder mostrarlo sería una segunda cuenta de la misma cobertura,
-    // que es el error que este proyecto ya cometió con las fechas.
-    if (r?.encolado) return { encolado: true };
-
-    refresh();
-    // Se devuelve el socio ya actualizado para poder mostrar el vencimiento REAL. Si no se
-    // puede releer, se devuelve vacío: el modal prefiere no decir nada antes que inventar
-    // una fecha.
-    try {
-      const dto = await memberService.getMemberById(cobrando.id);
-      // El DTO trae membershipEnd con hora; el modal solo muestra la fecha.
-      return dto ? { membershipEnd: dto.membershipEnd } : {};
-    } catch {
-      return {};
-    }
+  const cobrarLaCuota = async (cobro) => {
+    const r = await cobrarCuota(cobrando, cobro);
+    if (!r.encolado) refresh();
+    return r;
   };
 
   const handleSave = async (e) => {
@@ -486,7 +458,7 @@ export function usePantallaDeSocios() {
     isFetching, loadError, totalRecords, refresh,
     statusFilter, setStatusFilter, search, handleSearchInput, pagination, viewTotal, pagedMembers,
     aranceles, hayAranceles, molinete, tomarFoto,
-    cobrando, setCobrando, cobrarCuota, guardandoArancel, asignarArancel,
+    cobrando, setCobrando, cobrarCuota: cobrarLaCuota, guardandoArancel, asignarArancel,
     seleccion, setSeleccion, alternarSeleccion, todosVisiblesMarcados, alternarTodosVisibles,
     puedeAsignarMasivo, asignandoMasivo, confirmandoMasivo, setConfirmandoMasivo, aplicarArancelMasivo,
     CUANTAS_COLUMNAS,

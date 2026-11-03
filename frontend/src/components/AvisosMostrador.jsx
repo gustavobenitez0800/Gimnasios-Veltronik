@@ -51,11 +51,22 @@ const TEXTO_RECHAZO = {
  * <b>la puerta lo frenó</b>. Mezclarlos en un solo texto haría que la recepcionista no sepa si
  * el socio está adentro o se quedó en la vereda.</p>
  */
+/**
+ * Por dónde entró, dicho en el aviso (03/11/2026). Antes los avisos eran solo del QR; ahora
+ * también avisa el que pasó el llavero o el que reconoció el molinete facial, y quien atiende
+ * tiene que saber cuál fue. Un backend viejo no manda el método: el aviso dice la hora, como antes.
+ */
+const POR_DONDE = {
+  QR: 'con el QR',
+  LLAVERO: 'con el llavero',
+  FACIAL: 'por el molinete',
+};
+
 const VARIANTES = {
   entrada: {
     titulo: (n) => (n === 1 ? 'Un socio entró y necesita atención' : `${n} socios entraron y necesitan atención`),
     marcar: (id) => accessService.marcarAvisoVisto(id),
-    frase: (a) => ` ${(TEXTO[a.estado] || (() => 'necesita atención'))(a)} · entró ${horaDe(a.hora)}`,
+    frase: (a) => ` ${(TEXTO[a.estado] || (() => 'necesita atención'))(a)} · entró ${POR_DONDE[a.metodo] ? `${POR_DONDE[a.metodo]}, ` : ''}${horaDe(a.hora)}`,
   },
   rechazo: {
     titulo: (n) => (n === 1 ? 'La puerta frenó a un socio' : `La puerta frenó a ${n} socios`),
@@ -68,10 +79,13 @@ const VARIANTES = {
 /**
  * La lista de socios que necesitan atención en el mostrador.
  *
- * @param variante 'entrada' (entró por QR vencido) o 'rechazo' (la puerta lo frenó). El único
- *                 cambio real es el encabezado, el texto y a qué endpoint se le avisa "visto".
+ * @param variante 'entrada' (entró solo y no está al día) o 'rechazo' (la puerta lo frenó). El
+ *                 único cambio real es el encabezado, el texto y a qué endpoint se le avisa "visto".
+ * @param onCobrar ⭐ cobrarle ahí mismo (03/11/2026): sin esto, el «OK» era lo único que había y
+ *                 para cobrarle había que irse a Socios a buscarlo. Recibe el aviso y su variante.
+ * @param compacto la versión chica, la de la tarjeta que flota en las otras pantallas
  */
-export default function AvisosMostrador({ avisos = [], onAtendido, variante = 'entrada' }) {
+export default function AvisosMostrador({ avisos = [], onAtendido, onCobrar, variante = 'entrada', compacto = false }) {
   const v = VARIANTES[variante] || VARIANTES.entrada;
   const [ocultando, setOcultando] = useState(null);
   // Los que la recepcionista acaba de resolver: se sacan en el acto, sin esperar al
@@ -99,7 +113,7 @@ export default function AvisosMostrador({ avisos = [], onAtendido, variante = 'e
   if (visibles.length === 0) return null;
 
   return (
-    <div className="avisos-mostrador">
+    <div className={`avisos-mostrador${compacto ? ' is-compacto' : ''}`}>
       <h3 className="avisos-titulo">
         <Icon name="alertTriangle" size="1em" />
         {v.titulo(visibles.length)}
@@ -112,13 +126,25 @@ export default function AvisosMostrador({ avisos = [], onAtendido, variante = 'e
               <strong>{a.nombre}</strong>
               <span>{v.frase(a)}</span>
             </div>
-            <button
-              className="btn btn-secondary aviso-btn"
-              onClick={() => atender(a)}
-              disabled={ocultando === a.accesoId}
-            >
-              OK
-            </button>
+            <div className="aviso-acciones">
+              {/* Al que ya está al día (pagó entre que lo frenaron y ahora) no hay nada que cobrarle. */}
+              {onCobrar && a.estado !== 'AL_DIA' && (
+                <button
+                  className="btn btn-primary aviso-btn"
+                  onClick={() => onCobrar(a, variante)}
+                  disabled={ocultando === a.accesoId}
+                >
+                  Cobrar
+                </button>
+              )}
+              <button
+                className="btn btn-secondary aviso-btn"
+                onClick={() => atender(a)}
+                disabled={ocultando === a.accesoId}
+              >
+                OK
+              </button>
+            </div>
           </li>
         ))}
       </ul>

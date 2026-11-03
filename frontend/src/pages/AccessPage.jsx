@@ -17,46 +17,57 @@
 // un cartelón centrado, tres segundos por persona. Mientras estaba puesto, el que seguía en
 // la fila no podía tipear: el molinete se trababa solo, justo cuando había cola. Ahora el
 // aviso entra por el costado izquierdo, dice lo mismo, y no bloquea nada.
+//
+// ⭐ LA PUERTA NO VIVE ACÁ (03/11/2026). El lector de llaveros, la cajita del molinete, lo que
+// llega solo (el QR, los frenados) y los sonidos los atiende el PORTERO (contexts/PorteroContext),
+// en cualquier pantalla. Esta es la VISTA del mostrador: el buscador, el cartel y quién necesita
+// atención, con lo que el portero sabe.
 // ============================================
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { memberService, accessService, errorService } from '../services';
+import { usePortero } from '../contexts/PorteroContext';
+import { memberService } from '../services';
 import { getInitials, debounce, horaDe } from '../lib/utils';
 import EstadoCopiaLocal from '../components/EstadoCopiaLocal';
 import AvisosMostrador from '../components/AvisosMostrador';
 import CheckinQrPanel from '../components/CheckinQrPanel';
 import QrParaEscanear from '../components/QrParaEscanear';
-import { prepararSocios, refrescarSocios, REFRESCO_MS } from '../lib/localMembers';
-import { resumenDeCola, sociosConCobroPendiente } from '../lib/colaAccesos';
-import { recordarGraceDays, compararConElServidor, puedePasarElMolinete } from '../lib/situacionSocio';
-import { EVENTO_COLA_CAMBIO } from '../components/VaciadorDeCola';
-import { useQueryCache, useRefrescoAutomatico, useEstaEnLinea, useNovedadesDeLaPuerta } from '../hooks';
 import { PageHeader } from '../components/Layout';
 import Modal from '../components/ui/Modal';
 import Icon from '../components/Icon';
-import {
-  sonarVencido, sonarVencidoDirecto, sonarEntrada, sonarLlaveroDesconocido, prepararSonido,
-} from '../lib/alertaSonora';
 import { useCajitaMolinete } from '../hooks/useCajitaMolinete';
-import { abrirSiPasa, ordenarALaCajita } from '../lib/cajitaMolinete';
-import { useLectorDeLlaveros } from '../hooks/useLectorDeLlaveros';
-import { METODO_LLAVERO } from '../lib/llaveros';
-import LlaveroSinAsignar from '../components/llaveros/LlaveroSinAsignar';
+import { ordenarALaCajita } from '../lib/cajitaMolinete';
+import { cuantoLeQueda } from '../lib/cuantoLeQueda';
+import { normalizarLlavero, esLlaveroValido } from '../lib/llaveros';
 
-/** Cuánto dura el desvanecimiento del cartel al irse. El mismo número que en access.css. */
-const SALIDA_DEL_AVISO_MS = 200;
-
-/** Las situaciones del socio que hacen sonar la X cuando el molinete lo frena. */
-const SITUACIONES_QUE_SUENAN = new Set(['VENCIDO', 'EN_GRACIA', 'INACTIVO']);
+/**
+ * ¿Lo que se tecleó puede ser el número de un llavero? Algo de seis caracteres o más, con algún
+ * número y sin espacios en el medio: un DNI, un código de lector. Un nombre nunca.
+ */
+function pareceUnLlavero(texto) {
+  const crudo = String(texto ?? '').trim();
+  if (/\s/.test(crudo)) return false;
+  const codigo = normalizarLlavero(crudo);
+  return esLlaveroValido(codigo) && codigo.length >= 6 && /\d/.test(codigo);
+}
 
 export default function AccessPage() {
   const { showToast } = useToast();
   const { orgRole } = useAuth();
+  const portero = usePortero();
+  const {
+    avisos, rechazos, cola, tieneCobroSinSubir, recargar: loadData, visitaAbierta, avisosDeEntrada,
+    enfocarElBuscador,
+  } = portero;
+  const pendientesCola = cola.cuantos;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  // Se tecleó algo que no encontró a nadie y puede ser un llavero: se ofrece asignarlo.
+  const [noEncontrado, setNoEncontrado] = useState(null);
 
   // El campo del DNI. Es el centro de la pantalla y el foco vuelve siempre acá.
   const buscadorRef = useRef(null);
@@ -69,197 +80,8 @@ export default function AccessPage() {
   const [versionQr, setVersionQr] = useState(0);
   const puedeAdministrarQr = ['owner', 'admin'].includes(orgRole);
 
-  // La cajita del molinete, si esta PC tiene una enchufada (lib/cajitaMolinete). Abre con el
-  // MISMO veredicto que pinta el cartel y hace sonar la X: no hay una segunda cuenta de fechas.
-  const cajita = useCajitaMolinete({ conectarAlMontar: true });
-
-  // El audio listo desde que se abre la pantalla: que el primer aviso del día no llegue tarde.
-  useEffect(() => { prepararSonido(); }, []);
-
-  // ─── Los avisos de entrada, apilados al costado ───
-  //
-  // Una PILA y no uno solo: en la puerta la gente entra una atrás de la otra, y con un
-  // aviso único el segundo socio borraba el del primero antes de que nadie llegara a
-  // leerlo. Se muestran los últimos tres, el más nuevo arriba, y cada uno se va por su
-  // cuenta. Si entran diez seguidos, se ven los tres últimos y el resto pasa de largo —
-  // que es exactamente lo que hace alguien mirando una fila.
-  const [avisosDeEntrada, setAvisosDeEntrada] = useState([]);
-  const proximoAvisoId = useRef(0);
-
-  const mostrarAviso = useCallback((aviso, duracionMs = 4000) => {
-    const id = proximoAvisoId.current++;
-    setAvisosDeEntrada((previos) => [{ ...aviso, id, saliendo: false }, ...previos].slice(0, 3));
-    // Se va desvaneciéndose, no de golpe: primero se marca y un momento después se saca.
-    setTimeout(() => {
-      setAvisosDeEntrada((previos) => previos.map((a) => (a.id === id ? { ...a, saliendo: true } : a)));
-    }, duracionMs - SALIDA_DEL_AVISO_MS);
-    setTimeout(() => {
-      setAvisosDeEntrada((previos) => previos.filter((a) => a.id !== id));
-    }, duracionMs);
-  }, []);
-
-  // ─── Un pedido, y la vuelta a la pantalla es instantánea ───
-  //
-  // Antes esta pantalla pedía TRES cosas por separado (adentro, hoy, avisos) y las volvía a
-  // pedir de cero en cada visita al módulo — spinner en blanco cada vez que la recepcionista
-  // iba a Socios y volvía. Eso es exactamente lo que los dueños describen como "va lento".
-  //
-  // Ahora es un solo viaje, y con caché: al volver, la pantalla se pinta AL INSTANTE con lo
-  // último que se sabía y se refresca por detrás. El dato puede tener unos segundos, y para
-  // "quién está adentro" eso no cambia nada; lo que cambia es que ya no hay pantalla en
-  // blanco entre un clic y el siguiente.
-  //
-  // 10 segundos de frescura, contra un refresco cada 15: cada ciclo lo encuentra vencido y
-  // vuelve a pedir, pero ir y volver entre módulos no dispara nada.
-  const { data, invalidate, isFetching } = useQueryCache(
-    'mostrador',
-    () => accessService.getMostrador(),
-    { staleTime: 10000 },
-  );
-
-  const checkedIn = useMemo(() => data?.adentro || [], [data]);
-  const avisos = useMemo(() => data?.avisos || [], [data]);
-  const rechazos = useMemo(() => data?.rechazos || [], [data]);
-  const ingresosQr = useMemo(() => data?.ingresos || [], [data]);
-
-  const loadData = invalidate;
-
-  // ─── Los días de gracia, guardados para cuando NO haya servidor ───
-  //
-  // Es el único dato de la regla que el terminal no puede deducir de la ficha del socio. Se
-  // guarda cada vez que el servidor lo dice, así el conteo local usa el número de verdad y no
-  // uno escrito a mano de este lado — que es justo la clase de valor que alguien cambia en un
-  // lugar y olvida en el otro.
-  useEffect(() => {
-    if (typeof data?.graceDays === 'number') recordarGraceDays(data.graceDays);
-  }, [data]);
-
-  // ─── La red de seguridad contra la deriva ───
-  //
-  // Con internet llegan las DOS respuestas: la del servidor y la que calculamos acá. Tienen
-  // que coincidir. Si algún día no coinciden es que una de las dos copias de la regla cambió
-  // sin la otra, y sin este chequeo eso vive meses escondido: son dos números que nunca se
-  // muestran juntos. No corrige nada — solo hace ruido en la consola.
-  useEffect(() => {
-    (data?.adentro || []).forEach((a) => a?.member && compararConElServidor(a.member));
-  }, [data]);
-
-  // ── El mostrador se entera solo de lo que pasa en la puerta ──
-  //
-  // Antes esta pantalla cargaba UNA vez, al abrirla, y nunca más. Con el mostrador manual
-  // no se notaba: la recepcionista marcaba y la lista se refrescaba después de su propio
-  // clic. Con el QR el que marca es el socio desde su celular, así que acá no llegaba nada.
-  //
-  // El latido vive en `useRefrescoAutomatico` y no acá: lo comparte con "En el gimnasio", y
-  // la forma de escribirlo mal —depender de la identidad de `invalidate`— es el bug que
-  // hacía que el cartel del QR tardara. Está explicado en el hook, en un solo lugar.
-  // ⚠️ Y SIN RED NO SE LATE. Apagar el wifi con la app abierta dejaba "En el gimnasio" en
-  // "Cargando…" hasta que volvía la conexión, y no por un cartel mal puesto: el latido seguía
-  // disparando un pedido cada quince segundos, cada uno con su plazo de espera y sus
-  // reintentos con espera creciente. Pedidos condenados a fallar, apilados, que además tapan
-  // el problema — cuanto más se insiste, más tarda en aparecer la respuesta honesta.
-  //
-  // Pasarlo como "en vuelo" es lo que frena el latido sin tocar el hook: mientras no hay red
-  // no hay nada que preguntar. Al volver, el `online` actualiza esto y el latido sigue solo.
-  const enLinea = useEstaEnLinea();
-  useRefrescoAutomatico(loadData, isFetching || !enLinea);
-
-  // ⭐ Y ADEMÁS, AL INSTANTE. El latido de arriba sigue de red de seguridad, pero sin foco
-  // pregunta cada 15 segundos y con la ventana tapada no pregunta: el QR llegaba tarde. Esto
-  // pregunta una marca liviana cada 2 segundos, siempre, y pide el mostrador solo si cambió.
-  useNovedadesDeLaPuerta(loadData, enLinea);
-
-  // ⭐ Y AL VOLVER LA RED SE REFRESCA EN EL ACTO, sin esperar el próximo latido.
-  //
-  // Reportado por el dueño: marcó una salida sin conexión, prendió el wifi, y el socio siguió
-  // figurando adentro hasta que se fue a otro módulo y volvió. Mientras estuvo sin red esta
-  // lista quedó congelada en el último dato bueno, y ese dato ya es falso en el momento en que
-  // la cola sube lo que estaba esperando.
-  //
-  // El vaciado avisa por su evento cuando sube algo, y eso ya refresca. Esto es la otra mitad,
-  // y cubre lo que aquel no puede: que la red haya vuelto sin que hubiera nada encolado, o que
-  // el servidor haya cambiado por otro lado mientras este terminal estaba a ciegas. Volver a
-  // tener red es, por definición, el momento en que lo que se está mostrando dejó de ser lo
-  // mejor que se sabe.
-  const habiaRed = useRef(enLinea);
-  useEffect(() => {
-    if (enLinea && !habiaRed.current) loadData();
-    habiaRed.current = enLinea;
-  }, [enLinea, loadData]);
-
-  // La copia local de socios: se prepara al abrir la pantalla —no en la primera búsqueda—
-  // así el buscador ya está instantáneo cuando llega el primer socio del día. Después se
-  // refresca sola cada tanto, en el fondo y sin que nadie la espere.
-  useEffect(() => {
-    const tenantId = localStorage.getItem('current_org_id');
-    if (!tenantId) return undefined;
-    prepararSocios(tenantId);
-    const t = setInterval(() => { refrescarSocios(tenantId).catch(() => {}); }, REFRESCO_MS);
-    return () => clearInterval(t);
-  }, []);
-
-  // ─── LA COLA: lo que se registró sin internet y todavía no subió ───
-  //
-  // Cuántos esperan. Es lo único de la cola que la pantalla muestra, y tiene que estar: una
-  // cola invisible es una cola que nadie vacía, y lo que hay adentro son visitas que el
-  // gimnasio todavía no tiene en ningún otro lado.
-  //
-  // ⚠️ Y DESDE CUÁNDO ESPERAN, que importa tanto como cuántos son. "3 pendientes" pueden ser
-  // de hace dos minutos —el vaciado está por correr— o de hace tres semanas, y eso segundo
-  // significa que el gimnasio viene guardando visitas en UN SOLO DISCO desde hace tres
-  // semanas. El diseño permite acumular 30 días; sin la antigüedad, esos 30 días pasan en
-  // silencio hasta el día que la máquina no arranca.
-  const [cola, setCola] = useState({ cuantos: 0, dias: 0 });
-  const pendientesCola = cola.cuantos;
-
-  // ⭐ QUIÉNES PAGARON SIN QUE EL SERVIDOR SE HAYA ENTERADO.
-  //
-  // Cobrar corre el vencimiento, pero eso lo hace el SERVIDOR: sin internet el cobro queda en
-  // la cola y la copia local sigue diciendo lo que decía antes. Sin esto, el socio paga en
-  // efectivo, camina hasta la puerta, y la pantalla lo trata de vencido delante de todos.
-  //
-  // ⚠️ Y NO SE ARREGLA CORRIÉNDOLE LA FECHA EN EL ESPEJO. Eso sería una segunda cuenta de la
-  // misma cobertura, que es el error que este proyecto ya cometió con las fechas y que costó
-  // tres bugs. Acá no se recalcula nada: el veredicto sigue siendo el del servidor —viejo,
-  // pero de una sola fuente— y al lado se aclara por qué está viejo.
-  const [conCobroSinSubir, setConCobroSinSubir] = useState([]);
-  const tieneCobroSinSubir = useCallback(
-    (id) => !!id && conCobroSinSubir.includes(String(id)),
-    [conCobroSinSubir],
-  );
-
-  const contarPendientes = useCallback(async () => {
-    const socios = await sociosConCobroPendiente();
-    // Se compara por valor: un array nuevo en cada refresco redibuja siempre, y con un
-    // temporizador atrás la pantalla del mostrador no para nunca. Ya pasó una vez.
-    setConCobroSinSubir((previo) => (
-      previo.length === socios.length && previo.every((v, i) => v === socios[i]) ? previo : socios
-    ));
-
-    const nuevo = await resumenDeCola();
-    // ⚠️ SE COMPARA POR VALOR, y no es prolijidad. Antes esto era un número, y React descarta
-    // solo un `setState` con el mismo número. Un objeto nuevo en cada refresco nunca es igual
-    // al anterior, así que redibujaba siempre — con un temporizador atrás, la pantalla del
-    // mostrador no paraba nunca. Lo atrapó la suite entera de Acceso, en timeout.
-    setCola((previo) => (
-      previo.cuantos === nuevo.cuantos && previo.dias === nuevo.dias
-        && Boolean(previo.trabada) === Boolean(nuevo.trabada) ? previo : nuevo
-    ));
-  }, []);
-
-  // El VACIADO no vive acá: vive en `<VaciadorDeCola />`, montado a nivel de la app, porque
-  // las visitas tienen que subir esté abierta la pantalla que esté. Esta pantalla solo
-  // MUESTRA cuántas esperan, y se entera de los cambios por su evento.
-  useEffect(() => {
-    contarPendientes();
-    const alCambiarLaCola = () => {
-      contarPendientes();
-      // Si algo subió, "En el Gimnasio" quedó viejo: recién ahora el servidor sabe quién entró.
-      loadData();
-    };
-    window.addEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
-    return () => window.removeEventListener(EVENTO_COLA_CAMBIO, alCambiarLaCola);
-  }, [contarPendientes, loadData]);
+  // La cajita del molinete, solo para el botón «Abrir molinete». La busca y la maneja el portero.
+  const cajita = useCajitaMolinete();
 
   // ─── EL TECLADO NO SE APAGA NUNCA ───
   //
@@ -317,6 +139,10 @@ export default function AccessPage() {
     };
   }, [enfocarBuscador]);
 
+  // Cuando se cierra un diálogo de la puerta (el llavero sin asignar, el cobro), el portero
+  // devuelve el foco acá: la fila del mostrador sigue sin tocar el mouse.
+  useEffect(() => enfocarElBuscador(() => buscadorRef.current?.focus()), [enfocarElBuscador]);
+
   /**
    * La búsqueda SIN el retraso, para el camino del Enter.
    *
@@ -358,6 +184,7 @@ export default function AccessPage() {
   const handleSearch = (val) => {
     consultaVigente.current = val;
     setSearchQuery(val);
+    setNoEncontrado(null);
     doSearch.current?.(val);
   };
 
@@ -366,272 +193,51 @@ export default function AccessPage() {
     consultaVigente.current = '';
     setSearchQuery('');
     setSearchResults([]);
+    setNoEncontrado(null);
   };
 
-  // ─── La situación del socio la dice el BACKEND ───
-  //
-  // Acá también se calculaba a mano, con su propio redondeo. Sumado al de la lista de socios
-  // y al del check-in, el mismo socio podía deber una cantidad de días distinta en cada
-  // pantalla — y eso efectivamente pasó: "hace 2 días" en el aviso, "4d vencido" en la lista.
-  // Además del `label` corto —el que va en la lista de resultados, donde hay poco lugar—
-  // devuelve el dato PARTIDO en dos: `valor` es el número solo, para poder mostrarlo
-  // enorme en el cartel de la puerta, y `unidad` es la aclaración chiquita de abajo.
-  // Partirlo acá y no en el cartel es lo que evita que alguien lo recomponga con una
-  // expresión regular sobre el texto ya armado.
-  // ⭐ ACÁ NO SE RECALCULA NADA, Y ES A PROPÓSITO.
-  //
-  // La puesta al día del conteo vive en el ESPEJO (`lib/localMembers.js`), que es el único
-  // dato que se pone viejo. Lo que llega del servidor —los avisos del QR, los que están
-  // adentro— ya es fresco por definición: existe porque el servidor lo acaba de procesar. Y
-  // además esos avisos NO traen el vencimiento, así que recalcularlos los convertiría en
-  // "sin fecha cargada" — un socio al día pasaría a mostrar un guion.
-  const getDaysInfo = useCallback((member) => {
-    const { situacion, diasVencido, diasRestantes } = member || {};
-    if (!situacion || situacion === 'SIN_DATOS') {
-      // Sin número: un "—" gigante en el cartel no le dice nada a nadie. Se dice con palabras.
-      return { label: 'Sin fecha', type: 'unknown', valor: null, unidad: 'Sin fecha cargada' };
-    }
-    if (situacion === 'INACTIVO') {
-      return { label: 'Dado de baja', type: 'expired', valor: null, unidad: 'Dado de baja' };
-    }
+  // Marcar el paso de un socio. Lo hace el portero —el mismo cartel, la misma X y la misma
+  // cajita que con el llavero o el QR—; acá queda el campo vacío y con el foco, para el que sigue.
+  const handleCheckIn = async (member) => {
+    const r = await portero.registrarAcceso(member);
+    if (!r.ok) return;
+    limpiarBuscador();
+    buscadorRef.current?.focus();
+  };
 
-    if (situacion === 'VENCIDO' || situacion === 'EN_GRACIA') {
-      return {
-        label: `${diasVencido}d vencido`, type: 'expired',
-        valor: String(diasVencido ?? 0),
-        unidad: diasVencido === 1 ? 'día vencido' : 'días vencido',
-      };
-    }
-
-    // ⭐ DÍAS, Y NADA MÁS. El cupo de clases se dio de baja (2026-09-02): se paga el mes y
-    // se entra, se vence y hay que renovar. El arancel dice QUÉ pagó el socio, no cuántas
-    // visitas le quedan — así que en la puerta hay un solo número y no dos compitiendo.
-    const d = diasRestantes ?? 0;
-    const label = `${d}d restantes`;
-    const detalle = { valor: String(d), unidad: d === 1 ? 'día restante' : 'días restantes' };
-
-    if (d <= 3) return { label, type: 'danger', ...detalle };
-    if (d <= 7) return { label, type: 'warning', ...detalle };
-    return { label, type: 'ok', ...detalle };
-  }, []);
-
-  // ─── ENTRAR POR QR LEVANTA EL MISMO CARTEL QUE ENTRAR A MANO ───
-  //
-  // Cuando el socio escanea, la confirmación aparece en SU teléfono y ahí moría: en la
-  // pantalla del gimnasio no pasaba nada. El socio no tenía dónde ver cuántos días le
-  // quedan sin preguntarle a alguien, y la recepcionista solo se enteraba si el socio tenía
-  // un PROBLEMA (para eso están los avisos de arriba). El que estaba al día, invisible.
-  //
-  // Los ya anunciados se recuerdan para no repetir el cartel en cada refresco. ⚠️ Y en la
-  // PRIMERA carga se marcan todos sin mostrarlos: abrir la pantalla no tiene por qué
-  // disparar los ingresos de los últimos cinco minutos como si acabaran de pasar.
-  const anunciados = useRef(null);
-  useEffect(() => {
-    // Todavía no llegó el primer pedido: no hay nada que sembrar ni que anunciar.
-    if (!data) return;
-
-    // ⚠️ LA SIEMBRA VA CON EL PRIMER PEDIDO, NO CON EL PRIMER INGRESO.
-    //
-    // Acá decía `if (!ingresosQr.length && anunciados.current === null) return;`, que parece
-    // razonable y SE COMÍA AL PRIMER SOCIO QUE ESCANEABA. Lo normal es abrir la pantalla sin
-    // ingresos de los últimos cinco minutos: con la lista vacía no se sembraba nada, y
-    // cuando llegaba el primero se lo tomaba por "el estado inicial" y se lo guardaba sin
-    // mostrarlo. Recién aparecía el segundo.
-    //
-    // Sembrando con el primer pedido —venga vacío o no— la marca de "esto ya estaba" queda
-    // puesta desde el arranque, y todo lo que llega después es nuevo de verdad.
-    if (anunciados.current === null) {
-      anunciados.current = new Set(ingresosQr.map((i) => i.accesoId));
+  /**
+   * ⭐ NADIE CON ESE DNI. ¿Y SI ERA UN LLAVERO? (03/11/2026)
+   *
+   * <p>El lector que escribe más despacio que una ráfaga —o el llavero que alguien teclea a mano—
+   * llega como si lo hubiera escrito una persona, y se buscaba como un DNI: «No encontré a nadie».
+   * Ahora, si lo tecleado puede ser un llavero, se busca también como llavero: si es de alguien,
+   * entra con el llavero; si no es de nadie, se ofrece asignárselo a un socio ahí mismo.</p>
+   *
+   * <p>No se abre solo el aviso del llavero: un DNI mal tecleado también "puede ser un llavero", y
+   * ofrecerle asignarlo a alguien que se equivocó un número sería confundirlo. Lo decide un clic.</p>
+   */
+  const noEncontreANadie = async (q) => {
+    if (!pareceUnLlavero(q)) {
+      showToast(`No encontré a nadie con "${q}"`, 'error');
       return;
     }
-
-    const nuevos = ingresosQr.filter((i) => !anunciados.current.has(i.accesoId));
-    if (!nuevos.length) return;
-    nuevos.forEach((i) => anunciados.current.add(i.accesoId));
-
-    // El más reciente es el que está parado frente a la pantalla.
-    const ultimo = nuevos.reduce((a, b) => (a.hora > b.hora ? a : b));
-    const info = getDaysInfo(ultimo);
-    mostrarAviso({
-      name: ultimo.nombre,
-      type: info.type === 'expired' ? 'error' : info.type === 'danger' ? 'warning' : 'success',
-      accion: 'Entrada por QR',
-      valor: info.valor,
-      unidad: info.unidad,
-      daysLabel: info.label,
-      initials: getInitials(ultimo.nombre),
-      // Más tiempo que el manual: al que registra la recepcionista ya le habló una persona;
-      // el que escaneó solo tiene esta pantalla para enterarse de cuánto le queda.
-    }, 6000);
-    // Entró por QR con la cuota vencida: la X suena igual que si lo hubieran marcado a mano.
-    // Con quién es: la misma entrada no puede sonar dos veces, venga por el camino que venga.
-    if (info.type === 'expired') sonarVencido(ultimo.socioId || ultimo.accesoId);
-    // Escaneó el QR en la puerta: que el molinete lo deje pasar, como si lo hubieran marcado.
-    abrirSiPasa({ pasa: puedePasarElMolinete(ultimo) });
-  }, [data, ingresosQr, getDaysInfo, mostrarAviso]);
-
-  // ─── El molinete frenó a un vencido: que suene también ───
-  //
-  // Es la misma situación con otra puerta: alguien con la cuota vencida quiso entrar. Se usa la
-  // misma siembra que los ingresos por QR: lo que ya estaba al abrir la pantalla no suena.
-  const rechazosVistos = useRef(null);
-  useEffect(() => {
-    if (!data) return;
-    if (rechazosVistos.current === null) {
-      rechazosVistos.current = new Set(rechazos.map((r) => r.accesoId));
-      return;
-    }
-    const nuevos = rechazos.filter((r) => !rechazosVistos.current.has(r.accesoId));
-    nuevos.forEach((r) => rechazosVistos.current.add(r.accesoId));
-    const frenado = nuevos.find((r) => SITUACIONES_QUE_SUENAN.has(r.estado));
-    if (frenado) sonarVencido(frenado.socioId || frenado.accesoId);
-  }, [data, rechazos]);
-
-  // ─── ¿Este socio está adentro AHORA? ───
-  //
-  // Se cruza contra la lista de "quién está adentro", que esta pantalla ya trae y ahora se
-  // refresca sola. Sirve para dos cosas, y la segunda es la que importa:
-  //   · mostrarlo en el resultado de la búsqueda ("adentro desde 09:14"), y
-  //   · que el botón diga lo que REALMENTE va a pasar.
-  //
-  // Porque el botón decía siempre "Registrar entrada", pero el servidor decide solo mirando
-  // el estado: si el socio ya estaba adentro, ese clic graba una SALIDA. La recepcionista
-  // apretaba "entrada", se grababa "salida", y el cartel solo decía "Fulano registrado".
-  const visitaAbierta = useCallback(
-    (memberId) => checkedIn.find((l) => (l.member?.id || l.memberId) === memberId) || null,
-    [checkedIn],
-  );
-
-  // (La salida desde la lista de "quién está adentro" se fue con la lista: ahora se marca
-  // buscando al socio, que dice "Adentro desde" y ofrece "Registrar salida", o desde la
-  // pantalla "En el gimnasio".)
-
-  // ¿El molinete lo deja pasar? La MISMA regla que el molinete facial (puedePasarElMolinete): al
-  // día, en gracia o sin fecha cargada. Y el que acaba de pagar aunque el cobro todavía no haya
-  // subido: el servidor todavía no lo sabe, pero la plata ya está en el cajón.
-  const dejaPasar = (member) => puedePasarElMolinete(member) || tieneCobroSinSubir(member.id);
-
-  // Marcar el paso de un socio. La DIRECCIÓN la decide el backend; acá solo se muestra. Con el
-  // llavero es lo mismo: cambia el método que queda anotado (y su freno de rebote), nada más.
-  const handleCheckIn = async (member, metodo = 'manual') => {
+    let delLlavero = { socios: [], ultimaBaja: null };
     try {
-      const r = await accessService.checkIn(member.id, metodo, member.fullName);
+      delLlavero = await memberService.buscarPorLlavero(q);
+    } catch { /* sin respuesta: se ofrece igual, que es lo único que se puede hacer */ }
 
-      // ⚠️ SIN CONEXIÓN EL CARTEL NO DICE "ENTRADA REGISTRADA", Y NO ES UN DETALLE.
-      //
-      // La dirección —entrada o salida— la decide el SERVIDOR mirando el estado del socio.
-      // Acá todavía no se sabe cuál de las dos es, así que anunciar "Entrada registrada"
-      // sería inventar la mitad del dato. Se dice lo único que es cierto: quedó guardado.
-      if (r?.encolado) {
-        // ⭐ Y LOS DÍAS VAN IGUAL. Este cartel salía sin el número, que era exactamente al
-        // revés de lo que hace falta: sin internet el servidor no puede avisar nada, así que
-        // el único que puede decirle a quien atiende "este socio está vencido" es el conteo
-        // local. Justo el caso para el que se construyó, y el único donde no se usaba.
-        //
-        // El número sale de la copia local, que se recalcula contra el reloj — no es el
-        // veredicto congelado del último refresco.
-        const info = getDaysInfo(member);
-        mostrarAviso({
-          name: member.fullName,
-          // ⚠️ EL COLOR ES EL DE SIEMPRE, el mismo que con internet. Lo pidió el dueño y
-          // tiene razón: EL NÚMERO LO MIRA EL SOCIO, no la recepcionista. Si a alguien al día
-          // se le pinta el cartel de amarillo porque el terminal no tiene wifi, lee que hay
-          // un problema CON ÉL —y pregunta, o se va preocupado— cuando el problema es del
-          // internet del gimnasio y no le incumbe.
-          //
-          // Que quedó guardado sin conexión es un dato de la CASA, no del socio: se dice en
-          // el renglón de abajo, en amarillo, donde lo lee quien atiende.
-          type: info.type === 'expired' ? 'error'
-            : info.type === 'danger' ? 'warning' : 'success',
-          sinConexion: true,
-          accion: 'Guardado sin conexión',
-          valor: info.valor,
-          unidad: info.unidad,
-          daysLabel: info.label,
-          detalle: 'Se manda solo cuando vuelva internet',
-          initials: getInitials(member.fullName),
-        });
-        // Sin internet también suena: justo ahí el servidor no puede avisar nada. Salvo que
-        // acabe de pagar: el cobro está en la cola y el número todavía no lo sabe. Lo hizo una
-        // persona en el mostrador, así que suena siempre (`directo`).
-        if (info.type === 'expired' && !tieneCobroSinSubir(member.id)) sonarVencidoDirecto(member.id);
-        else if (metodo === METODO_LLAVERO) sonarEntrada();
-        // Sin internet la cajita abre igual: decide la copia local, que es la que pinta el cartel.
-        abrirSiPasa({ pasa: dejaPasar(member) });
-        limpiarBuscador();
-        contarPendientes();
-        buscadorRef.current?.focus();
-        return;
-      }
-
-      const daysInfo = getDaysInfo(member);
-      const salio = r?.direccion === 'SALIDA';
-      const rebote = r?.direccion === 'REBOTE';
-
-      mostrarAviso({
-        name: member.fullName,
-        // La salida no se colorea por el estado de la cuota: al que se está yendo ya no se
-        // le reclama nada, y pintarle la pantalla de rojo en la puerta no sirve para nada.
-        type: salio || rebote ? 'success'
-          : daysInfo.type === 'expired' ? 'error'
-          : daysInfo.type === 'danger' ? 'warning' : 'success',
-        accion: rebote ? 'Ya estaba registrado' : salio ? 'Salida registrada' : 'Entrada registrada',
-        // Al que se va no se le muestra el vencimiento: ya entrenó, y el número grande sería
-        // un reclamo a destiempo. El cartel de salida es una confirmación, nada más.
-        valor: salio || rebote ? null : daysInfo.valor,
-        unidad: salio || rebote ? '' : daysInfo.unidad,
-        daysLabel: salio || rebote ? '' : daysInfo.label,
-        // La dirección REAL, en el mismo aviso. Antes esto vivía en un toast aparte que
-        // salía AL MISMO TIEMPO que el cartelón: dos mensajes distintos, del mismo hecho,
-        // en dos lugares de la pantalla. El que avisa que alguien se fue sin marcar salida
-        // es el único que aporta algo que el resto del aviso no dice.
-        // ⭐ Y si pagó y el cobro todavía no subió, eso gana: es lo que explica por qué el
-        // número grande dice lo que dice. Sin esto, alguien que acaba de pagar en efectivo ve
-        // "8 días vencido" en la puerta y el cartel no da ninguna pista de por qué.
-        detalle: tieneCobroSinSubir(member.id)
-          ? 'Pagó recién · se actualiza al volver internet'
-          : (r?.recuperado && !salio && !rebote ? 'La vez anterior se fue sin marcar salida' : ''),
-        initials: getInitials(member.fullName),
-      });
-      // La X, solo al que ENTRA vencido. Al que sale no se le reclama nada, y al que acaba de
-      // pagar (el cobro todavía no subió) sonarle sería una falsa alarma. Lo hizo una persona en
-      // el mostrador (Enter o llavero): suena siempre, aunque sea el mismo socio de hace un rato.
-      // Con el llavero y todo bien, el «din-din»: la confirmación que el socio espera del lector.
-      if (!salio && !rebote && daysInfo.type === 'expired' && !tieneCobroSinSubir(member.id)) {
-        sonarVencidoDirecto(member.id);
-      } else if (metodo === METODO_LLAVERO && !rebote) {
-        sonarEntrada();
-      }
-      // Un rebote (ya estaba marcado) no abre de nuevo, o pasarían dos con el mismo DNI. La salida
-      // abre solo si en esta PC el molinete también es de salida (Ajustes → Cajita del molinete).
-      if (salio) abrirSiPasa({ salida: true });
-      else if (!rebote) abrirSiPasa({ pasa: dejaPasar(member) });
-
-      limpiarBuscador();
-      loadData();
-
-      // El campo queda vacío Y con el foco: la fila del mostrador no tiene por qué agarrar
-      // el mouse entre un socio y el siguiente.
+    if (delLlavero.socios.length === 1) {
+      const r = await portero.entrarConLlavero(delLlavero.socios[0]);
+      if (r?.ok) limpiarBuscador();
       buscadorRef.current?.focus();
-    } catch (error) {
-      // ⚠️ SIN CONEXIÓN, LA ENTRADA NO QUEDA REGISTRADA — Y HAY QUE DECIRLO ASÍ.
-      //
-      // Buscar al socio sí funciona sin internet (sale de la copia local), pero registrar
-      // el paso todavía no: la cola de accesos es la fase que viene. Mientras tanto esto
-      // mostraba el "Network Error" crudo de axios, en inglés, que a una recepcionista no
-      // le dice nada — y sobre todo no le dice lo único que importa: que esa entrada se
-      // perdió y hay que anotarla a mano.
-      //
-      // Un error de transporte no trae `response`; un rechazo del servidor sí, y ese se
-      // muestra tal cual porque dice algo real sobre este socio.
-      const sinRed = !error?.response;
-      showToast(
-        sinRed
-          ? 'Sin conexión: la entrada NO se registró. Anotala a mano.'
-          : errorService.getMessage(error), // sin el ternario este test no distingue nada
-        'error',
-      );
+      return;
     }
+    if (delLlavero.socios.length > 1) {
+      setSearchResults(delLlavero.socios);
+      showToast('Ese llavero coincide con más de un socio. Elegí cuál.', 'info');
+      return;
+    }
+    setNoEncontrado({ texto: q, codigo: normalizarLlavero(q), ultimaBaja: delLlavero.ultimaBaja });
   };
 
   // ─── Enter BUSCA y registra, en un solo gesto ───
@@ -645,6 +251,8 @@ export default function AccessPage() {
   //
   // Y cuando no aparece nadie, lo DICE. Sin eso, quien atiende no tiene forma de saber si
   // el sistema no encontró al socio o si simplemente no la escuchó.
+  //
+  // (El Enter del LECTOR no llega acá: el portero lo reconoce y se queda con él.)
   const registrando = useRef(false);
   const alTeclear = async (e) => {
     if (e.key !== 'Enter') return;
@@ -665,7 +273,7 @@ export default function AccessPage() {
       if (encontrados.length === 1) {
         await handleCheckIn(encontrados[0]);
       } else if (!encontrados.length) {
-        showToast(`No encontré a nadie con "${q}"`, 'error');
+        await noEncontreANadie(q);
       } else {
         showToast('Hay varios socios con esos datos. Elegí cuál.', 'info');
       }
@@ -673,40 +281,6 @@ export default function AccessPage() {
       registrando.current = false;
     }
   };
-
-  // ─── EL LLAVERO (ADR-016) ───
-  //
-  // El lector escribe el número y un Enter en el buscador, como una persona muy rápida. El hook
-  // reconoce la ráfaga y se queda con ese Enter; acá se busca EXACTO —nunca "contiene": un
-  // llavero parecido es otra persona— y se registra como con el DNI: el mismo cartel, la misma
-  // X y la misma cajita. No hay una regla del llavero.
-  const [llaveroSinDueno, setLlaveroSinDueno] = useState(null);
-  const alLeerLlavero = async (codigo) => {
-    // Lo que escribió el lector no se queda en el campo, ni lo que hubiera antes: era un llavero.
-    limpiarBuscador();
-    if (registrando.current) return;
-    registrando.current = true;
-    try {
-      const { socios, ultimaBaja } = await memberService.buscarPorLlavero(codigo);
-      if (socios.length === 1) {
-        await handleCheckIn(socios[0], METODO_LLAVERO);
-      } else if (socios.length > 1) {
-        // El llavero es de uno y el DNI de otro (pasa con lo que vino de ControlFit): no se
-        // elige por nadie, igual que con dos socios que comparten el nombre.
-        setSearchResults(socios);
-        showToast('Ese llavero coincide con más de un socio. Elegí cuál.', 'info');
-        sonarLlaveroDesconocido();
-      } else {
-        // Que se oiga aunque nadie esté mirando: hay alguien en la puerta que no puede entrar.
-        sonarLlaveroDesconocido();
-        setLlaveroSinDueno({ codigo, ultimaBaja });
-      }
-    } finally {
-      registrando.current = false;
-    }
-  };
-  // Con el aviso abierto el lector no se escucha acá: lo que escriba va al buscador del aviso.
-  useLectorDeLlaveros(alLeerLlavero, { campo: buscadorRef, activo: !llaveroSinDueno });
 
   return (
     <div className="access-page">
@@ -732,9 +306,10 @@ export default function AccessPage() {
       {/* Los avisos van ARRIBA del buscador y no cambió: si un socio entró vencido, eso
           tiene que verse antes que lo que la recepcionista esté por hacer ahora. */}
       {/* Los frenados por el molinete van primero: a ese socio la puerta ya le dijo que no
-          en la cara, así que es el más urgente de atender. */}
-      <AvisosMostrador avisos={rechazos} onAtendido={loadData} variante="rechazo" />
-      <AvisosMostrador avisos={avisos} onAtendido={loadData} />
+          en la cara, así que es el más urgente de atender. Los dos traen «Cobrar»: se le
+          cobra acá mismo, sin irse a Socios a buscarlo. */}
+      <AvisosMostrador avisos={rechazos} onAtendido={loadData} onCobrar={portero.cobrar} variante="rechazo" />
+      <AvisosMostrador avisos={avisos} onAtendido={loadData} onCobrar={portero.cobrar} />
 
       {/* ─── EL CUERPO: DOS COLUMNAS QUE ENTRAN EN UNA PANTALLA ───
           Izquierda el molinete (teclear, Enter, el que sigue). Derecha el QR, para que el
@@ -746,13 +321,27 @@ export default function AccessPage() {
           <div className="search-box">
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
                 `enterKeyHint` le pide al teclado del celular que la tecla diga "Enter" y no
-                "Buscar": lo que hace es registrar la entrada. */}
+                "Buscar": lo que hace es registrar la entrada. `data-lector="vaciar"`: cuando
+                pasan un llavero, lo que escribió el lector (y lo de antes) no se queda acá. */}
             <input type="text" className="search-input" placeholder="DNI o nombre y Enter, o pasá el llavero"
-              ref={buscadorRef} autoFocus enterKeyHint="enter"
+              ref={buscadorRef} autoFocus enterKeyHint="enter" data-lector="vaciar"
               value={searchQuery} onChange={e => handleSearch(e.target.value)}
               onKeyDown={alTeclear} />
           </div>
           <EstadoCopiaLocal />
+          {/* ⭐ NADIE CON ESE NÚMERO, Y PUEDE SER UN LLAVERO: el botón para asignárselo a alguien. */}
+          {noEncontrado && (
+            <div className="acceso-no-encontrado" role="status">
+              <span>No encontré a nadie con «{noEncontrado.texto}».</span>
+              <button type="button" className="btn btn-sm btn-secondary"
+                onClick={() => {
+                  portero.asignarLlavero(noEncontrado.codigo, noEncontrado.ultimaBaja);
+                  setNoEncontrado(null);
+                }}>
+                <Icon name="key" size="0.9em" /> Es un llavero: asignárselo a un socio
+              </button>
+            </div>
+          )}
           {/* Lo que se registró sin internet y todavía no subió. Se muestra SOLO cuando hay
               algo: un cartel que está siempre prendido deja de avisar. Y se muestra siempre
               que haya algo, con o sin conexión — mientras quede una visita sin subir, el
@@ -805,7 +394,7 @@ export default function AccessPage() {
           {searchResults.length > 0 && (
             <div className="search-results">
               {searchResults.map(member => {
-                const daysInfo = getDaysInfo(member);
+                const daysInfo = cuantoLeQueda(member);
                 const isExpired = daysInfo.type === 'expired';
                 const visita = visitaAbierta(member.id);
                 const adentro = !!visita;
@@ -872,13 +461,6 @@ export default function AccessPage() {
         <CheckinQrPanel puedeAdministrar={puedeAdministrarQr} />
       </Modal>
 
-      {/* Pasaron un llavero que no es de nadie: se asigna acá mismo y el socio entra. */}
-      <LlaveroSinAsignar
-        lectura={llaveroSinDueno}
-        onCerrar={() => { setLlaveroSinDueno(null); buscadorRef.current?.focus(); }}
-        onAsignado={(socio) => { setLlaveroSinDueno(null); handleCheckIn(socio, METODO_LLAVERO); }}
-      />
-
       {/* ─── El aviso de entrada, al costado izquierdo ───
 
           ⚠️ Acá había un overlay de pantalla completa (negro al 70%, con blur) y un cartelón
@@ -887,7 +469,8 @@ export default function AccessPage() {
 
           Ahora entra por la izquierda, no tapa nada y no se puede clickear (`pointer-events`
           en el CSS): el foco se queda en el campo del DNI aunque el aviso caiga justo debajo
-          del mouse. Se apila para que un socio no le borre el aviso al anterior. */}
+          del mouse. Se apila para que un socio no le borre el aviso al anterior. La pila la
+          lleva el portero: la entrada del llavero o del QR que llegó recién también está acá. */}
       {avisosDeEntrada.length > 0 && (
         <div className="acceso-avisos" aria-live="polite">
           {/* Cada cartel sabe su lugar en la pila (--i) y cuántos hay (--n): así, cuando entra

@@ -372,8 +372,12 @@
 .access-page {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  /* Una COLUMNA y no una grilla de tres filas (03/11/2026). La grilla tenía lugar para UN bloque
+     de avisos: con dos (los que frenó la puerta y los que entraron solos) el segundo se quedaba
+     con la fila del cuerpo y se estiraba vacío, y el buscador bajaba. Ahora los avisos ocupan lo
+     suyo, sean los que sean, y el cuerpo —el buscador y el QR— se queda con lo que sobra. */
+  display: flex;
+  flex-direction: column;
   gap: var(--aire-bloques);
 }
 
@@ -406,6 +410,7 @@
 }
 
 .access-cuerpo {
+  flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: var(--aire-bloques);

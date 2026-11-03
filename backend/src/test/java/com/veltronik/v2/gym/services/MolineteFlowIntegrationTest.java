@@ -1,5 +1,6 @@
 package com.veltronik.v2.gym.services;
 
+import com.veltronik.v2.core.security.TenantContextHolder;
 import com.veltronik.v2.support.EmbeddedPostgresTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -11,7 +12,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * El flujo del molinete de punta a punta y contra Postgres, con los avisos REALES que mandó el
@@ -162,6 +165,69 @@ class MolineteFlowIntegrationTest extends EmbeddedPostgresTest {
         assertEquals(0L, ((Number) em.createNativeQuery(
                 "SELECT count(*) FROM access_denied WHERE tenant_id = :t")
                 .setParameter("t", gym).getSingleResult()).longValue());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // El mostrador frena (la cajita del molinete, con el llavero)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @Transactional
+    @DisplayName("⭐ el mostrador frena al vencido del llavero: queda en la lista de frenados, NO como visita, y una sola vez")
+    void elMostradorFrenaAlVencido() {
+        UUID gym = crearGimnasio("Gimnasio de la Cajita");
+        UUID delLlavero = crearSocio(gym, "Lucía", LocalDateTime.now().minusDays(12));
+        UUID deLaCara = crearSocio(gym, "Carlos", LocalDateTime.now().minusDays(40));
+        String token = crearPuerta(gym);
+        em.flush();
+        // El molinete facial también frena a uno: los dos tienen que convivir en la misma lista.
+        molineteService.recibir(token, aviso(deLaCara, "face_1", System.currentTimeMillis(), "2"));
+
+        TenantContextHolder.setTenantId(gym);
+        try {
+            assertEquals(MolineteService.Resultado.RECHAZADO,
+                    molineteService.anotarRechazoDelMostrador(delLlavero, "LLAVERO"));
+            assertEquals(MolineteService.Resultado.REPETIDO,
+                    molineteService.anotarRechazoDelMostrador(delLlavero, "LLAVERO"),
+                    "el que se queda pasando el llavero es una sola línea, como con la cara");
+            em.flush();
+
+            assertEquals(0, visitasDe(delLlavero), "no entró: no puede figurar adentro (era el agujero)");
+            assertEquals(1, rechazosDe(delLlavero));
+            assertEquals("NO_ESTA_AL_DIA", motivoDe(delLlavero));
+
+            var lista = molineteService.rechazosPendientes();
+            assertEquals(2, lista.size());
+            var delMostrador = lista.stream().filter(r -> r.socioId().equals(delLlavero)).findFirst().orElseThrow();
+            var delEquipo = lista.stream().filter(r -> r.socioId().equals(deLaCara)).findFirst().orElseThrow();
+            assertEquals("VENCIDO", delMostrador.estado());
+            assertTrue(delMostrador.delMostrador(), "al cobrarle, el mostrador sabe que la puerta la maneja él");
+            assertFalse(delEquipo.delMostrador(), "al de la cara lo vuelve a dejar pasar el equipo, no la PC");
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @Transactional
+    @DisplayName("el mostrador no puede anotar como frenado a un socio de otro gimnasio")
+    void elMostradorNoAnotaAjenos() {
+        UUID gym = crearGimnasio("Gimnasio Uno");
+        UUID otro = crearGimnasio("Gimnasio Dos");
+        UUID ajeno = crearSocio(otro, "Ajeno", LocalDateTime.now().minusDays(5));
+        em.flush();
+
+        TenantContextHolder.setTenantId(gym);
+        try {
+            assertEquals(MolineteService.Resultado.SOCIO_INEXISTENTE,
+                    molineteService.anotarRechazoDelMostrador(ajeno, "LLAVERO"));
+            assertEquals(MolineteService.Resultado.SOCIO_INEXISTENTE,
+                    molineteService.anotarRechazoDelMostrador(null, "LLAVERO"));
+            em.flush();
+            assertEquals(0, rechazosDe(ajeno));
+        } finally {
+            TenantContextHolder.clear();
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

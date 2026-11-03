@@ -25,11 +25,12 @@ const cajita = vi.hoisted(() => ({
 vi.mock('../lib/cajitaMolinete', () => ({
   abrirSiPasa: cajita.abrirSiPasa,
   ordenarALaCajita: cajita.ordenarALaCajita,
+  laCajitaManda: () => cajita.estado.fase === 'conectada' && cajita.estado.habilitada,
 }));
 vi.mock('../hooks/useCajitaMolinete', () => ({ useCajitaMolinete: () => cajita.estado }));
 
 const {
-  AccessPage, SOCIO, memberService, accessService, colaFalsa, mostrador, pintar, tipear, apretar,
+  dibujo, SOCIO, memberService, accessService, colaFalsa, mostrador, pintar, tipear, apretar,
 } = await import('./AccessPage.preparar');
 // `root` y `container` cambian en cada test: se leen del módulo cada vez, no se copian.
 const preparacion = await import('./AccessPage.preparar');
@@ -122,7 +123,7 @@ describe('⭐ el molinete abre con el mismo veredicto que el cartel', () => {
       ...mostrador.datos,
       ingresos: [{ accesoId: 'qr1', socioId: 'm9', nombre: 'Juan Bautista', situacion: 'AL_DIA', diasRestantes: 20, hora: '2026-11-01T19:00:00' }],
     };
-    await act(async () => { preparacion.root.render(<AccessPage />); });
+    await act(async () => { preparacion.root.render(dibujo()); });
     for (let i = 0; i < 6; i += 1) await act(async () => { await Promise.resolve(); });
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
   });

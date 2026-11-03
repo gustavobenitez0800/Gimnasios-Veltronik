@@ -72,6 +72,12 @@ public class AccessDenied extends TenantAwareEntity {
         public static final String FUERA_DE_HORARIO = "FUERA_DE_HORARIO";
         /** El equipo lo reconoció pero no tiene habilitado ese método de verificación. */
         public static final String SIN_PERMISO = "SIN_PERMISO";
+        /**
+         * Lo frenó el MOSTRADOR: pasó el llavero, la cajita del molinete la maneja Veltronik, y
+         * con la cuota como está no le abrió (03/11/2026). Es la misma regla que el molinete
+         * facial, solo que la decide la PC en vez del equipo.
+         */
+        public static final String NO_ESTA_AL_DIA = "NO_ESTA_AL_DIA";
 
         private Reason() {}
     }

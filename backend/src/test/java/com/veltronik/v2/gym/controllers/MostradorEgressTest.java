@@ -320,6 +320,25 @@ class MostradorEgressTest extends EmbeddedPostgresTest {
     }
 
     @Test
+    @DisplayName("⭐ avisa también el que entró solo con el llavero o por la cara; el que marcó la recepcionista, no")
+    void avisanLosQueEntraronSolos() {
+        UUID porQr = crearSocio(gym, "PorQr", true, enDias(-3));
+        UUID conLlavero = crearSocio(gym, "ConLlavero", true, enDias(-3));
+        UUID porLaCara = crearSocio(gym, "PorLaCara", true, enDias(-1));
+        UUID aMano = crearSocio(gym, "AMano", true, enDias(-3));
+        marcar(gym, porQr, "QR", 5);
+        marcar(gym, conLlavero, "LLAVERO", 4);
+        marcar(gym, porLaCara, "FACIAL", 3);
+        marcar(gym, aMano, "MANUAL", 2);
+
+        Map<UUID, String> metodoPorSocio = accessService.avisosPendientes().stream()
+                .collect(Collectors.toMap(AccessLogService.Aviso::socioId, AccessLogService.Aviso::metodo));
+
+        assertEquals(Map.of(porQr, "QR", conLlavero, "LLAVERO", porLaCara, "FACIAL"), metodoPorSocio,
+                "al de la recepcionista ya lo vio ella; los otros tres entraron sin que nadie mirara");
+    }
+
+    @Test
     @DisplayName("⭐ los avisos traen solo a los que no están al día, y coinciden con la política")
     void losAvisosCoincidenConLaPolitica() {
         // Una persona en cada situación posible, todas entraron hoy por QR.

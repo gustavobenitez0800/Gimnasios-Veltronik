@@ -14,6 +14,7 @@
 import { vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 
 /** Estables a propósito: un objeto nuevo por render dispara un bucle infinito y cuelga el test. */
 export const toastEstable = { showToast: vi.fn() };
@@ -21,17 +22,28 @@ export const toastEstable = { showToast: vi.fn() };
 // El OBJETO es siempre el mismo (uno nuevo por render cuelga el test en un bucle).
 export const authEstable = { orgRole: 'reception' };
 
-export const memberService = { searchForAccess: vi.fn() };
-export const accessService = { getMostrador: vi.fn(), checkIn: vi.fn(), checkOut: vi.fn() };
+export const memberService = { searchForAccess: vi.fn(), buscarPorLlavero: vi.fn(), getMemberById: vi.fn() };
+export const accessService = {
+  getMostrador: vi.fn(), checkIn: vi.fn(), checkOut: vi.fn(),
+  anotarRechazo: vi.fn(), marcarAvisoVisto: vi.fn(), marcarRechazoVisto: vi.fn(),
+};
 const errorService = { getMessage: (e) => String(e?.message || e) };
+// Lo que usan el cobro y el aviso del llavero, que ahora viven en el portero (y el portero se
+// monta en las pruebas: la pantalla vive adentro de él, como en la app).
+export const planService = { getVigentes: vi.fn() };
+export const paymentService = { createPayment: vi.fn() };
+export const llaveroService = { asignar: vi.fn() };
 
 vi.mock('../contexts/ToastContext', () => ({ useToast: () => toastEstable }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => authEstable }));
-vi.mock('../services', () => ({ memberService, accessService, errorService }));
+vi.mock('../services', () => ({
+  memberService, accessService, errorService, planService, paymentService, llaveroService,
+}));
 vi.mock('../lib/localMembers', () => ({
   prepararSocios: vi.fn(),
   refrescarSocios: vi.fn(() => Promise.resolve()),
   REFRESCO_MS: 999999,
+  socioLocalPorId: vi.fn(() => null),
 }));
 vi.mock('../lib/gym', () => ({ GYM: { placeLabel: 'gimnasio', placeLabelCap: 'Gimnasio' } }));
 
@@ -101,6 +113,9 @@ export const sonido = { // común, no vi.hoisted: ver `mostrador`
 vi.mock('../lib/alertaSonora', () => sonido);
 
 export const { default: AccessPage } = await import('./AccessPage');
+// La pantalla es una VISTA del portero de la puerta: en la app lo monta AppLayout, acá se monta
+// a mano alrededor de ella (con su ruta, que es lo que le dice que está en Accesos).
+const { PorteroProvider } = await import('../contexts/PorteroContext');
 
 export const SOCIO = {
   id: 'm1',
@@ -115,11 +130,25 @@ export const OTRO = { ...SOCIO, id: 'm2', fullName: 'Lurdes Romero' };
 export let root;
 export let container;
 
+/**
+ * La pantalla como la monta la app: adentro del portero y en su ruta. Volver a dibujarla con esto
+ * (lo que hacen los tests del refresco) conserva al MISMO portero, como pasa de verdad.
+ */
+export function dibujo() {
+  return (
+    <MemoryRouter initialEntries={['/access']}>
+      <PorteroProvider>
+        <AccessPage />
+      </PorteroProvider>
+    </MemoryRouter>
+  );
+}
+
 export async function pintar() {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  await act(async () => { root.render(<AccessPage />); });
+  await act(async () => { root.render(dibujo()); });
   await act(async () => { await Promise.resolve(); });
   return container;
 }
@@ -171,7 +200,12 @@ beforeEach(() => {
   colaFalsa.sociosConCobro = [];
   accessService.getMostrador.mockResolvedValue(mostrador.datos);
   accessService.checkIn.mockResolvedValue({ direccion: 'ENTRADA' });
+  accessService.anotarRechazo.mockResolvedValue({ resultado: 'RECHAZADO' });
+  accessService.marcarAvisoVisto.mockResolvedValue();
+  accessService.marcarRechazoVisto.mockResolvedValue();
   memberService.searchForAccess.mockResolvedValue([SOCIO]);
+  memberService.buscarPorLlavero.mockResolvedValue({ socios: [], ultimaBaja: null });
+  planService.getVigentes.mockResolvedValue([]);
 });
 
 afterEach(() => {

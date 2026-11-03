@@ -14,14 +14,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from 'react';
 
+// `manda`: si la puerta la maneja esta PC (la cajita enchufada y el plan que la habilita). Con la
+// cajita, al que no está al día la puerta lo FRENA; sin ella, se le registra la entrada y se avisa.
 const cajita = vi.hoisted(() => ({
   estado: { fase: 'conectada', version: 'veltronik-molinete 2', habilitada: true },
+  manda: true,
   abrirSiPasa: vi.fn(() => true),
   ordenarALaCajita: vi.fn(async () => true),
 }));
 vi.mock('../lib/cajitaMolinete', () => ({
   abrirSiPasa: cajita.abrirSiPasa,
   ordenarALaCajita: cajita.ordenarALaCajita,
+  laCajitaManda: () => cajita.manda,
 }));
 vi.mock('../hooks/useCajitaMolinete', () => ({ useCajitaMolinete: () => cajita.estado }));
 
@@ -60,6 +64,7 @@ const texto = () => document.body.textContent;
 
 beforeEach(() => {
   cajita.abrirSiPasa.mockClear();
+  cajita.manda = true;
   memberService.buscarPorLlavero = vi.fn().mockResolvedValue({ socios: [SOCIO], ultimaBaja: null });
 });
 
@@ -81,14 +86,56 @@ describe('⭐ pasar el llavero', () => {
     expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: true });
   });
 
-  it('con la cuota vencida no abre, y suena la X (siempre: lo pasó una persona)', async () => {
+  it('⭐ con la cajita, al vencido la puerta lo FRENA: no le anota una entrada, suena la X y queda en los frenados', async () => {
     memberService.buscarPorLlavero.mockResolvedValue({ socios: [VENCIDO], ultimaBaja: null });
     await pintar();
     await pasarPorElLector('0012345678');
 
-    expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ pasa: false });
+    expect(accessService.checkIn, 'no entró: no puede figurar adentro').not.toHaveBeenCalled();
+    expect(cajita.abrirSiPasa).not.toHaveBeenCalled();
+    expect(accessService.anotarRechazo).toHaveBeenCalledWith('m1', 'LLAVERO');
     expect(sonido.sonarVencidoDirecto).toHaveBeenCalledWith('m1');
     expect(sonido.sonarEntrada).not.toHaveBeenCalled();
+    expect(texto()).toContain('El molinete no abrió');
+  });
+
+  it('🔴 el vencido que vuelve a pasar el llavero NO sale por la puerta (era el agujero)', async () => {
+    // Antes: la primera pasada anotaba una ENTRADA aunque la puerta no abriera, y la segunda
+    // —a los 15 segundos— el servidor la tomaba por una SALIDA; con un molinete que abre para
+    // salir, le abría la puerta al vencido.
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [VENCIDO], ultimaBaja: null });
+    await pintar();
+    await pasarPorElLector('0012345678', { desde: 10_000 });
+    await pasarPorElLector('0012345678', { desde: 40_000 });
+
+    expect(accessService.checkIn).not.toHaveBeenCalled();
+    expect(cajita.abrirSiPasa).not.toHaveBeenCalled();
+  });
+
+  it('al que está ADENTRO y se le venció mientras entrenaba, la puerta le abre para salir', async () => {
+    preparacion.mostrador.datos = {
+      ...preparacion.mostrador.datos,
+      adentro: [{ id: 'v1', member: { id: 'm1' }, checkInAt: '2026-11-03T08:00:00' }],
+    };
+    accessService.checkIn.mockResolvedValue({ direccion: 'SALIDA' });
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [VENCIDO], ultimaBaja: null });
+    await pintar();
+    await pasarPorElLector('0012345678');
+
+    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'LLAVERO', 'Lurdes Rollet');
+    expect(cajita.abrirSiPasa).toHaveBeenCalledWith({ salida: true });
+    expect(accessService.anotarRechazo).not.toHaveBeenCalled();
+  });
+
+  it('sin cajita (la puerta la maneja una persona), al vencido se le registra la entrada y suena la X', async () => {
+    cajita.manda = false;
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [VENCIDO], ultimaBaja: null });
+    await pintar();
+    await pasarPorElLector('0012345678');
+
+    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'LLAVERO', 'Lurdes Rollet');
+    expect(accessService.anotarRechazo).not.toHaveBeenCalled();
+    expect(sonido.sonarVencidoDirecto).toHaveBeenCalledWith('m1');
   });
 
   it('⭐ al día: suena el «din-din» de la entrada, para que se oiga sin mirar la pantalla', async () => {
@@ -150,7 +197,21 @@ describe('cuando el llavero no alcanza para saber quién es', () => {
     await pasarPorElLector('0012345678');
 
     expect(accessService.checkIn).not.toHaveBeenCalled();
+    expect(texto()).toContain('Llavero de más de un socio');
     expect(preparacion.container.querySelectorAll('.search-result-item')).toHaveLength(2);
+  });
+
+  it('de los dos, quien atiende dice cuál es: se le registra la entrada a ese', async () => {
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [SOCIO, OTRO], ultimaBaja: null });
+    await pintar();
+    await pasarPorElLector('0012345678');
+
+    const deOtro = [...preparacion.container.querySelectorAll('.search-result-item')]
+      .find((f) => f.textContent.includes('Lurdes Romero'));
+    await act(async () => { deOtro.querySelector('button').click(); });
+    for (let i = 0; i < 6; i += 1) await act(async () => { await Promise.resolve(); });
+
+    expect(accessService.checkIn).toHaveBeenCalledWith('m2', 'LLAVERO', 'Lurdes Romero');
   });
 });
 

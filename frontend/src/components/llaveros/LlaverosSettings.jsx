@@ -69,8 +69,10 @@ function ProbarElLector() {
   return (
     <div className="llavero-pila">
       <label className="form-label" htmlFor="llavero-prueba">Probar el lector</label>
+      {/* `data-lector="propio"`: acá pasar el llavero es para probarlo, no para entrar. Sin esto el
+          portero de la puerta (que escucha en toda la app) se quedaría con la lectura. */}
       <input
-        id="llavero-prueba" type="text" className="form-input" autoComplete="off"
+        id="llavero-prueba" type="text" className="form-input" autoComplete="off" data-lector="propio"
         placeholder="Hacé clic acá y pasá un llavero por el lector"
         value={texto} onChange={(e) => setTexto(e.target.value)} onKeyDown={alTeclear}
       />
@@ -81,12 +83,13 @@ function ProbarElLector() {
           </span>
           {prueba.fueLector ? (
             <span className="llavero-prueba-ok">
-              Lo reconocí como un lector: en Accesos va a andar solo.
+              Lo reconocí como un lector: va a andar solo, en cualquier pantalla.
             </span>
           ) : (
             <span className="llavero-prueba-mal">
               Eso parece tecleado a mano. Si lo escribió el lector, revisá que esté en modo teclado y
-              que termine con Enter; si no, en Accesos se va a tomar como una persona escribiendo.
+              que termine con Enter. Si no se puede, igual anda en Accesos (busca el número como
+              llavero), pero en las otras pantallas no.
             </span>
           )}
           {!prueba.valido && (

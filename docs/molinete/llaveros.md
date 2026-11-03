@@ -5,13 +5,19 @@ Veltronik hace lo mismo que si hubiera tecleado su DNI en **Accesos**: aparece s
 le queda, si está vencido) y, si hay [cajita del molinete](cajita.md), el molinete se abre.
 
 - Quién pasa: **los mismos que con el DNI**: al día, en gracia o sin fecha cargada. El vencido y
-  el dado de baja, no (y suena la X).
+  el dado de baja, no (y suena la X). Con la cajita, al que no pasa **no se le anota una entrada**:
+  queda en **«La puerta frenó a un socio»**, con el botón **«Cobrar»**; al cobrarle, se le abre.
+- Al día suena un «din-din»; un llavero que no es de nadie, dos pitidos.
 - Sin internet anda igual: la PC tiene la lista de socios con sus llaveros.
 - El llavero sirve en **cualquier plan**. Que el molinete abra solo es del **plan Premium** (y de la
   prueba gratis).
-- La PC tiene que estar en **Accesos**, como con el DNI y el QR.
+- **En el programa de la PC anda en cualquier pantalla** (Pagos, Socios, Clases…): no hace falta
+  estar en Accesos. Si el profe estaba escribiendo algo, el número del llavero no queda pegado ahí.
+  Lo que pasa en la puerta aparece en una tarjeta abajo a la derecha. En el portal web, solo en
+  Accesos.
 
-Por qué está hecho así: [ADR-016](../adr/ADR-016-el-llavero-es-una-credencial-que-se-lee-como-un-teclado.md).
+Por qué está hecho así: [ADR-016](../adr/ADR-016-el-llavero-es-una-credencial-que-se-lee-como-un-teclado.md)
+y [ADR-017](../adr/ADR-017-la-puerta-la-atiende-un-portero-en-toda-la-app.md).
 
 ---
 
@@ -39,17 +45,20 @@ En la PC del mostrador, con Veltronik abierto:
 
 1. Enchufá el lector.
 2. **Ajustes → Llaveros → Probar el lector**: hacé clic en el campo y pasá un llavero.
-3. Tiene que decir **«Lo reconocí como un lector: en Accesos va a andar solo»** y el número.
-   - Si dice **«Eso parece tecleado a mano»**, el lector es lento o no está en modo teclado.
+3. Tiene que decir **«Lo reconocí como un lector: va a andar solo, en cualquier pantalla»** y el
+   número.
+   - Si dice **«Eso parece tecleado a mano»**, el lector es lento o no está en modo teclado. Igual
+     anda en **Accesos**: si el número es de un socio entra con el llavero, y si no es de nadie
+     aparece **«Es un llavero: asignárselo a un socio»**. En las otras pantallas, no.
    - Debajo dice **de quién es** ese llavero, o que no es de nadie todavía.
 
 ## 3. Darles el llavero a los socios
 
 Hay tres formas, y se pueden mezclar:
 
-- **Que se carguen solos.** Un socio pasa un llavero que no es de nadie → en Accesos aparece
-  **«Llavero sin asignar»** → se busca al socio por nombre o DNI → **«Asignárselo»** → entra. La
-  próxima vez entra solo con el llavero.
+- **Que se carguen solos.** Un socio pasa un llavero que no es de nadie → aparece **«Llavero sin
+  asignar»**, en la pantalla que esté abierta → se busca al socio por nombre o DNI →
+  **«Asignárselo»** → entra. La próxima vez entra solo con el llavero.
 - **Desde su ficha.** Socios → editar → **Llaveros → Asignar llavero** → pasarlo por el lector.
 - **Si venían de ControlFit** (ver el punto 4).
 
@@ -78,7 +87,9 @@ socios llegan a Veltronik con el número del llavero en el lugar del DNI.
 
 | Pasa esto | Qué es |
 |---|---|
-| Pasa el llavero y no aparece nada | La PC no está en Accesos, o el foco está en otro campo de texto o una ventana abierta |
+| Pasa el llavero y no aparece nada | El programa no está abierto (en el portal web, la pantalla no es Accesos), o está abierto el aviso de otro llavero sin asignar |
+| El número queda escrito en el buscador y dice «No encontré a nadie» | El lector es lento (no se reconoce como lector). Tocá **«Es un llavero: asignárselo a un socio»**; y revisá el lector en Ajustes |
+| No abre y aparece en «La puerta frenó a un socio» | No está al día. **«Cobrar»** ahí mismo: al cobrarle se le abre (si pasó hace menos de 10 minutos) |
 | En «Probar el lector» no aparece nada | El lector no escribe (no es tipo teclado, o es de otra frecuencia que el llavero) |
 | «Eso parece tecleado a mano» | El lector es lento o no termina con Enter |
 | Aparece «Llavero sin asignar» con un socio que ya tenía llavero | Se lo asignaron en otra PC hace un rato y no había internet, o el lector escribe otro número que el que se guardó |
@@ -94,3 +105,6 @@ socios llegan a Veltronik con el número del llavero en el lugar del DNI.
   entre uno y otro, y el Enter hasta 150 ms después ([`lib/rafagaDelLector.js`](../../frontend/src/lib/rafagaDelLector.js)).
 - Tabla `member_credential` (V90); los llaveros viajan en la lista de socios para buscarlos sin
   internet. Detalle en el ADR-016.
+- El lector lo escucha el **portero de la puerta** en toda la app ([`contexts/PorteroContext.jsx`](../../frontend/src/contexts/PorteroContext.jsx),
+  ADR-017). Los campos que leen el lector ellos mismos («Asignar llavero», «Probar el lector»)
+  llevan `data-lector="propio"` y el portero no se mete.

@@ -13,6 +13,7 @@ import GymLogo from './GymLogo';
 import { derivarPaleta } from '../lib/brandColor';
 
 import ErrorBoundary from './ErrorBoundary';
+import { PorteroProvider } from '../contexts/PorteroContext';
 
 /**
  * Header móvil que se retrae al bajar y vuelve al subir.
@@ -157,6 +158,10 @@ export function AppLayout() {
 
   return (
     <div className="app-layout" style={paleta}>
+      {/* ⭐ La puerta del gimnasio, atendida en cualquier pantalla (contexts/PorteroContext): el
+          lector de llaveros, la cajita del molinete, los avisos de la puerta y el cobro desde
+          ahí. Adentro del layout, para que su tarjeta flotante tenga los colores del gimnasio. */}
+      <PorteroProvider>
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
       <main className="main-content">
@@ -225,6 +230,7 @@ export function AppLayout() {
           </ErrorBoundary>
         </div>
       </main>
+      </PorteroProvider>
     </div>
   );
 }

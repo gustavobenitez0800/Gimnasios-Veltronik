@@ -39,6 +39,9 @@ const sesion = {
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => sesion }));
 vi.mock('./Sidebar', () => ({ default: () => <nav data-testid="sidebar" /> }));
 vi.mock('../hooks/useVersionNueva', () => ({ useVersionNueva: () => false }));
+// El portero de la puerta tiene sus propios tests (PorteroContext.test): acá importa la puerta
+// del ARRANQUE, que es la del layout.
+vi.mock('../contexts/PorteroContext', () => ({ PorteroProvider: ({ children }) => children }));
 vi.mock('react-router-dom', () => ({
   Outlet: () => <div data-testid="pantalla">la pantalla de operación</div>,
   useNavigate: () => vi.fn(),

@@ -187,7 +187,10 @@ public class MolineteService {
      * <i>lo dejó entrar</i> y hay que hablarle; a este <b>la puerta lo frenó</b>.</p>
      */
     public record Rechazo(UUID accesoId, UUID socioId, String nombre, String estado,
-                          long diasVencido, LocalDateTime hora) {}
+                          long diasVencido, LocalDateTime hora, boolean delMostrador) {}
+
+    /** Cómo firma el mostrador los rechazos que anota él (ver {@link #anotarRechazoDelMostrador}). */
+    public static final String DISPOSITIVO_MOSTRADOR = "MOSTRADOR";
 
     /**
      * Los rechazos de hoy que el mostrador todavía no atendió, con el estado RECALCULADO.
@@ -222,7 +225,8 @@ public class MolineteService {
                     r.getId(), m.getId(),
                     ((m.getFirstName() == null ? "" : m.getFirstName()) + " "
                             + (m.getLastName() == null ? "" : m.getLastName())).trim(),
-                    v.status().name(), v.diasVencido(), r.getOccurredAt()));
+                    v.status().name(), v.diasVencido(), r.getOccurredAt(),
+                    r.getDeviceSerial() != null && r.getDeviceSerial().startsWith(DISPOSITIVO_MOSTRADOR)));
         }
         return salida;
     }
@@ -308,6 +312,42 @@ public class MolineteService {
      */
     private Resultado anotarRechazo(GymMember socio, CheckinPointRepository.PointLookup punto,
                                     Aviso aviso, LocalDateTime ocurridoEn) {
+        return guardarRechazo(socio, ocurridoEn, motivo(aviso), punto.getPointId(), aviso.deviceKey());
+    }
+
+    /**
+     * ⭐ El MOSTRADOR frenó a un socio en la puerta (03/11/2026).
+     *
+     * <p>Pasa con la cajita del molinete: el socio pasa el llavero, la cajita la maneja Veltronik,
+     * y con la cuota vencida no le abre. Es exactamente lo que hace el molinete facial, solo que
+     * lo decide la PC en vez del equipo, así que deja el mismo registro: un rechazo, que NO es una
+     * visita, en la misma lista de «la puerta frenó a un socio» y con el mismo freno contra los
+     * repetidos.</p>
+     *
+     * <p>🔴 <b>Antes el mostrador anotaba una ENTRADA aunque no abriera.</b> El socio figuraba
+     * adentro estando en la vereda, y si volvía a pasar el llavero el sistema lo tomaba por una
+     * SALIDA: con un molinete que abre también para salir, le abría la puerta.</p>
+     *
+     * @param metodo con qué lo intentó (normalmente {@code LLAVERO}); queda en el registro
+     * @return {@code RECHAZADO}, {@code REPETIDO} (ya estaba anotado hace un rato) o
+     *         {@code SOCIO_INEXISTENTE} (no es socio de este gimnasio)
+     */
+    @Transactional
+    public Resultado anotarRechazoDelMostrador(UUID memberId, String metodo) {
+        Optional<GymMember> socio = memberId == null ? Optional.empty() : memberRepository.findById(memberId)
+                .filter(m -> m.getTenant() != null
+                        && m.getTenant().getId().equals(TenantContextHolder.getTenantId()));
+        if (socio.isEmpty()) return Resultado.SOCIO_INEXISTENTE;
+
+        // Lo que manda la pantalla se guarda solo si es un nombre de método: el campo es de 64.
+        String m = metodo == null ? "" : metodo.trim().toUpperCase();
+        String dispositivo = m.matches("[A-Z_]{1,20}") ? DISPOSITIVO_MOSTRADOR + ":" + m : DISPOSITIVO_MOSTRADOR;
+        return guardarRechazo(socio.get(), LocalDateTime.now(BUSINESS_ZONE),
+                AccessDenied.Reason.NO_ESTA_AL_DIA, null, dispositivo);
+    }
+
+    private Resultado guardarRechazo(GymMember socio, LocalDateTime ocurridoEn, String motivo,
+                                     UUID puntoId, String dispositivo) {
         Optional<AccessDenied> ultimo = deniedRepository
                 .findTopByTenantIdAndMemberIdOrderByOccurredAtDesc(
                         TenantContextHolder.getTenantId(), socio.getId());
@@ -323,9 +363,9 @@ public class MolineteService {
         rechazo.setTenant(tenant);
         rechazo.setMember(socio);
         rechazo.setOccurredAt(ocurridoEn);
-        rechazo.setReason(motivo(aviso));
-        rechazo.setCheckinPointId(punto.getPointId());
-        rechazo.setDeviceSerial(aviso.deviceKey());
+        rechazo.setReason(motivo);
+        rechazo.setCheckinPointId(puntoId);
+        rechazo.setDeviceSerial(dispositivo);
         deniedRepository.save(rechazo);
         return Resultado.RECHAZADO;
     }

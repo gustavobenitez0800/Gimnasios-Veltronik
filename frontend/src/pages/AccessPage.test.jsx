@@ -29,7 +29,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act } from 'react';
 import {
-  AccessPage, root, container, pintar, campo, tipear, apretar, SOCIO, OTRO, mostrador, colaFalsa, sonido, accessService, memberService, toastEstable, authEstable,
+  dibujo, root, container, pintar, campo, tipear, apretar, SOCIO, OTRO, mostrador, colaFalsa, sonido, accessService, memberService, toastEstable, authEstable,
 } from './AccessPage.preparar';
 
 describe('la puerta se maneja con el teclado', () => {
@@ -152,7 +152,7 @@ describe('Enter registra y deja lugar al siguiente', () => {
   it('cuando no encuentra a nadie lo DICE', async () => {
     memberService.searchForAccess.mockResolvedValue([]);
     await pintar();
-    await tipear('99999999');
+    await tipear('Juan Inexistente');
 
     await apretar('Enter');
 
@@ -161,6 +161,38 @@ describe('Enter registra y deja lugar al siguiente', () => {
       toastEstable.showToast,
       'sin aviso, quien atiende no sabe si no lo encontró o si no la escuchó',
     ).toHaveBeenCalled();
+  });
+
+  it('⭐ un número que no es de nadie lo dice, y ofrece asignarlo como llavero', async () => {
+    // El lector que escribe más lento que una ráfaga llega como si lo hubiera tecleado una
+    // persona. Si no es el DNI de nadie, puede ser un llavero: el botón para asignárselo a alguien.
+    memberService.searchForAccess.mockResolvedValue([]);
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [], ultimaBaja: null });
+    await pintar();
+    await tipear('99999999');
+
+    await apretar('Enter');
+
+    expect(accessService.checkIn).not.toHaveBeenCalled();
+    expect(memberService.buscarPorLlavero).toHaveBeenCalledWith('99999999');
+    expect(container.textContent).toContain('No encontré a nadie con «99999999»');
+    const boton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Es un llavero'));
+    expect(boton, 'el botón para asignarlo').toBeTruthy();
+
+    await act(async () => { boton.click(); });
+    expect(container.textContent).toContain('Llavero sin asignar');
+  });
+
+  it('⭐ el número tecleado que ES un llavero entra con el llavero (el lector lento)', async () => {
+    memberService.searchForAccess.mockResolvedValue([]);
+    memberService.buscarPorLlavero.mockResolvedValue({ socios: [SOCIO], ultimaBaja: null });
+    await pintar();
+    await tipear('0012345678');
+
+    await apretar('Enter');
+
+    expect(accessService.checkIn).toHaveBeenCalledWith('m1', 'LLAVERO', 'Lurdes Rollet');
+    expect(campo().value, 'el campo queda listo para el que sigue').toBe('');
   });
 
   it('no registra con menos de dos caracteres', async () => {
@@ -243,7 +275,7 @@ describe('entrar por QR levanta el mismo cartel', () => {
   /** Simula el refresco del mostrador: llegan datos nuevos y la pantalla se vuelve a pintar. */
   async function llegaRefresco(datos) {
     mostrador.datos = { ...mostrador.datos, ...datos };
-    await act(async () => { root.render(<AccessPage />); });
+    await act(async () => { root.render(dibujo()); });
     for (let i = 0; i < 6; i += 1) {
       await act(async () => { await Promise.resolve(); });
     }
@@ -324,7 +356,7 @@ describe('el mostrador se entera solo de lo que pasa en la puerta', () => {
 
       // Veinte segundos de mostrador vivo: renders todo el tiempo mientras corre el reloj.
       for (let i = 0; i < 20; i += 1) {
-        await act(async () => { root.render(<AccessPage />); });
+        await act(async () => { root.render(dibujo()); });
         await act(async () => { vi.advanceTimersByTime(1000); });
       }
 
@@ -408,7 +440,7 @@ describe('⭐ la X del socio vencido suena al entrar, por donde entre', () => {
 
   async function llegaRefresco(datos) {
     mostrador.datos = { ...mostrador.datos, ...datos };
-    await act(async () => { root.render(<AccessPage />); });
+    await act(async () => { root.render(dibujo()); });
     for (let i = 0; i < 6; i += 1) {
       await act(async () => { await Promise.resolve(); });
     }

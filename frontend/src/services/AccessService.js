@@ -211,6 +211,18 @@ class AccessService {
   async marcarRechazoVisto(rechazoId) {
     await apiClient.post(`/gym/access/rechazos/${rechazoId}/visto`);
   }
+
+  /**
+   * La cajita del molinete no le abrió a un socio (no está al día): queda en la lista de «la
+   * puerta frenó a un socio», como los del molinete facial, y NO como una entrada que no pasó.
+   *
+   * <p>Sin conexión no se anota, y está bien: la puerta igual quedó cerrada y la X sonó. Es la
+   * lista de a quién llamar, no la asistencia.</p>
+   */
+  async anotarRechazo(memberId, metodo) {
+    const response = await apiClient.post('/gym/access/rechazos', { memberId, metodo }, { timeout: 8000 });
+    return response.data;
+  }
 }
 
 export const accessService = new AccessService();

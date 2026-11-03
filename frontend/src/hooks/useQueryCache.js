@@ -19,10 +19,12 @@ export { invalidateQueries, clearQueryCache, refrescarTodo };
  * @param {Function} fetchFn - Función asíncrona que retorna los datos
  * @param {Object} options - Opciones de configuración
  * @param {number} options.staleTime - Tiempo en ms antes de considerar los datos obsoletos (default: 5 min)
+ * @param {boolean} options.enabled - false = no pedir nada (queda lo que haya en caché). El
+ *                                  portero de la puerta lo usa así en la web fuera de Accesos.
  * @returns {{ data: any, loading: boolean, error: Error|null, mutate: Function, isFetching: boolean }}
  */
 export function useQueryCache(queryKey, fetchFn, options = {}) {
-  const { staleTime = 5 * 60 * 1000 } = options;
+  const { staleTime = 5 * 60 * 1000, enabled = true } = options;
 
   // Serializar la clave si es un array
   const key = Array.isArray(queryKey) ? JSON.stringify(queryKey) : queryKey;
@@ -41,6 +43,7 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
   const [trigger, setTrigger] = useState(0);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let isMounted = true;
 
     const loadData = async () => {
@@ -93,7 +96,7 @@ export function useQueryCache(queryKey, fetchFn, options = {}) {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, trigger]);
+  }, [key, trigger, enabled]);
 
   // Volvió la conexión (o subió la cola): esta pantalla vuelve a pedir lo suyo. La entrada ya
   // la marcó vieja `refrescarTodo`; acá solo se dispara el pedido.

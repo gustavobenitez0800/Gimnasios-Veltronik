@@ -20,10 +20,15 @@ import { formatDate, getInitials } from '../../lib/utils';
  * <p>Si el llavero se había dado de baja (se le perdió a alguien), lo dice antes que nada: que
  * aparezca un llavero perdido es algo que quien atiende tiene que saber.</p>
  *
- * @param {{codigo: string, ultimaBaja?: object|null}|null} lectura el llavero leído, o null (cerrado)
+ * <p><b>Y si el llavero es de MÁS de uno</b> (pasa con lo que vino de ControlFit: el llavero de uno
+ * es el DNI de otro), no se elige por nadie: se muestran los dos y quien atiende dice quién es.</p>
+ *
+ * @param {{codigo: string, ultimaBaja?: object|null, candidatos?: object[]}|null} lectura el llavero
+ *        leído, o null (cerrado)
  * @param {(socio: object) => void} onAsignado se le asignó a ese socio: hay que registrarle la entrada
+ * @param {(socio: object) => void} onElegido de los varios, era este: hay que registrarle la entrada
  */
-export default function LlaveroSinAsignar({ lectura, onCerrar, onAsignado }) {
+export default function LlaveroSinAsignar({ lectura, onCerrar, onAsignado, onElegido }) {
   const { showToast } = useToast();
   const enLinea = useEstaEnLinea();
   const quienAtiende = useQuienAtiende();
@@ -89,6 +94,38 @@ export default function LlaveroSinAsignar({ lectura, onCerrar, onAsignado }) {
   };
 
   const baja = lectura?.ultimaBaja;
+  const candidatos = lectura?.candidatos?.length > 1 ? lectura.candidatos : null;
+
+  if (candidatos) {
+    return (
+      <Modal isOpen onClose={onCerrar} title="Llavero de más de un socio"
+        actions={<button type="button" className="btn btn-secondary" onClick={onCerrar}>Cerrar</button>}>
+        <div className="llavero-pila">
+          <div>
+            <div className="llavero-codigo">{codigo}</div>
+            <p className="llavero-texto">
+              Este número coincide con más de un socio (el llavero de uno es el DNI de otro), así que
+              no le registré la entrada a nadie. ¿Quién es? Le registro la entrada a ese.
+            </p>
+          </div>
+          <div className="search-results">
+            {candidatos.map((socio) => (
+              <div key={socio.id} className="search-result-item">
+                <div className="member-avatar">{getInitials(socio.fullName)}</div>
+                <div className="member-info">
+                  <div className="member-name">{socio.fullName}</div>
+                  <div className="member-dni">DNI: {socio.dni || '-'}</div>
+                </div>
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => onElegido?.(socio)}>
+                  Es este
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal isOpen={!!lectura} onClose={onCerrar} title="Llavero sin asignar"

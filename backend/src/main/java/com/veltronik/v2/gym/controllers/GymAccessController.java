@@ -282,6 +282,25 @@ public class GymAccessController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Lo que manda el mostrador cuando la cajita del molinete no le abre a un socio. */
+    public record RechazoDelMostrador(UUID memberId, String metodo) {}
+
+    /**
+     * El mostrador frenó a un socio: la cajita del molinete no le abrió (ver
+     * {@code MolineteService#anotarRechazoDelMostrador}). Queda en la lista de «la puerta frenó a
+     * un socio», como los del molinete facial, en vez de figurar como una entrada que no pasó.
+     */
+    @PostMapping("/rechazos")
+    public ResponseEntity<Map<String, Object>> anotarRechazo(@RequestBody RechazoDelMostrador input) {
+        com.veltronik.v2.gym.services.MolineteService.Resultado r =
+                molineteService.anotarRechazoDelMostrador(input == null ? null : input.memberId(),
+                        input == null ? null : input.metodo());
+        if (r == com.veltronik.v2.gym.services.MolineteService.Resultado.SOCIO_INEXISTENTE) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("resultado", r.name()));
+    }
+
     /**
      * Marca el paso de un socio desde el mostrador.
      *

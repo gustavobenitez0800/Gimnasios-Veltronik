@@ -160,8 +160,11 @@ export default function LlaverosDelSocio({ socioId, nombre }) {
 
           {asignando && !conflicto ? (
             <div className="llavero-fila">
+              {/* `data-lector="propio"`: el llavero que se pasa acá es para ASIGNARLO. Sin esto el
+                  portero de la puerta (que escucha en toda la app) le registraría la entrada. */}
               <input
                 type="text" className="form-input" autoFocus inputMode="text" autoComplete="off"
+                data-lector="propio"
                 placeholder="Pasá el llavero por el lector"
                 aria-label="Número del llavero"
                 value={codigo}

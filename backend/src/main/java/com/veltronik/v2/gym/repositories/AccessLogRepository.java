@@ -190,12 +190,14 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
             UUID tenantId, String accessMethod, LocalDateTime desde);
 
     /**
-     * Accesos por QR de hoy que el mostrador todavía no atendió y cuyo socio NO está al día,
-     * del más nuevo al más viejo.
+     * Accesos de hoy que entraron SOLOS (QR, llavero, molinete facial), que el mostrador todavía
+     * no atendió y cuyo socio NO está al día, del más nuevo al más viejo.
      *
-     * <p><b>Solo los del QR, a propósito.</b> Los que carga la recepcionista a mano ya los vio
+     * <p><b>Los que carga la recepcionista a mano quedan afuera, a propósito.</b> Ya los vio
      * ella: la pantalla le muestra el estado del socio cuando lo elige de la lista. El aviso
-     * existe justamente para los que entraron SIN que nadie los mirara.</p>
+     * existe justamente para los que entraron SIN que nadie los mirara: el que escaneó el QR, el
+     * que pasó el llavero y el que el molinete reconoció por la cara (03/11/2026: antes era solo
+     * el QR, y el vencido que entraba con el llavero no le aparecía a nadie).</p>
      *
      * <p>🔴 <b>Por qué el "no está al día" va en la consulta.</b> Al socio al día nadie le marca
      * el aviso como visto —no hay aviso que ver—, así que su acceso queda "sin atender" para
@@ -210,14 +212,14 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, UUID> {
      */
     @Query("""
             SELECT a FROM AccessLog a JOIN FETCH a.member m
-            WHERE a.tenant.id = :tenantId AND a.accessMethod = 'QR'
+            WHERE a.tenant.id = :tenantId AND a.accessMethod IN ('QR', 'LLAVERO', 'FACIAL')
               AND a.avisoVistoAt IS NULL AND a.checkInAt > :desde
               AND (m.isActive = false OR m.membershipEnd IS NULL OR m.membershipEnd <= :ahora)
             ORDER BY a.checkInAt DESC
             """)
-    List<AccessLog> qrSinAtenderQueNoEstanAlDia(@Param("tenantId") UUID tenantId,
-                                                @Param("desde") LocalDateTime desde,
-                                                @Param("ahora") LocalDateTime ahora);
+    List<AccessLog> sinAtenderQueNoEstanAlDia(@Param("tenantId") UUID tenantId,
+                                              @Param("desde") LocalDateTime desde,
+                                              @Param("ahora") LocalDateTime ahora);
 
     /**
      * A cuántos socios DISTINTOS marcó este teléfono desde {@code desde}.

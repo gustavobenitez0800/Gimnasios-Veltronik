@@ -563,16 +563,22 @@ public class AccessLogService {
         return ingresos;
     }
 
-    /** Un socio que entró por QR y necesita que alguien le hable. */
+    /**
+     * Un socio que entró solo y necesita que alguien le hable.
+     *
+     * @param metodo por dónde entró ({@code QR}, {@code LLAVERO}, {@code FACIAL}): el mostrador
+     *               lo dice en el aviso, y con el cobro sabe si hay una puerta que abrirle
+     */
     public record Aviso(UUID accesoId, UUID socioId, String nombre, String estado,
-                        long diasVencido, LocalDateTime hora) {}
+                        long diasVencido, LocalDateTime hora, String metodo) {}
 
     /**
      * Los socios que entraron solos y necesitan atención, de hoy y sin atender todavía.
      *
      * <p><b>Por qué existe:</b> con el check-in por QR el socio vencido entra sin que nadie lo
      * vea — el aviso aparece en SU teléfono y ahí muere. La recepcionista se enteraría recién
-     * si mirara la lista de accesos y cruzara a mano el estado de cada uno, o sea nunca.</p>
+     * si mirara la lista de accesos y cruzara a mano el estado de cada uno, o sea nunca. Con el
+     * llavero y el molinete facial pasa lo mismo: nadie está mirando cuando entra.</p>
      *
      * <p>El veredicto se calcula ACÁ y no se guarda al escanear a propósito: la situación del
      * socio cambia. Si entró vencido a las 9 y pagó a las 10, a las 11 ya no hay nada que
@@ -584,8 +590,8 @@ public class AccessLogService {
         LocalDateTime desde = LocalDate.now(BUSINESS_ZONE).atStartOfDay();
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
         // La base ya descarta a los que están al día (ver la consulta): traerlos era traer
-        // casi todas las entradas por QR del día para tirarlas acá.
-        List<AccessLog> accesos = accessLogRepository.qrSinAtenderQueNoEstanAlDia(
+        // casi todas las entradas del día para tirarlas acá.
+        List<AccessLog> accesos = accessLogRepository.sinAtenderQueNoEstanAlDia(
                 TenantContextHolder.getTenantId(), desde, ahora);
 
         List<Aviso> avisos = new java.util.ArrayList<>();
@@ -599,7 +605,7 @@ public class AccessLogService {
             avisos.add(new Aviso(
                     a.getId(), m.getId(),
                     (nullSafe(m.getFirstName()) + " " + nullSafe(m.getLastName())).trim(),
-                    v.status().name(), v.diasVencido(), a.getCheckInAt()));
+                    v.status().name(), v.diasVencido(), a.getCheckInAt(), a.getAccessMethod()));
         }
         return avisos;
     }

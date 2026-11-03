@@ -94,7 +94,7 @@ Con el molinete enchufado:
 - [ ] Ajustes: **Trabar** → no gira. **Abrir** → pasa una persona y se vuelve a trabar solo.
 - [ ] Accesos: el DNI de un socio **al día** → abre. El de un **vencido** → no abre y suena la X.
 - [ ] El botón **«Abrir molinete»** de Accesos abre sin registrar a nadie.
-- [ ] Un **QR** escaneado con un socio al día → abre (con la PC en Accesos).
+- [ ] Un **QR** escaneado con un socio al día → abre (en cualquier pantalla del programa).
 - [ ] Desenchufá el USB de la cajita → el molinete queda libre (modo sostener). Volvé a
       enchufarla → se reconecta sola y vuelve a trabar.
 - [ ] La sucursal tiene el **plan Premium** o está en la prueba gratis (si no, el DNI no abre: ver Ajustes).
@@ -108,7 +108,7 @@ Con el molinete enchufado:
 | «No contesta» con el programa instalado | Otro programa (Thonny, el monitor serie) tiene la cajita abierta: cerralo |
 | El relé hace clic pero el molinete no cambia | Cableado o modo equivocado (paso 3), o el molinete sin corriente |
 | Hace clic, cambia la flecha, pero el brazo gira igual | La traba mecánica del molinete: es para un técnico, no para la cajita |
-| Abre con un clic manual pero no con el DNI | El plan de la sucursal no es Premium, o la PC no está en Accesos (para el QR) |
+| Abre con un clic manual pero no con el DNI | El plan de la sucursal no es Premium (o la prueba gratis terminó) |
 
 ## 8. Por dentro (para quien la programe)
 

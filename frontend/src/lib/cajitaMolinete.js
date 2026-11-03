@@ -302,10 +302,22 @@ export async function ordenarALaCajita(orden) {
  * @returns {boolean} si mandó la orden
  */
 export function abrirSiPasa({ pasa = false, salida = false }) {
-  if (!estado.habilitada || estado.fase !== 'conectada') return false;
+  if (!laCajitaManda()) return false;
   if (salida ? !estado.abrirEnLaSalida : !pasa) return false;
   ordenarALaCajita('ABRIR');
   return true;
+}
+
+/**
+ * ¿La puerta la maneja esta PC? La cajita está enchufada y el plan la habilita: el molinete abre
+ * solo cuando Veltronik se lo ordena.
+ *
+ * <p>Es lo que decide qué es el socio que no está al día y pasa el llavero: con la cajita, la
+ * puerta NO se le abre, así que es un FRENADO (un rechazo, como los del molinete facial) y no una
+ * entrada. Sin cajita la puerta la maneja una persona, y lo que corresponde es avisarle.</p>
+ */
+export function laCajitaManda() {
+  return !!estado.habilitada && estado.fase === 'conectada';
 }
 
 /**

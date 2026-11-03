@@ -66,6 +66,9 @@
 /* ─── El cobro con tarjeta (CardCheckout) ─── */
 @import './styles/cobro.css';
 
+/* ─── El portero: la puerta en cualquier pantalla (tarjeta flotante, «Cobrar» en los avisos) ─── */
+@import './styles/portero.css';
+
 /* ─── Vertical Kiosco (KIOSCO): POS, productos, caja ─── */
 
 /* ─── Responsive / Adaptativo ───
