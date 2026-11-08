@@ -10,8 +10,8 @@
  *   node reactivar_tenant.mjs "<nombre|id del tenant>" --payment <mp_payment_id>            -> DRY-RUN (verifica y muestra)
  *   node reactivar_tenant.mjs "<nombre|id del tenant>" --payment <mp_payment_id> --commit   -> aplica (solo si approved)
  *
- * Requiere DB_URL y MP_ACCESS_TOKEN (token PROD) en scripts/.env. Correr con:
- *   node --env-file=scripts/.env scripts/reactivar_tenant.mjs "POPEYE GYM" --payment 12345678901
+ * Requiere DB_URL y MP_ACCESS_TOKEN (token PROD) en C:/Users/gusta/veltronik-claves/scripts.env. Correr con:
+ *   node --env-file=C:/Users/gusta/veltronik-claves/scripts.env scripts/reactivar_tenant.mjs "POPEYE GYM" --payment 12345678901
  *
  * Garantías:
  *  - Sin --payment NO hace nada (no existen más reactivaciones a ciegas).
@@ -38,8 +38,8 @@ const fail = (msg) => { console.error('❌ ' + msg); process.exit(1); };
 
 if (!TARGET) fail('Falta el tenant. Uso: node reactivar_tenant.mjs "<nombre|id>" --payment <mp_payment_id> [--commit]');
 if (!PAYMENT_ID) fail('Falta --payment <mp_payment_id>. Esta herramienta NO reactiva sin un pago real APROBADO en Mercado Pago.');
-if (!DB) fail('Falta DB_URL en el entorno (scripts/.env).');
-if (!MP_TOKEN) fail('Falta MP_ACCESS_TOKEN en el entorno (scripts/.env).');
+if (!DB) fail('Falta DB_URL en el entorno (C:/Users/gusta/veltronik-claves/scripts.env).');
+if (!MP_TOKEN) fail('Falta MP_ACCESS_TOKEN en el entorno (C:/Users/gusta/veltronik-claves/scripts.env).');
 
 const c = new Client({ connectionString: DB, ssl: { rejectUnauthorized: false }, statement_timeout: 30000 });
 const NOW_AR = `(now() AT TIME ZONE 'America/Argentina/Buenos_Aires')`;
