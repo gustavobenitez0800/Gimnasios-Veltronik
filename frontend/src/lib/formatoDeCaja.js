@@ -23,6 +23,23 @@ export const cuandoDe = (iso) => {
   return toLocalDateString(new Date(iso)) === toLocalDateString(new Date()) ? horaDe(iso) : fecha(iso);
 };
 
+/**
+ * ⭐ La hora de un cobro ("18:15"), o '' si no se sabe (08/11/2026).
+ *
+ * <p>Lo pidió un gimnasio: cuando la caja no cierra o una transferencia no aparece, mira la cámara
+ * a la hora del cobro para ver quién cobró y si de verdad pagó. La hora siempre se guardó; no se
+ * mostraba.</p>
+ *
+ * <p>Un cobro cargado en Pagos con el día de OTRO día queda a las 00:00 en punto (ahí no se sabe la
+ * hora: ver `mapeoPago.momentoDelCobro`). Mostrar «00:00» sería mandar a mirar la cámara a la
+ * medianoche.</p>
+ */
+export const horaDelCobro = (iso) => {
+  if (!iso) return '';
+  if (/T00:00(:00(\.0+)?)?$/.test(String(iso))) return '';
+  return horaDe(iso);
+};
+
 /** El título del total según el atajo del selector. */
 export const TOTAL_DEL = { today: 'Total de hoy', week: 'Total de la semana', month: 'Total del mes', year: 'Total del año' };
 /** Lo que dice el botón del Excel según el atajo del selector. */

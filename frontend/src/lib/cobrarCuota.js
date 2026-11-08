@@ -14,12 +14,13 @@ import { paymentService, memberService } from '../services';
 
 /**
  * @param {{id: string, fullName?: string, firstName?: string, lastName?: string}} socio
- * @param {{planId?: string|null, monto: number, metodo?: string}} cobro
+ * @param {{planId?: string|null, monto: number, metodo?: string, desde?: string|null}} cobro
+ *   desde: al que pagó tarde, 'VENCIMIENTO' (no pierde su ciclo) o 'HOY'. Lo aplica el servidor.
  * @returns {Promise<{encolado?: boolean, membershipEnd?: string, socio?: object}>}
  *   encolado: sin conexión, el cobro quedó en la cola (todavía no movió el vencimiento).
  *   membershipEnd y socio: lo que quedó de verdad en el servidor; vacío si no se pudo releer.
  */
-export async function cobrarCuota(socio, { planId, monto, metodo }) {
+export async function cobrarCuota(socio, { planId, monto, metodo, desde = null }) {
   const r = await paymentService.createPayment({
     member_id: socio.id,
     // Solo para la cola: sin esto, la lista del cierre sin conexión muestra renglones sin
@@ -29,6 +30,8 @@ export async function cobrarCuota(socio, { planId, monto, metodo }) {
     amount: monto,
     paymentMethod: (metodo || 'cash').toUpperCase(),
     status: 'PAID',
+    // Viaja también en la cola: sin conexión, el servidor lo aplica cuando el cobro sube.
+    ...(desde ? { desde } : {}),
   });
 
   // ⚠️ SIN CONEXIÓN NO SE PROMETE UN VENCIMIENTO NUEVO. La cobertura la corre el SERVIDOR, y

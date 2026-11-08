@@ -44,4 +44,11 @@ public class GymPaymentInputDTO {
      */
     @JsonProperty("plan_id")
     private UUID planId;
+
+    /**
+     * Para el socio que pagó DESPUÉS de vencer: {@code VENCIMIENTO} (el mes corre desde que vencía,
+     * no pierde su ciclo) o {@code HOY}. Null es lo de siempre (desde hoy). Ver
+     * {@code GymPaymentService.ArrancaDesde}.
+     */
+    private String desde;
 }

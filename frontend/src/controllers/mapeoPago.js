@@ -14,7 +14,7 @@
 /** Los campos que viajan al backend. El test verifica que no falte ninguno. */
 export const CAMPOS_DEL_PAGO = [
   'member_id', 'plan_id', 'amount', 'paymentDate', 'paymentMethod',
-  'status', 'notes', 'periodStart', 'periodEnd',
+  'status', 'notes', 'periodStart', 'periodEnd', 'desde',
 ];
 
 const dos = (n) => String(n).padStart(2, '0');
@@ -67,5 +67,7 @@ export function mapPaymentModelToDTO(model) {
     // El período arranca al abrir el día y termina al cerrarlo.
     periodStart: model.periodStart ? `${model.periodStart}T00:00:00` : null,
     periodEnd: model.periodEnd ? `${model.periodEnd}T23:59:59` : null,
+    // Al que pagó tarde: 'VENCIMIENTO' o 'HOY' (con arancel, el servidor corre el mes desde ahí).
+    desde: model.desde || null,
   };
 }

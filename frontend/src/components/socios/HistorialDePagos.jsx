@@ -1,4 +1,5 @@
 import { formatDate, formatCurrency, getMethodLabel } from '../../lib/utils';
+import { horaDelCobro } from '../../lib/formatoDeCaja';
 import { Badge } from '../ui';
 import Modal from '../ui/Modal';
 
@@ -30,6 +31,7 @@ export default function HistorialDePagos({ paymentsModal, setPaymentsModal, paym
                 <span className="payment-amount">{formatCurrency(p.amount)}</span>
                 <span className="payment-date">
                   {formatDate(p.paymentDate)}
+                  {horaDelCobro(p.paymentDate) && <span className="cobro-hora">{horaDelCobro(p.paymentDate)}</span>}
                   {p.paymentMethod ? ` · ${getMethodLabel(p.paymentMethod)}` : ''}
                 </span>
               </div>

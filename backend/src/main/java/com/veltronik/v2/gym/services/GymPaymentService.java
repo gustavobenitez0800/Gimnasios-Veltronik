@@ -72,7 +72,39 @@ public class GymPaymentService {
         return repository.findByTenantIdAndMemberId(TenantContextHolder.getTenantId(), memberId);
     }
     
+    /**
+     * Desde dónde arranca el período nuevo de un socio que pagó DESPUÉS de vencer (08/11/2026).
+     *
+     * <p>Lo pidió un gimnasio: «a veces la gente pide pagar mañana o pasado; cuando paga, el
+     * sistema le deja la fecha en que pagó y no la que se venció, y tengo que cambiarla a mano
+     * —y a veces no me acuerdo cuál era—». Quien cobra elige; el sistema solo lo aplica.</p>
+     */
+    public enum ArrancaDesde {
+        /** Desde el vencimiento que tenía: no pierde su ciclo (vencía el 2, sigue venciendo el 2). */
+        VENCIMIENTO,
+        /** Desde hoy, el día que paga (lo de siempre para el que ya estaba vencido). */
+        HOY;
+
+        /** Lo que manda la pantalla, o null si no dijo nada (o dijo algo que no existe). */
+        public static ArrancaDesde de(String texto) {
+            if (texto == null || texto.isBlank()) return null;
+            try {
+                return valueOf(texto.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
     public GymPayment saveForCurrentTenant(GymPayment payment) {
+        return saveForCurrentTenant(payment, null);
+    }
+
+    /**
+     * @param arranca para el socio que pagó después de vencer, desde dónde corre el mes; null es
+     *                lo de siempre (desde hoy). Al que todavía está al día no le cambia nada.
+     */
+    public GymPayment saveForCurrentTenant(GymPayment payment, ArrancaDesde arranca) {
         // ⭐⭐ ANTES DE TOCAR NADA: ¿ESTE COBRO YA SE GUARDÓ?
         //
         // El mostrador puede cobrar sin internet y mandar cuando vuelve. Si el pedido salió,
@@ -155,11 +187,11 @@ public class GymPaymentService {
         if (payment.getPlan() != null && payment.getPlan().getId() != null) {
             GymPlan plan = planService.findByIdAndVerifyOwnership(payment.getPlan().getId());
             payment.setPlan(plan);
-            aplicarPeriodoDelPlan(payment, plan, member);
+            aplicarPeriodoDelPlan(payment, plan, member, arranca);
         } else if (payment.getPeriodEnd() == null) {
             // Sin arancel: un mes. Se respeta el período si quien carga el pago lo trajo
             // escrito —el portal deja hacerlo— porque ahí alguien ya decidió a mano.
-            aplicarPeriodoDelPlan(payment, null, member);
+            aplicarPeriodoDelPlan(payment, null, member, arranca);
         }
 
         GymPayment saved = repository.save(payment);
@@ -171,13 +203,22 @@ public class GymPaymentService {
      * Calcula el período que cubre este pago a partir del arancel.
      *
      * <p>Arranca donde termina la cobertura vigente del socio —no "hoy"—: el que paga el 25
-     * teniendo cuota hasta el 30 no pierde esos cinco días, se le suman. Si está vencido o es
-     * nuevo, arranca hoy.</p>
+     * teniendo cuota hasta el 30 no pierde esos cinco días, se le suman. Si es nuevo, arranca
+     * hoy. Si está vencido, arranca hoy… salvo que quien cobra elija
+     * {@link ArrancaDesde#VENCIMIENTO}: entonces arranca donde vencía, y no pierde su ciclo.</p>
+     *
+     * <p>⚠️ «Desde que venció» solo se aplica si deja al socio AL DÍA. Al que venció hace más de
+     * un período, ese período ya terminó: cobrarle desde ahí lo dejaría vencido después de
+     * pagar. Ahí corre desde hoy, elija lo que elija la pantalla (que tampoco lo ofrece).</p>
      *
      * <p>Un arancel de 0 días (un pack de clases sueltas) no toca el período: solo suma
      * visitas. Por eso el período queda en null y {@code aplicarCobertura} no mueve la fecha.</p>
+     *
+     * <p>Hay una gemela en el frontend para mostrar la fecha ANTES de cobrar
+     * ({@code lib/cobertura.js → vencimientoNuevo}); si cambia una, cambia la otra (y los dos
+     * tests lo dicen). La que manda es esta.</p>
      */
-    private void aplicarPeriodoDelPlan(GymPayment payment, GymPlan plan, GymMember member) {
+    private void aplicarPeriodoDelPlan(GymPayment payment, GymPlan plan, GymMember member, ArrancaDesde arranca) {
         int cantidad = (plan == null) ? 1 : plan.getCoberturaCantidad();
         String unidad = (plan == null) ? "MES" : plan.getCoberturaUnidad();
 
@@ -187,7 +228,15 @@ public class GymPaymentService {
 
         LocalDateTime ahora = LocalDateTime.now(BUSINESS_ZONE);
         LocalDateTime vigente = (member != null) ? member.getMembershipEnd() : null;
-        LocalDateTime desde = (vigente != null && vigente.isAfter(ahora)) ? vigente : ahora;
+        LocalDateTime desde;
+        if (vigente != null && vigente.isAfter(ahora)) {
+            desde = vigente;                                   // al día: se le suma
+        } else if (arranca == ArrancaDesde.VENCIMIENTO && vigente != null
+                && sumar(vigente, cantidad, unidad).isAfter(ahora)) {
+            desde = vigente;                                   // pagó tarde: no pierde el ciclo
+        } else {
+            desde = ahora;                                     // nuevo, o vencido: desde hoy
+        }
 
         // ⭐ SUMAR MESES, NO DÍAS, Y LA DIFERENCIA NO ES COSMÉTICA.
         //
@@ -198,9 +247,12 @@ public class GymPaymentService {
         // `plusMonths` recorta solo al último día que existe: quien paga un 31 de enero vence
         // el 28 (o 29) de febrero, que es lo que la gente espera y lo que hace todo el mundo.
         payment.setPeriodStart(desde);
-        payment.setPeriodEnd("MES".equals(unidad)
-                ? desde.plusMonths(cantidad)
-                : desde.plusDays(cantidad));
+        payment.setPeriodEnd(sumar(desde, cantidad, unidad));
+    }
+
+    /** Lo que cubre un arancel a partir de {@code desde}: meses calendario, o días. */
+    private static LocalDateTime sumar(LocalDateTime desde, int cantidad, String unidad) {
+        return "MES".equals(unidad) ? desde.plusMonths(cantidad) : desde.plusDays(cantidad);
     }
 
     /**
@@ -384,9 +436,9 @@ public class GymPaymentService {
         // Recién ahora entra la plata: el período se calcula como en un cobro nuevo.
         if (!estabaCobrado && p.estaCobrado()) {
             if (p.getPlan() != null && p.getPlan().getId() != null) {
-                aplicarPeriodoDelPlan(p, planService.findByIdAndVerifyOwnership(p.getPlan().getId()), member);
+                aplicarPeriodoDelPlan(p, planService.findByIdAndVerifyOwnership(p.getPlan().getId()), member, null);
             } else if (cambios.periodEnd() == null) {
-                aplicarPeriodoDelPlan(p, null, member);
+                aplicarPeriodoDelPlan(p, null, member, null);
             }
         }
 

@@ -5,13 +5,15 @@
 // período de membresía que se renueva solo al registrar el pago.
 // ============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { memberService, errorService, planService } from '../services';
 import { usePaymentController } from '../controllers/usePaymentController';
 import { formatDate, formatCurrency, getMethodLabel, toLocalDateString, addOneMonth, sumarPlata } from '../lib/utils';
 import { etiquetaCobertura } from '../lib/cobertura';
+import { opcionesDeArranque, ARRANCA } from '../lib/vencimientoNuevo';
+import ArranqueDelPeriodo from '../components/cobro/ArranqueDelPeriodo';
 import { FORMAS_DE_PAGO, OTRA_FORMA } from '../lib/formasDePago';
 import { useModal, invalidateQueries, useDebouncedSearch } from '../hooks';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,6 +24,8 @@ import Icon from '../components/Icon';
 import ImportarHistorialCaja from '../components/ImportarHistorialCaja';
 import SelectorDeFechas from '../components/SelectorDeFechas';
 import { useRangoDeFechas } from '../hooks/useRangoDeFechas';
+import { horaDelCobro } from '../lib/formatoDeCaja';
+import { useClaveDeCobro } from '../contexts/ClaveDeCobroContext';
 
 /**
  * Compara el estado de un pago sin depender de mayúsculas.
@@ -90,6 +94,8 @@ const PAYMENT_MAP_FN = (p) => ({
 
 export default function PaymentsPage() {
   const { showToast } = useToast();
+  // La clave para cobrar (opcional, Ajustes): se pide antes de cobrar, editar o anular.
+  const { pedirClave } = useClaveDeCobro();
   const { orgRole, profile } = useAuth();
   // Mismo permiso que el backend (ImportacionCajaController): son los ingresos del gimnasio.
   const puedeImportar = orgRole === 'owner' || orgRole === 'admin';
@@ -220,8 +226,11 @@ export default function PaymentsPage() {
         fullName: member.fullName || `${member.firstName || ''} ${member.lastName || ''}`.trim(),
         dni: member.dni || member.document || '',
       });
-      // El período nuevo arranca donde termina la membresía vigente (o hoy si no tiene).
-      const startStr = (member.membershipEnd || toLocalDateString(new Date())).split('T')[0];
+      // El período nuevo arranca donde termina la membresía vigente (o hoy si no tiene, o si ya
+      // venció: arrancar en un vencimiento viejo dejaba el período entero en el pasado, y el socio
+      // pagaba y seguía vencido). Al que pagó tarde, las opciones de arriba ofrecen su ciclo.
+      const vigente = member.membershipEnd && new Date(member.membershipEnd) > new Date() ? member.membershipEnd : null;
+      const startStr = (vigente || toLocalDateString(new Date())).split('T')[0];
       openModal({ id: null }, () => ({
         ...initialForm,
         member_id: deepLink.memberId,
@@ -292,6 +301,38 @@ export default function PaymentsPage() {
     }));
   };
 
+  // ─── ⭐ AL QUE PAGÓ TARDE: DESDE QUE VENCIÓ O DESDE HOY (08/11/2026) ───
+  //
+  // Las dos fechas posibles, a la vista, y se elige con un clic (viene marcada «desde que
+  // venció»: lo pidió un gimnasio, para no tener que corregir la fecha a mano). Las fechas de
+  // «Período» de abajo siguen a la elección: sin arancel son las que se guardan, y con arancel
+  // el servidor aplica la misma regla con lo elegido.
+  const arancelElegido = aranceles.find((a) => a.id === modal.form.plan_id) || null;
+  const opcionesPago = useMemo(() => (
+    modal.isOpen && !modal.editingId && selectedMember
+      ? opcionesDeArranque({ vence: selectedMember.membershipEnd, plan: arancelElegido })
+      : null
+  ), [modal.isOpen, modal.editingId, selectedMember, arancelElegido]);
+  const arrancaPago = opcionesPago?.desdeQueVencio ? (modal.form.desde || opcionesPago.sugerida) : null;
+
+  const elegirArranque = useCallback((valor, opciones) => {
+    if (!opciones?.desdeQueVencio) return;
+    const desdeQueVencio = valor === ARRANCA.VENCIMIENTO;
+    modal.setForm((prev) => ({
+      ...prev,
+      desde: valor,
+      periodStart: toLocalDateString(desdeQueVencio ? opciones.vencia : new Date()),
+      periodEnd: toLocalDateString(desdeQueVencio ? opciones.desdeQueVencio : opciones.desdeHoy),
+    }));
+  }, [modal]);
+
+  // Al elegir socio o arancel, las fechas del período arrancan en lo sugerido (o lo ya elegido).
+  useEffect(() => {
+    if (opcionesPago?.desdeQueVencio) elegirArranque(modal.form.desde || opcionesPago.sugerida, opcionesPago);
+    // Solo cuando cambian las opciones (otro socio, otro arancel): la elección vive en el form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opcionesPago]);
+
   const handleMemberSelect = (member) => {
     handleFormChange('member_id', member.id);
     setSelectedMember(member);
@@ -322,6 +363,9 @@ export default function PaymentsPage() {
       showToast('Escribí un monto mayor a cero', 'error');
       return;
     }
+
+    // La clave para cobrar, si el dueño la puso (Ajustes): que nadie se renueve la cuota solo.
+    if (!(await pedirClave(modal.editingId ? 'editar' : 'cobrar'))) return;
 
     modal.setSaving(true);
     try {
@@ -371,6 +415,8 @@ export default function PaymentsPage() {
       showToast('Escribí por qué se anula. Sin eso no se puede revisar después.', 'error');
       return;
     }
+    // La clave para cobrar, si está puesta: anular un cobro es tocar la plata igual que cobrar.
+    if (!(await pedirClave('anular'))) return;
     setGuardandoAnulacion(true);
     try {
       const r = await anularPayment(anulando.id, {
@@ -388,6 +434,8 @@ export default function PaymentsPage() {
   };
 
   const handleMarkPaid = async (payment) => {
+    // Marcarlo pagado ES cobrar: la misma clave.
+    if (!(await pedirClave('cobrar'))) return;
     try {
       await savePayment({
         ...payment,
@@ -571,7 +619,11 @@ export default function PaymentsPage() {
                         </div>
                       )}
                     </td>
-                    <td data-label="Fecha" className="col-fecha">{formatDate(payment.paymentDate)}</td>
+                    <td data-label="Fecha" className="col-fecha">
+                      {formatDate(payment.paymentDate)}
+                      {/* La hora: para cruzarla con la cámara cuando la caja no cierra. */}
+                      {horaDelCobro(payment.paymentDate) && <span className="cobro-hora">{horaDelCobro(payment.paymentDate)}</span>}
+                    </td>
                     <td data-label="Forma de pago" className="col-forma">{getMethodLabel(payment.paymentMethod)}</td>
                     <td data-label="Período" className="col-periodo">
                       {payment.periodStart && payment.periodEnd ? (
@@ -706,6 +758,12 @@ export default function PaymentsPage() {
                     ? 'El período lo aplica el arancel: no hace falta tocar las fechas de abajo.'
                     : 'Sin arancel, el período lo escribís vos.'}
                 </small>
+              </div>
+            )}
+            {opcionesPago?.desdeQueVencio && (
+              <div className="form-group full-width">
+                <ArranqueDelPeriodo opciones={opcionesPago} valor={arrancaPago}
+                  onCambiar={(v) => elegirArranque(v, opcionesPago)} />
               </div>
             )}
             <div className="form-group">

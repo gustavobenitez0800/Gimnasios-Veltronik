@@ -5,7 +5,7 @@
 // asignar aranceles en masa, la ficha, el cobro, la papelera, el historial, el CSV y WhatsApp.
 // Los DATOS (traer, guardar, borrar socios) los da useMemberController; esto es la pantalla.
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,7 @@ import { GYM } from '../lib/gym';
 import { ESTADOS_DEL_SOCIO, estadoDelSocio } from '../lib/situacionSocio';
 import { enlaceDeWhatsApp } from '../lib/whatsapp';
 import { cobrarCuota } from '../lib/cobrarCuota';
+import { useClaveDeCobro } from '../contexts/ClaveDeCobroContext';
 import { PAGE_SIZE, LARGE_SIZE, SACAR_ARANCEL, STATUS_FILTER_OPTIONS, ESTADO_DE_ANTES } from '../lib/listaDeSocios';
 import { useModal, useConfirmDialog, usePagination, useDebouncedSearch, useMolinete } from '../hooks';
 import { useAlPonerseAlDia } from '../hooks/useAlPonerseAlDia';
@@ -26,6 +27,7 @@ import { DAY_NAMES } from '../components/ui';
 
 export function usePantallaDeSocios() {
   const { showToast } = useToast();
+  const { pedirClave } = useClaveDeCobro();
   const [searchParams] = useSearchParams();
   const { orgRole } = useAuth();
   const { memberLabel, membersLabel } = GYM;
@@ -191,6 +193,16 @@ export function usePantallaDeSocios() {
   const [initialForm] = useState(getInitialMemberForm);
   const modal = useModal(initialForm, searchParams.get('action') === 'new');
 
+  // El vencimiento con que se abrió la ficha. Si al guardar es otro, alguien lo cambió a mano: con
+  // la clave para cobrar puesta, eso también la pide (ver handleSave). Va en un ref y no en el
+  // formulario: el formulario tiene exactamente sus campos (formSocio.test).
+  const vencimientoAlAbrir = useRef('');
+  useEffect(() => {
+    if (modal.isOpen) vencimientoAlAbrir.current = modal.form.membershipEnd || '';
+    // Solo al abrir (o al pasar a otra ficha): después, el form es lo que se está editando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal.isOpen, modal.editingId]);
+
   // ─── El alta en dos niveles ───
   //
   // Para dar de alta a alguien en el mostrador hacen falta CUATRO cosas: nombre, DNI,
@@ -312,13 +324,20 @@ export function usePantallaDeSocios() {
       return;
     }
 
+    // Cambiarle a mano el vencimiento a un socio es renovarle la cuota sin cobrar: con la clave
+    // para cobrar puesta (Ajustes), también la pide. Solo si de verdad lo cambió.
+    const dia = (v) => String(v || '').slice(0, 10);
+    const cambioElVencimiento = modal.editingId
+      && dia(modal.form.membershipEnd) !== dia(vencimientoAlAbrir.current);
+    if (cambioElVencimiento && !(await pedirClave('vencimiento'))) return;
+
     modal.setSaving(true);
     try {
       const data = modal.getCleanedData();
       if (modal.editingId) {
         data.id = modal.editingId;
       }
-      
+
       const guardado = await saveMember(data);
       // Forzar recarga desde la BD para garantizar sincronización de la tabla y contador.
       // `refresh` pide de nuevo la MISMA vista que se está mirando; guardar ya marcó viejas

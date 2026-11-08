@@ -14,6 +14,7 @@ import { derivarPaleta } from '../lib/brandColor';
 
 import ErrorBoundary from './ErrorBoundary';
 import { PorteroProvider } from '../contexts/PorteroContext';
+import { ClaveDeCobroProvider } from '../contexts/ClaveDeCobroContext';
 
 /**
  * Header móvil que se retrae al bajar y vuelve al subir.
@@ -160,7 +161,10 @@ export function AppLayout() {
     <div className="app-layout" style={paleta}>
       {/* ⭐ La puerta del gimnasio, atendida en cualquier pantalla (contexts/PorteroContext): el
           lector de llaveros, la cajita del molinete, los avisos de la puerta y el cobro desde
-          ahí. Adentro del layout, para que su tarjeta flotante tenga los colores del gimnasio. */}
+          ahí. Adentro del layout, para que su tarjeta flotante tenga los colores del gimnasio.
+          Afuera de él, la clave para cobrar (opcional): la pide cualquier cobro, también el de la
+          puerta. */}
+      <ClaveDeCobroProvider>
       <PorteroProvider>
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
@@ -231,6 +235,7 @@ export function AppLayout() {
         </div>
       </main>
       </PorteroProvider>
+      </ClaveDeCobroProvider>
     </div>
   );
 }

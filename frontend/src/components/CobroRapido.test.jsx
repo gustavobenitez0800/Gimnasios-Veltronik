@@ -12,7 +12,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import CobroRapido from './CobroRapido';
+
+// La clave para cobrar (Ajustes), de mentira: así se controla si la escribieron o no, y no se
+// trae la capa de datos entera (en el Node 20 del CI, construir el cliente de Supabase revienta).
+const clave = vi.hoisted(() => ({ pedirClave: vi.fn(async () => true) }));
+vi.mock('../contexts/ClaveDeCobroContext', () => ({ useClaveDeCobro: () => clave }));
+
+const { default: CobroRapido } = await import('./CobroRapido');
 
 const ARANCELES = [
   { id: 'p1', name: 'Mensual', price: 45000, coberturaCantidad: 1, coberturaUnidad: 'MES', isActive: true },
@@ -86,7 +92,19 @@ async function confirmar() {
   await act(async () => { await Promise.resolve(); });
 }
 
-beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; });
+beforeEach(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  clave.pedirClave.mockReset();
+  clave.pedirClave.mockResolvedValue(true);
+});
+
+/** Una fecha a N días de hoy, a las 00:00, como la manda el servidor. */
+function enDias(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const dos = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T00:00:00`;
+}
 
 afterEach(() => {
   if (root) act(() => root.unmount());
@@ -255,5 +273,67 @@ describe('⭐ el modal dice QUÉ va a pasar con la fecha, antes de cobrar', () =
     await pintar({ aranceles: [], socio: { ...SOCIO, planId: null } });
 
     expect(container.textContent).toContain('Sin arancel la cuota corre 1 mes');
+  });
+});
+
+describe('⭐ al que pagó tarde: desde que venció o desde hoy (08/11/2026)', () => {
+  it('ofrece las dos fechas, viene marcada «desde que venció», y manda lo elegido', async () => {
+    // Lo pidió un gimnasio: vencía hace 3 días, pagó hoy, y no tiene que perder su ciclo ni que
+    // alguien se acuerde la fecha vieja para corregirla a mano.
+    const onCobrar = vi.fn().mockResolvedValue({});
+    await pintar({ onCobrar, socio: { ...SOCIO, membershipEnd: enDias(-3) } });
+
+    expect(texto()).toContain('Desde que venció');
+    expect(texto()).toContain('Desde hoy');
+    const radios = [...container.querySelectorAll('input[type="radio"]')];
+    expect(radios[0].checked, 'viene marcada «desde que venció»').toBe(true);
+
+    await confirmar();
+    expect(onCobrar).toHaveBeenCalledWith(expect.objectContaining({ desde: 'VENCIMIENTO' }));
+
+    // Ahora eligiendo «desde hoy».
+    onCobrar.mockClear();
+    root.unmount();
+    container.remove();
+    await pintar({ onCobrar, socio: { ...SOCIO, membershipEnd: enDias(-3) } });
+    await act(async () => { container.querySelectorAll('input[type="radio"]')[1].click(); });
+    await confirmar();
+    expect(onCobrar).toHaveBeenCalledWith(expect.objectContaining({ desde: 'HOY' }));
+  });
+
+  it('al que todavía está al día no le pregunta nada (se le suma, como siempre)', async () => {
+    const onCobrar = vi.fn().mockResolvedValue({});
+    await pintar({ onCobrar, socio: { ...SOCIO, membershipEnd: enDias(10) } });
+
+    expect(texto()).not.toContain('Desde que venció');
+    await confirmar();
+    expect(onCobrar).toHaveBeenCalledWith(expect.objectContaining({ desde: null }));
+  });
+
+  it('🔴 al vencido hace meses no le ofrece «desde que venció»: lo dejaría vencido', async () => {
+    await pintar({ socio: { ...SOCIO, membershipEnd: enDias(-90) } });
+    expect(texto()).not.toContain('Desde que venció');
+  });
+});
+
+describe('⭐ la clave para cobrar (opcional, Ajustes)', () => {
+  it('🔴 si la piden y no la escriben, no se cobra', async () => {
+    clave.pedirClave.mockResolvedValue(false);
+    const onCobrar = vi.fn().mockResolvedValue({});
+    await pintar({ onCobrar });
+
+    await confirmar();
+
+    expect(clave.pedirClave).toHaveBeenCalledWith('cobrar');
+    expect(onCobrar).not.toHaveBeenCalled();
+    expect(texto(), 'el cobro sigue abierto, para escribirla o cancelar').toContain('Cobrar cuota');
+  });
+
+  it('escrita bien, se cobra', async () => {
+    const onCobrar = vi.fn().mockResolvedValue({});
+    await pintar({ onCobrar });
+    await confirmar();
+    expect(clave.pedirClave).toHaveBeenCalledTimes(1);
+    expect(onCobrar).toHaveBeenCalledTimes(1);
   });
 });

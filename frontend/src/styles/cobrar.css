@@ -1,0 +1,66 @@
+/* ============================================
+   COBRAR: LO QUE PIDIERON LOS GIMNASIOS (08/11/2026)
+   ============================================
+   · Al que pagó tarde, desde dónde arranca el mes (ArranqueDelPeriodo).
+   · La hora de cada cobro, al lado de la fecha.
+   · La clave para cobrar (PedirClaveDeCobro, ClaveDeCobroSettings).
+   Archivo propio y casi al final de la lista: suma reglas sin mover el orden de las que ya
+   estaban. Se parece a los botones de «Cómo pagó» (members.css) a propósito: es la misma
+   pantalla y el mismo gesto. */
+
+/* ── Desde que venció / desde hoy ── */
+.arranque-periodo {
+  border: 0;
+  margin: 0 0 var(--space-3, 0.75rem);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.arranque-periodo legend { padding: 0; margin-bottom: 0.35rem; }
+
+.arranque-opcion {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.arranque-opcion:hover { border-color: var(--primary-500); }
+.arranque-opcion.elegida {
+  border-color: var(--primary-500);
+  background: color-mix(in srgb, var(--primary-500) 14%, transparent);
+  color: var(--text-primary);
+}
+.arranque-opcion input { margin: 0; accent-color: var(--primary-500); }
+.arranque-opcion strong { color: var(--text-primary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+  .arranque-opcion { grid-template-columns: auto 1fr; }
+  .arranque-opcion strong { grid-column: 2; }
+}
+
+/* ── La hora del cobro, al lado de la fecha: más chica, para que la fecha siga mandando ── */
+.cobro-hora {
+  margin-left: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── La clave para cobrar: la ventanita ── */
+.clave-cobro-texto { margin: 0 0 0.75rem; color: var(--text-secondary); }
+.clave-cobro-campo {
+  font-size: 1.5rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.clave-cobro-error { margin: 0.6rem 0 0; color: var(--error-500); font-size: 0.9rem; }

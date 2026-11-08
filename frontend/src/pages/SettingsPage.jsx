@@ -31,6 +31,7 @@ import LlaverosSettings from '../components/llaveros/LlaverosSettings';
 import SonidoDelMostradorSettings from '../components/SonidoDelMostradorSettings';
 import CoverageGaps from '../components/CoverageGaps';
 import CashierSettings from '../components/CashierSettings';
+import ClaveDeCobroSettings from '../components/ClaveDeCobroSettings';
 import ArancelesSettings from '../components/ArancelesSettings';
 
 /**
@@ -541,6 +542,10 @@ export default function SettingsPage({ SubscriptionActions }) {
         {/* Quién atiende el mostrador, con su PIN. A partir de la primera persona cargada,
             cada cobro y cada acceso quedan firmados. */}
         {canManageDevices && <CashierSettings />}
+
+        {/* La clave para cobrar (opcional): que nadie se renueve la cuota solo en el mostrador.
+            Al lado del PIN: las dos son la cerradura del mostrador. */}
+        {canManageDevices && <ClaveDeCobroSettings />}
 
         {/* Socios que pagaron y quedaron figurando vencidos (restos del bug de los dos
             pasos al cobrar). Se esconde solo cuando no hay nada que revisar. */}

@@ -24,6 +24,8 @@ export { planService } from './PlanService';
 export { molineteService } from './MolineteService';
 // Llaveros de los socios (ADR-016): asignar, dar de baja, y los que vinieron en el DNI.
 export { llaveroService } from './LlaveroService';
+// La clave para cobrar de la sucursal (opcional, la pone el dueño en Ajustes).
+export { claveDeCobroService } from './ClaveDeCobroService';
 
 // Analytics
 export { dashboardStatsService } from './DashboardStatsService';

@@ -199,6 +199,79 @@ class CoberturaDelMesIntegrationTest extends EmbeddedPostgresTest {
         assertEquals(esperado.toLocalDate(), vencimiento().toLocalDate());
     }
 
+    /** Cobrar eligiendo desde dónde arranca el mes del que pagó tarde. */
+    private void cobrarDesde(UUID arancel, GymPaymentService.ArrancaDesde arranca) {
+        GymPayment p = new GymPayment();
+        p.setMemberId(socio);
+        if (arancel != null) {
+            GymPlan plan = new GymPlan();
+            plan.setId(arancel);
+            p.setPlan(plan);
+        }
+        p.setAmount(new BigDecimal("45000"));
+        p.setPaymentDate(LocalDateTime.now());
+        p.setStatus("PAID");
+        paymentService.saveForCurrentTenant(p, arranca);
+    }
+
+    @Test
+    @DisplayName("⭐ pagó 3 días tarde y eligió «desde que venció»: no pierde su ciclo")
+    void elQuePagaTardeNoPierdeElCiclo() {
+        // Lo pidió un gimnasio (08/11/2026): vencía el 2, pagó el 5; tiene que seguir venciendo
+        // el 2, sin que nadie tenga que acordarse la fecha vieja y corregirla a mano.
+        LocalDateTime vencia = LocalDate.now().minusDays(3).atStartOfDay();
+        crearSocio(vencia);
+
+        cobrarDesde(null, GymPaymentService.ArrancaDesde.VENCIMIENTO);
+
+        assertEquals(vencia.plusMonths(1), vencimiento());
+    }
+
+    @Test
+    @DisplayName("…y con un arancel también: el trimestral corre tres meses desde que vencía")
+    void elTrimestralTardeTambienDesdeQueVencio() {
+        LocalDateTime vencia = LocalDate.now().minusDays(10).atStartOfDay();
+        crearSocio(vencia);
+
+        cobrarDesde(crearArancel("Trimestral", 3, "MES"), GymPaymentService.ArrancaDesde.VENCIMIENTO);
+
+        assertEquals(vencia.plusMonths(3), vencimiento());
+    }
+
+    @Test
+    @DisplayName("si eligió «desde hoy», arranca hoy como siempre")
+    void elQueEligeDesdeHoyArrancaHoy() {
+        crearSocio(LocalDate.now().minusDays(3).atStartOfDay());
+
+        cobrarDesde(null, GymPaymentService.ArrancaDesde.HOY);
+
+        assertEquals(LocalDateTime.now().plusMonths(1).toLocalDate(), vencimiento().toLocalDate());
+    }
+
+    @Test
+    @DisplayName("🔴 «desde que venció» con el mes ya terminado NO lo deja vencido después de pagar")
+    void desdeQueVencioNuncaDejaVencido() {
+        // Vencido hace 3 meses: desde el vencimiento, el mes nuevo también ya pasó. Pagaría y
+        // seguiría vencido. Ahí corre desde hoy, diga lo que diga la pantalla.
+        crearSocio(LocalDateTime.now().minusMonths(3));
+
+        cobrarDesde(null, GymPaymentService.ArrancaDesde.VENCIMIENTO);
+
+        assertEquals(LocalDateTime.now().plusMonths(1).toLocalDate(), vencimiento().toLocalDate());
+    }
+
+    @Test
+    @DisplayName("al que todavía está al día «desde que venció» no le cambia nada: se le suma")
+    void alDiaSeSumaIgual() {
+        LocalDateTime enCincoDias = LocalDate.now().plusDays(5).atStartOfDay();
+        crearSocio(enCincoDias);
+
+        cobrarDesde(null, GymPaymentService.ArrancaDesde.HOY);
+
+        assertEquals(enCincoDias.plusMonths(1), vencimiento(),
+                "el que paga antes de vencer no pierde días, elija lo que elija");
+    }
+
     @Test
     @DisplayName("y el que paga adelantado no pierde los días que le quedaban")
     void elAdelantadoNoPierdeNada() {

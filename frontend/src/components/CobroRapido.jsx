@@ -27,6 +27,9 @@ import { arancelDelSocio } from '../controllers/formSocio';
 // "1 semana".
 import { queCubre } from '../lib/cobertura';
 import { FORMAS_DE_PAGO } from '../lib/formasDePago';
+import { opcionesDeArranque } from '../lib/vencimientoNuevo';
+import ArranqueDelPeriodo from './cobro/ArranqueDelPeriodo';
+import { useClaveDeCobro } from '../contexts/ClaveDeCobroContext';
 
 /** Los mismos nombres y el mismo orden que Pagos y la Caja (lib/formasDePago). */
 const METODOS = FORMAS_DE_PAGO;
@@ -38,6 +41,9 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
   const [guardando, setGuardando] = useState(false);
   // Lo que el servidor contestó: el vencimiento REAL que quedó, no uno adivinado acá.
   const [resultado, setResultado] = useState(null);
+  // Al que pagó tarde: desde dónde arranca el mes. null = lo sugerido (desde que venció).
+  const [arranca, setArranca] = useState(null);
+  const { pedirClave } = useClaveDeCobro();
 
   const situacion = useMemo(() => arancelDelSocio(socio, aranceles), [socio, aranceles]);
 
@@ -50,9 +56,19 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
     setMonto(suyo ? String(suyo.price ?? '') : '');
     setMetodo('cash');
     setResultado(null);
+    setArranca(null);
   }, [abierto, socio, situacion.arancel]);
 
   const elegido = aranceles?.find((a) => a.id === planId) || null;
+
+  // ⭐ Si pagó tarde, las dos fechas posibles (desde que venció / desde hoy) ANTES de cobrar. Las
+  // calcula la gemela de la regla del servidor; el que manda es el servidor, y lo que quedó de
+  // verdad se muestra después, en el «Cobro registrado».
+  const opciones = useMemo(
+    () => (abierto ? opcionesDeArranque({ vence: socio?.membershipEnd, plan: elegido }) : null),
+    [abierto, socio?.membershipEnd, elegido],
+  );
+  const arrancaElegida = opciones?.desdeQueVencio ? (arranca ?? opciones.sugerida) : null;
 
   const elegirArancel = (id) => {
     setPlanId(id);
@@ -67,9 +83,14 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
     const importe = parseFloat(monto);
     if (!(importe > 0)) return;
 
+    // La clave para cobrar, si el dueño la puso (Ajustes): que nadie se renueve la cuota solo.
     setGuardando(true);
+    if (!(await pedirClave('cobrar'))) {
+      setGuardando(false);
+      return;
+    }
     try {
-      const r = await onCobrar({ planId: planId || null, monto: importe, metodo });
+      const r = await onCobrar({ planId: planId || null, monto: importe, metodo, desde: arrancaElegida });
       // `r` trae el socio actualizado. Si el backend no lo devolvió, se cierra sin mentir
       // sobre el vencimiento nuevo.
       setResultado(r || {});
@@ -169,6 +190,9 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
             {elegido?.classes ? ` · ${elegido.classes} clases` : ''}
           </small>
         </div>
+
+        {/* Pagó tarde: desde que venció (no pierde su ciclo) o desde hoy, con la fecha a la vista. */}
+        <ArranqueDelPeriodo opciones={opciones} valor={arrancaElegida} onCambiar={setArranca} />
 
         <div className="form-group">
           <label className="form-label">Monto</label>

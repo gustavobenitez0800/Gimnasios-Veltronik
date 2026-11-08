@@ -92,7 +92,8 @@ public class GymPaymentController {
         // El sello del terminal. Lo usa el service para reconocer un reintento ANTES de tocar
         // nada — sin esto, un cobro que se reintenta le regala un mes al socio.
         if (input.getClientRef() != null) payment.setClientRef(input.getClientRef());
-        return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(payment)));
+        return ResponseEntity.ok(paymentMapper.toDto(paymentService.saveForCurrentTenant(
+                payment, GymPaymentService.ArrancaDesde.de(input.getDesde()))));
     }
 
     @PutMapping("/{id}")
