@@ -120,22 +120,24 @@ export default function ResetPasswordPage() {
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">Nueva contraseña</label>
+              <label className="form-label" htmlFor="clave-nueva-reset">Nueva contraseña</label>
               <div className="password-wrapper">
-                <input type={showPassword ? 'text' : 'password'} className="form-input"
+                <input id="clave-nueva-reset" type={showPassword ? 'text' : 'password'} className="form-input"
                   placeholder="Mínimo 6 caracteres" value={password}
                   onChange={e => setPassword(e.target.value)} required minLength={6} autoComplete="new-password" />
                 <button type="button" className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}>
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Ocultar la contraseña' : 'Mostrar la contraseña'}
+                  aria-pressed={showPassword}>
                   <Icon name={showPassword ? 'eyeOff' : 'eye'} size="1.1em" />
                 </button>
               </div>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Confirmar contraseña</label>
+              <label className="form-label" htmlFor="clave-repetida-reset">Confirmar contraseña</label>
               <div className="password-wrapper">
-                <input type={showPassword ? 'text' : 'password'} className="form-input"
+                <input id="clave-repetida-reset" type={showPassword ? 'text' : 'password'} className="form-input"
                   placeholder="Repetí tu contraseña" value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)} required minLength={6} autoComplete="new-password" />
               </div>

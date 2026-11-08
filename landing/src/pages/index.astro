@@ -277,7 +277,7 @@ const schema = {
       areaServed: 'AR',
       address: { '@type': 'PostalAddress', addressLocality: 'Posadas', addressRegion: 'Misiones', addressCountry: 'AR' },
       // sameAs le dice a Google que el canal es de esta misma organización.
-      sameAs: [REDES.youtube],
+      sameAs: [REDES.youtube].filter(Boolean),
     },
     {
       '@type': 'FAQPage',

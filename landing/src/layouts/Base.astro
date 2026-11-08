@@ -163,7 +163,7 @@ const wa = waLink(mensajeWa);
                 rel="noopener": sin esto, la página que se abre puede manipular la nuestra a
                 través de window.opener. Es gratis ponerlo y no hay razón para no hacerlo.
               */}
-              <li><a href={REDES.youtube} target="_blank" rel="noopener">YouTube</a></li>
+              {REDES.youtube && <li><a href={REDES.youtube} target="_blank" rel="noopener">YouTube</a></li>}
             </ul>
           </div>
         </div>

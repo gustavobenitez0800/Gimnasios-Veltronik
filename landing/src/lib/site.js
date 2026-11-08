@@ -72,7 +72,10 @@ export const waLink = (mensaje = 'Hola! Vi Veltronik en la web y quiero saber m�
  * descarga. Antes no: un link a un canal vacío es una promesa incumplida en un click.</p>
  */
 export const REDES = {
-  youtube: 'https://www.youtube.com/@Veltronik-p5r',
+  // ⚠️ 08/11/2026: '@Veltronik-p5r' da 404 (el canal cambió de dirección o ya no está), y el
+  // '@Veltronik' que aparece al buscar es de otro. Un link roto en el pie es peor que ninguno:
+  // queda en null —y el pie y el schema lo saltean— hasta tener la dirección buena.
+  youtube: null,
 };
 
 /**

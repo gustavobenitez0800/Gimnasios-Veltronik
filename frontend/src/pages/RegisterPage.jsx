@@ -13,6 +13,7 @@ import CONFIG from '../lib/config';
 import { errorService } from '../services';
 import { diagnoseConnectivity } from '../lib/connectivity';
 import ReenviarConfirmacion from '../components/auth/ReenviarConfirmacion';
+import BotonGoogle from '../components/auth/BotonGoogle';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -23,22 +24,30 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   // A qué email se mandó el link de confirmación (null = todavía no se creó la cuenta).
   const [correoEnviadoA, setCorreoEnviadoA] = useState(null);
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const { showToast } = useToast();
+
+  const handleGoogle = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (error) {
+      showToast(error?.message || 'No se pudo entrar con Google. Probá de nuevo.', 'error');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!fullName) {
-      showToast('Por favor ingresa tu nombre completo', 'error');
+      showToast('Escribí tu nombre completo.', 'error');
       return;
     }
     if (!email) {
-      showToast('Por favor ingresa tu email', 'error');
+      showToast('Escribí tu email.', 'error');
       return;
     }
     if (!email.includes('@') || !email.includes('.')) {
-      showToast('Por favor ingresa un email válido', 'error');
+      showToast('Ese email no parece válido. Revisalo.', 'error');
       return;
     }
     if (password !== confirmPassword) {
@@ -155,6 +164,8 @@ export default function RegisterPage() {
               type="button"
               className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Ocultar la contraseña' : 'Mostrar la contraseña'}
+              aria-pressed={showPassword}
             >
               <Icon name={showPassword ? 'eyeOff' : 'eye'} />
             </button>
@@ -184,9 +195,23 @@ export default function RegisterPage() {
         </button>
       </form>
 
+      {/* Ley 25.326: al juntar datos personales hay que decir para qué y dónde leerlo. La
+          política vive en la landing; acá se avisa en el momento en que se dan los datos. */}
+      <p className="auth-legal">
+        Al crear la cuenta aceptás la{' '}
+        <a href="https://veltronik.com.ar/privacidad" target="_blank" rel="noopener noreferrer">
+          política de privacidad
+        </a>.
+      </p>
+
+      {/* El que viene de «Probar 14 días gratis» llega acá: Google le ahorra inventar una
+          contraseña. La cuenta se crea igual que desde la entrada. */}
+      <div className="auth-divider">o creala con</div>
+      <BotonGoogle onClick={handleGoogle}>Crear la cuenta con Google</BotonGoogle>
+
       {/* Login Link */}
       <p className="auth-links">
-        ¿Ya tenés cuenta? <Link to={CONFIG.ROUTES.LOGIN}>Inicia sesión</Link>
+        ¿Ya tenés cuenta? <Link to={CONFIG.ROUTES.LOGIN}>Iniciá sesión</Link>
       </p>
     </div>
   );
