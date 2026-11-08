@@ -14,7 +14,7 @@ const { isAllowedUrl } = require('./portal.cjs');
 const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
-const { preferenciasDeLaVentana } = require('./ventana.cjs');
+const { preferenciasDeLaVentana, consolaPermitida } = require('./ventana.cjs');
 const molinete = require('./molinete.cjs');
 const { crearAtenuador } = require('./atenuador.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
@@ -24,6 +24,10 @@ const cola = require('./nucleo/cola.cjs');
 
 // Dev server de Vite (el mismo puerto que usa `pnpm dev`).
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
+
+// La consola de desarrollador: en el programa instalado solo con VELTRONIK_CONSOLA=1 en la PC
+// (soporte). Ver consolaPermitida en ventana.cjs.
+const CONSOLA = consolaPermitida(app.isPackaged, process.env);
 
 /**
  * ¿Esta navegación es "dentro de la app"?
@@ -97,8 +101,11 @@ function createCustomMenu() {
                         checkForUpdates();
                     }
                 },
-                { type: 'separator' },
-                { role: 'toggleDevTools', label: 'Consola de Desarrollador' }
+                // Solo donde la consola está permitida: en el mostrador, nadie la ve.
+                ...(CONSOLA ? [
+                    { type: 'separator' },
+                    { role: 'toggleDevTools', label: 'Consola de Desarrollador' },
+                ] : []),
             ]
         }
     ];
@@ -164,7 +171,7 @@ const WINDOW_CONFIG = {
     show: false, // Mostrar cuando esté listo
     // Aisladas en ventana.cjs (sandbox incluido) para que `pnpm run humo:sandbox` pruebe
     // exactamente las mismas que usa el programa.
-    webPreferences: preferenciasDeLaVentana(),
+    webPreferences: preferenciasDeLaVentana({ consola: CONSOLA }),
 };
 
 /**

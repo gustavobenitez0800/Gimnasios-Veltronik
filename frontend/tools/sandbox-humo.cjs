@@ -4,12 +4,13 @@
  *   pnpm run humo:sandbox
  *
  * Abre una ventana invisible con las MISMAS preferencias del programa (ventana.cjs), le carga
- * una página vacía y mira cuatro cosas:
+ * una página vacía y mira cinco cosas:
  *   1. el preload no tiró error (con el sandbox, un `require` de algo que no sea 'electron'
  *      revienta acá y la app quedaría sin puente: sin cola, sin molinete, sin bóveda);
  *   2. el puente `window.electronAPI` llegó entero a la página;
  *   3. la página NO ve Node (`require` y `process` tienen que ser undefined);
- *   4. el proceso de la página corre de verdad dentro del sandbox (lo dice Electron).
+ *   4. el proceso de la página corre de verdad dentro del sandbox (lo dice Electron);
+ *   5. sin consola (como en el programa instalado), la consola no se abre ni pidiéndola.
  *
  * No toca nada de la PC: no abre la base local ni la bóveda, no habla con el servidor.
  */
@@ -52,13 +53,21 @@ app.whenReady().then(async () => {
         // `sandboxed` lo informa Electron en Windows y macOS; en Linux no existe y no se exige.
         const enSandbox = metrica?.sandboxed ?? (process.platform === 'linux' ? true : undefined);
 
-        const detalle = { ...pagina_ve, enSandbox, erroresDelPreload };
+        // 5. Como en el programa instalado (sin consola): ni pidiéndola se abre.
+        const cerrada = new BrowserWindow({ show: false, webPreferences: preferenciasDeLaVentana({ consola: false }) });
+        await cerrada.loadFile(pagina);
+        cerrada.webContents.openDevTools({ mode: 'detach' });
+        await new Promise((r) => setTimeout(r, 800));
+        const consolaSeAbrio = cerrada.webContents.isDevToolsOpened();
+
+        const detalle = { ...pagina_ve, enSandbox, consolaSeAbrio, erroresDelPreload };
         const ok = erroresDelPreload.length === 0
             && pagina_ve.puente === 'object'
             && pagina_ve.funciones >= 10
             && pagina_ve.require === 'undefined'
             && pagina_ve.process === 'undefined'
-            && enSandbox === true;
+            && enSandbox === true
+            && consolaSeAbrio === false;
         terminar(ok, detalle);
     } catch (e) {
         terminar(false, { motivo: e.message, erroresDelPreload });
