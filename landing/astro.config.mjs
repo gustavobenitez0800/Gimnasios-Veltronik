@@ -1,7 +1,45 @@
 // @ts-check
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import vercel from '@astrojs/vercel';
+
+// ⭐ LAS CABECERAS DE SEGURIDAD, ADENTRO DE LO QUE LEE VERCEL (08/11/2026).
+//
+// Con el adaptador, Vercel no arma el sitio desde un vercel.json: lee la configuración que
+// escribe el adaptador (.vercel/output/config.json), y un vercel.json suelto no llegaba ahí
+// (se probó: el config.json salía sin ninguna). Esta integración corre DESPUÉS del adaptador
+// (Astro lo pone primero en la lista) y antepone una ruta con las cabeceras para todo el sitio.
+//   - Nadie puede meter la landing adentro de otra página (frame-ancestors / X-Frame-Options).
+//   - El navegador no adivina tipos de archivo (nosniff) y el referrer sale recortado.
+//   - Sin cámara, micrófono ni ubicación: la landing no los usa.
+const CABECERAS = {
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+};
+
+function cabecerasDeSeguridad() {
+  return {
+    name: 'veltronik:cabeceras-de-seguridad',
+    hooks: {
+      'astro:build:done': ({ logger }) => {
+        const archivo = fileURLToPath(new URL('./.vercel/output/config.json', import.meta.url));
+        if (!existsSync(archivo)) {
+          logger.warn('No está .vercel/output/config.json: el sitio sale SIN cabeceras de seguridad.');
+          return;
+        }
+        const config = JSON.parse(readFileSync(archivo, 'utf8'));
+        config.routes = [{ src: '^/(.*)$', headers: CABECERAS, continue: true }, ...(config.routes || [])];
+        writeFileSync(archivo, JSON.stringify(config, null, 2));
+        logger.info('Cabeceras de seguridad puestas en todo el sitio.');
+      },
+    },
+  };
+}
 
 // El sitio se construye ESTÁTICO a propósito: Google tiene que recibir el HTML ya
 // escrito en la primera respuesta. Ese es justamente el problema que tiene el portal
@@ -43,5 +81,7 @@ export default defineConfig({
         url: item.url.replace(/(?<!\/\/)\/$/, ''),
       }),
     }),
+    // Tiene que ir DESPUÉS del adaptador (que Astro corre primero): escribe sobre su salida.
+    cabecerasDeSeguridad(),
   ],
 });
