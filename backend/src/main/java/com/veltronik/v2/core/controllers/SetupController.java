@@ -36,6 +36,9 @@ public class SetupController {
     /** Zona del negocio (Argentina): el trial se calcula en hora AR, no la del server. */
     private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("America/Argentina/Buenos_Aires");
 
+    /** Sucursales (en realidad, membresías) por cuenta. Ver {@link #createTenant}. */
+    static final int MAX_SUCURSALES_POR_CUENTA = 50;
+
     @PostMapping("/tenant")
     @Transactional
     public ResponseEntity<?> createTenant(@jakarta.validation.Valid @RequestBody TenantDTO tenantDTO) {
@@ -52,6 +55,14 @@ public class SetupController {
         // Determinar si es su primera sucursal (mes gratis) o no
         List<TenantMembership> existingMemberships = membershipRepository.findByUserId(user.getId());
         boolean isFirstBranch = existingMemberships.isEmpty();
+
+        // Un techo, para que una cuenta (cualquiera puede crear una gratis) no llene la base de
+        // sucursales con un bucle. La cadena más grande que se piensa atender son 20 sedes: 50
+        // no frena a nadie de verdad. El que llegue, escribe y se le sube a mano.
+        if (existingMemberships.size() >= MAX_SUCURSALES_POR_CUENTA) {
+            throw new com.veltronik.v2.core.exceptions.BusinessException(
+                    "Llegaste al máximo de sucursales para una cuenta. Escribinos y lo ampliamos.");
+        }
 
         Tenant tenant = tenantMapper.toEntity(tenantDTO);
         tenant.setActive(true);

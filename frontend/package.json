@@ -25,6 +25,7 @@
     "check:desktop-bundle": "node tools/check-desktop-bundle.mjs",
     "postinstall": "node tools/rebuild-native.mjs",
     "humo:nucleo": "electron tools/nucleo-humo.cjs",
+    "humo:sandbox": "electron tools/sandbox-humo.cjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "start": "electron .",

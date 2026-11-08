@@ -14,6 +14,7 @@ const { isAllowedUrl } = require('./portal.cjs');
 const { initDeepLinks, flushPending, queue } = require('./deep-link.cjs');
 const store = require('./store.cjs');
 const windowState = require('./window-state.cjs');
+const { preferenciasDeLaVentana } = require('./ventana.cjs');
 const molinete = require('./molinete.cjs');
 const { crearAtenuador } = require('./atenuador.cjs');
 const nucleoDb = require('./nucleo/db.cjs');
@@ -161,19 +162,9 @@ const WINDOW_CONFIG = {
     // Windows deforma iconos no cuadrados en la barra de tareas.
     icon: path.join(__dirname, '../assets/icon.png'),
     show: false, // Mostrar cuando esté listo
-    webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.cjs'),
-        // Seguridad
-        enableRemoteModule: false,
-        sandbox: false,
-        // ⭐ EL MOSTRADOR ESCUCHA AUNQUE LA VENTANA ESTÉ TAPADA. Sin esto, con Veltronik detrás
-        // de la música o minimizado, Chromium frena los temporizadores de la página (hasta uno
-        // por minuto) y la entrada por QR, su cartel y la X llegaban tarde. El gimnasio no
-        // mira esta ventana todo el tiempo: justamente por eso tiene que avisar.
-        backgroundThrottling: false
-    }
+    // Aisladas en ventana.cjs (sandbox incluido) para que `pnpm run humo:sandbox` pruebe
+    // exactamente las mismas que usa el programa.
+    webPreferences: preferenciasDeLaVentana(),
 };
 
 /**

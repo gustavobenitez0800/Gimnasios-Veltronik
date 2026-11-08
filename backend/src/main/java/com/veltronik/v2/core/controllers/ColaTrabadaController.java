@@ -3,6 +3,7 @@ package com.veltronik.v2.core.controllers;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.security.DeviceContextHolder;
+import com.veltronik.v2.core.security.FrenoPorMinuto;
 import com.veltronik.v2.core.security.SecurityUtils;
 import com.veltronik.v2.core.security.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +45,16 @@ public class ColaTrabadaController {
     /** La marca que busca la alerta. Si cambia acá, hay que cambiarla en la alerta. */
     public static final String MARCA = "COLA TRABADA";
 
+    /**
+     * Avisos por minuto que acepta cada persona. Un terminal avisa como mucho cada 30 minutos
+     * ({@code REPETIR_CADA_MS} en {@code lib/colaTrabada.js}), así que cuatro por minuto no frena
+     * nunca a un gimnasio de verdad, ni con varias PC. Lo que frena es un bucle —o alguien con una
+     * cuenta de prueba— llenando el registro de ERROR: cada línea de estas dispara la alerta.
+     */
+    static final int AVISOS_POR_MINUTO = 4;
+
     private final TenantRepository tenantRepository;
+    private final FrenoPorMinuto frenos = new FrenoPorMinuto();
 
     /**
      * Lo que cuenta el terminal. <b>Todo texto, a propósito:</b> es un aviso de que algo anda
@@ -62,7 +72,13 @@ public class ColaTrabadaController {
     @PostMapping("/cola-trabada")
     public ResponseEntity<Void> avisar(@RequestBody(required = false) Aviso aviso,
                                        @RequestHeader(value = "X-App-Version", required = false) String appVersion) {
-        if (SecurityUtils.getCurrentUserId() == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        UUID quien = SecurityUtils.getCurrentUserId();
+        if (quien == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        String clave = quien.toString();
+        if (frenos.frenado(clave, AVISOS_POR_MINUTO, AVISOS_POR_MINUTO)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+        }
+        frenos.registrar(clave, false);
 
         UUID gimnasio = TenantContextHolder.getTenantId();
         String nombre = gimnasio == null ? "sin sucursal"

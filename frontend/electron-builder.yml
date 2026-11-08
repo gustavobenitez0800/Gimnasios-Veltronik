@@ -5,6 +5,8 @@ copyright: Copyright © 2026 Veltronik
 # Archivos a incluir en el build
 files:
   - "electron/**/*"
+  # Las pruebas de electron/ no viajan en el instalador: en el gimnasio no se ejecutan nunca.
+  - "!electron/**/*.test.js"
   # dist-desktop, NO dist (Fase 4). `dist/` es el bundle del portal web, con las
   # pantallas de cuenta y el SDK de Mercado Pago adentro; ese va a Vercel y no al
   # instalador. Lo produce `pnpm run build:desktop`.

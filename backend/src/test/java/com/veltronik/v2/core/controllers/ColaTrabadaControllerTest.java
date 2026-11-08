@@ -110,6 +110,21 @@ class ColaTrabadaControllerTest {
     }
 
     @Test
+    @DisplayName("🔴 un bucle no llena el registro de alertas: después de 4 por minuto, 429 y nada más")
+    void frenaElBucle(CapturedOutput salida) {
+        for (int i = 0; i < ColaTrabadaController.AVISOS_POR_MINUTO; i++) {
+            assertThat(controller.avisar(new Aviso("1", null, "ALTA", "500", "3", "x"), "2.6.57").getStatusCode())
+                    .isEqualTo(HttpStatus.NO_CONTENT);
+        }
+
+        var quinto = controller.avisar(new Aviso("1", null, "ALTA", "500", "3", "x"), "2.6.57");
+
+        assertThat(quinto.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        long lineas = salida.getOut().lines().filter(l -> l.contains(ColaTrabadaController.MARCA)).count();
+        assertThat(lineas).isEqualTo(ColaTrabadaController.AVISOS_POR_MINUTO);
+    }
+
+    @Test
     @DisplayName("sin sesión no anota nada")
     void sinSesion(CapturedOutput salida) {
         SecurityContextHolder.clearContext();

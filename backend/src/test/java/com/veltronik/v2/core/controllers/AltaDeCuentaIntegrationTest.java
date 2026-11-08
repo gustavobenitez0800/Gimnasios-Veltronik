@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * El alta de una cuenta nueva, de punta a punta del lado de la base.
@@ -177,6 +178,20 @@ class AltaDeCuentaIntegrationTest extends EmbeddedPostgresTest {
             assertThat(tenantId).isNotEqualTo(idAjeno);
             Tenant t = tenants.findById(tenantId).orElseThrow();
             assertThat(t.getTrialEndsAt().getYear()).isLessThan(2099);
+        }
+
+        @Test
+        @DisplayName("🔴 una cuenta no puede llenar la base de sucursales con un bucle")
+        void tieneTecho() {
+            UUID userId = registrarYEntrar();
+            for (int i = 0; i < SetupController.MAX_SUCURSALES_POR_CUENTA; i++) crear("Sede " + i);
+
+            TenantDTO dto = new TenantDTO();
+            dto.setName("Una de más");
+            assertThatThrownBy(() -> setup.createTenant(dto))
+                    .isInstanceOf(com.veltronik.v2.core.exceptions.BusinessException.class)
+                    .hasMessageContaining("máximo de sucursales");
+            assertThat(memberships.findByUserId(userId)).hasSize(SetupController.MAX_SUCURSALES_POR_CUENTA);
         }
 
         @Test
