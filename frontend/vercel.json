@@ -4,15 +4,33 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" },
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        },
         {
           "key": "Content-Security-Policy-Report-Only",
-          "value": "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://www.mercadopago.com https://http2.mlstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://v2-backend-7rpsadmoka-rj.a.run.app https://lyxhvyeplukmxpfljaqy.supabase.co wss://lyxhvyeplukmxpfljaqy.supabase.co https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://www.mercadopago.com https://http2.mlstatic.com; frame-src https://*.mercadopago.com https://*.mercadolibre.com https://*.mlstatic.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self' https://*.mercadopago.com https://*.mercadolibre.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self' https://*.mercadopago.com https://*.mercadolibre.com https://*.mlstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://v2-backend-7rpsadmoka-rj.a.run.app https://lyxhvyeplukmxpfljaqy.supabase.co wss://lyxhvyeplukmxpfljaqy.supabase.co https://*.mercadopago.com https://*.mercadolibre.com https://*.mercadolivre.com https://*.mlstatic.com; frame-src https://*.mercadopago.com https://*.mercadolibre.com https://*.mercadolivre.com https://*.mlstatic.com; worker-src 'self' blob:; manifest-src 'self'; form-action 'self' https://*.mercadopago.com https://*.mercadolibre.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; report-uri https://v2-backend-7rpsadmoka-rj.a.run.app/api/public/csp-report"
         }
       ]
     }
