@@ -56,6 +56,8 @@ class GymTeamServiceTest {
     private MembershipCache membershipCache;
     @Mock
     private com.veltronik.v2.core.services.SupabaseAdminService supabaseAdminService;
+    @Mock
+    private com.veltronik.v2.core.repositories.CashierRepository cashierRepository;
 
     @InjectMocks
     private GymTeamService service;
@@ -325,5 +327,53 @@ class GymTeamServiceTest {
         service.inviteMember("  " + user.getEmail().toUpperCase() + "  ", "staff", "Alguien");
 
         verify(userRepository).findByEmail(user.getEmail());
+    }
+
+    // ── La actividad: lo que hizo el SOCIO, dicho como lo diría alguien ─────────────
+
+    @Test
+    @DisplayName("La actividad dice «Ana Gómez pagó $ 38.000» y «entró», y quién del mostrador atendió")
+    void actividadConLasPalabrasDelSocio() {
+        // Decía «Ana Gómez registró un pago», como si el socio hubiera cargado el cobro, y
+        // «registró un ingreso» para una entrada al gimnasio (en la caja, «ingreso» es plata).
+        com.veltronik.v2.core.entities.Cashier diego = new com.veltronik.v2.core.entities.Cashier();
+        diego.setId(UUID.randomUUID());
+        diego.setName("Diego Acosta");
+        when(cashierRepository.findByTenantIdOrderByActiveDescNameAsc(tenantId)).thenReturn(java.util.List.of(diego));
+
+        com.veltronik.v2.gym.entities.GymMember ana = new com.veltronik.v2.gym.entities.GymMember();
+        ana.setFirstName("Ana");
+        ana.setLastName("Gómez");
+
+        com.veltronik.v2.gym.entities.AccessLog entrada = new com.veltronik.v2.gym.entities.AccessLog();
+        entrada.setMember(ana);
+        entrada.setCheckInAt(java.time.LocalDateTime.of(2026, 11, 9, 9, 0));
+
+        com.veltronik.v2.gym.entities.GymPayment cobro = new com.veltronik.v2.gym.entities.GymPayment();
+        cobro.setMember(ana);
+        cobro.setAmount(new java.math.BigDecimal("38000.00"));
+        cobro.setPaymentDate(java.time.LocalDateTime.of(2026, 11, 9, 10, 0));
+        cobro.setPerformedByCashierId(diego.getId());
+
+        com.veltronik.v2.gym.entities.GymPayment anulado = new com.veltronik.v2.gym.entities.GymPayment();
+        anulado.setMember(ana);
+        anulado.setAmount(new java.math.BigDecimal("50000.50"));
+        anulado.setStatus("cancelled");
+        anulado.setPaymentDate(java.time.LocalDateTime.of(2026, 11, 8, 18, 0));
+
+        when(accessLogRepository.findTop25ByTenantIdOrderByCheckInAtDesc(tenantId)).thenReturn(java.util.List.of(entrada));
+        when(paymentRepository.findRecentByTenantId(org.mockito.ArgumentMatchers.eq(tenantId), any()))
+                .thenReturn(java.util.List.of(cobro, anulado));
+        when(memberRepository.findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId))
+                .thenReturn(java.util.List.of());
+
+        var actividad = service.getActivityLog(10);
+
+        assertEquals("Ana Gómez", actividad.get(0).get("user_name"));
+        assertEquals("pagó $ 38.000", actividad.get(0).get("action"));
+        assertEquals("Diego Acosta", actividad.get(0).get("atendio"), "lo cobró la persona del PIN");
+        assertEquals("entró", actividad.get(1).get("action"));
+        assertNull(actividad.get(1).get("atendio"), "sin firma, no se inventa un nombre");
+        assertEquals("pagó $ 50.000,50 (anulado)", actividad.get(2).get("action"));
     }
 }

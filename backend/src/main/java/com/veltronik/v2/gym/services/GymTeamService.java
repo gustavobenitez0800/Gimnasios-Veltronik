@@ -1,10 +1,12 @@
 package com.veltronik.v2.gym.services;
 
 import com.veltronik.v2.core.entities.AppUser;
+import com.veltronik.v2.core.entities.Cashier;
 import com.veltronik.v2.core.entities.Tenant;
 import com.veltronik.v2.core.entities.TenantMembership;
 import com.veltronik.v2.core.entities.UserRole;
 import com.veltronik.v2.core.repositories.AppUserRepository;
+import com.veltronik.v2.core.repositories.CashierRepository;
 import com.veltronik.v2.core.repositories.TenantMembershipRepository;
 import com.veltronik.v2.core.repositories.TenantRepository;
 import com.veltronik.v2.core.exceptions.BusinessException;
@@ -37,12 +39,15 @@ public class GymTeamService {
     private final MembershipCache membershipCache;
     /** Para crear la cuenta del empleado sin que se registre él (ver {@link #inviteMember}). */
     private final SupabaseAdminService supabaseAdminService;
+    /** Las personas del mostrador (PIN): quién atendió cada renglón de la actividad. */
+    private final CashierRepository cashierRepository;
 
     public GymTeamService(TenantMembershipRepository membershipRepository, AppUserRepository userRepository,
                           TenantRepository tenantRepository, AccessLogRepository accessLogRepository,
                           GymPaymentRepository paymentRepository, GymMemberRepository memberRepository,
                           MembershipCache membershipCache,
-                          SupabaseAdminService supabaseAdminService) {
+                          SupabaseAdminService supabaseAdminService,
+                          CashierRepository cashierRepository) {
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
@@ -51,6 +56,7 @@ public class GymTeamService {
         this.memberRepository = memberRepository;
         this.membershipCache = membershipCache;
         this.supabaseAdminService = supabaseAdminService;
+        this.cashierRepository = cashierRepository;
     }
 
     public List<Map<String, Object>> getTeamMembers() {
@@ -258,17 +264,29 @@ public class GymTeamService {
         UUID tenantId = TenantContextHolder.getTenantId();
         List<Map<String, Object>> items = new ArrayList<>();
 
+        // ⚠️ El nombre de cada renglón es el del SOCIO: el que entra, el que paga, el que se anota.
+        // Decía «Diego Martínez registró un pago», como si lo hubiera cargado él, y «registró un
+        // ingreso» para una ENTRADA, que en la caja quiere decir plata (09/11/2026). Quién del
+        // equipo atendió va aparte (`atendio`): la persona del mostrador que firmó con su PIN.
+        Map<UUID, String> nombreDeCajero = new HashMap<>();
+        for (Cashier c : cashierRepository.findByTenantIdOrderByActiveDescNameAsc(tenantId)) {
+            nombreDeCajero.put(c.getId(), c.getName());
+        }
+
         // Accesos / check-ins
         for (AccessLog a : accessLogRepository.findTop25ByTenantIdOrderByCheckInAtDesc(tenantId)) {
-            items.add(activityItem("access", memberName(a.getMember()), "registró un ingreso", "Acceso", a.getCheckInAt()));
+            items.add(activityItem("access", memberName(a.getMember()), "entró", "Acceso", a.getCheckInAt(),
+                    nombreDeCajero.get(a.getPerformedByCashierId())));
         }
         // Pagos: límite en la BD (traer el historial entero para cortar a 25 en memoria no escala)
         paymentRepository.findRecentByTenantId(tenantId, org.springframework.data.domain.PageRequest.of(0, 25)).forEach(p ->
-            items.add(activityItem("payment", memberName(p.getMember()), "registró un pago", "Pago", p.getPaymentDate()))
+            items.add(activityItem("payment", memberName(p.getMember()), queDiceElCobro(p), "Pago", p.getPaymentDate(),
+                    nombreDeCajero.get(p.getPerformedByCashierId())))
         );
         // Altas de socios
         for (GymMember m : memberRepository.findTop25ByTenantIdAndDeletedAtIsNullOrderByCreatedAtDesc(tenantId)) {
-            items.add(activityItem("member", memberName(m), "se registró como socio", "Socio", m.getCreatedAt()));
+            items.add(activityItem("member", memberName(m), "se anotó como socio", "Socio", m.getCreatedAt(),
+                    nombreDeCajero.get(m.getPerformedByCashierId())));
         }
 
         // Ordenar por fecha descendente (nulos al final)
@@ -285,13 +303,33 @@ public class GymTeamService {
         return new ArrayList<>(items.subList(0, max));
     }
 
-    private Map<String, Object> activityItem(String type, String userName, String action, String entityType, LocalDateTime ts) {
+    /**
+     * Lo que dice el renglón de un cobro: «pagó $ 38.000». Sin socio (no debería pasar, pero el
+     * renglón dice «Mostrador»), «cobró». Un cobro anulado se ve, y dice que se anuló.
+     */
+    static String queDiceElCobro(GymPayment p) {
+        String verbo = p.getMember() == null ? "cobró" : "pagó";
+        String texto = p.getAmount() == null ? verbo : verbo + " " + pesos(p.getAmount());
+        return "cancelled".equalsIgnoreCase(p.getStatus()) ? texto + " (anulado)" : texto;
+    }
+
+    /** «$ 38.000», «$ 50.000,50»: la plata como se escribe acá. */
+    static String pesos(java.math.BigDecimal monto) {
+        var simbolos = java.text.DecimalFormatSymbols.getInstance(Locale.forLanguageTag("es-AR"));
+        boolean conCentavos = monto.stripTrailingZeros().scale() > 0;
+        return "$ " + new java.text.DecimalFormat(conCentavos ? "#,##0.00" : "#,##0", simbolos).format(monto);
+    }
+
+    /** @param atendio la persona del mostrador que estaba en el turno, o null si nadie firmó. */
+    private Map<String, Object> activityItem(String type, String userName, String action, String entityType,
+                                             LocalDateTime ts, String atendio) {
         Map<String, Object> map = new HashMap<>();
         map.put("type", type);
         map.put("user_name", userName);
         map.put("action", action);
         map.put("entity_type", entityType);
         map.put("created_at", ts);
+        map.put("atendio", atendio);
         return map;
     }
 

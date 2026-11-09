@@ -218,7 +218,9 @@ export default function TeamPage() {
         /* Activity Tab */
         <div className="card">
           <div className="table-header">
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Historial de actividad</h3>
+            {/* Lo último que pasó: quién entró, quién pagó, quién se anotó, y quién del
+                mostrador atendió (la persona del PIN, cuando hay una en el turno). */}
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Lo último que pasó</h3>
           </div>
           <div style={{ maxHeight: 500, overflowY: 'auto' }}>
             {activityLoading ? (
@@ -237,8 +239,10 @@ export default function TeamPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.82rem' }}>
-                    <strong>{log.user_name || 'Usuario'}</strong> {log.action}
-                    {log.entity_type && <span style={{ color: 'var(--text-muted)' }}> · {log.entity_type}</span>}
+                    {/* «Ana Gómez pagó $ 38.000», «Ana Gómez entró»: la frase ya dice qué fue, y el
+                        ícono también. El «· Pago» de al lado lo repetía. */}
+                    <strong>{log.user_name || 'Socio'}</strong> {log.action}
+                    {log.atendio && <span style={{ color: 'var(--text-muted)' }}> · atendió {log.atendio}</span>}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
                     {getRelativeTime(log.created_at)}
