@@ -9,6 +9,7 @@ import { useTeamController } from '../controllers/useTeamController';
 import { getInitials, getRelativeTime } from '../lib/utils';
 import { PageHeader, ConfirmDialog, EmptyState } from '../components/Layout';
 import Icon from '../components/Icon';
+import Modal from '../components/ui/Modal';
 
 const ROLE_LABELS = { owner: 'Dueño', admin: 'Administrador', staff: 'Empleado', reception: 'Recepción' };
 const ROLE_COLORS = {
@@ -312,28 +313,22 @@ export default function TeamPage() {
         </div>
       )}
 
-      {roleModal && roleTarget && (
-        <div className="modal-overlay modal-show" onClick={() => setRoleModal(false)}>
-          <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 className="modal-title" style={{ margin: 0 }}>Cambiar rol</h2>
-              <button type="button" onClick={() => setRoleModal(false)} className="btn-icon" style={{ padding: '0.25rem' }}>&times;</button>
-            </div>
-            <p className="text-muted mb-2">Cambiar rol de: {roleTarget.fullName || roleTarget.email}</p>
-            <div className="form-group mb-2">
-              <select className="form-select" value={newRole} onChange={e => setNewRole(e.target.value)}>
-                <option value="admin">Administrador (acceso completo)</option>
-                <option value="staff">Empleado (acceso operativo)</option>
-                <option value="reception">Recepción (solo acceso y check-in)</option>
-              </select>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setRoleModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={confirmRoleChange}>Guardar</button>
-            </div>
-          </div>
+      {/* La ventana común (09/11/2026): era un armado a mano con una × suelta sin nombre, que no
+          cerraba con Escape ni entraba en la pila de ventanas. */}
+      <Modal isOpen={!!(roleModal && roleTarget)} onClose={() => setRoleModal(false)} title="Cambiar rol" size="small">
+        <p className="text-muted mb-2">El rol de {roleTarget?.fullName || roleTarget?.email}</p>
+        <div className="form-group mb-2">
+          <select className="form-select" aria-label="Rol nuevo" value={newRole} onChange={e => setNewRole(e.target.value)}>
+            <option value="admin">Administrador (acceso completo)</option>
+            <option value="staff">Empleado (acceso operativo)</option>
+            <option value="reception">Recepción (solo acceso y check-in)</option>
+          </select>
         </div>
-      )}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={() => setRoleModal(false)}>Cancelar</button>
+          <button type="button" className="btn btn-primary" onClick={confirmRoleChange}>Guardar</button>
+        </div>
+      </Modal>
 
       {/* Delete Confirmation */}
       <ConfirmDialog open={!!deleteTarget} title="Eliminar del equipo"

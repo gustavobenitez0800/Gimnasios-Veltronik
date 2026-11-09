@@ -109,9 +109,15 @@ export function ClaveDeCobroProvider({ children }) {
   // Al volver internet, se pregunta de nuevo.
   useAlPonerseAlDia(recargar);
 
-  const pedirClave = useCallback((motivo = 'cobrar') => {
+  /**
+   * @param {'cobrar'|'editar'|'anular'|'vencimiento'} motivo
+   * @param {{ quien?: string, que?: string, extra?: string }} [detalle] lo que se está autorizando.
+   *   Desde el 09/11 la ventana de abajo se esconde mientras se pide la clave (una sola ventana a
+   *   la vista): esto es lo que queda a la vista para saber QUÉ se confirma.
+   */
+  const pedirClave = useCallback((motivo = 'cobrar', detalle = null) => {
     if (!activa) return Promise.resolve(true);
-    return new Promise((resolver) => setPedido({ motivo, resolver }));
+    return new Promise((resolver) => setPedido({ motivo, detalle, resolver }));
   }, [activa]);
 
   /** Ajustes acaba de ponerla, cambiarla o sacarla: esta PC se entera ya, con la huella nueva. */
@@ -163,17 +169,29 @@ function PedirClaveDeCobro({ pedido, sucursal, onListo }) {
     }
   };
 
+  const detalle = pedido?.detalle;
+  const hayDetalle = !!(detalle && (detalle.quien || detalle.que || detalle.extra));
+
   return (
     <Modal isOpen={!!pedido} onClose={() => onListo(false)} title="Clave para cobrar" size="small">
       <form onSubmit={enviar} noValidate className="clave-cobro">
+        {/* Lo que se está autorizando, como un ticket: la ventana de abajo ya no se ve. */}
+        {hayDetalle && (
+          <div className="clave-cobro-ticket">
+            {detalle.quien && <strong className="clave-cobro-quien">{detalle.quien}</strong>}
+            {detalle.que && <span className="clave-cobro-que">{detalle.que}</span>}
+            {detalle.extra && <span className="clave-cobro-extra">{detalle.extra}</span>}
+          </div>
+        )}
         <p className="clave-cobro-texto">Escribí la clave {PARA[pedido?.motivo] || PARA.cobrar}.</p>
         <input
           type="password" inputMode="numeric" autoComplete="off" autoFocus
           className="form-input clave-cobro-campo" aria-label="Clave para cobrar"
+          placeholder="4 a 8 números"
           value={clave} onChange={(e) => setClave(e.target.value.replace(/\D/g, '').slice(0, 8))}
         />
         {error && <p className="clave-cobro-error" role="alert">{error}</p>}
-        <ModalActions onCancel={() => onListo(false)} saving={comprobando} submitText="Confirmar" />
+        <ModalActions onCancel={() => onListo(false)} saving={comprobando} submitText="Confirmar" savingText="Comprobando..." />
       </form>
     </Modal>
   );

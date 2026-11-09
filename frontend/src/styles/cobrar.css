@@ -63,4 +63,28 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+/* La pista, en letra normal: con el tamaño y el espaciado de la clave quedaba desarmada. */
+.clave-cobro-campo::placeholder {
+  font-size: 0.95rem;
+  letter-spacing: normal;
+  color: var(--text-muted);
+}
+
+/* ⭐ El ticket de lo que se autoriza (09/11/2026). La ventana del cobro se esconde mientras se pide
+   la clave (una sola ventana a la vista): esto deja a la vista a quién, cuánto y cómo. Con el borde
+   punteado de un comprobante, para que se lea como «esto es lo que vas a confirmar». */
+.clave-cobro-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--border-color-hover);
+  border-radius: var(--border-radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+}
+.clave-cobro-quien { font-size: 1.05rem; color: var(--text-primary); }
+.clave-cobro-que { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.clave-cobro-extra { font-size: 0.85rem; color: var(--text-muted); }
 .clave-cobro-error { margin: 0.6rem 0 0; color: var(--error-500); font-size: 0.9rem; }

@@ -119,6 +119,21 @@
   }
 }
 
+/* ⭐ UNA SOLA VENTANA A LA VISTA (09/11/2026, ver hooks/useCapaDeVentana.js).
+   Lo pidió Gustavo: la ventana de abajo asomaba por los costados de la de arriba y cansaba leer.
+   - La TAPADA (otra se abrió encima) desaparece hasta que vuelva a ser la de arriba. Se le saca la
+     animación de entrada porque su relleno (`both`) fija la opacidad en 1 y le ganaría a esta regla;
+     al destaparse, la animación vuelve y la ventana reaparece con su entrada de siempre.
+   - La de ENCIMA no oscurece de nuevo: ya lo hizo la de abajo, y dos negros al 60% dejaban el fondo
+     casi negro. Igual sigue atajando los clics de afuera (cierran solo la de arriba). */
+.modal-overlay.ventana-tapada > .modal-container {
+  animation: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.modal-overlay.ventana-encima { background: transparent; }
+
 .modal-icon { font-size: 2.5rem; margin-bottom: 1rem; }
 .modal-title { font-size: var(--font-size-xl); margin-bottom: 0.75rem; }
 .modal-message { color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: 1.5rem; }

@@ -185,14 +185,23 @@ describe('cobrar la cuota desde Socios', () => {
     expect(texto()).toContain('Trimestral');
   });
 
-  // ⚠️ NO SE PIDEN FECHAS, Y ES A PROPÓSITO
-  it('no pide fechas: el vencimiento lo corre el backend', async () => {
-    // Calcularlo también acá sería tener dos cuentas para lo mismo, que es el error que ya
-    // costó los días de vencimiento en cinco lugares.
-    await pintar();
+  // ⚠️ NO SE ESCRIBEN FECHAS, Y ES A PROPÓSITO
+  it('no pide escribir fechas: el vencimiento lo corre el backend', async () => {
+    // Calcularlo a mano acá sería tener dos cuentas para lo mismo, que es el error que ya
+    // costó los días de vencimiento en cinco lugares. La fecha que se MUESTRA sale de la gemela
+    // de la regla del servidor (lib/vencimientoNuevo) y la verdad se ve después de cobrar.
+    await pintar({ socio: { ...SOCIO, membershipEnd: enDias(10) } });
 
     expect(container.querySelector('input[type="date"]')).toBe(null);
-    expect(texto()).toContain('El vencimiento lo corre el sistema');
+    expect(texto()).toContain('Queda al día hasta el');
+    expect(texto(), 'la frase vieja contradecía las opciones del que pagó tarde').not.toContain('No hace falta tocar fechas');
+  });
+
+  it('al que pagó tarde no le repite la fecha abajo: ya la eligió arriba', async () => {
+    await pintar({ socio: { ...SOCIO, membershipEnd: enDias(-3) } });
+
+    expect(texto()).toContain('Desde que venció');
+    expect(texto()).not.toContain('Queda al día hasta el');
   });
 
   it('después de cobrar muestra el vencimiento que dijo el SERVIDOR', async () => {
@@ -324,7 +333,11 @@ describe('⭐ la clave para cobrar (opcional, Ajustes)', () => {
 
     await confirmar();
 
-    expect(clave.pedirClave).toHaveBeenCalledWith('cobrar');
+    // Con lo que se confirma: mientras se pide la clave, esta ventana se esconde (09/11/2026).
+    expect(clave.pedirClave).toHaveBeenCalledWith('cobrar', expect.objectContaining({
+      quien: 'LURDES ROLLET',
+      que: expect.stringMatching(/60\.000 · Efectivo$/),
+    }));
     expect(onCobrar).not.toHaveBeenCalled();
     expect(texto(), 'el cobro sigue abierto, para escribirla o cancelar').toContain('Cobrar cuota');
   });

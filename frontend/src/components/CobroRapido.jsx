@@ -27,7 +27,7 @@ import { arancelDelSocio } from '../controllers/formSocio';
 // "1 semana".
 import { queCubre } from '../lib/cobertura';
 import { FORMAS_DE_PAGO } from '../lib/formasDePago';
-import { opcionesDeArranque } from '../lib/vencimientoNuevo';
+import { opcionesDeArranque, ARRANCA } from '../lib/vencimientoNuevo';
 import ArranqueDelPeriodo from './cobro/ArranqueDelPeriodo';
 import { useClaveDeCobro } from '../contexts/ClaveDeCobroContext';
 
@@ -84,8 +84,18 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
     if (!(importe > 0)) return;
 
     // La clave para cobrar, si el dueño la puso (Ajustes): que nadie se renueve la cuota solo.
+    // Mientras se pide, esta ventana se esconde (una sola a la vista): la de la clave muestra a
+    // quién, cuánto, cómo y hasta cuándo, para saber qué se está confirmando.
+    const forma = METODOS.find((m) => m.valor === metodo)?.etiqueta;
+    const nuevoVence = !opciones ? null
+      : opciones.alDia
+        || (arrancaElegida === ARRANCA.HOY ? opciones.desdeHoy : opciones.desdeQueVencio || opciones.desdeHoy);
     setGuardando(true);
-    if (!(await pedirClave('cobrar'))) {
+    if (!(await pedirClave('cobrar', {
+      quien: socio.fullName,
+      que: [formatCurrency(importe), forma].filter(Boolean).join(' · '),
+      extra: nuevoVence ? `Vence el ${formatDate(nuevoVence)}` : null,
+    }))) {
       setGuardando(false);
       return;
     }
@@ -222,9 +232,16 @@ export default function CobroRapido({ socio, aranceles, abierto, onCerrar, onCob
           </div>
         </div>
 
-        <p className="form-hint">
-          El vencimiento lo corre el sistema según el arancel. No hace falta tocar fechas.
-        </p>
+        {/* Hasta cuándo queda al día, en una línea y con la fecha (09/11/2026). Antes acá decía
+            «No hace falta tocar fechas» incluso cuando, arriba, al que pagó tarde se le acababa
+            de pedir elegir desde cuándo arranca: texto que se contradecía y había que leer. Con
+            las dos opciones a la vista no se repite nada; sin ellas, se dice la fecha. La calcula
+            la gemela de la regla del servidor, y lo que quedó de verdad se muestra al cobrar. */}
+        {!opciones?.desdeQueVencio && (opciones?.alDia || opciones?.desdeHoy) && (
+          <p className="form-hint cobro-vence-previo">
+            Queda al día hasta el <strong>{formatDate(opciones.alDia || opciones.desdeHoy)}</strong>.
+          </p>
+        )}
 
         <ModalActions
           onCancel={onCerrar}

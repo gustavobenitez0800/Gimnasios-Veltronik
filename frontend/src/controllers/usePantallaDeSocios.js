@@ -14,7 +14,7 @@ import { memberService } from '../services/MemberService';
 import { planService } from '../services/PlanService';
 import { useMemberController } from './useMemberController';
 import { getInitialMemberForm, mapMemberToForm } from './formSocio';
-import { addOneMonth } from '../lib/utils';
+import { addOneMonth, formatDate } from '../lib/utils';
 import { GYM } from '../lib/gym';
 import { ESTADOS_DEL_SOCIO, estadoDelSocio } from '../lib/situacionSocio';
 import { enlaceDeWhatsApp } from '../lib/whatsapp';
@@ -329,7 +329,11 @@ export function usePantallaDeSocios() {
     const dia = (v) => String(v || '').slice(0, 10);
     const cambioElVencimiento = modal.editingId
       && dia(modal.form.membershipEnd) !== dia(vencimientoAlAbrir.current);
-    if (cambioElVencimiento && !(await pedirClave('vencimiento'))) return;
+    if (cambioElVencimiento && !(await pedirClave('vencimiento', {
+      quien: modal.form.fullName.trim(),
+      que: modal.form.membershipEnd ? `Nuevo vencimiento: ${formatDate(modal.form.membershipEnd)}` : 'Sin vencimiento',
+      extra: vencimientoAlAbrir.current ? `Antes vencía el ${formatDate(vencimientoAlAbrir.current)}` : null,
+    }))) return;
 
     modal.setSaving(true);
     try {

@@ -365,7 +365,12 @@ export default function PaymentsPage() {
     }
 
     // La clave para cobrar, si el dueño la puso (Ajustes): que nadie se renueve la cuota solo.
-    if (!(await pedirClave(modal.editingId ? 'editar' : 'cobrar'))) return;
+    // Con lo que se confirma a la vista: mientras se pide, esta ventana se esconde.
+    if (!(await pedirClave(modal.editingId ? 'editar' : 'cobrar', {
+      quien: selectedMember?.fullName || null,
+      que: [formatCurrency(amountVal), getMethodLabel(modal.form.paymentMethod)].filter(Boolean).join(' · '),
+      extra: modal.form.periodEnd ? `Vence el ${formatDate(modal.form.periodEnd)}` : null,
+    }))) return;
 
     modal.setSaving(true);
     try {
@@ -416,7 +421,11 @@ export default function PaymentsPage() {
       return;
     }
     // La clave para cobrar, si está puesta: anular un cobro es tocar la plata igual que cobrar.
-    if (!(await pedirClave('anular'))) return;
+    if (!(await pedirClave('anular', {
+      quien: nombreDelCobro(anulando),
+      que: [formatCurrency(anulando.amount), getMethodLabel(anulando.paymentMethod)].filter(Boolean).join(' · '),
+      extra: `Se anula: ${motivoAnulacion.trim()}`,
+    }))) return;
     setGuardandoAnulacion(true);
     try {
       const r = await anularPayment(anulando.id, {
@@ -435,7 +444,10 @@ export default function PaymentsPage() {
 
   const handleMarkPaid = async (payment) => {
     // Marcarlo pagado ES cobrar: la misma clave.
-    if (!(await pedirClave('cobrar'))) return;
+    if (!(await pedirClave('cobrar', {
+      quien: nombreDelCobro(payment),
+      que: [formatCurrency(payment.amount), getMethodLabel(payment.paymentMethod)].filter(Boolean).join(' · '),
+    }))) return;
     try {
       await savePayment({
         ...payment,
