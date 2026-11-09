@@ -136,7 +136,8 @@ export default function PlansPage() {
       <div className="plans-page-content">
         {/* Volver */}
         <button className="plans-back" onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
-          <Icon name="chevronLeft" size="1em" /> Volver al Lobby
+          {/* «Mis gimnasios», como se titula esa pantalla. «Lobby» es su nombre en el código. */}
+          <Icon name="chevronLeft" size="1em" /> Volver a Mis gimnasios
         </button>
 
         {/* Hero */}
@@ -233,12 +234,12 @@ export default function PlansPage() {
                   <strong>Elegí primero qué sucursal querés activar</strong>
                 </div>
                 <p className="plans-uptodate-text">
-                  El cobro se hace sobre una sucursal en particular. Volvé al Lobby y entrá por
-                  la que querés activar para que el pago quede asociado a ella.
+                  El cobro se hace sobre una sucursal en particular. Volvé a Mis gimnasios y
+                  entrá por la que querés activar para que el pago quede asociado a ella.
                 </p>
                 <button className="btn btn-primary" style={{ width: '100%' }}
                   onClick={() => navigate(CONFIG.ROUTES.LOBBY)}>
-                  Ir al Lobby <Icon name="arrowRight" size="1em" />
+                  Ir a Mis gimnasios <Icon name="arrowRight" size="1em" />
                 </button>
               </div>
             )}

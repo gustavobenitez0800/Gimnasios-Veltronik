@@ -73,7 +73,7 @@ function ProbarElLector() {
           portero de la puerta (que escucha en toda la app) se quedaría con la lectura. */}
       <input
         id="llavero-prueba" type="text" className="form-input" autoComplete="off" data-lector="propio"
-        placeholder="Hacé clic acá y pasá un llavero por el lector"
+        placeholder="Hacé clic acá y pasá un llavero"
         value={texto} onChange={(e) => setTexto(e.target.value)} onKeyDown={alTeclear}
       />
       {prueba && (

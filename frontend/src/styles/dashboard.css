@@ -265,7 +265,9 @@
 .chart-card { padding: var(--aire-tarjeta); }
 .chart-title { margin-bottom: 0.75rem; font-size: var(--font-size-sm); color: var(--text-muted); }
 /* "septiembre en curso, al día 21": el último punto del gráfico no es un mes cerrado. */
-.chart-subtitle { font-weight: 400; font-size: var(--font-size-xs); margin-left: 0.4rem; }
+/* De un bloque: si no entra, baja entero al renglón de abajo (antes quedaba «al día» arriba y el
+   número solo abajo, 09/11/2026). */
+.chart-subtitle { font-weight: 400; font-size: var(--font-size-xs); margin-left: 0.4rem; display: inline-block; white-space: nowrap; }
 .chart-container { position: relative; height: 250px; }
 
 /* Estado vacío DENTRO de un gráfico: ocupa exactamente el mismo alto que el canvas,

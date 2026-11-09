@@ -92,11 +92,9 @@ export default function CheckinQrPanel({ puedeAdministrar }) {
     <div className="qr-panel">
       {/* Sin textos explicativos: el panel es de uso diario para quien ya sabe qué es el
           cartel. Los dos botones y el código dicen todo lo que hay que decir, y lo dicen
-          en un vistazo — que es como se mira una pantalla de mostrador. */}
-      <div className="qr-panel-head">
-        <h3><Icon name="qrCode" size="1em" /> Cartel de entrada</h3>
-      </div>
-
+          en un vistazo — que es como se mira una pantalla de mostrador.
+          Sin título ni marco propios: vive adentro de la ventana «Cartel de entrada», y los
+          dos repetían el nombre en un recuadro dentro de otro (09/11/2026). */}
       {cargando && <p className="text-muted">Cargando...</p>}
 
       {!cargando && !punto && (

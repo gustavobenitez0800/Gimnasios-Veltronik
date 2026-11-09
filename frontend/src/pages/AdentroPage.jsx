@@ -137,7 +137,7 @@ export default function AdentroPage() {
         <div className="table-header">
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="fileText" size="1em" /> Registro de hoy</h3>
           {/* El total real del día, no el largo de la lista recortada. */}
-          <span className="text-muted">{stats.totalToday} accesos</span>
+          <span className="text-muted">{stats.totalToday} {stats.totalToday === 1 ? 'acceso' : 'accesos'}</span>
         </div>
         <div className="table-container">
           <table className="table">

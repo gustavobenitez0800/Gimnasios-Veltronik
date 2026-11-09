@@ -38,14 +38,13 @@
 .member-name { font-weight: 600; }
 .member-dni { font-size: var(--font-size-sm); color: var(--text-muted); }
 
-/* Estado del socio en la búsqueda de acceso (activo/vencido), visible al instante */
+/* Lo que se dice del socio debajo de su DNI en la búsqueda: «Adentro desde…», «Pagó recién…»
+   (los colores, en mostrador.css). Cuánto le queda NO va acá: va a la derecha, una sola vez. */
 .member-access-status {
   display: inline-flex; align-items: center; gap: 0.35rem;
   margin-top: 0.35rem; font-size: var(--font-size-xs); font-weight: 700;
   padding: 0.15rem 0.55rem; border-radius: var(--border-radius-full);
 }
-.member-access-status.is-active { color: var(--success-500); background: color-mix(in srgb, var(--success-500) 12%, transparent); }
-.member-access-status.is-expired { color: var(--error-500); background: color-mix(in srgb, var(--error-500) 12%, transparent); }
 
 .search-result-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; flex-shrink: 0; }
 

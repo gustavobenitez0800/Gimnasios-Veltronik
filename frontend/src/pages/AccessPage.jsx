@@ -322,8 +322,10 @@ export default function AccessPage() {
             {/* `autoFocus` es el arranque; lo que lo mantiene es el efecto de más arriba.
                 `enterKeyHint` le pide al teclado del celular que la tecla diga "Enter" y no
                 "Buscar": lo que hace es registrar la entrada. `data-lector="vaciar"`: cuando
-                pasan un llavero, lo que escribió el lector (y lo de antes) no se queda acá. */}
-            <input type="text" className="search-input" placeholder="DNI o nombre y Enter, o pasá el llavero"
+                pasan un llavero, lo que escribió el lector (y lo de antes) no se queda acá.
+                ⚠️ El texto de ayuda tiene que entrar en un teléfono de 360 px: «…o pasá el
+                llavero» se cortaba (09/11/2026). */}
+            <input type="text" className="search-input" placeholder="DNI o nombre y Enter, o el llavero"
               ref={buscadorRef} autoFocus enterKeyHint="enter" data-lector="vaciar"
               value={searchQuery} onChange={e => handleSearch(e.target.value)}
               onKeyDown={alTeclear} />
@@ -395,7 +397,6 @@ export default function AccessPage() {
             <div className="search-results">
               {searchResults.map(member => {
                 const daysInfo = cuantoLeQueda(member);
-                const isExpired = daysInfo.type === 'expired';
                 const visita = visitaAbierta(member.id);
                 const adentro = !!visita;
                 return (
@@ -404,11 +405,9 @@ export default function AccessPage() {
                     <div className="member-info">
                       <div className="member-name">{member.fullName}</div>
                       <div className="member-dni">DNI: {member.dni || '-'}</div>
-                      {/* El estado, al instante y sin abrir nada: es lo que decide si hay que
-                          hablarle al socio antes de dejarlo pasar. */}
-                      <span className={`member-access-status ${isExpired ? 'is-expired' : 'is-active'}`}>
-                        {daysInfo.label}
-                      </span>
+                      {/* Cuánto le queda va UNA vez, a la derecha, junto al botón (09/11/2026).
+                          Estaba también acá, repetido y en otro color: «4d restantes» verde de
+                          este lado y amarillo del otro. */}
                       {adentro && (
                         <span className="member-access-status is-inside">
                           Adentro desde {horaDe(visita.checkInAt)}

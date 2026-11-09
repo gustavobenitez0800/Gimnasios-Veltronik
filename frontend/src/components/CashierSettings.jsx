@@ -96,7 +96,8 @@ export default function CashierSettings() {
         <input
           type="text" inputMode="numeric" maxLength={4} className="form-input" placeholder="PIN (4 números)"
           value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          style={{ width: 150 }} disabled={guardando}
+          // 170 y no 150: «PIN (4 números)» mide 157 con el relleno, y se leía «PIN (4 números».
+          style={{ width: 170 }} disabled={guardando}
         />
         <button
           className="btn btn-primary"

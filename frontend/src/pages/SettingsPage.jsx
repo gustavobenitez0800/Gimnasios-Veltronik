@@ -647,7 +647,9 @@ export default function SettingsPage({ SubscriptionActions }) {
                     <option value="ENCARGADO">Caja Madre (encargado)</option>
                   </select>
                 </div>
-                <button className="btn-primary" disabled={enrollBusy || !enrollForm.displayName.trim()}
+                {/* `btn` además de `btn-primary`: sin la base no tenía relleno ni forma, y se
+                    veía como un texto subrayado en azul (09/11/2026). */}
+                <button className="btn btn-primary" disabled={enrollBusy || !enrollForm.displayName.trim()}
                   onClick={() => setEnrollConfirm(true)}>
                   Enrolar esta computadora
                 </button>

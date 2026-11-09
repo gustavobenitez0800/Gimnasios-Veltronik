@@ -45,7 +45,8 @@
   letter-spacing: -0.03em;
   margin-bottom: 0.5rem;
 }
-.plans-hero-subtitle { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0; }
+/* `balance`: renglones parejos. Sin esto, «sistema» quedaba solo en el segundo renglón. */
+.plans-hero-subtitle { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0; text-wrap: balance; }
 
 /* Aviso "ya estás al día": la página de pago no expulsa a nadie, avisa y deja entrar
    con un click (ver el comentario de PlansPage: nunca redirigir solos desde acá). */
@@ -191,6 +192,27 @@
   top: var(--sidebar-margen);
   z-index: 40;
   background: var(--barra-fija);
+}
+
+/* La franjita de ARRIBA de la cabecera fija (09/11/2026): al bajar, lo que pasaba por detrás
+   asomaba en esos 12 px («+91,3% vs el promedio…» por encima de «Dashboard»). La tapa la misma
+   foto del fondo, fija a la pantalla (`fixed`): quieta no se nota, y lo de abajo ya no se lee.
+   No en el celular parado, que usa otra foto (base.css). Si cambia la foto, cambiarla acá. */
+@media not all and (max-width: 768px) and (orientation: portrait) {
+  .page-header::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    bottom: calc(100% + 1px);
+    height: calc(var(--sidebar-margen) + 1px);
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(5, 6, 9, 0.55) 100%) fixed,
+      linear-gradient(180deg, rgba(7, 9, 13, 0.60) 0%, rgba(7, 9, 13, 0.78) 100%) fixed,
+      url('../assets/fondo/gimnasio.webp') center / cover no-repeat fixed,
+      var(--bg-primary);
+  }
 }
 
 .page-header-info {

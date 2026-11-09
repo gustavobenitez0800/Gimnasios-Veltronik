@@ -254,9 +254,10 @@ function GymDashboard({ gym }) {
           para mirar el negocio, no para atender la puerta. */}
       {!CONFIG.IS_DESKTOP && (
       <div className="ai-section">
+        {/* «Cómo viene el negocio» y no «Inteligencia artificial · AI Powered» (09/11/2026): la
+            predicción es un promedio de los meses cerrados, no una IA, y el cartel lo prometía. */}
         <h2 className="ai-section-title">
-          <Icon name="brain" size="1.2em" /> Inteligencia artificial
-          <span className="ai-badge">AI Powered</span>
+          <Icon name="trendingUp" size="1.2em" /> Cómo viene el negocio
         </h2>
 
         <div className="dashboard-grid-3">

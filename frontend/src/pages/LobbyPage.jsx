@@ -71,6 +71,12 @@ const BLOCK_MESSAGES = {
   },
 };
 
+/** «Veltronik Premium» → «Premium»; «Veltronik» (el básico) → «Básico». */
+function nombreCortoDelPlan(nombre) {
+  const corto = String(nombre || '').replace(/^\s*Veltronik\b\s*/i, '').trim();
+  return corto || 'Básico';
+}
+
 // ============================================
 // LOBBY PAGE COMPONENT
 // ============================================
@@ -498,9 +504,12 @@ export default function LobbyPage() {
 
         {/* El precio de SU plan: hasta el 2026-09-22 decía el del básico en todas las
             tarjetas, aunque la sucursal pagara Premium. */}
+        {/* «Premium · $90.000/mes» y no «Veltronik Premium · …»: adentro de Veltronik la marca
+            sobra, y con ella el cartel se partía en dos renglones en unas tarjetas y en otras no
+            (09/11/2026). El básico se llama «Veltronik» en el catálogo: acá, «Básico». */}
         {accessStatus?.status !== 'trial' && (
           <div className="lobby-card-price">
-            {plan?.name ? `${plan.name} · ` : ''}${price.toLocaleString('es-AR')}/mes
+            {plan?.name ? `${nombreCortoDelPlan(plan.name)} · ` : ''}${price.toLocaleString('es-AR')}/mes
           </div>
         )}
       </div>

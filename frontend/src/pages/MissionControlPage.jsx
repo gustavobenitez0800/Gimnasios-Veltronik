@@ -97,7 +97,7 @@ export default function MissionControlPage() {
               </span>
               <input className="form-input" style={{ width: 110 }} placeholder="2.7.0"
                 value={inputs[ring]} onChange={(e) => setInputs((s) => ({ ...s, [ring]: e.target.value }))} />
-              <button className="btn-primary" disabled={busy} onClick={() => publish(ring)}>Publicar</button>
+              <button className="btn btn-primary" disabled={busy} onClick={() => publish(ring)}>Publicar</button>
             </span>
           </div>
         ))}

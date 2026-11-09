@@ -450,6 +450,8 @@
   color: var(--primary-400);
   margin-top: 0.25rem;
   border: 1px solid rgba(14, 165, 233, 0.2);
+  /* Un renglón siempre: partido en dos en unas tarjetas y no en otras, la fila quedaba despareja. */
+  white-space: nowrap;
 }
 
 /* ============================================

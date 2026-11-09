@@ -80,30 +80,11 @@
 }
 
 /* ============================================
-   CARTEL DEL QR — en Accesos
+   CARTEL DEL QR — en Accesos, adentro de la ventana «Cartel de entrada»
    ============================================
-   Va en la misma grilla que el resto del mostrador y ocupa el ancho completo. En pantalla
-   chica pasa a columna: la tablet del mostrador es lo más común después de la PC. */
-.qr-panel {
-  grid-column: 1 / -1;
-  background: var(--card-bg);
-  backdrop-filter: var(--card-backdrop);
-  -webkit-backdrop-filter: var(--card-backdrop);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-md);
-  padding: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-
-.qr-panel-head h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 700;
-  margin: 0 0 1rem;
-  color: var(--text-primary);
-}
+   Sin marco propio: la ventana ya es el recuadro (antes era un recuadro con título adentro de
+   otro con el mismo título). */
+.qr-panel { padding-top: 0.25rem; }
 
 /* Una sola columna centrada: los botones arriba y el código debajo, al medio. Antes era
    una fila (código a la izquierda, botones a la derecha) con textos explicativos que solo
