@@ -195,9 +195,14 @@ export function formatDate(date, options = {}) {
  * La hora de un momento, de 24: "17:26". Sin hourCycle, el ICU de algunas máquinas contesta
  * "05:26 p. m.", que en un mostrador argentino no lo escribe nadie. Vacío si no hay dato o no
  * se puede leer: nunca rompe la pantalla.
+ *
+ * 🔴 Un DÍA solo ("2026-11-09", sin hora) no tiene hora: vacío. `new Date('2026-11-09')` es la
+ * medianoche de Londres, las 21:00 del día ANTERIOR acá. Así, en Pagos, todos los cobros decían
+ * «21:00» (09/11/2026): la tabla le pasaba el día recortado en vez del momento del cobro.
  */
 export function horaDe(instante) {
   if (!instante) return '';
+  if (typeof instante === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(instante.trim())) return '';
   const d = new Date(instante);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });

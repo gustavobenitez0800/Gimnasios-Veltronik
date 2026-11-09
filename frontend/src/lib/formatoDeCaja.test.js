@@ -21,4 +21,10 @@ describe('la hora de un cobro', () => {
   it('sin fecha, nada', () => {
     expect(horaDelCobro(null)).toBe('');
   });
+
+  it('🔴 un día solo, sin hora, no es «21:00» (09/11/2026)', () => {
+    // `new Date('2026-11-09')` es la medianoche de Londres: las 21:00 del día anterior acá.
+    // Pagos le pasaba el día recortado y todos los cobros decían «21:00».
+    expect(horaDelCobro('2026-11-09')).toBe('');
+  });
 });

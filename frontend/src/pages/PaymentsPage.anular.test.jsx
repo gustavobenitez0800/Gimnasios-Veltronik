@@ -17,7 +17,9 @@ import { MemoryRouter } from 'react-router-dom';
 const PAGOS = [
   {
     id: 'p1', member_id: 'm1', member: { id: 'm1', fullName: 'Ana Gómez', dni: '30111222' },
-    amount: 45000, paymentDate: '2026-09-10', paymentMethod: 'cash', status: 'paid',
+    // Como lo arma el controlador: el día recortado y, aparte, el momento entero del cobro.
+    amount: 45000, paymentDate: '2026-09-10', paymentDateOriginal: '2026-09-10T18:15:42',
+    paymentMethod: 'cash', status: 'paid',
     notes: '', periodStart: null, periodEnd: null, importado: false, cerradoEnCaja: true,
   },
   {
@@ -120,6 +122,16 @@ describe('Pagos', () => {
     await clic(enviar);
     expect(anularPayment).toHaveBeenCalledWith('p1', { motivo: 'Era de otro socio', anuladoPor: 'Gustavo' });
     expect(toastEstable.showToast.mock.calls.at(-1)[0]).toContain('vuelve a vencer');
+  });
+
+  it('🔴 cada cobro con SU hora, no «21:00» todos (09/11/2026)', async () => {
+    // La fila le pasaba a la hora el día recortado ("2026-09-10"): medianoche de Londres, las
+    // 21:00 del día anterior acá. Se publicó así en la 2.6.57 y todos los cobros decían «21:00».
+    await pintar();
+    const fila = (nombre) => [...container.querySelectorAll('tr')].find((tr) => tr.textContent.includes(nombre));
+    expect(fila('Ana Gómez').querySelector('.cobro-hora')?.textContent).toBe('18:15');
+    // Sin el momento entero no se sabe la hora: no se inventa una.
+    expect(fila('Beto Ruiz').querySelector('.cobro-hora')).toBeNull();
   });
 
   it('avisa que un cobro ya cerrado en caja va a entrar como corrección si se edita', async () => {

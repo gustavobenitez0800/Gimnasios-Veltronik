@@ -632,9 +632,15 @@ export default function PaymentsPage() {
                       )}
                     </td>
                     <td data-label="Fecha" className="col-fecha">
-                      {formatDate(payment.paymentDate)}
-                      {/* La hora: para cruzarla con la cámara cuando la caja no cierra. */}
-                      {horaDelCobro(payment.paymentDate) && <span className="cobro-hora">{horaDelCobro(payment.paymentDate)}</span>}
+                      {/* Fecha y hora en UNA pieza: en el celular la fila reparte el ancho entre
+                          sus piezas, y la hora quedaba suelta contra el borde. */}
+                      <span>
+                        {formatDate(payment.paymentDate)}
+                        {/* La hora: para cruzarla con la cámara cuando la caja no cierra. Del MOMENTO
+                            del cobro (`paymentDateOriginal`): `paymentDate` acá es el día recortado,
+                            y con él todos los cobros decían «21:00» (09/11/2026). */}
+                        {horaDelCobro(payment.paymentDateOriginal) && <span className="cobro-hora">{horaDelCobro(payment.paymentDateOriginal)}</span>}
+                      </span>
                     </td>
                     <td data-label="Forma de pago" className="col-forma">{getMethodLabel(payment.paymentMethod)}</td>
                     <td data-label="Período" className="col-periodo">
