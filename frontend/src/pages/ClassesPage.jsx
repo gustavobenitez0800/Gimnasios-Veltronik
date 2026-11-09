@@ -18,6 +18,21 @@ import DaySelector from '../components/ui/DaySelector';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const COLORS = ['#0EA5E9', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+/** Para el lector de pantalla y el cartelito: un círculo de color no dice cuál es. */
+const NOMBRE_DEL_COLOR = {
+  '#0EA5E9': 'Celeste', '#22C55E': 'Verde', '#F59E0B': 'Naranja',
+  '#EF4444': 'Rojo', '#8B5CF6': 'Violeta', '#EC4899': 'Rosa',
+};
+
+/** Las clases de un día, de la más temprana a la más tarde (antes salían en el orden de carga:
+ *  el martes decía 09:00, 19:00 y después 18:00). */
+const porHora = (a, b) => String(a.start_time || '').localeCompare(String(b.start_time || ''));
+
+/** «de los lunes», «de los sábados»: cada clase es de UN día, y se borra solo ese. */
+const losDias = (dia) => {
+  const nombre = getDayName(dia).toLowerCase();
+  return nombre.endsWith('s') ? nombre : `${nombre}s`;
+};
 
 const INITIAL_FORM = {
   name: '', instructor: '', start_time: '', end_time: '',
@@ -112,7 +127,12 @@ export default function ClassesPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) { showToast('El nombre es requerido', 'error'); return; }
+    if (!form.name.trim()) { showToast('Poné el nombre de la clase', 'error'); return; }
+    // "08:00" contra "09:00": con dos cifras siempre, comparar el texto es comparar la hora.
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      showToast('La clase tiene que terminar después de la hora de inicio', 'warning');
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) {
@@ -132,17 +152,28 @@ export default function ClassesPage() {
           setSaving(false);
           return;
         }
-        for (const day of form.days_of_week) {
-          const data = { 
-            ...form, 
-            day_of_week: day, 
-            capacity: form.capacity !== '' ? parseInt(form.capacity) : 20 
-          };
-          delete data.days_of_week;
-          Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
-          await saveClass(data);
+        // Una clase por día. Si se corta a mitad, los días que ya se crearon salen de la
+        // selección: volver a tocar "Guardar" no los duplica.
+        const dias = [...form.days_of_week];
+        let hechos = 0;
+        try {
+          for (const day of dias) {
+            const data = {
+              ...form,
+              day_of_week: day,
+              capacity: form.capacity !== '' ? parseInt(form.capacity) : 20
+            };
+            delete data.days_of_week;
+            Object.keys(data).forEach((k) => { if (data[k] === '') data[k] = null; });
+            await saveClass(data);
+            hechos++;
+          }
+        } catch (error) {
+          if (hechos === 0) throw error;
+          setForm(f => ({ ...f, days_of_week: dias.slice(hechos) }));
+          throw new Error(`Se crearon ${hechos} de ${dias.length} días; quedaron marcados los que faltan. ${errorService.getMessage(error)}`);
         }
-        showToast('Clases creadas exitosamente', 'success');
+        showToast(dias.length === 1 ? 'Clase creada' : `Clase creada para ${dias.length} días`, 'success');
       }
 
       setModalOpen(false);
@@ -163,6 +194,7 @@ export default function ClassesPage() {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const aBorrar = deleteId ? classes.find((c) => c.id === deleteId) : null;
 
   return (
     <div className="classes-page">
@@ -172,15 +204,21 @@ export default function ClassesPage() {
       {/* La barra de la semana: como la de filtros, el encabezado ES la tarjeta. */}
       <div className="card card-barra mb-3">
         <div className="table-header">
-          <div className="calendar-nav">
-            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(-1)} aria-label="Semana anterior" title="Semana anterior">
-              <Icon name="chevronLeft" size="1em" />
-            </button>
-            <span className="current-week">{weekLabel}</span>
-            <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(1)} aria-label="Semana siguiente" title="Semana siguiente">
-              <Icon name="chevronRight" size="1em" />
-            </button>
-          </div>
+          {/* Las semanas solo en el calendario: la lista es la de todas las semanas, y ahí las
+              flechas no cambiaban nada (parecía que no andaban). */}
+          {view === 'calendar' ? (
+            <div className="calendar-nav">
+              <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(-1)} aria-label="Semana anterior" title="Semana anterior">
+                <Icon name="chevronLeft" size="1em" />
+              </button>
+              <span className="current-week">{weekLabel}</span>
+              <button className="btn btn-secondary btn-sm" onClick={() => changeWeek(1)} aria-label="Semana siguiente" title="Semana siguiente">
+                <Icon name="chevronRight" size="1em" />
+              </button>
+            </div>
+          ) : (
+            <span className="lista-todas-las-semanas">Se repiten todas las semanas</span>
+          )}
           <div className="view-toggle">
             <button className={`btn btn-sm ${view === 'calendar' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setView('calendar')}><Icon name="calendarEvent" size="1em" /> Calendario</button>
@@ -207,7 +245,7 @@ export default function ClassesPage() {
             {weekDates.map((date, i) => {
               const dayOfWeek = date.getDay();
               const isToday = date.getTime() === today.getTime();
-              const dayClasses = classes.filter(c => c.day_of_week === dayOfWeek && c.status === 'active');
+              const dayClasses = classes.filter(c => c.day_of_week === dayOfWeek && c.status === 'active').sort(porHora);
 
               return (
                 <div key={i} className="day-column">
@@ -216,15 +254,16 @@ export default function ClassesPage() {
                     <div className="day-date">{date.getDate()}/{date.getMonth() + 1}</div>
                   </div>
                   <div className="day-classes">
+                    {/* Un botón y no un <div>: con el teclado también se abre. */}
                     {dayClasses.length > 0 ? dayClasses.map(cls => (
-                      <div key={cls.id} className="class-card"
+                      <button type="button" key={cls.id} className="class-card"
                         style={{ borderLeftColor: cls.color || '#0EA5E9' }}
                         onClick={() => openDetail(cls)}>
-                        <div className="class-time">{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</div>
-                        <div className="class-name">{cls.name}</div>
-                        <div className="class-instructor">{cls.instructor || 'Sin instructor'}</div>
-                        <div className="class-spots available"><Icon name="users" size="0.9em" /> {cls.capacity || 20} cupos</div>
-                      </div>
+                        <span className="class-time">{formatTime(cls.start_time)} - {formatTime(cls.end_time)}</span>
+                        <span className="class-name">{cls.name}</span>
+                        <span className="class-instructor">{cls.instructor || 'Sin instructor'}</span>
+                        <span className="class-spots available"><Icon name="users" size="0.9em" /> {cls.capacity || 20} cupos</span>
+                      </button>
                     )) : <div className="no-classes">Sin clases</div>}
                   </div>
                 </div>
@@ -305,6 +344,7 @@ export default function ClassesPage() {
               <div className="form-group full-width">
                 <label className="form-label">Días de la semana *</label>
                 <DaySelector
+                  ayuda="Elegí los días de la clase: se crea una por cada día"
                   selectedDays={form.days_of_week || []}
                   onChange={(days) => setForm(f => ({ ...f, days_of_week: days }))}
                 />
@@ -332,10 +372,11 @@ export default function ClassesPage() {
             </div>
             <div className="form-group full-width">
               <label className="form-label">Color</label>
-              <div className="class-color-picker">
+              <div className="class-color-picker" role="group" aria-label="Color de la clase">
                 {COLORS.map(c => (
-                  <div key={c} className={`color-option ${form.color === c ? 'selected' : ''}`}
-                    style={{ background: c }} onClick={() => setForm(f => ({ ...f, color: c }))} />
+                  <button type="button" key={c} className={`color-option ${form.color === c ? 'selected' : ''}`}
+                    style={{ background: c }} title={NOMBRE_DEL_COLOR[c]} aria-label={NOMBRE_DEL_COLOR[c]}
+                    aria-pressed={form.color === c} onClick={() => setForm(f => ({ ...f, color: c }))} />
                 ))}
               </div>
             </div>
@@ -381,7 +422,9 @@ export default function ClassesPage() {
         )}
       </Modal>
 
-      <ConfirmDialog open={!!deleteId} title="Eliminar clase" message="¿Estás seguro de eliminar esta clase?"
+      <ConfirmDialog open={!!deleteId} title="Eliminar clase" message={aBorrar
+        ? `Se borra «${aBorrar.name}» de los ${losDias(aBorrar.day_of_week)} de ${formatTime(aBorrar.start_time)} a ${formatTime(aBorrar.end_time)}. Las de los otros días quedan como están.`
+        : '¿Eliminar esta clase?'}
         icon="trash" confirmText="Eliminar" confirmClass="btn-danger" onConfirm={handleDelete} onCancel={() => setDeleteId(null)} />
     </div>
   );

@@ -14,8 +14,12 @@ const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Lunes a Domingo
  * @param {number[]} selectedDays — Array de índices de días seleccionados
  * @param {Function} onChange — Callback con el nuevo array de días
  * @param {boolean} readOnly — Si es solo lectura (muestra pills sin interacción)
+ * @param {string} ayuda — Lo que dice abajo mientras no hay ningún día elegido. El de siempre es
+ *   el del socio; Clases pasa el suyo (decía «los días que asistirá el socio» en una clase).
  */
-export default function DaySelector({ selectedDays = [], onChange, readOnly = false }) {
+export default function DaySelector({
+  selectedDays = [], onChange, readOnly = false, ayuda = 'Seleccioná los días que asistirá el socio',
+}) {
   const toggleDay = (day) => {
     if (readOnly) return;
     const newDays = selectedDays.includes(day)
@@ -47,21 +51,26 @@ export default function DaySelector({ selectedDays = [], onChange, readOnly = fa
 
   return (
     <>
-      <div className="days-selector">
+      {/* Botones y no <div>: se eligen también con el teclado, y el lector de pantalla dice el
+          día entero ("Miércoles", no "X") y si está elegido. */}
+      <div className="days-selector" role="group" aria-label="Días de la semana">
         {DAY_ORDER.map((day) => (
-          <div
+          <button
+            type="button"
             key={day}
             className={`day-option ${selectedDays.includes(day) ? 'selected' : ''}`}
             onClick={() => toggleDay(day)}
             title={DAY_NAMES[day]}
+            aria-label={DAY_NAMES[day]}
+            aria-pressed={selectedDays.includes(day)}
           >
             {DAY_LETTERS[day]}
-          </div>
+          </button>
         ))}
       </div>
       <div className="days-summary">
         {selectedDays.length === 0
-          ? 'Seleccioná los días que asistirá el socio'
+          ? ayuda
           : `${selectedDays.length} día${selectedDays.length > 1 ? 's' : ''} seleccionado${selectedDays.length > 1 ? 's' : ''}`}
       </div>
     </>

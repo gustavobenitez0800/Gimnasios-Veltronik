@@ -26,7 +26,15 @@
 
 .day-classes { display: flex; flex-direction: column; gap: 0.5rem; min-height: 200px; }
 
+/* Es un <button> (se abre con el teclado): sin esto toma el borde, la letra y el color del
+   navegador — los <button> no heredan el color. */
 .class-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: 0;
   background: var(--bg-secondary);
   border-radius: var(--border-radius-md);
   padding: 0.75rem;
@@ -35,29 +43,32 @@
   transition: all var(--transition-fast);
 }
 .class-card:hover { transform: translateX(4px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.class-time { font-size: var(--font-size-xs); color: var(--primary-400); font-weight: 600; margin-bottom: 0.25rem; }
-.class-name { font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 0.25rem; }
-.class-instructor { font-size: var(--font-size-xs); color: var(--text-muted); }
+.class-time { display: block; font-size: var(--font-size-xs); color: var(--primary-400); font-weight: 600; margin-bottom: 0.25rem; }
+.class-name { display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 0.25rem; }
+.class-instructor { display: block; font-size: var(--font-size-xs); color: var(--text-muted); }
 .class-spots { display: flex; align-items: center; gap: 0.25rem; font-size: var(--font-size-xs); color: var(--text-muted); margin-top: 0.5rem; }
 .class-spots.available { color: var(--success-500); }
 .no-classes { text-align: center; padding: 2rem; color: var(--text-muted); font-size: var(--font-size-xs); }
 
 .class-color-picker { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 .color-option {
-  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer; padding: 0;
   border: 3px solid transparent; transition: all var(--transition-fast);
 }
 .color-option:hover, .color-option.selected { border-color: white; transform: scale(1.1); }
 
 .calendar-nav { display: flex; align-items: center; gap: 1rem; }
 .current-week { font-size: var(--font-size-lg); font-weight: 600; }
+.lista-todas-las-semanas { color: var(--text-muted); font-size: var(--font-size-sm); }
 .view-toggle { display: flex; gap: 0.5rem; }
 
+/* Con menos ancho los días bajan de renglón; NUNCA se esconden. Antes, de 1024 px para abajo
+   viernes, sábado y domingo desaparecían (y en el celular quedaban solo lunes y martes), sin
+   ninguna forma de verlos: las flechas cambian de semana, no de día (09/11/2026). */
 @media (max-width: 1024px) {
   .weekly-calendar { grid-template-columns: repeat(4, 1fr); }
-  .day-column:nth-child(n+5) { display: none; }
 }
 @media (max-width: 768px) {
+  /* De a dos; en un teléfono chico, uno abajo del otro (responsive-celular.css). */
   .weekly-calendar { grid-template-columns: repeat(2, 1fr); }
-  .day-column:nth-child(n+3) { display: none; }
 }
